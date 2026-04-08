@@ -2,11 +2,17 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { getAppById } from "@/config/apps";
+import { hasEnvVars } from "@/lib/utils";
 
 export async function getAuthenticatedFrameUrl(appId: string) {
+  const app = getAppById(appId)!;
+
+  if (!hasEnvVars) {
+    return app.upstreamUrl;
+  }
+
   const supabase = await createClient();
   const { data } = await supabase.auth.getSession();
-  const app = getAppById(appId)!;
 
   if (!data.session) {
     return app.upstreamUrl;
