@@ -17,17 +17,3 @@ export interface AppConfig {
   color: string;
   navLinks: NavLink[];
 }
-
-export interface AppNavigationItem {
-  id: string;
-  name: string;
-  href: string;
-  icon: React.ComponentType<{ className?: string }>;
-}
-
-export interface AppStatus {
-  id: string;
-  isLoading: boolean;
-  hasError: boolean;
-  lastAccessed?: Date;
-}

@@ -5,15 +5,6 @@ export interface NavbarProps {
   isMobileMenuOpen: boolean;
 }
 
-export interface SidebarProps {
-  isOpen: boolean;
-  onClose: () => void;
-}
-
-export interface FooterProps {
-  className?: string;
-}
-
 export interface ShellProviderProps {
   children: React.ReactNode;
   sidebar: React.ReactNode;
