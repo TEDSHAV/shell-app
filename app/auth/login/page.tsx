@@ -7,7 +7,7 @@ export default function Page() {
       <div className="hidden lg:flex lg:flex-1 bg-muted/40 border-r border-border flex-col justify-between p-10">
         <div className="flex items-center gap-2">
           <div className="h-6 w-6 rounded-md bg-foreground" />
-          <span className="font-semibold text-sm">Portal Empresarial</span>
+          <span className="font-semibold text-sm">PRISMA | SHA de Venezuela</span>
         </div>
         <div className="space-y-6">
           {apps.map((app) => (

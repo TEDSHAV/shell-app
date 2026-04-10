@@ -13,7 +13,7 @@ export const AppBreadcrumb = () => {
         href="/dashboard"
         className="font-semibold text-foreground hover:text-foreground/80 transition-colors"
       >
-        Portal
+        PRISMA
       </Link>
       {currentApp && (
         <>
