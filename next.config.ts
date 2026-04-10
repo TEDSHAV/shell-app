@@ -1,10 +1,12 @@
 import type { NextConfig } from "next";
 
 const NEGOCIOS_URL =
+  process.env.NEGOCIOS_INTERNAL_URL ||
   process.env.NEXT_PUBLIC_NEGOCIOS_URL ||
   "https://negocios.shadevenezuela.com.ve";
 
 const CAPACITACION_URL =
+  process.env.CAPACITACION_INTERNAL_URL ||
   process.env.NEXT_PUBLIC_CAPACITACION_URL ||
   "https://capacitacion.shadevenezuela.com.ve";
 
