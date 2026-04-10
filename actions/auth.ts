@@ -17,7 +17,16 @@ export async function signInAction(state: { error: string } | null, formData: Fo
     return { error: "Email and password are required" };
   }
 
-  const supabase = await createClient();
+  // Basic email validation to prevent unnecessary API calls
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    return { error: "Invalid email format" };
+  }
+
+  // Create client and sign in in parallel where possible
+  const [supabase] = await Promise.all([
+    createClient()
+  ]);
   
   const { error } = await supabase.auth.signInWithPassword({
     email,

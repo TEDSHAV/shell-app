@@ -4,7 +4,7 @@ import { ThemeProvider } from "next-themes";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Portal Empresarial",
+  title: "SHA de Venezuela",
   description: "Portal centralizado de aplicaciones",
 };
 
