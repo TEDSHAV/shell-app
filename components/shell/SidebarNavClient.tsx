@@ -13,10 +13,10 @@ function isNavGroup(item: NavLink | NavGroup): item is NavGroup {
 }
 
 interface SidebarNavClientProps {
-  userRolesByApp: Record<string, string>;
+  userPermsByApp: Record<string, string[]>;
 }
 
-export function SidebarNavClient({ userRolesByApp }: SidebarNavClientProps) {
+export function SidebarNavClient({ userPermsByApp }: SidebarNavClientProps) {
   const pathname = usePathname();
   const currentApp = getAppByPath(pathname);
   const { onClose } = useMobileSidebar();
@@ -88,12 +88,11 @@ export function SidebarNavClient({ userRolesByApp }: SidebarNavClientProps) {
     );
   };
 
-  const userRole = (userRolesByApp[currentApp.id] ?? "").toLowerCase();
+  const userPerms = userPermsByApp[currentApp.id] ?? [];
 
   const canAccess = (link: NavLink): boolean => {
-    if (!link.allowedRoles) return true;
-    if (!userRole) return false;
-    return link.allowedRoles.some((r) => r.toLowerCase() === userRole);
+    if (!link.requiredPermissions || link.requiredPermissions.length === 0) return true;
+    return link.requiredPermissions.some((p) => userPerms.includes(p));
   };
 
   const filteredItems = currentApp.navLinks

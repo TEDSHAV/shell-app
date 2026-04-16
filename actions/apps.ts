@@ -20,7 +20,7 @@ export async function getUserRole(): Promise<string> {
   );
 }
 
-export async function getUserRolesByApp(): Promise<Record<string, string>> {
+export async function getUserPermissionsByApp(): Promise<Record<string, string[]>> {
   try {
     const supabase = await createClient();
 
@@ -35,16 +35,15 @@ export async function getUserRolesByApp(): Promise<Record<string, string>> {
 
     if (usuarioError || !usuario) return {};
 
-    const { data: userRoles, error: rolesError } = await supabase
-      .rpc("get_user_roles_by_app", { p_usuario_id: usuario.id });
+    const { data: rows, error } = await supabase
+      .rpc("get_user_permissions_by_app", { p_usuario_id: usuario.id });
 
-    if (rolesError || !userRoles) return {};
+    if (error || !rows) return {};
 
-    const result: Record<string, string> = {};
-    for (const row of userRoles as { app_slug: string; role_slug: string }[]) {
-      if (row.app_slug && row.role_slug) {
-        result[row.app_slug] = row.role_slug;
-      }
+    const result: Record<string, string[]> = {};
+    for (const row of rows as { app_slug: string; permission_slug: string }[]) {
+      if (!result[row.app_slug]) result[row.app_slug] = [];
+      result[row.app_slug].push(row.permission_slug);
     }
 
     return result;
