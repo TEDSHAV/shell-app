@@ -12,6 +12,13 @@ export interface NavGroup {
   links: NavLink[];
 }
 
+export interface AppBadge {
+  bg: string;
+  text: string;
+  border: string;
+  dot: string;
+}
+
 export interface AppConfig {
   id: string;
   dbSlug?: string;
@@ -21,5 +28,6 @@ export interface AppConfig {
   upstreamUrl: string;
   icon: LucideIcon;
   color: string;
+  badge: AppBadge;
   navLinks: (NavLink | NavGroup)[];
 }

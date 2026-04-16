@@ -40,6 +40,12 @@ export const apps: AppConfig[] = [
       "https://gestion.shadevenezuela.com.ve",
     icon: Briefcase,
     color: "text-blue-500",
+    badge: {
+      bg: "bg-blue-50",
+      text: "text-blue-700",
+      border: "border-blue-200",
+      dot: "bg-blue-500",
+    },
     navLinks: [
       {
         groupLabel: "Directorio",
@@ -84,6 +90,12 @@ export const apps: AppConfig[] = [
       "https://capacitacion.shadevenezuela.com.ve",
     icon: GraduationCap,
     color: "text-emerald-500",
+    badge: {
+      bg: "bg-emerald-50",
+      text: "text-emerald-700",
+      border: "border-emerald-200",
+      dot: "bg-emerald-500",
+    },
     navLinks: [
       { label: "Dashboard", path: "/", icon: LayoutDashboard },
       { label: "Gestión de Cursos", path: "/dashboard/capacitacion/gestion-cursos", icon: BookOpen, requiredPermissions: ["scapacitacion:all:access"] },
@@ -108,4 +120,8 @@ export function getAppByPath(pathname: string): AppConfig | undefined {
 
 export function getAppById(id: string): AppConfig | undefined {
   return apps.find((app) => app.id === id);
+}
+
+export function getAppByDbSlug(slug: string): AppConfig | undefined {
+  return apps.find((app) => (app.dbSlug ?? app.id) === slug);
 }

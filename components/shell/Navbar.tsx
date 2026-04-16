@@ -4,7 +4,6 @@ import logo from "@/app/logo.png";
 import { AppBreadcrumb } from "./AppBreadcrumb";
 import { AppNavigation } from "./AppNavigation";
 import { UserMenu } from "./UserMenu";
-import { ThemeSwitcher } from "@/components/theme-switcher";
 import { NotificationsBell } from "./NotificationsBell";
 import { NavbarProps } from "@/types";
 
@@ -14,10 +13,10 @@ export const Navbar = ({
   isMobileMenuOpen,
 }: NavbarProps) => {
   return (
-    <header className="h-14 border-b border-blue-900/40 flex items-center px-4 gap-3 sticky top-0 z-40" style={{ backgroundColor: 'var(--primary-blue)' }}>
+    <header className="h-14 border-b border-gray-200 bg-white flex items-center px-4 gap-3 sticky top-0 z-40 shadow-sm">
       <button
         onClick={onMobileMenuToggle}
-        className="lg:hidden p-2 -ml-1 rounded-md hover:bg-white/10 transition-colors text-white"
+        className="lg:hidden p-2 -ml-1 rounded-md hover:bg-gray-100 transition-colors text-gray-600"
         aria-label="Toggle menu"
       >
         {isMobileMenuOpen ? (
@@ -37,13 +36,12 @@ export const Navbar = ({
         />
       </div>
 
-      <div className="hidden md:block w-px h-5 bg-blue-300/20 shrink-0" />
+      <div className="hidden md:block w-px h-5 bg-gray-200 shrink-0" />
 
       <AppBreadcrumb />
 
       <div className="ml-auto flex items-center gap-2">
         <AppNavigation />
-        <ThemeSwitcher />
         <NotificationsBell />
         {userEmail && <UserMenu userEmail={userEmail} />}
       </div>

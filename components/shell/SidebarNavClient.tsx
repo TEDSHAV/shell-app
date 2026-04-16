@@ -26,10 +26,10 @@ export function SidebarNavClient({ userPermsByApp }: SidebarNavClientProps) {
       href="/dashboard"
       onClick={onClose}
       className={cn(
-        "flex items-center gap-2.5 px-3 py-2 rounded-md text-sm font-medium transition-colors sidebar-link",
+        "flex items-center gap-2.5 px-3 py-2 rounded-md text-sm font-medium transition-all sidebar-link",
         pathname === "/dashboard"
-          ? "sidebar-neon-active bg-white/10 text-white"
-          : "text-blue-100/70 hover:text-white hover:bg-white/10"
+          ? "bg-slate-700/70 text-white"
+          : "text-slate-400 hover:text-slate-100 hover:bg-slate-800"
       )}
     >
       <Home className="h-4 w-4 shrink-0" />
@@ -42,7 +42,7 @@ export function SidebarNavClient({ userPermsByApp }: SidebarNavClientProps) {
       <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1 sidebar-scrollbar">
         {homeLink}
         <div className="pt-2 pb-1 px-3">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-blue-200/50">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
             Aplicaciones
           </span>
         </div>
@@ -51,7 +51,7 @@ export function SidebarNavClient({ userPermsByApp }: SidebarNavClientProps) {
             key={app.id}
             href={app.basePath}
             onClick={onClose}
-            className="flex items-center gap-2.5 px-3 py-2 rounded-md text-sm font-medium transition-colors sidebar-link text-blue-100/70 hover:text-white hover:bg-white/10"
+            className="flex items-center gap-2.5 px-3 py-2 rounded-md text-sm font-medium transition-all sidebar-link text-slate-400 hover:text-slate-100 hover:bg-slate-800"
           >
             <app.icon className={cn("h-4 w-4 shrink-0", app.color)} />
             {app.name}
@@ -76,10 +76,10 @@ export function SidebarNavClient({ userPermsByApp }: SidebarNavClientProps) {
         onClick={onClose}
         prefetch={false}
         className={cn(
-          "flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors sidebar-link",
+          "relative flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-all sidebar-link",
           isActive
-            ? "sidebar-neon-active bg-white/10 text-white"
-            : "text-blue-100/70 hover:text-white hover:bg-white/10"
+            ? "bg-slate-700/70 text-white font-medium"
+            : "text-slate-400 hover:text-slate-100 hover:bg-slate-800"
         )}
       >
         <link.icon className="h-3.5 w-3.5 shrink-0" />
@@ -112,7 +112,7 @@ export function SidebarNavClient({ userPermsByApp }: SidebarNavClientProps) {
     <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1 sidebar-scrollbar">
       {homeLink}
       <div className="pt-2 pb-1 px-3">
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-blue-200/50">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
           {currentApp.name}
         </span>
       </div>
@@ -121,7 +121,7 @@ export function SidebarNavClient({ userPermsByApp }: SidebarNavClientProps) {
           return (
             <div key={item.groupLabel}>
               <div className="pt-3 pb-1 px-3">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-blue-200/50">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
                   {item.groupLabel}
                 </span>
               </div>

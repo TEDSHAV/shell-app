@@ -17,8 +17,8 @@ export const AppNavigation = () => {
           className={cn(
             "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors",
             pathname.startsWith(app.basePath)
-              ? "bg-white/15 text-white"
-              : "text-blue-100/70 hover:text-white hover:bg-white/10"
+              ? cn("border font-medium", app.badge.bg, app.badge.text, app.badge.border)
+              : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
           )}
         >
           <app.icon className="h-3.5 w-3.5" />
