@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Bell } from "lucide-react";
+import { Bell, ArrowRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { InboxNotification } from "@/types";
@@ -14,6 +14,7 @@ export function NotificationsBell() {
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  const [totalCount, setTotalCount] = useState(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -22,14 +23,27 @@ export function NotificationsBell() {
 
   const fetchNotifications = useCallback(async (uid: string) => {
     const supabase = createClient();
+
+    // Get total count
+    const { count } = await supabase
+      .schema("notify")
+      .from("inbox")
+      .select("*", { count: "exact", head: true })
+      .eq("recipient_id_auth", uid);
+
+    if (count !== null) setTotalCount(count);
+
+    // Fetch limited notifications
     const { data } = await supabase
       .schema("notify")
       .from("inbox")
-      .select("id, title, body, link_path, read_at, created_at, priority, app_slug, event_key")
+      .select(
+        "id, title, body, link_path, read_at, created_at, priority, app_slug, event_key",
+      )
       .eq("recipient_id_auth", uid)
       .order("read_at", { ascending: true, nullsFirst: true })
       .order("created_at", { ascending: false })
-      .limit(30);
+      .limit(10);
 
     if (data) setNotifications(data as InboxNotification[]);
     setLoading(false);
@@ -63,8 +77,12 @@ export function NotificationsBell() {
           filter: `recipient_id_auth=eq.${userId}`,
         },
         (payload) => {
-          setNotifications((prev) => [payload.new as InboxNotification, ...prev]);
-        }
+          setNotifications((prev) => [
+            payload.new as InboxNotification,
+            ...prev,
+          ]);
+          setTotalCount((prev) => prev + 1);
+        },
       )
       .on(
         "postgres_changes",
@@ -79,10 +97,10 @@ export function NotificationsBell() {
             prev.map((n) =>
               n.id === (payload.new as InboxNotification).id
                 ? (payload.new as InboxNotification)
-                : n
-            )
+                : n,
+            ),
           );
-        }
+        },
       )
       .subscribe();
 
@@ -93,7 +111,10 @@ export function NotificationsBell() {
 
   useEffect(() => {
     const mouseHandler = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node)
+      ) {
         setOpen(false);
       }
     };
@@ -112,8 +133,10 @@ export function NotificationsBell() {
       await markAsRead(notification.id);
       setNotifications((prev) =>
         prev.map((n) =>
-          n.id === notification.id ? { ...n, read_at: new Date().toISOString() } : n
-        )
+          n.id === notification.id
+            ? { ...n, read_at: new Date().toISOString() }
+            : n,
+        ),
       );
     }
     if (notification.link_path) {
@@ -131,7 +154,7 @@ export function NotificationsBell() {
     await markAllAsRead();
     const now = new Date().toISOString();
     setNotifications((prev) =>
-      prev.map((n) => ({ ...n, read_at: n.read_at ?? now }))
+      prev.map((n) => ({ ...n, read_at: n.read_at ?? now })),
     );
   };
 
@@ -141,7 +164,7 @@ export function NotificationsBell() {
         onClick={() => setOpen((v) => !v)}
         className={cn(
           "relative p-2 rounded-md transition-colors text-slate-500 hover:text-slate-900 hover:bg-slate-100",
-          open && "bg-slate-100 text-slate-900"
+          open && "bg-slate-100 text-slate-900",
         )}
         aria-label="Notificaciones"
       >
@@ -154,10 +177,7 @@ export function NotificationsBell() {
       </button>
 
       {open && (
-        <div
-          className="fixed inset-0 z-40"
-          onClick={() => setOpen(false)}
-        />
+        <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
       )}
 
       {open && (
@@ -167,16 +187,17 @@ export function NotificationsBell() {
           onKeyDown={(e) => e.key === "Escape" && setOpen(false)}
           className="absolute right-0 mt-1 w-[340px] rounded-xl border border-gray-200 bg-white shadow-xl z-50 overflow-hidden outline-none"
         >
-
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-100">
             <div className="flex items-center gap-2">
               <Bell className="h-3.5 w-3.5 text-gray-400" />
-              <span className="text-sm font-semibold text-gray-700">Notificaciones</span>
+              <span className="text-sm font-semibold text-gray-700">
+                Notificaciones
+              </span>
               {unreadCount > 0 && (
                 <span
                   className="inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full text-[10px] font-bold text-white"
-                  style={{ backgroundColor: 'var(--primary-blue)' }}
+                  style={{ backgroundColor: "var(--primary-blue)" }}
                 >
                   {unreadCount}
                 </span>
@@ -203,7 +224,9 @@ export function NotificationsBell() {
                 <div className="p-3 rounded-full bg-gray-100">
                   <Bell className="h-5 w-5 text-gray-300" />
                 </div>
-                <span className="text-xs text-gray-400">Sin notificaciones</span>
+                <span className="text-xs text-gray-400">
+                  Sin notificaciones
+                </span>
               </div>
             ) : (
               notifications.map((n) => {
@@ -215,14 +238,14 @@ export function NotificationsBell() {
                     onClick={() => handleNotificationClick(n)}
                     className={cn(
                       "w-full text-left px-4 py-3 transition-colors hover:bg-gray-50 flex items-start gap-3",
-                      isUnread && "bg-blue-50/40"
+                      isUnread && "bg-blue-50/40",
                     )}
                   >
                     {/* Left: app color bar */}
                     <div
                       className={cn(
                         "mt-1 flex-shrink-0 w-1 self-stretch rounded-full",
-                        originApp ? originApp.badge.dot : "bg-gray-200"
+                        originApp ? originApp.badge.dot : "bg-gray-200",
                       )}
                     />
 
@@ -235,7 +258,7 @@ export function NotificationsBell() {
                               "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold border",
                               originApp.badge.bg,
                               originApp.badge.text,
-                              originApp.badge.border
+                              originApp.badge.border,
                             )}
                           >
                             <originApp.icon className="h-2.5 w-2.5" />
@@ -257,10 +280,14 @@ export function NotificationsBell() {
                       </div>
 
                       {/* Title */}
-                      <p className={cn(
-                        "text-xs leading-snug",
-                        isUnread ? "font-semibold text-gray-800" : "font-medium text-gray-500"
-                      )}>
+                      <p
+                        className={cn(
+                          "text-xs leading-snug",
+                          isUnread
+                            ? "font-semibold text-gray-800"
+                            : "font-medium text-gray-500",
+                        )}
+                      >
                         {n.title}
                       </p>
 
@@ -274,16 +301,36 @@ export function NotificationsBell() {
 
                     {/* Unread dot */}
                     {isUnread && (
-                      <span className={cn(
-                        "mt-1.5 flex-shrink-0 h-1.5 w-1.5 rounded-full",
-                        originApp ? originApp.badge.dot : "bg-blue-500"
-                      )} />
+                      <span
+                        className={cn(
+                          "mt-1.5 flex-shrink-0 h-1.5 w-1.5 rounded-full",
+                          originApp ? originApp.badge.dot : "bg-blue-500",
+                        )}
+                      />
                     )}
                   </button>
                 );
               })
             )}
           </div>
+
+          {/* Footer */}
+          {!loading && notifications.length > 0 && (
+            <div className="border-t border-gray-100 bg-gray-50 px-4 py-2">
+              <button
+                onClick={() => {
+                  router.push("/notifications");
+                  setOpen(false);
+                }}
+                className="w-full flex items-center justify-center gap-2 text-xs text-gray-500 hover:text-gray-700 transition-colors py-1.5"
+              >
+                {totalCount > 10
+                  ? `Ver ${totalCount} notificaciones`
+                  : "Ver todas las notificaciones"}
+                <ArrowRight className="h-3 w-3" />
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
