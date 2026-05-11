@@ -10,7 +10,7 @@ const NegociosSubPage = async ({
   const { path } = await params;
   const app = getAppById("negocios")!;
   const frameSrc = await getFrameUrl("negocios", path.join("/"));
-  return <AppFrame src={frameSrc} title={app.name} />;
+  return <AppFrame appId={app.id} src={frameSrc} title={app.name} />;
 };
 
 export default NegociosSubPage;

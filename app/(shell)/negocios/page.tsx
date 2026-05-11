@@ -6,7 +6,7 @@ const NegociosPage = async () => {
   const app = getAppById("negocios")!;
   const frameSrc = await getFrameUrl("negocios");
 
-  return <AppFrame src={frameSrc} title={app.name} />;
+  return <AppFrame appId={app.id} src={frameSrc} title={app.name} />;
 };
 
 export default NegociosPage;

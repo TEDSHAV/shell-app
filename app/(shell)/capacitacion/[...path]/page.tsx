@@ -10,7 +10,7 @@ const CapacitacionSubPage = async ({
   const { path } = await params;
   const app = getAppById("capacitacion")!;
   const frameSrc = await getFrameUrl("capacitacion", path.join("/"));
-  return <AppFrame src={frameSrc} title={app.name} />;
+  return <AppFrame appId={app.id} src={frameSrc} title={app.name} />;
 };
 
 export default CapacitacionSubPage;

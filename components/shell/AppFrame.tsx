@@ -1,13 +1,92 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { AppFrameProps } from "@/types";
 
-export function AppFrame({ src, title }: AppFrameProps) {
+const AUTH_REQUIRED_EVENT = "SHA_AUTH_REQUIRED";
+const AUTH_REQUIRED_ACK_EVENT = "SHA_AUTH_ACK";
+const DEFAULT_LOGIN_URL = "https://prisma.shadevenezuela.com.ve/auth/login";
+
+type AuthRequiredMessage = {
+  type?: string;
+  appId?: string;
+  reason?: string;
+  currentPath?: string;
+  ts?: number;
+};
+
+export function AppFrame({ appId, src, title }: AppFrameProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const redirectInFlightRef = useRef(false);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
+
+  const expectedOrigin = useMemo(() => {
+    try {
+      return new URL(src).origin;
+    } catch {
+      return null;
+    }
+  }, [src]);
+
+  const redirectToLogin = useCallback(() => {
+    if (redirectInFlightRef.current) {
+      return;
+    }
+    redirectInFlightRef.current = true;
+    const loginBase = process.env.NEXT_PUBLIC_SHELL_LOGIN_URL || DEFAULT_LOGIN_URL;
+    const nextPath = `${window.location.pathname}${window.location.search}`;
+    try {
+      const loginUrl = new URL(loginBase);
+      loginUrl.searchParams.set("next", nextPath);
+      window.location.assign(loginUrl.toString());
+    } catch {
+      const separator = loginBase.includes("?") ? "&" : "?";
+      window.location.assign(
+        `${loginBase}${separator}next=${encodeURIComponent(nextPath)}`,
+      );
+    }
+  }, []);
+
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      const iframeWindow = iframeRef.current?.contentWindow;
+      if (!iframeWindow || event.source !== iframeWindow) {
+        return;
+      }
+      if (expectedOrigin && event.origin !== expectedOrigin) {
+        return;
+      }
+      const data = event.data as AuthRequiredMessage | null;
+      if (!data || data.type !== AUTH_REQUIRED_EVENT) {
+        return;
+      }
+      if (data.appId && data.appId !== appId) {
+        return;
+      }
+
+      try {
+        iframeWindow.postMessage(
+          {
+            type: AUTH_REQUIRED_ACK_EVENT,
+            appId,
+            ts: Date.now(),
+          },
+          event.origin,
+        );
+      } catch {
+        // Ignore ack errors; redirect still must happen.
+      }
+
+      redirectToLogin();
+    };
+
+    window.addEventListener("message", onMessage);
+    return () => {
+      window.removeEventListener("message", onMessage);
+    };
+  }, [appId, expectedOrigin, redirectToLogin]);
 
   return (
     <div className="flex-1 min-h-0 h-full">

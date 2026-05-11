@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { apps } from "@/config/apps";
-import { NavLink, NavGroup, AppConfig } from "@/types";
+import { NavLink, NavGroup } from "@/types";
 import { ArrowRight } from "lucide-react";
 
 function flattenNavLinks(navLinks: (NavLink | NavGroup)[]): NavLink[] {

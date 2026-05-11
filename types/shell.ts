@@ -12,6 +12,7 @@ export interface ShellProviderProps {
 }
 
 export interface AppFrameProps {
+  appId: string;
   src: string;
   title: string;
 }

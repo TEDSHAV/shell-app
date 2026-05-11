@@ -4,7 +4,6 @@ import {
   LayoutDashboard,
   Users,
   BarChart2,
-  Settings,
   BookOpen,
   ClipboardList,
   Award,
@@ -27,7 +26,6 @@ import {
   Receipt,
   Cloud,
   Calendar,
-  Construction,
 } from "lucide-react";
 import { AppConfig } from "@/types";
 

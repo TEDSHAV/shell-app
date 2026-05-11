@@ -6,7 +6,7 @@ const CapacitacionPage = async () => {
   const app = getAppById("capacitacion")!;
   const frameSrc = await getFrameUrl("capacitacion");
 
-  return <AppFrame src={frameSrc} title={app.name} />;
+  return <AppFrame appId={app.id} src={frameSrc} title={app.name} />;
 };
 
 export default CapacitacionPage;
