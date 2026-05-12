@@ -1,6 +1,7 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
+import { sign_out_best_effort } from "@/lib/auth/safe-sign-out";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 
@@ -9,7 +10,7 @@ export function LogoutButton() {
 
   const logout = async () => {
     const supabase = createClient();
-    await supabase.auth.signOut();
+    await sign_out_best_effort(supabase);
     router.push("/auth/login");
   };
 

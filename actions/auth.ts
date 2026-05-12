@@ -1,11 +1,12 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { sign_out_best_effort } from "@/lib/auth/safe-sign-out";
 import { redirect } from "next/navigation";
 
 export async function signOutAction() {
   const supabase = await createClient();
-  await supabase.auth.signOut();
+  await sign_out_best_effort(supabase);
   redirect("/auth/login");
 }
 
