@@ -1,3 +1,4 @@
+import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
 
 const NEGOCIOS_URL =
@@ -33,4 +34,14 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+const sentry_org = process.env.SENTRY_ORG ?? "sha-de-venezuela";
+const sentry_project = process.env.SENTRY_PROJECT ?? "shell-app";
+
+export default withSentryConfig(nextConfig, {
+  org: sentry_org,
+  project: sentry_project,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  widenClientFileUpload: true,
+  tunnelRoute: "/monitoring",
+  silent: !process.env.CI,
+});
