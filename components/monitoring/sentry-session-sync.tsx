@@ -1,0 +1,55 @@
+"use client";
+
+import { useEffect } from "react";
+import * as Sentry from "@sentry/nextjs";
+import { createClient } from "@/lib/supabase/client";
+
+type NavigatorWithConnection = Navigator & {
+  connection?: { effectiveType?: string };
+};
+
+function read_connection_effective_type(): string {
+  if (typeof navigator === "undefined") {
+    return "unknown";
+  }
+  const effective = (navigator as NavigatorWithConnection).connection
+    ?.effectiveType;
+  return effective ?? "unknown";
+}
+
+function apply_session_to_sentry(
+  session: { user: { id: string; email?: string | null } } | null,
+): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  const user = session?.user;
+  if (!user?.id) {
+    Sentry.setUser(null);
+    return;
+  }
+  Sentry.setUser({
+    id: user.id,
+    email: user.email ?? undefined,
+  });
+  Sentry.setTag("conexion", read_connection_effective_type());
+}
+
+/**
+ * Keeps Sentry user context in sync with Supabase auth (all routes).
+ */
+export function SentrySessionSync() {
+  useEffect(() => {
+    const supabase = createClient();
+    void supabase.auth.getSession().then(({ data: { session } }) => {
+      apply_session_to_sentry(session);
+    });
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      apply_session_to_sentry(session);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+  return null;
+}
