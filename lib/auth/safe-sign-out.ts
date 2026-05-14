@@ -30,14 +30,20 @@ function is_benign_sign_out_error(error: unknown): boolean {
 export async function sign_out_best_effort(
   supabase: SupabaseClient,
 ): Promise<void> {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  if (!session?.access_token) {
-    return;
-  }
-  const { error } = await supabase.auth.signOut();
-  if (error && !is_benign_sign_out_error(error)) {
-    console.warn("sign_out_best_effort: unexpected signOut error", error);
+  try {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      return;
+    }
+    const { error } = await supabase.auth.signOut();
+    if (error && !is_benign_sign_out_error(error)) {
+      console.warn("sign_out_best_effort: unexpected signOut error", error);
+    }
+  } catch (error) {
+    if (!is_benign_sign_out_error(error)) {
+      console.warn("sign_out_best_effort: getSession/signOut failed", error);
+    }
   }
 }
