@@ -9,7 +9,12 @@ Sentry.init({
 
   tracesSampleRate: is_dev ? 1.0 : 0.1,
 
-  includeLocalVariables: true,
+  /**
+   * Off by default: high RAM use; can cause "Array buffer allocation failed"
+   * during dev/build. Set SENTRY_INCLUDE_LOCAL_VARIABLES=1 to enable.
+   */
+  includeLocalVariables:
+    process.env.SENTRY_INCLUDE_LOCAL_VARIABLES === "1",
 
   enableLogs: true,
 

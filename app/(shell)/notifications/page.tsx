@@ -137,9 +137,9 @@ export default function NotificationsPage() {
           table: "inbox",
           filter: `recipient_id_auth=eq.${userId}`,
         },
-        (payload) => {
+        (payload: { new: InboxNotification }) => {
           setNotifications((prev) => [
-            payload.new as InboxNotification,
+            payload.new,
             ...prev,
           ]);
           setTotalCount((prev) => prev + 1);
@@ -153,12 +153,10 @@ export default function NotificationsPage() {
           table: "inbox",
           filter: `recipient_id_auth=eq.${userId}`,
         },
-        (payload) => {
+        (payload: { new: InboxNotification }) => {
           setNotifications((prev) =>
             prev.map((n) =>
-              n.id === (payload.new as InboxNotification).id
-                ? (payload.new as InboxNotification)
-                : n,
+              n.id === payload.new.id ? payload.new : n,
             ),
           );
         },

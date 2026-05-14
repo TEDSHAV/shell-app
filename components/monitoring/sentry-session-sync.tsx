@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import * as Sentry from "@sentry/nextjs";
+import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 
 type NavigatorWithConnection = Navigator & {
@@ -18,7 +19,7 @@ function read_connection_effective_type(): string {
 }
 
 function apply_session_to_sentry(
-  session: { user: { id: string; email?: string | null } } | null,
+  session: Session | null,
 ): void {
   if (typeof window === "undefined") {
     return;
@@ -41,14 +42,18 @@ function apply_session_to_sentry(
 export function SentrySessionSync() {
   useEffect(() => {
     const supabase = createClient();
-    void supabase.auth.getSession().then(({ data: { session } }) => {
-      apply_session_to_sentry(session);
-    });
+    void supabase.auth
+      .getSession()
+      .then((result: { data: { session: Session | null } }) => {
+        apply_session_to_sentry(result.data.session);
+      });
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange(
+      (_event: AuthChangeEvent, session: Session | null) => {
       apply_session_to_sentry(session);
-    });
+      },
+    );
     return () => subscription.unsubscribe();
   }, []);
   return null;
