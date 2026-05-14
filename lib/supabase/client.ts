@@ -1,7 +1,6 @@
 import { createBrowserClient } from "@supabase/ssr";
 
 type BrowserClient = ReturnType<typeof createBrowserClient>;
-const AUTH_STORAGE_KEY = "sha-enterprise-session-v1";
 
 const global_scope = globalThis as unknown as {
   __shell_supabase_browser?: BrowserClient;
@@ -15,7 +14,6 @@ function create_browser_client(): BrowserClient {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
-        storageKey: AUTH_STORAGE_KEY,
         // Supported at runtime by auth-js; ssr types may lag.
         // @ts-expect-error valid runtime option
         lockAcquireTimeout: 20000,
