@@ -1,4 +1,5 @@
 import { createBrowserClient } from "@supabase/ssr";
+import { getSupabaseCookieOptions } from "./cookie-options";
 
 type BrowserClient = ReturnType<typeof createBrowserClient>;
 
@@ -18,6 +19,7 @@ function create_browser_client(): BrowserClient {
         // @ts-expect-error valid runtime option
         lockAcquireTimeout: 20000,
       },
+      cookieOptions: getSupabaseCookieOptions(),
     },
   );
 }
