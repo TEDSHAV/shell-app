@@ -132,6 +132,12 @@ export const apps: AppConfig[] = [
         groupLabel: "Ingeniería de costos",
         links: [
           {
+            label: "Tratos",
+            path: "/ingenieria/tratos",
+            icon: Handshake,
+            requiredPermissions: ["finance:ecc:read"],
+          },
+          {
             label: "ECC",
             path: "/ingenieria/ecc",
             icon: Calculator,
