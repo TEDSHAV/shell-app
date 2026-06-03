@@ -33,7 +33,7 @@ export const apps: AppConfig[] = [
   {
     id: "negocios",
     dbSlug: "sgestion",
-    name: "Gestión",
+    name: "Negocios",
     description: "Gestión comercial y operativa",
     basePath: "/negocios",
     upstreamUrl:

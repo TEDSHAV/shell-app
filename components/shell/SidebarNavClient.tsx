@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home } from "lucide-react";
 import { apps, getAppByPath } from "@/config/apps";
+import { prefetchFramePath } from "@/lib/frame-url";
 import { cn } from "@/lib/utils";
 import { useMobileSidebar } from "./MobileSidebarContext";
 import { useSidebarCollapse } from "./Sidebar";
@@ -108,6 +109,16 @@ export function SidebarNavClient({
       ? `${currentApp!.upstreamUrl}${link.path === "/" ? "" : link.path}`
       : null;
 
+    const frameSubPath =
+      link.path === "/" ? undefined : link.path.replace(/^\//, "");
+
+    const prefetchFrame = () => {
+      if (isExternal || currentApp!.id !== "negocios") {
+        return;
+      }
+      prefetchFramePath(currentApp!.id, frameSubPath);
+    };
+
     return isExternal ? (
       <a
         key={link.path}
@@ -128,7 +139,8 @@ export function SidebarNavClient({
         key={link.path}
         href={fullPath || currentApp!.basePath}
         onClick={onClose}
-        prefetch={false}
+        onMouseEnter={prefetchFrame}
+        onFocus={prefetchFrame}
         className={cn(
           "relative flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-all sidebar-link",
           isActive

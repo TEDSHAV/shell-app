@@ -1,12 +1,13 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { getAppById } from "@/config/apps";
+import { buildFrameUrl } from "@/lib/frame-url";
 
-export async function getFrameUrl(appId: string, subPath?: string): Promise<string> {
-  const app = getAppById(appId)!;
-  const path = subPath ? `/${subPath}` : "";
-  return `${app.upstreamUrl}${path}?shell=1`;
+export async function getFrameUrl(
+  appId: string,
+  subPath?: string,
+): Promise<string> {
+  return buildFrameUrl(appId, subPath);
 }
 
 export async function getUserRole(): Promise<string> {
