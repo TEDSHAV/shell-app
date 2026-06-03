@@ -313,6 +313,25 @@ export const apps: AppConfig[] = [
     },
     navLinks: [],
   },
+  {
+    id: "inventario",
+    dbSlug: "sinventario",
+    name: "Inventario",
+    description: "Gestión de inventario y activos",
+    basePath: "/inventario",
+    upstreamUrl:
+      process.env.NEXT_PUBLIC_INVENTARIO_URL ||
+      "https://inventario.shadevenezuela.com.ve",
+    icon: Package,
+    color: "text-orange-500",
+    badge: {
+      bg: "bg-orange-50",
+      text: "text-orange-800",
+      border: "border-orange-200",
+      dot: "bg-orange-500",
+    },
+    navLinks: [],
+  },
 ];
 
 export function getAppByPath(pathname: string): AppConfig | undefined {

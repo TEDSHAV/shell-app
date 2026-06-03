@@ -58,11 +58,12 @@ export function SidebarNavClient({
             </span>
           </div>
         )}
-        {apps.map((app) =>
-          app.id === "drive" ? (
+        {apps.map((app) => {
+          const isExternal = ["drive", "inventario"].includes(app.id);
+          return isExternal ? (
             <a
               key={app.id}
-              href="https://drive.shadevenezuela.com.ve"
+              href={app.upstreamUrl}
               target="_blank"
               rel="noopener noreferrer"
               className={cn(
@@ -88,8 +89,8 @@ export function SidebarNavClient({
               <app.icon className={cn("h-4 w-4 shrink-0", app.color)} />
               {!isCollapsed && app.name}
             </Link>
-          ),
-        )}
+          );
+        })}
       </nav>
     );
   }
@@ -102,12 +103,12 @@ export function SidebarNavClient({
           pathname === currentApp!.basePath + "/"
         : pathname.startsWith(fullPath);
 
-    const isDrive = currentApp!.id === "drive";
-    const externalHref = isDrive
+    const isExternal = ["drive", "inventario"].includes(currentApp!.id);
+    const externalHref = isExternal
       ? `${currentApp!.upstreamUrl}${link.path === "/" ? "" : link.path}`
       : null;
 
-    return isDrive ? (
+    return isExternal ? (
       <a
         key={link.path}
         href={externalHref!}

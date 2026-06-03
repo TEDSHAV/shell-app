@@ -5,7 +5,7 @@ import { ArrowRight } from "lucide-react";
 
 function flattenNavLinks(navLinks: (NavLink | NavGroup)[]): NavLink[] {
   return navLinks.flatMap((item) =>
-    "groupLabel" in item ? item.links : [item]
+    "groupLabel" in item ? item.links : [item],
   );
 }
 
@@ -25,11 +25,16 @@ export default function DashboardPage() {
             negocios: "bg-green-700",
             capacitacion: "bg-amber-500",
             drive: "bg-cyan-400",
+            inventario: "bg-orange-500",
           };
+
+          const isExternal = ["drive"].includes(app.id);
 
           const CardContent = () => (
             <>
-              <div className={`absolute inset-x-0 top-0 h-1 rounded-t-xl ${stripByApp[app.id] ?? "bg-slate-200"}`} />
+              <div
+                className={`absolute inset-x-0 top-0 h-1 rounded-t-xl ${stripByApp[app.id] ?? "bg-slate-200"}`}
+              />
               <div className="flex items-start justify-between">
                 <div className={`p-2.5 rounded-lg ${app.badge.bg}`}>
                   <app.icon className={`h-5 w-5 ${app.color}`} />
@@ -45,15 +50,17 @@ export default function DashboardPage() {
                 </p>
               </div>
               <div className="flex gap-2 flex-wrap">
-                {flattenNavLinks(app.navLinks).slice(0, 3).map((link) => (
-                  <span
-                    key={link.path}
-                    className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground"
-                  >
-                    <link.icon className="h-2.5 w-2.5" />
-                    {link.label}
-                  </span>
-                ))}
+                {flattenNavLinks(app.navLinks)
+                  .slice(0, 3)
+                  .map((link) => (
+                    <span
+                      key={link.path}
+                      className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground"
+                    >
+                      <link.icon className="h-2.5 w-2.5" />
+                      {link.label}
+                    </span>
+                  ))}
                 {flattenNavLinks(app.navLinks).length > 3 && (
                   <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
                     +{flattenNavLinks(app.navLinks).length - 3} más
@@ -63,9 +70,10 @@ export default function DashboardPage() {
             </>
           );
 
-          const cardClassName = "group relative flex flex-col gap-4 p-6 pt-7 rounded-xl border border-border bg-white hover:bg-accent/40 hover:border-border/80 transition-all duration-150 overflow-hidden";
+          const cardClassName =
+            "group relative flex flex-col gap-4 p-6 pt-7 rounded-xl border border-border bg-white hover:bg-accent/40 hover:border-border/80 transition-all duration-150 overflow-hidden";
 
-          return app.id === "drive" ? (
+          return isExternal ? (
             <a
               key={app.id}
               href={app.upstreamUrl}
@@ -76,11 +84,7 @@ export default function DashboardPage() {
               <CardContent />
             </a>
           ) : (
-            <Link
-              key={app.id}
-              href={app.basePath}
-              className={cardClassName}
-            >
+            <Link key={app.id} href={app.basePath} className={cardClassName}>
               <CardContent />
             </Link>
           );
