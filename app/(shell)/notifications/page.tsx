@@ -138,10 +138,7 @@ export default function NotificationsPage() {
           filter: `recipient_id_auth=eq.${userId}`,
         },
         (payload: { new: InboxNotification }) => {
-          setNotifications((prev) => [
-            payload.new,
-            ...prev,
-          ]);
+          setNotifications((prev) => [payload.new, ...prev]);
           setTotalCount((prev) => prev + 1);
         },
       )
@@ -155,9 +152,7 @@ export default function NotificationsPage() {
         },
         (payload: { new: InboxNotification }) => {
           setNotifications((prev) =>
-            prev.map((n) =>
-              n.id === payload.new.id ? payload.new : n,
-            ),
+            prev.map((n) => (n.id === payload.new.id ? payload.new : n)),
           );
         },
       )
@@ -186,9 +181,20 @@ export default function NotificationsPage() {
     if (notification.link_path) {
       const app = getAppByDbSlug(notification.app_slug);
       let target = notification.link_path;
+
       if (app && !target.startsWith(app.basePath)) {
         target = `${app.basePath}${target}`;
       }
+
+      // Special case: Notifications that point to scapacitacion through the shell
+      // should always use the /negocios prefix to ensure correct iframe routing
+      if (target.includes("/capacitacion/scapacitacion")) {
+        target = target.replace(
+          "/capacitacion/scapacitacion",
+          "/negocios/scapacitacion",
+        );
+      }
+
       router.push(target);
     }
   };
