@@ -12,12 +12,15 @@ export interface NavGroup {
   links: NavLink[];
 }
 
+/** CSS color values derived from brandColor (not Tailwind class names). */
 export interface AppBadge {
   bg: string;
   text: string;
   border: string;
   dot: string;
 }
+
+export type AppEmbedMode = "shell" | "raw" | "external";
 
 export interface AppConfig {
   id: string;
@@ -27,7 +30,10 @@ export interface AppConfig {
   basePath: string;
   upstreamUrl: string;
   icon: LucideIcon;
+  /** @deprecated Use brandColor + get_app_icon_style */
   color: string;
+  brandColor: string;
+  embedMode: AppEmbedMode;
   badge: AppBadge;
   navLinks: (NavLink | NavGroup)[];
 }

@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { InboxNotification } from "@/types";
 import { markAsRead, markAllAsRead } from "@/actions/notifications";
 import { getAppByDbSlug } from "@/config/apps";
+import { get_app_dot_style, get_app_pill_style } from "@/lib/app-theme";
 
 const PAGE_SIZE = 20;
 
@@ -327,10 +328,12 @@ export default function NotificationsPage() {
                   >
                     {/* Left: app color bar */}
                     <div
-                      className={cn(
-                        "mt-1 flex-shrink-0 w-1 self-stretch rounded-full",
-                        originApp ? originApp.badge.dot : "bg-gray-200",
-                      )}
+                      className="mt-1 flex-shrink-0 w-1 self-stretch rounded-full bg-gray-200"
+                      style={
+                        originApp
+                          ? get_app_dot_style(originApp.brandColor)
+                          : undefined
+                      }
                     />
 
                     <div className="flex-1 min-w-0">
@@ -338,12 +341,8 @@ export default function NotificationsPage() {
                       <div className="flex items-center justify-between gap-2 mb-1">
                         {originApp ? (
                           <span
-                            className={cn(
-                              "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold border",
-                              originApp.badge.bg,
-                              originApp.badge.text,
-                              originApp.badge.border,
-                            )}
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold border"
+                            style={get_app_pill_style(originApp.brandColor)}
                           >
                             <originApp.icon className="h-2.5 w-2.5" />
                             {originApp.name}
@@ -388,8 +387,13 @@ export default function NotificationsPage() {
                       <span
                         className={cn(
                           "mt-1.5 flex-shrink-0 h-1.5 w-1.5 rounded-full",
-                          originApp ? originApp.badge.dot : "bg-blue-500",
+                          !originApp && "bg-blue-500",
                         )}
+                        style={
+                          originApp
+                            ? get_app_dot_style(originApp.brandColor)
+                            : undefined
+                        }
                       />
                     )}
                   </button>
@@ -447,12 +451,8 @@ export default function NotificationsPage() {
                   );
                   return originApp ? (
                     <span
-                      className={cn(
-                        "inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-semibold border mb-4",
-                        originApp.badge.bg,
-                        originApp.badge.text,
-                        originApp.badge.border,
-                      )}
+                      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-semibold border mb-4"
+                      style={get_app_pill_style(originApp.brandColor)}
                     >
                       <originApp.icon className="h-4 w-4" />
                       {originApp.name}

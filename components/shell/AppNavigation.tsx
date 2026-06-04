@@ -3,6 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { apps } from "@/config/apps";
+import {
+  get_app_icon_style,
+  get_header_nav_active_style,
+  get_header_nav_link_vars,
+  opens_in_new_tab,
+} from "@/lib/app-theme";
 import { cn } from "@/lib/utils";
 
 export const AppNavigation = () => {
@@ -11,35 +17,40 @@ export const AppNavigation = () => {
   return (
     <nav className="hidden md:flex items-center gap-1 mr-2">
       {apps.map((app) => {
-        const isExternal = ["drive", "inventario"].includes(app.id);
-        return isExternal ? (
+        const external = opens_in_new_tab(app);
+        const is_active = pathname.startsWith(app.basePath);
+        const icon_style = get_app_icon_style(app.brandColor);
+        const link_vars = get_header_nav_link_vars(app.brandColor);
+
+        return external ? (
           <a
             key={app.id}
             href={app.upstreamUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors text-slate-600 hover:text-black hover:bg-slate-100"
           >
-            <app.icon className="h-3.5 w-3.5" />
+            <app.icon className="h-3.5 w-3.5" style={icon_style} />
             {app.name}
           </a>
         ) : (
           <Link
             key={app.id}
             href={app.basePath}
+            style={{
+              ...link_vars,
+              ...(is_active
+                ? get_header_nav_active_style(app.brandColor)
+                : {}),
+            }}
             className={cn(
-              "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors",
-              pathname.startsWith(app.basePath)
-                ? cn(
-                    "border font-medium",
-                    app.badge.bg,
-                    app.badge.text,
-                    app.badge.border,
-                  )
-                : "text-slate-600 hover:text-slate-900 hover:bg-slate-100",
+              "header-app-nav-link inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors border",
+              is_active
+                ? "is-active font-medium"
+                : "border-transparent text-slate-600",
             )}
           >
-            <app.icon className="h-3.5 w-3.5" />
+            <app.icon className="h-3.5 w-3.5" style={icon_style} />
             {app.name}
           </Link>
         );

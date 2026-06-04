@@ -2,6 +2,13 @@ import Link from "next/link";
 import { apps } from "@/config/apps";
 import { NavLink, NavGroup } from "@/types";
 import { ArrowRight } from "lucide-react";
+import {
+  get_app_icon_style,
+  get_app_strip_style,
+  hex_to_rgba,
+  opens_in_new_tab,
+} from "@/lib/app-theme";
+import { cn } from "@/lib/utils";
 
 function flattenNavLinks(navLinks: (NavLink | NavGroup)[]): NavLink[] {
   return navLinks.flatMap((item) =>
@@ -10,8 +17,10 @@ function flattenNavLinks(navLinks: (NavLink | NavGroup)[]): NavLink[] {
 }
 
 export default function DashboardPage() {
+  const has_lone_last_card = apps.length % 2 === 1;
+
   return (
-    <div className="p-8 max-w-4xl mx-auto">
+    <div className="p-8 w-full max-w-6xl mx-auto">
       <div className="mb-10">
         <h1 className="text-2xl font-semibold text-foreground">Bienvenido</h1>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -20,24 +29,30 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {apps.map((app) => {
-          const stripByApp: Record<string, string> = {
-            negocios: "bg-green-700",
-            capacitacion: "bg-amber-500",
-            drive: "bg-cyan-400",
-            inventario: "bg-orange-500",
+        {apps.map((app, index) => {
+          const external = opens_in_new_tab(app);
+          const is_lone_last =
+            has_lone_last_card && index === apps.length - 1;
+          const icon_style = get_app_icon_style(app.brandColor);
+          const strip_style = get_app_strip_style(app.brandColor);
+          const badge_bg = {
+            backgroundColor: hex_to_rgba(app.brandColor, 0.14),
           };
 
-          const isExternal = ["drive"].includes(app.id);
+          const cardClassName = cn(
+            "group relative flex flex-col gap-4 p-6 pt-7 rounded-xl border border-border bg-white hover:bg-accent/40 hover:border-border/80 transition-all duration-150 overflow-hidden",
+            is_lone_last && "sm:col-span-2",
+          );
 
           const CardContent = () => (
             <>
               <div
-                className={`absolute inset-x-0 top-0 h-1 rounded-t-xl ${stripByApp[app.id] ?? "bg-slate-200"}`}
+                className="absolute inset-x-0 top-0 h-1 rounded-t-xl"
+                style={strip_style}
               />
               <div className="flex items-start justify-between">
-                <div className={`p-2.5 rounded-lg ${app.badge.bg}`}>
-                  <app.icon className={`h-5 w-5 ${app.color}`} />
+                <div className="p-2.5 rounded-lg" style={badge_bg}>
+                  <app.icon className="h-5 w-5" style={icon_style} />
                 </div>
                 <ArrowRight className="h-4 w-4 text-muted-foreground/0 group-hover:text-muted-foreground transition-all translate-x-1 group-hover:translate-x-0 duration-150" />
               </div>
@@ -70,10 +85,7 @@ export default function DashboardPage() {
             </>
           );
 
-          const cardClassName =
-            "group relative flex flex-col gap-4 p-6 pt-7 rounded-xl border border-border bg-white hover:bg-accent/40 hover:border-border/80 transition-all duration-150 overflow-hidden";
-
-          return isExternal ? (
+          return external ? (
             <a
               key={app.id}
               href={app.upstreamUrl}

@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { InboxNotification } from "@/types";
 import { markAsRead, markAllAsRead } from "@/actions/notifications";
 import { getAppByDbSlug } from "@/config/apps";
+import { get_app_dot_style, get_app_pill_style } from "@/lib/app-theme";
 
 export function NotificationsBell() {
   const [notifications, setNotifications] = useState<InboxNotification[]>([]);
@@ -247,10 +248,12 @@ export function NotificationsBell() {
                   >
                     {/* Left: app color bar */}
                     <div
-                      className={cn(
-                        "mt-1 flex-shrink-0 w-1 self-stretch rounded-full",
-                        originApp ? originApp.badge.dot : "bg-gray-200",
-                      )}
+                      className="mt-1 flex-shrink-0 w-1 self-stretch rounded-full bg-gray-200"
+                      style={
+                        originApp
+                          ? get_app_dot_style(originApp.brandColor)
+                          : undefined
+                      }
                     />
 
                     <div className="flex-1 min-w-0">
@@ -258,12 +261,8 @@ export function NotificationsBell() {
                       <div className="flex items-center justify-between gap-2 mb-1.5">
                         {originApp ? (
                           <span
-                            className={cn(
-                              "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold border",
-                              originApp.badge.bg,
-                              originApp.badge.text,
-                              originApp.badge.border,
-                            )}
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold border"
+                            style={get_app_pill_style(originApp.brandColor)}
                           >
                             <originApp.icon className="h-2.5 w-2.5" />
                             {originApp.name}
@@ -308,8 +307,13 @@ export function NotificationsBell() {
                       <span
                         className={cn(
                           "mt-1.5 flex-shrink-0 h-1.5 w-1.5 rounded-full",
-                          originApp ? originApp.badge.dot : "bg-blue-500",
+                          !originApp && "bg-blue-500",
                         )}
+                        style={
+                          originApp
+                            ? get_app_dot_style(originApp.brandColor)
+                            : undefined
+                        }
                       />
                     )}
                   </button>

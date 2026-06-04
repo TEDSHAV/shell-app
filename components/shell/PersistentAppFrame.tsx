@@ -91,6 +91,10 @@ export function PersistentAppFrame({ appId }: PersistentAppFrameProps) {
   }, [activeSrc]);
 
   useEffect(() => {
+    if (app.embedMode !== "shell") {
+      return;
+    }
+
     const onMessage = (event: MessageEvent) => {
       if (expectedOrigin && event.origin !== expectedOrigin) {
         return;
@@ -129,7 +133,7 @@ export function PersistentAppFrame({ appId }: PersistentAppFrameProps) {
     return () => {
       window.removeEventListener("message", onMessage);
     };
-  }, [appId, expectedOrigin, redirectToLogin]);
+  }, [app, appId, expectedOrigin, redirectToLogin]);
 
   const handleFrameLoad = useCallback(
     (src: string) => {

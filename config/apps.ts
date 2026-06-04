@@ -26,11 +26,14 @@ import {
   Receipt,
   Cloud,
   Calendar,
+  Ticket,
 } from "lucide-react";
+import { build_app_config } from "@/lib/app-theme";
+import { get_tickets_form_base_url } from "@/lib/tickets-form-url";
 import { AppConfig } from "@/types";
 
 export const apps: AppConfig[] = [
-  {
+  build_app_config({
     id: "negocios",
     dbSlug: "sgestion",
     name: "Negocios",
@@ -40,13 +43,8 @@ export const apps: AppConfig[] = [
       process.env.NEXT_PUBLIC_NEGOCIOS_URL ||
       "https://gestion.shadevenezuela.com.ve",
     icon: Briefcase,
-    color: "text-green-700",
-    badge: {
-      bg: "bg-green-50",
-      text: "text-green-800",
-      border: "border-green-200",
-      dot: "bg-green-700",
-    },
+    brandColor: "#159714",
+    embedMode: "shell",
     navLinks: [
       {
         groupLabel: "Directorio",
@@ -164,8 +162,8 @@ export const apps: AppConfig[] = [
         ],
       },
     ],
-  },
-  {
+  }),
+  build_app_config({
     id: "capacitacion",
     dbSlug: "scapacitacion",
     name: "Capacitación",
@@ -175,13 +173,8 @@ export const apps: AppConfig[] = [
       process.env.NEXT_PUBLIC_CAPACITACION_URL ||
       "https://capacitacion.shadevenezuela.com.ve",
     icon: GraduationCap,
-    color: "text-amber-500",
-    badge: {
-      bg: "bg-amber-50",
-      text: "text-amber-700",
-      border: "border-amber-200",
-      dot: "bg-amber-500",
-    },
+    brandColor: "#C30DFF",
+    embedMode: "shell",
     navLinks: [
       { label: "Dashboard", path: "/", icon: LayoutDashboard },
       {
@@ -293,8 +286,8 @@ export const apps: AppConfig[] = [
         ],
       },
     ],
-  },
-  {
+  }),
+  build_app_config({
     id: "drive",
     dbSlug: "sdrive",
     name: "Drive",
@@ -304,16 +297,11 @@ export const apps: AppConfig[] = [
       process.env.NEXT_PUBLIC_DRIVE_URL ||
       "https://drive.shadevenezuela.com.ve",
     icon: Cloud,
-    color: "text-cyan-400",
-    badge: {
-      bg: "bg-cyan-50",
-      text: "text-cyan-700",
-      border: "border-cyan-200",
-      dot: "bg-cyan-400",
-    },
+    brandColor: "#19DEFF",
+    embedMode: "shell",
     navLinks: [],
-  },
-  {
+  }),
+  build_app_config({
     id: "inventario",
     dbSlug: "sinventario",
     name: "Inventario",
@@ -323,15 +311,22 @@ export const apps: AppConfig[] = [
       process.env.NEXT_PUBLIC_INVENTARIO_URL ||
       "https://inventario.shadevenezuela.com.ve",
     icon: Package,
-    color: "text-orange-500",
-    badge: {
-      bg: "bg-orange-50",
-      text: "text-orange-800",
-      border: "border-orange-200",
-      dot: "bg-orange-500",
-    },
+    brandColor: "#B61031",
+    embedMode: "shell",
     navLinks: [],
-  },
+  }),
+  build_app_config({
+    id: "tickets",
+    name: "Tickets",
+    description:
+      "Sugerencias y soporte: cuéntanos qué mejorar o qué funciones agregar",
+    basePath: "/tickets",
+    upstreamUrl: get_tickets_form_base_url(),
+    icon: Ticket,
+    brandColor: "#6B7280",
+    embedMode: "raw",
+    navLinks: [],
+  }),
 ];
 
 export function getAppByPath(pathname: string): AppConfig | undefined {

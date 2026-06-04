@@ -5,6 +5,12 @@ import { usePathname } from "next/navigation";
 import { Home } from "lucide-react";
 import { apps, getAppByPath } from "@/config/apps";
 import { prefetchFramePath } from "@/lib/frame-url";
+import {
+  get_app_icon_style,
+  get_sidebar_nav_style,
+  opens_in_new_tab,
+  uses_iframe_in_shell,
+} from "@/lib/app-theme";
 import { cn } from "@/lib/utils";
 import { useMobileSidebar } from "./MobileSidebarContext";
 import { useSidebarCollapse } from "./Sidebar";
@@ -18,6 +24,9 @@ interface SidebarNavClientProps {
   userPermsByApp: Record<string, string[]>;
   userRolesByApp: Record<string, string>;
 }
+
+const default_link_class =
+  "relative flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-all sidebar-link text-slate-600 hover:text-slate-900 hover:bg-slate-100";
 
 export function SidebarNavClient({
   userPermsByApp,
@@ -60,20 +69,22 @@ export function SidebarNavClient({
           </div>
         )}
         {apps.map((app) => {
-          const isExternal = ["drive", "inventario"].includes(app.id);
-          return isExternal ? (
+          const external = opens_in_new_tab(app);
+          const icon_style = get_app_icon_style(app.brandColor);
+
+          return external ? (
             <a
               key={app.id}
               href={app.upstreamUrl}
               target="_blank"
               rel="noopener noreferrer"
               className={cn(
-                "flex items-center gap-2.5 px-3 py-2 rounded-md text-sm font-medium transition-all sidebar-link text-slate-600 hover:text-slate-900 hover:bg-slate-100",
+                default_link_class,
                 isCollapsed ? "justify-center" : "",
               )}
               title={isCollapsed ? app.name : undefined}
             >
-              <app.icon className={cn("h-4 w-4 shrink-0", app.color)} />
+              <app.icon className="h-4 w-4 shrink-0" style={icon_style} />
               {!isCollapsed && app.name}
             </a>
           ) : (
@@ -82,12 +93,12 @@ export function SidebarNavClient({
               href={app.basePath}
               onClick={onClose}
               className={cn(
-                "flex items-center gap-2.5 px-3 py-2 rounded-md text-sm font-medium transition-all sidebar-link text-slate-600 hover:text-slate-900 hover:bg-slate-100",
+                default_link_class,
                 isCollapsed ? "justify-center" : "",
               )}
               title={isCollapsed ? app.name : undefined}
             >
-              <app.icon className={cn("h-4 w-4 shrink-0", app.color)} />
+              <app.icon className="h-4 w-4 shrink-0" style={icon_style} />
               {!isCollapsed && app.name}
             </Link>
           );
@@ -96,39 +107,44 @@ export function SidebarNavClient({
     );
   }
 
+  const sidebar_theme_style = get_sidebar_nav_style(currentApp.brandColor);
+
   const renderNavLink = (link: NavLink) => {
-    const fullPath = `${currentApp!.basePath}${link.path === "/" ? "" : link.path}`;
+    const fullPath = `${currentApp.basePath}${link.path === "/" ? "" : link.path}`;
     const isActive =
       link.path === "/"
-        ? pathname === currentApp!.basePath ||
-          pathname === currentApp!.basePath + "/"
+        ? pathname === currentApp.basePath ||
+          pathname === currentApp.basePath + "/"
         : pathname.startsWith(fullPath);
 
-    const isExternal = ["drive", "inventario"].includes(currentApp!.id);
-    const externalHref = isExternal
-      ? `${currentApp!.upstreamUrl}${link.path === "/" ? "" : link.path}`
+    const external = opens_in_new_tab(currentApp);
+    const externalHref = external
+      ? `${currentApp.upstreamUrl}${link.path === "/" ? "" : link.path}`
       : null;
 
     const frameSubPath =
       link.path === "/" ? undefined : link.path.replace(/^\//, "");
 
     const prefetchFrame = () => {
-      if (isExternal || currentApp!.id !== "negocios") {
+      if (external || !uses_iframe_in_shell(currentApp)) {
         return;
       }
-      prefetchFramePath(currentApp!.id, frameSubPath);
+      prefetchFramePath(currentApp.id, frameSubPath);
     };
 
-    return isExternal ? (
+    const link_class = cn(
+      "sidebar-link-item relative flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-all sidebar-link",
+      isActive && "is-active",
+      isCollapsed ? "justify-center" : "",
+    );
+
+    return external ? (
       <a
         key={link.path}
         href={externalHref!}
         target="_blank"
         rel="noopener noreferrer"
-        className={cn(
-          "relative flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-all sidebar-link text-slate-600 hover:text-slate-900 hover:bg-slate-100",
-          isCollapsed ? "justify-center" : "",
-        )}
+        className={cn(link_class, !isActive && default_link_class)}
         title={isCollapsed ? link.label : undefined}
       >
         <link.icon className="h-3.5 w-3.5 shrink-0" />
@@ -137,17 +153,11 @@ export function SidebarNavClient({
     ) : (
       <Link
         key={link.path}
-        href={fullPath || currentApp!.basePath}
+        href={fullPath || currentApp.basePath}
         onClick={onClose}
         onMouseEnter={prefetchFrame}
         onFocus={prefetchFrame}
-        className={cn(
-          "relative flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-all sidebar-link",
-          isActive
-            ? "bg-blue-50 text-blue-700 font-semibold"
-            : "text-slate-600 hover:text-slate-900 hover:bg-slate-100",
-          isCollapsed ? "justify-center" : "",
-        )}
+        className={link_class}
         title={isCollapsed ? link.label : undefined}
       >
         <link.icon className="h-3.5 w-3.5 shrink-0" />
@@ -160,12 +170,12 @@ export function SidebarNavClient({
   const userRole = userRolesByApp[currentApp.dbSlug ?? currentApp.id];
 
   const canAccess = (link: NavLink): boolean => {
-    // Admins and superadmins can see all links (app-specific role)
     const lowerRole = userRole?.toLowerCase();
     if (lowerRole === "admin" || lowerRole === "superadmin") return true;
 
-    if (!link.requiredPermissions || link.requiredPermissions.length === 0)
+    if (!link.requiredPermissions || link.requiredPermissions.length === 0) {
       return true;
+    }
     return link.requiredPermissions.some((p) => userPerms.includes(p));
   };
 
@@ -183,13 +193,19 @@ export function SidebarNavClient({
     });
 
   return (
-    <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1 sidebar-scrollbar">
+    <nav
+      className="sidebar-app-themed flex-1 overflow-y-auto py-4 px-3 space-y-1 sidebar-scrollbar"
+      style={sidebar_theme_style}
+    >
       {homeLink}
       {isCollapsed ? (
         <div className="my-2 border-t border-slate-200" />
       ) : (
         <div className="pt-2 pb-1 px-3">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+          <span
+            className="text-[10px] font-semibold uppercase tracking-wider"
+            style={{ color: currentApp.brandColor }}
+          >
             {currentApp.name}
           </span>
         </div>
