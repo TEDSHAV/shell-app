@@ -29,11 +29,14 @@ export function TicketsAppFrame() {
     }
 
     const supabase = createClient();
-    void supabase.auth.getUser().then(({ data: { user } }) => {
+    void (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (user?.email) {
         setSrc(build_tickets_frame_url(user.email));
       }
-    });
+    })();
   }, []);
 
   return (
