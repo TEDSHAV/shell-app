@@ -1,23 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { getAppById } from "@/config/apps";
 import { buildFrameUrl } from "@/lib/frame-url";
 
 const MAX_CACHED_FRAMES = 6;
-const AUTH_REQUIRED_EVENT = "SHA_AUTH_REQUIRED";
-const AUTH_REQUIRED_ACK_EVENT = "SHA_AUTH_ACK";
-const DEFAULT_LOGIN_URL = "https://prisma.shadevenezuela.com.ve/auth/login";
-
-type AuthRequiredMessage = {
-  type?: string;
-  appId?: string;
-  reason?: string;
-  currentPath?: string;
-  ts?: number;
-};
 
 interface PersistentAppFrameProps {
   appId: string;
@@ -31,7 +20,6 @@ function getSubPath(pathname: string, basePath: string): string {
 export function PersistentAppFrame({ appId }: PersistentAppFrameProps) {
   const pathname = usePathname();
   const app = getAppById(appId)!;
-  const redirectInFlightRef = useRef(false);
 
   const subPath = useMemo(
     () => getSubPath(pathname, app.basePath),
@@ -57,83 +45,6 @@ export function PersistentAppFrame({ appId }: PersistentAppFrameProps) {
   useEffect(() => {
     setIsLoadingActive(!loadedSrcs.has(activeSrc));
   }, [activeSrc, loadedSrcs]);
-
-  const expectedOrigin = useMemo(() => {
-    try {
-      return new URL(activeSrc).origin;
-    } catch {
-      return null;
-    }
-  }, [activeSrc]);
-
-  const redirectToLogin = useCallback(() => {
-    if (redirectInFlightRef.current) {
-      return;
-    }
-    redirectInFlightRef.current = true;
-    const loginBase =
-      process.env.NEXT_PUBLIC_SHELL_LOGIN_URL || DEFAULT_LOGIN_URL;
-    const nextPath = `${window.location.pathname}${window.location.search}`;
-    try {
-      const loginUrl = new URL(loginBase);
-      loginUrl.searchParams.set("next", nextPath);
-      window.location.assign(loginUrl.toString());
-    } catch {
-      const separator = loginBase.includes("?") ? "&" : "?";
-      window.location.assign(
-        `${loginBase}${separator}next=${encodeURIComponent(nextPath)}`,
-      );
-    }
-  }, []);
-
-  useEffect(() => {
-    redirectInFlightRef.current = false;
-  }, [activeSrc]);
-
-  useEffect(() => {
-    if (app.embedMode !== "shell") {
-      return;
-    }
-
-    const onMessage = (event: MessageEvent) => {
-      if (expectedOrigin && event.origin !== expectedOrigin) {
-        return;
-      }
-
-      const data = event.data as AuthRequiredMessage | null;
-      if (!data || data.type !== AUTH_REQUIRED_EVENT) {
-        return;
-      }
-      if (data.appId && data.appId !== appId) {
-        return;
-      }
-
-      const sourceWindow = event.source;
-      if (!(sourceWindow instanceof Window)) {
-        return;
-      }
-
-      try {
-        sourceWindow.postMessage(
-          {
-            type: AUTH_REQUIRED_ACK_EVENT,
-            appId,
-            ts: Date.now(),
-          },
-          event.origin,
-        );
-      } catch {
-        // Ignore ack errors; redirect still must happen.
-      }
-
-      redirectToLogin();
-    };
-
-    window.addEventListener("message", onMessage);
-    return () => {
-      window.removeEventListener("message", onMessage);
-    };
-  }, [app, appId, expectedOrigin, redirectToLogin]);
 
   const handleFrameLoad = useCallback(
     (src: string) => {

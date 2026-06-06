@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Navbar } from "@/components/shell/Navbar";
 import { Sidebar } from "@/components/shell/Sidebar";
 import { MobileSidebarContext } from "@/components/shell/MobileSidebarContext";
+import { ShellAuthBridge } from "@/components/shell/ShellAuthBridge";
 import { ShellProviderProps } from "@/types";
 
 export function ShellProvider({ children, sidebar, userEmail }: ShellProviderProps) {
@@ -16,6 +17,7 @@ export function ShellProvider({ children, sidebar, userEmail }: ShellProviderPro
         onClose: () => setIsMobileMenuOpen(false),
       }}
     >
+      <ShellAuthBridge />
       <div className="flex flex-col h-screen overflow-hidden">
         <Navbar
           userEmail={userEmail}
