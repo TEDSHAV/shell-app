@@ -24,6 +24,7 @@ export default function NotificationsPage() {
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   const [totalCount, setTotalCount] = useState(0);
+  const [globalUnreadCount, setGlobalUnreadCount] = useState(0);
   const [page, setPage] = useState(1);
   const [filterUnreadOnly, setFilterUnreadOnly] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -72,21 +73,34 @@ export default function NotificationsPage() {
         // Add ordering
         dataQuery = dataQuery
           .order("read_at", { ascending: true, nullsFirst: true })
-          .order("created_at", { ascending: false })
-          .limit(50);
+          .order("created_at", { ascending: false });
+
+        // Add pagination range
+        const from = (pageNum - 1) * PAGE_SIZE;
+        const to = from + PAGE_SIZE - 1;
+        dataQuery = dataQuery.range(from, to);
 
         // Get total count
         const { count, error: countError } = await countQuery;
 
-        if (countError) {
-          console.error("Error fetching count:", countError);
+        // Fetch global unread count independently of filter
+        const { count: unreadCountResult, error: unreadError } = await supabase
+          .schema("notify")
+          .from("inbox")
+          .select("*", { count: "exact", head: true })
+          .eq("recipient_id_auth", uid)
+          .is("read_at", null);
+
+        if (countError || unreadError) {
+          console.error("Error fetching counts:", countError || unreadError);
           setError("Error al cargar notificaciones");
           setLoading(false);
           return;
         }
 
-        console.log("Total count:", count);
+        console.log("Total count:", count, "Global unread:", unreadCountResult);
         if (count !== null) setTotalCount(count);
+        if (unreadCountResult !== null) setGlobalUnreadCount(unreadCountResult);
 
         // Fetch notifications data
         const { data, error: dataError } = await dataQuery;
@@ -141,6 +155,7 @@ export default function NotificationsPage() {
         (payload: { new: InboxNotification }) => {
           setNotifications((prev) => [payload.new, ...prev]);
           setTotalCount((prev) => prev + 1);
+          setGlobalUnreadCount((prev) => prev + 1);
         },
       )
       .on(
@@ -168,6 +183,7 @@ export default function NotificationsPage() {
     setSelectedNotification(notification);
     if (!notification.read_at) {
       await markAsRead(notification.id);
+      setGlobalUnreadCount((prev) => Math.max(0, prev - 1));
       setNotifications((prev) =>
         prev.map((n) =>
           n.id === notification.id
@@ -202,6 +218,7 @@ export default function NotificationsPage() {
 
   const handleMarkAllAsRead = async () => {
     await markAllAsRead();
+    setGlobalUnreadCount(0);
     const now = new Date().toISOString();
     setNotifications((prev) =>
       prev.map((n) => ({ ...n, read_at: n.read_at ?? now })),
@@ -222,7 +239,7 @@ export default function NotificationsPage() {
           <h1 className="text-2xl font-semibold text-foreground">
             Notificaciones
           </h1>
-          {unreadCount > 0 && (
+          {globalUnreadCount > 0 && (
             <button
               onClick={handleMarkAllAsRead}
               className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
@@ -242,7 +259,10 @@ export default function NotificationsPage() {
       {/* Filters */}
       <div className="border-b border-gray-200 bg-white px-8 py-3 flex items-center gap-4">
         <button
-          onClick={() => setFilterUnreadOnly(false)}
+          onClick={() => {
+            setFilterUnreadOnly(false);
+            setPage(1);
+          }}
           className={cn(
             "flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors",
             !filterUnreadOnly
@@ -253,7 +273,10 @@ export default function NotificationsPage() {
           Todas
         </button>
         <button
-          onClick={() => setFilterUnreadOnly(true)}
+          onClick={() => {
+            setFilterUnreadOnly(true);
+            setPage(1);
+          }}
           className={cn(
             "flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors",
             filterUnreadOnly
@@ -266,7 +289,7 @@ export default function NotificationsPage() {
         </button>
         {unreadCount > 0 && !filterUnreadOnly && (
           <span className="text-sm text-gray-500 ml-auto">
-            {unreadCount} sin leer
+            {globalUnreadCount} sin leer
           </span>
         )}
       </div>
@@ -404,35 +427,69 @@ export default function NotificationsPage() {
 
           {/* Pagination */}
           {!loading && notifications.length > 0 && totalPages > 1 && (
-            <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-t border-gray-200">
-              <span className="text-xs text-gray-500">
-                Página {page} de {totalPages}
-              </span>
-              <div className="flex items-center gap-1">
+            <div className="flex flex-col gap-3 px-4 py-3 bg-gray-50 border-t border-gray-200">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] uppercase tracking-wider font-semibold text-gray-400">
+                  Página {page} de {totalPages}
+                </span>
+                <span className="text-[10px] uppercase tracking-wider font-semibold text-gray-400">
+                  {totalCount} total
+                </span>
+              </div>
+              <div className="flex items-center justify-center gap-1">
                 <button
                   onClick={() => handlePageChange(page - 1)}
                   disabled={page === 1}
                   className={cn(
-                    "p-1.5 rounded border transition-colors",
+                    "p-1.5 rounded-md border transition-all",
                     page === 1
                       ? "border-gray-200 text-gray-300 cursor-not-allowed"
-                      : "border-gray-300 text-gray-600 hover:bg-gray-100",
+                      : "border-gray-300 text-gray-600 hover:bg-white hover:shadow-sm active:scale-95",
                   )}
                 >
-                  <ChevronLeft className="h-3 w-3" />
+                  <ChevronLeft className="h-3.5 w-3.5" />
                 </button>
-                <span className="text-xs text-gray-600 px-2">{page}</span>
+
+                {(() => {
+                  const pages = [];
+                  const windowSize = 5;
+                  let start = Math.max(1, page - Math.floor(windowSize / 2));
+                  let end = Math.min(totalPages, start + windowSize - 1);
+
+                  if (end - start + 1 < windowSize) {
+                    start = Math.max(1, end - windowSize + 1);
+                  }
+
+                  for (let i = start; i <= end; i++) {
+                    pages.push(
+                      <button
+                        key={i}
+                        onClick={() => handlePageChange(i)}
+                        className={cn(
+                          "min-w-[32px] h-8 text-xs font-medium rounded-md transition-all",
+                          page === i
+                            ? "bg-blue-600 text-white shadow-md shadow-blue-200"
+                            : "text-gray-600 hover:bg-white hover:shadow-sm active:scale-95 border border-transparent hover:border-gray-200",
+                        )}
+                      >
+                        {i}
+                      </button>,
+                    );
+                  }
+                  return pages;
+                })()}
+
                 <button
                   onClick={() => handlePageChange(page + 1)}
                   disabled={page === totalPages}
                   className={cn(
-                    "p-1.5 rounded border transition-colors",
+                    "p-1.5 rounded-md border transition-all",
                     page === totalPages
                       ? "border-gray-200 text-gray-300 cursor-not-allowed"
-                      : "border-gray-300 text-gray-600 hover:bg-gray-100",
+                      : "border-gray-300 text-gray-600 hover:bg-white hover:shadow-sm active:scale-95",
                   )}
                 >
-                  <ChevronRight className="h-3 w-3" />
+                  <ChevronRight className="h-3.5 w-3.5" />
                 </button>
               </div>
             </div>
