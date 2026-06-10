@@ -35,6 +35,25 @@ export function contrast_text_color(hex: string): string {
   return relative_luminance(hex) > 0.55 ? "#1e293b" : "#f8fafc";
 }
 
+export function darken_color(hex: string, amount: number): string {
+  const [r, g, b] = parse_hex(hex);
+  const factor = 1 - amount;
+  const dr = Math.floor(r * factor);
+  const dg = Math.floor(g * factor);
+  const db = Math.floor(b * factor);
+  return `#${((1 << 24) + (dr << 16) + (dg << 8) + db).toString(16).slice(1)}`;
+}
+
+export function get_pill_text_color(brand_color: string): string {
+  const luminance = relative_luminance(brand_color);
+  // If the color is very light, darken it significantly
+  if (luminance > 0.4) {
+    return darken_color(brand_color, 0.6);
+  }
+  // If it's already dark enough, just darken it slightly for extra pop on the light bg
+  return darken_color(brand_color, 0.2);
+}
+
 export function badge_from_brand(brand_color: string): AppBadge {
   return {
     bg: hex_to_rgba(brand_color, 0.14),
@@ -84,7 +103,7 @@ export function get_app_icon_style(brand_color: string): CSSProperties {
 export function get_app_pill_style(brand_color: string): CSSProperties {
   return {
     backgroundColor: hex_to_rgba(brand_color, 0.14),
-    color: contrast_text_color(brand_color),
+    color: get_pill_text_color(brand_color),
     borderColor: hex_to_rgba(brand_color, 0.35),
   };
 }
