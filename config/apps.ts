@@ -113,6 +113,12 @@ export const apps: AppConfig[] = [
             requiredPermissions: ["sales:solpeds:access"],
           },
           {
+            label: "Presupuestos",
+            path: "/pipeline/presupuestos",
+            icon: Receipt,
+            requiredPermissions: ["sales:solpeds:access"],
+          },
+          {
             label: "OSI",
             path: "/pipeline/osi",
             icon: FileCheck,

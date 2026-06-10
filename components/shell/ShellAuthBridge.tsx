@@ -36,6 +36,7 @@ function get_shell_app_origins(): Set<string> {
  */
 export function ShellAuthBridge() {
   const redirect_in_flight_ref = useRef(false);
+  const expiry_notice_shown_ref = useRef(false);
   const allowed_origins_ref = useRef<Set<string> | null>(null);
 
   useEffect(() => {
@@ -88,6 +89,11 @@ export function ShellAuthBridge() {
         } catch {
           // Parent redirect still proceeds.
         }
+      }
+
+      if (data.reason === "session_expired" && !expiry_notice_shown_ref.current) {
+        expiry_notice_shown_ref.current = true;
+        window.alert("Sesion expirada. Redirigiendo a inicio de sesion.");
       }
 
       redirect_to_login();
