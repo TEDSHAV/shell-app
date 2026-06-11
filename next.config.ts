@@ -12,6 +12,7 @@ const CAPACITACION_URL =
   "https://capacitacion.shadevenezuela.com.ve";
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   async rewrites() {
     return [
       {

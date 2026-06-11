@@ -200,7 +200,7 @@ export const apps: AppConfig[] = [
           },
           {
             label: "Control de secuencia",
-            path: "/dashboard/capacitacion/control-secuencia",
+            path: "/dashboard/capacitacion/configuracion/secuencias-control",
             icon: ListOrdered,
             requiredPermissions: ["scapacitacion:all:access"],
           },

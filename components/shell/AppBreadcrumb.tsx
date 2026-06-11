@@ -1,28 +1,125 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Home } from "lucide-react";
 import { usePathname } from "next/navigation";
-import { getAppByPath } from "@/config/apps";
+import { getAppByPath, apps } from "@/config/apps";
+import { NavLink, NavGroup } from "@/types";
+
+const SEGMENT_LABELS: Record<string, string> = {
+  dashboard: "Inicio",
+  capacitacion: "Capacitación",
+  negocios: "Negocios",
+  "gestion-cursos": "Gestión de Cursos",
+  "gestion-certificados": "Gestión de Certificados",
+  "generacion-certificado": "Generación de Certificados",
+  "gestion-de-facilitadores": "Gestión de Facilitadores",
+  "gestion-de-firmas": "Gestión de Firmas",
+  configuracion: "Configuración",
+  "secuencias-control": "Control de Secuencia",
+  "plantillas-certificados": "Plantillas de Certificados",
+  "plantillas-carnets": "Plantillas de Carnets",
+  "gestion-plantillas-cursos": "Plantillas de Cursos",
+  "consulta-participantes": "Consulta de Participantes",
+  participantes: "Participantes",
+  reportes: "Reportes",
+  "gestion-osi": "Gestión de OSI",
+  "planificacion-servicios": "Planificación de Servicios",
+  inventario: "Inventario",
+  drive: "Drive",
+};
+
+function isNavGroup(item: NavLink | NavGroup): item is NavGroup {
+  return "groupLabel" in item;
+}
 
 export const AppBreadcrumb = () => {
   const pathname = usePathname();
   const currentApp = getAppByPath(pathname);
 
+  if (pathname === "/dashboard") {
+    return (
+      <div className="flex items-center gap-2 text-sm">
+        <span className="font-semibold text-slate-800 flex items-center gap-1.5">
+          <Home className="h-3.5 w-3.5" />
+          PRISMA
+        </span>
+      </div>
+    );
+  }
+
+  const segments = pathname.split("/").filter(Boolean);
+  
+  // Build crumbs
+  const crumbs = segments.map((segment, index) => {
+    const href = "/" + segments.slice(0, index + 1).join("/");
+    const isLast = index === segments.length - 1;
+    
+    // Try to find label
+    let label = SEGMENT_LABELS[segment];
+
+    if (!label && currentApp) {
+      // Search in app navLinks
+      const allLinks: NavLink[] = [];
+      currentApp.navLinks.forEach(item => {
+        if (isNavGroup(item)) {
+          allLinks.push(...item.links);
+        } else {
+          allLinks.push(item);
+        }
+      });
+
+      const foundLink = allLinks.find(link => {
+        const fullLinkPath = `${currentApp.basePath}${link.path === "/" ? "" : link.path}`;
+        return fullLinkPath === href;
+      });
+
+      if (foundLink) {
+        label = foundLink.label;
+      }
+    }
+
+    if (!label) {
+      // Fallback: format string
+      label = segment
+        .replace(/-/g, " ")
+        .replace(/\b\w/g, (c) => c.toUpperCase());
+    }
+
+    return { label, href, isLast };
+  });
+
   return (
-    <div className="flex items-center gap-2 text-sm">
-      <Link
-        href="/dashboard"
-        className="font-semibold text-slate-800 hover:text-blue-600 transition-colors"
-      >
-        PRISMA
-      </Link>
-      {currentApp && (
-        <>
-          <ChevronRight className="h-3.5 w-3.5 text-slate-300" />
-          <span className="text-slate-500 text-sm">{currentApp.name}</span>
-        </>
-      )}
-    </div>
+    <nav aria-label="Breadcrumb" className="flex items-center text-sm overflow-hidden">
+      <ol className="flex items-center gap-2 whitespace-nowrap">
+        <li>
+          <Link
+            href="/dashboard"
+            className="flex items-center gap-1.5 font-semibold text-slate-800 hover:text-blue-600 transition-colors"
+          >
+            <Home className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">PRISMA</span>
+          </Link>
+        </li>
+
+        {crumbs.map((crumb, index) => (
+          <li key={crumb.href} className="flex items-center gap-2">
+            <ChevronRight className="h-3.5 w-3.5 text-slate-300 shrink-0" />
+            {crumb.isLast ? (
+              <span className="text-slate-500 font-medium truncate max-w-[150px] sm:max-w-[250px]">
+                {crumb.label}
+              </span>
+            ) : (
+              <Link
+                href={crumb.href}
+                className="text-slate-400 hover:text-blue-600 transition-colors truncate max-w-[100px] sm:max-w-[200px]"
+              >
+                {crumb.label}
+              </Link>
+            )}
+          </li>
+        ))}
+      </ol>
+    </nav>
   );
 };
