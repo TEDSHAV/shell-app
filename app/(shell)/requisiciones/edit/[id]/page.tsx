@@ -11,8 +11,12 @@ export const metadata = {
   title: "Editar Requisición | PRISMA",
 };
 
-export default async function EditRequisicionPage({ params }: { params: { id: string } }) {
-  const { id } = params;
+export default async function EditRequisicionPage({ 
+  params 
+}: { 
+  params: Promise<{ id: string }> 
+}) {
+  const { id } = await params;
   
   const [osis, facilitators, userData, editRecord] = await Promise.all([
     getAllOSIsForRequisiciones(),

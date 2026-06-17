@@ -15,9 +15,9 @@ export const metadata = {
 export default async function ViewRequisicionPage({ 
   params 
 }: { 
-  params: { id: string } 
+  params: Promise<{ id: string }> 
 }) {
-  const { id } = params;
+  const { id } = await params;
   const record = await getRequisicionRecord(parseInt(id));
 
   if (!record) {
