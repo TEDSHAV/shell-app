@@ -12,6 +12,8 @@ export const Navbar = ({
   userEmail,
   onMobileMenuToggle,
   isMobileMenuOpen,
+  userRolesByApp,
+  globalRole,
 }: NavbarProps) => {
   return (
     <header className="h-14 border-b border-slate-200 bg-white flex items-center px-4 gap-3 sticky top-0 z-40 shadow-sm">
@@ -42,7 +44,10 @@ export const Navbar = ({
       <AppBreadcrumb />
 
       <div className="ml-auto flex items-center gap-2">
-        <AppNavigation />
+        <AppNavigation 
+          userRolesByApp={userRolesByApp} 
+          globalRole={globalRole} 
+        />
         <NotificationsBell />
         {userEmail && <UserMenu userEmail={userEmail} />}
       </div>

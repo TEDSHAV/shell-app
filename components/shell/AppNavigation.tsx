@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { apps } from "@/config/apps";
+import { AppConfig } from "@/types";
 import {
   get_app_icon_style,
   get_header_nav_active_style,
@@ -11,12 +12,36 @@ import {
 } from "@/lib/app-theme";
 import { cn } from "@/lib/utils";
 
-export const AppNavigation = () => {
+interface AppNavigationProps {
+  userRolesByApp?: Record<string, string>;
+  globalRole?: string;
+}
+
+export const AppNavigation = ({ userRolesByApp = {}, globalRole }: AppNavigationProps) => {
   const pathname = usePathname();
+
+  const canAccessApp = (app: AppConfig): boolean => {
+    const userRole = userRolesByApp[app.dbSlug ?? app.id];
+    const lowerRole = userRole?.toLowerCase() || globalRole?.toLowerCase();
+    
+    // Always allow admin/superadmin
+    if (lowerRole === "admin" || lowerRole === "superadmin") return true;
+
+    // Check app-level roles if defined
+    if (app.requiredRoles && app.requiredRoles.length > 0) {
+      if (!lowerRole || !app.requiredRoles.some(r => r.toLowerCase() === lowerRole)) {
+        return false;
+      }
+    }
+
+    return true;
+  };
+
+  const allowedApps = apps.filter(canAccessApp);
 
   return (
     <nav className="hidden md:flex items-center gap-1 mr-2">
-      {apps.map((app) => {
+      {allowedApps.map((app) => {
         const external = opens_in_new_tab(app);
         const is_active = pathname.startsWith(app.basePath);
         const icon_style = get_app_icon_style(app.brandColor);

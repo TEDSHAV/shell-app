@@ -3,12 +3,16 @@ export interface NavbarProps {
   userEmail?: string;
   onMobileMenuToggle: () => void;
   isMobileMenuOpen: boolean;
+  userRolesByApp?: Record<string, string>;
+  globalRole?: string;
 }
 
 export interface ShellProviderProps {
   children: React.ReactNode;
   sidebar: React.ReactNode;
   userEmail?: string;
+  userRolesByApp?: Record<string, string>;
+  globalRole?: string;
 }
 
 export interface AppFrameProps {

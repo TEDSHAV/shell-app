@@ -8,7 +8,13 @@ import { ShellAuthBridge } from "@/components/shell/ShellAuthBridge";
 import { ShellURLSync } from "@/components/shell/ShellURLSync";
 import { ShellProviderProps } from "@/types";
 
-export function ShellProvider({ children, sidebar, userEmail }: ShellProviderProps) {
+export function ShellProvider({ 
+  children, 
+  sidebar, 
+  userEmail,
+  userRolesByApp,
+  globalRole
+}: ShellProviderProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   return (
@@ -25,6 +31,8 @@ export function ShellProvider({ children, sidebar, userEmail }: ShellProviderPro
           userEmail={userEmail}
           onMobileMenuToggle={() => setIsMobileMenuOpen((v) => !v)}
           isMobileMenuOpen={isMobileMenuOpen}
+          userRolesByApp={userRolesByApp}
+          globalRole={globalRole}
         />
         <div className="flex flex-1 min-h-0">
           <Sidebar>{sidebar}</Sidebar>
