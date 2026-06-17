@@ -14,7 +14,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useMobileSidebar } from "./MobileSidebarContext";
 import { useSidebarCollapse } from "./Sidebar";
-import { NavLink, NavGroup } from "@/types";
+import { NavLink, NavGroup, AppConfig } from "@/types";
 
 function isNavGroup(item: NavLink | NavGroup): item is NavGroup {
   return "groupLabel" in item;
