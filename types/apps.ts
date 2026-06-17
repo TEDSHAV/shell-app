@@ -20,7 +20,7 @@ export interface AppBadge {
   dot: string;
 }
 
-export type AppEmbedMode = "shell" | "raw" | "external";
+export type AppEmbedMode = "shell" | "raw" | "external" | "native";
 
 export interface AppConfig {
   id: string;
@@ -28,7 +28,7 @@ export interface AppConfig {
   name: string;
   description: string;
   basePath: string;
-  upstreamUrl: string;
+  upstreamUrl?: string;
   icon: LucideIcon;
   /** @deprecated Use brandColor + get_app_icon_style */
   color: string;

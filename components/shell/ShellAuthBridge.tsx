@@ -18,7 +18,7 @@ type AuthRequiredMessage = {
 function get_shell_app_origins(): Set<string> {
   const origins = new Set<string>();
   for (const app of apps) {
-    if (app.embedMode !== "shell") {
+    if (app.embedMode !== "shell" || !app.upstreamUrl) {
       continue;
     }
     try {

@@ -1,7 +1,5 @@
 import type { CSSProperties } from "react";
-import type { AppBadge, AppConfig } from "@/types";
-
-export type AppEmbedMode = "shell" | "raw" | "external";
+import type { AppBadge, AppConfig, AppEmbedMode } from "@/types";
 
 function parse_hex(hex: string): [number, number, number] {
   const normalized = hex.replace("#", "").trim();

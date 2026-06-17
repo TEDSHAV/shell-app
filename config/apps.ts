@@ -328,7 +328,7 @@ export const apps: AppConfig[] = [
     basePath: "/requisiciones",
     icon: ClipboardList,
     brandColor: "#3b82f6",
-    embedMode: "shell",
+    embedMode: "native",
     navLinks: [
       { label: "Mis Requisiciones", path: "/", icon: ListOrdered },
       { label: "Nueva Requisición", path: "/create", icon: FilePlus2 },

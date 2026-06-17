@@ -11,14 +11,18 @@ export function buildFrameUrl(appId: string, subPath?: string): string {
     return build_tickets_frame_url();
   }
 
+  if (app.embedMode === "native") {
+    throw new Error(`App ${appId} is native and does not have a frame URL`);
+  }
+
   const normalized = subPath?.replace(/^\//, "") ?? "";
   const path = normalized.length > 0 ? `/${normalized}` : "";
 
   if (app.embedMode === "raw") {
-    return `${app.upstreamUrl}${path}`;
+    return `${app.upstreamUrl!}${path}`;
   }
 
-  return `${app.upstreamUrl}${path}?shell=1`;
+  return `${app.upstreamUrl!}${path}?shell=1`;
 }
 
 const prefetched_srcs = new Set<string>();
