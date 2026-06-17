@@ -322,6 +322,19 @@ export const apps: AppConfig[] = [
     navLinks: [],
   }),
   build_app_config({
+    id: "requisiciones",
+    name: "Requisiciones",
+    description: "Crear y gestionar solicitudes de requisición para todos los departamentos",
+    basePath: "/requisiciones",
+    icon: ClipboardList,
+    brandColor: "#3b82f6",
+    embedMode: "shell",
+    navLinks: [
+      { label: "Mis Requisiciones", path: "/", icon: ListOrdered },
+      { label: "Nueva Requisición", path: "/create", icon: FilePlus2 },
+    ],
+  }),
+  build_app_config({
     id: "tickets",
     name: "Tickets",
     description:

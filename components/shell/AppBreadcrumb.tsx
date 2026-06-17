@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { ChevronRight, Home } from "lucide-react";
+import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { getAppByPath, apps } from "@/config/apps";
 import { NavLink, NavGroup } from "@/types";
@@ -27,6 +28,13 @@ const SEGMENT_LABELS: Record<string, string> = {
   "planificacion-servicios": "Planificación de Servicios",
   inventario: "Inventario",
   drive: "Drive",
+  requisiciones: "Requisiciones",
+  create: "Nueva",
+  edit: "Editar",
+  lista: "Lista",
+  view: "Ver",
+  solicitud: "Solicitud",
+  "solicitud-requisiciones": "Solicitud de Requisiciones"
 };
 
 function isNavGroup(item: NavLink | NavGroup): item is NavGroup {
@@ -34,10 +42,27 @@ function isNavGroup(item: NavLink | NavGroup): item is NavGroup {
 }
 
 export const AppBreadcrumb = () => {
-  const pathname = usePathname();
-  const currentApp = getAppByPath(pathname);
+  const nextPathname = usePathname();
+  const [currentPathname, setCurrentPathname] = useState(nextPathname);
 
-  if (pathname === "/dashboard") {
+  // Sync state with next/navigation pathname
+  useEffect(() => {
+    setCurrentPathname(nextPathname);
+  }, [nextPathname]);
+
+  // Handle manual URL updates (e.g. from ShellURLSync)
+  useEffect(() => {
+    const handleLocationChange = () => {
+      setCurrentPathname(window.location.pathname);
+    };
+
+    window.addEventListener('popstate', handleLocationChange);
+    return () => window.removeEventListener('popstate', handleLocationChange);
+  }, []);
+
+  const currentApp = getAppByPath(currentPathname);
+
+  if (currentPathname === "/dashboard") {
     return (
       <div className="flex items-center gap-2 text-sm">
         <span className="font-semibold text-slate-800 flex items-center gap-1.5">
@@ -48,7 +73,7 @@ export const AppBreadcrumb = () => {
     );
   }
 
-  const segments = pathname.split("/").filter(Boolean);
+  const segments = currentPathname.split("/").filter(Boolean);
   
   // Build crumbs
   const crumbs = segments.map((segment, index) => {
