@@ -13,12 +13,27 @@ export async function getFrameUrl(
 export async function getUserRole(): Promise<string> {
   const supabase = await createClient();
   const { data } = await supabase.auth.getClaims();
-  if (!data?.claims) return "user";
-  return (
-    (data.claims.user_role as string) ??
-    (data.claims.app_metadata as Record<string, string> | undefined)?.role ??
-    "user"
-  );
+  
+  if (data?.claims) {
+    const role = (data.claims.user_role as string) ??
+      (data.claims.app_metadata as Record<string, string> | undefined)?.role;
+    
+    if (role) {
+      console.log("[getUserRole] Found role in claims:", role);
+      return role;
+    }
+  }
+
+  // Fallback: Check app-specific roles to see if user is an admin anywhere
+  const appRoles = await getUserRolesByApp();
+  const roles = Object.values(appRoles).map(r => r.toLowerCase());
+  
+  if (roles.includes("superadmin")) return "superadmin";
+  if (roles.includes("admin")) return "admin";
+  if (roles.includes("lider")) return "lider";
+
+  console.log("[getUserRole] No administrative role found, defaulting to user");
+  return "user";
 }
 
 export async function getUserPermissionsByApp(): Promise<Record<string, string[]>> {
@@ -79,7 +94,10 @@ export async function getUserRolesByApp(): Promise<Record<string, string>> {
       `)
       .eq("usuario_id", usuario.id);
 
-    if (rolesError || !userAppRoles) return {};
+    if (rolesError || !userAppRoles) {
+      console.error("[getUserRolesByApp] Roles error or no data:", rolesError);
+      return {};
+    }
 
     // Get app slugs by their IDs
     const { data: apps, error: appsError } = await supabase
@@ -87,7 +105,10 @@ export async function getUserRolesByApp(): Promise<Record<string, string>> {
       .from("apps")
       .select("id, slug");
 
-    if (appsError || !apps) return {};
+    if (appsError || !apps) {
+      console.error("[getUserRolesByApp] Apps error or no data:", appsError);
+      return {};
+    }
 
     const appMap = new Map(apps.map((app: { id: bigint; slug: string }) => [app.id, app.slug]));
 
@@ -103,8 +124,10 @@ export async function getUserRolesByApp(): Promise<Record<string, string>> {
       }
     }
 
+    console.log("[getUserRolesByApp] Resolved app roles:", result);
     return result;
-  } catch {
+  } catch (error) {
+    console.error("[getUserRolesByApp] Unexpected error:", error);
     return {};
   }
 }

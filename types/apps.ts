@@ -5,6 +5,7 @@ export interface NavLink {
   path: string;
   icon: LucideIcon;
   requiredPermissions?: string[];
+  requiredRoles?: string[];
 }
 
 export interface NavGroup {
@@ -36,4 +37,5 @@ export interface AppConfig {
   embedMode: AppEmbedMode;
   badge: AppBadge;
   navLinks: (NavLink | NavGroup)[];
+  requiredRoles?: string[];
 }

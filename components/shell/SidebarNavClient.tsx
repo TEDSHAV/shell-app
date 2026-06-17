@@ -23,6 +23,7 @@ function isNavGroup(item: NavLink | NavGroup): item is NavGroup {
 interface SidebarNavClientProps {
   userPermsByApp: Record<string, string[]>;
   userRolesByApp: Record<string, string>;
+  globalRole?: string;
 }
 
 const default_link_class =
@@ -31,6 +32,7 @@ const default_link_class =
 export function SidebarNavClient({
   userPermsByApp,
   userRolesByApp,
+  globalRole,
 }: SidebarNavClientProps) {
   const pathname = usePathname();
   const currentApp = getAppByPath(pathname);
@@ -55,6 +57,23 @@ export function SidebarNavClient({
     </Link>
   );
 
+  const canAccessApp = (app: AppConfig): boolean => {
+    const userRole = userRolesByApp[app.dbSlug ?? app.id];
+    const lowerRole = userRole?.toLowerCase() || globalRole?.toLowerCase();
+    
+    // Always allow admin/superadmin
+    if (lowerRole === "admin" || lowerRole === "superadmin") return true;
+
+    // Check app-level roles if defined
+    if (app.requiredRoles && app.requiredRoles.length > 0) {
+      if (!lowerRole || !app.requiredRoles.some(r => r.toLowerCase() === lowerRole)) {
+        return false;
+      }
+    }
+
+    return true;
+  };
+
   if (!currentApp) {
     return (
       <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1 sidebar-scrollbar">
@@ -68,7 +87,7 @@ export function SidebarNavClient({
             </span>
           </div>
         )}
-        {apps.map((app) => {
+        {apps.filter(canAccessApp).map((app) => {
           const external = opens_in_new_tab(app);
           const icon_style = get_app_icon_style(app.brandColor);
 
@@ -170,8 +189,15 @@ export function SidebarNavClient({
   const userRole = userRolesByApp[currentApp.dbSlug ?? currentApp.id];
 
   const canAccess = (link: NavLink): boolean => {
-    const lowerRole = userRole?.toLowerCase();
+    const lowerRole = userRole?.toLowerCase() || globalRole?.toLowerCase();
     if (lowerRole === "admin" || lowerRole === "superadmin") return true;
+
+    // Check roles first if defined
+    if (link.requiredRoles && link.requiredRoles.length > 0) {
+      if (!lowerRole || !link.requiredRoles.some(r => r.toLowerCase() === lowerRole)) {
+        return false;
+      }
+    }
 
     if (!link.requiredPermissions || link.requiredPermissions.length === 0) {
       return true;

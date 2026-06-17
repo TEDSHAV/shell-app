@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { apps } from "@/config/apps";
-import { NavLink, NavGroup } from "@/types";
+import { NavLink, NavGroup, AppConfig } from "@/types";
 import { ArrowRight } from "lucide-react";
 import {
   get_app_icon_style,
@@ -9,6 +9,7 @@ import {
   opens_in_new_tab,
 } from "@/lib/app-theme";
 import { cn } from "@/lib/utils";
+import { getUserRolesByApp, getUserRole } from "@/actions/apps";
 
 function flattenNavLinks(navLinks: (NavLink | NavGroup)[]): NavLink[] {
   return navLinks.flatMap((item) =>
@@ -16,8 +17,31 @@ function flattenNavLinks(navLinks: (NavLink | NavGroup)[]): NavLink[] {
   );
 }
 
-export default function DashboardPage() {
-  const has_lone_last_card = apps.length % 2 === 1;
+export default async function DashboardPage() {
+  const [userRolesByApp, globalRole] = await Promise.all([
+    getUserRolesByApp(),
+    getUserRole()
+  ]);
+
+  const canAccessApp = (app: AppConfig): boolean => {
+    const userRole = userRolesByApp[app.dbSlug ?? app.id];
+    const lowerRole = userRole?.toLowerCase() || globalRole?.toLowerCase();
+    
+    // Always allow admin/superadmin
+    if (lowerRole === "admin" || lowerRole === "superadmin") return true;
+
+    // Check app-level roles if defined
+    if (app.requiredRoles && app.requiredRoles.length > 0) {
+      if (!lowerRole || !app.requiredRoles.some(r => r.toLowerCase() === lowerRole)) {
+        return false;
+      }
+    }
+
+    return true;
+  };
+
+  const allowedApps = apps.filter(canAccessApp);
+  const has_lone_last_card = allowedApps.length % 2 === 1;
 
   return (
     <div className="p-8 w-full max-w-6xl mx-auto">
@@ -29,10 +53,10 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {apps.map((app, index) => {
+        {allowedApps.map((app, index) => {
           const external = opens_in_new_tab(app);
           const is_lone_last =
-            has_lone_last_card && index === apps.length - 1;
+            has_lone_last_card && index === allowedApps.length - 1;
           const icon_style = get_app_icon_style(app.brandColor);
           const strip_style = get_app_strip_style(app.brandColor);
           const badge_bg = {

@@ -329,6 +329,7 @@ export const apps: AppConfig[] = [
     icon: ClipboardList,
     brandColor: "#3b82f6",
     embedMode: "native",
+    requiredRoles: ["admin", "lider", "superadmin"],
     navLinks: [
       { label: "Mis Requisiciones", path: "/", icon: ListOrdered },
       { label: "Nueva Requisición", path: "/create", icon: FilePlus2 },
