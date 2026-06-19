@@ -53,7 +53,7 @@ export const apps: AppConfig[] = [
             label: "Empresas",
             path: "/directorio/empresas",
             icon: Building2,
-            requiredPermissions: ["directorio:access"],
+            requiredPermissions: ["directorio:manage"],
           },
           {
             label: "Servicios",
@@ -65,13 +65,13 @@ export const apps: AppConfig[] = [
             label: "Usuarios",
             path: "/directorio/usuarios",
             icon: Users,
-            requiredPermissions: ["directorio:access"],
+            requiredPermissions: ["directorio:manage"],
           },
           {
             label: "Facilitadores",
             path: "/directorio/facilitadores",
             icon: UserCheck,
-            requiredPermissions: ["directorio:access"],
+            requiredPermissions: ["directorio:manage"],
           },
         ],
       },
@@ -97,7 +97,7 @@ export const apps: AppConfig[] = [
             requiredPermissions: [
               "mkt:contactos:read",
               "sales:clientes:access",
-              "directorio:access",
+              "directorio:manage",
             ],
           },
           {
