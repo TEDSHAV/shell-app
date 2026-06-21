@@ -61,4 +61,5 @@ export interface OSIFullData {
   horas_honorarios_instructor: number | null;
   tarifa_hora_honorarios: number | null;
   costo_impresion_material: number | null;
+  tipo_servicio?: string | null;
 }

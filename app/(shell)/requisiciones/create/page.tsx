@@ -3,6 +3,7 @@ import {
   getFacilitatorsForDropdown, 
   getCurrentUser 
 } from "@/actions/requisiciones";
+import { getUserRole } from "@/actions/apps";
 import RequisicionForm from "../components/RequisicionForm";
 
 export const metadata = {
@@ -10,11 +11,16 @@ export const metadata = {
 };
 
 export default async function CreateRequisicionPage() {
-  const [osis, facilitators, userData] = await Promise.all([
+  const [osis, facilitators, userData, userRole] = await Promise.all([
     getAllOSIsForRequisiciones(),
     getFacilitatorsForDropdown(),
     getCurrentUser(),
+    getUserRole(),
   ]);
+
+  const userDept = userData?.departamentos?.nombre?.trim().toLowerCase() || "";
+  const isTEDDept = userDept === "ted";
+  const canSwitchMode = isTEDDept || ["admin", "superadmin"].includes(userRole?.toLowerCase());
 
   return (
     <div className="p-4 sm:p-8">
@@ -26,6 +32,8 @@ export default async function CreateRequisicionPage() {
         osis={osis} 
         facilitators={facilitators} 
         userData={userData} 
+        canSwitchMode={canSwitchMode}
+        isTEDDept={isTEDDept}
       />
     </div>
   );

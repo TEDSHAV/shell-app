@@ -29,12 +29,16 @@ export default function RequisicionForm({
   osis = [], 
   facilitators = [], 
   userData = null,
-  editRecord = null
+  editRecord = null,
+  canSwitchMode = false,
+  isTEDDept = false
 }: { 
   osis?: OSIFullData[], 
   facilitators?: any[], 
   userData?: any,
-  editRecord?: any
+  editRecord?: any,
+  canSwitchMode?: boolean,
+  isTEDDept?: boolean
 }) {
   return (
     <Suspense fallback={<div>Cargando formulario...</div>}>
@@ -43,6 +47,8 @@ export default function RequisicionForm({
         initialFacilitators={facilitators} 
         initialUserData={userData}
         editRecord={editRecord}
+        canSwitchMode={canSwitchMode}
+        isTEDDept={isTEDDept}
       />
     </Suspense>
   );
@@ -52,12 +58,16 @@ function RequisicionFormContent({
   initialOsis, 
   initialFacilitators, 
   initialUserData,
-  editRecord 
+  editRecord,
+  canSwitchMode,
+  isTEDDept
 }: { 
   initialOsis: OSIFullData[], 
   initialFacilitators: any[], 
   initialUserData: any,
-  editRecord: any
+  editRecord: any,
+  canSwitchMode: boolean,
+  isTEDDept: boolean
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -72,12 +82,12 @@ function RequisicionFormContent({
 
   const [formData, setFormData] = useState<RequisicionFormData>({
     selectedOSI: editRecord ? (initialOsis.find((o: any) => o.id_osi === editRecord.id_osi) || null) : null,
-    corresponde_a: editRecord?.corresponde_a || "Servicios",
+    corresponde_a: editRecord?.corresponde_a || "",
     fecha_solicitud: editRecord?.fecha_solicitud || new Date().toISOString().split("T")[0],
-    tipo_solicitud: editRecord?.tipo_solicitud || "Interno",
+    tipo_solicitud: editRecord?.tipo_solicitud || "",
     nro_correlativo: editRecord?.nro_correlativo || "",
-    tipo_servicio: editRecord?.tipo_servicio || "Capacitación",
-    gerencia_solicitante: editRecord?.gerencia_solicitante || initialUserData?.departamentos?.nombre || "SERVICIOS",
+    tipo_servicio: editRecord?.tipo_servicio || "",
+    gerencia_solicitante: editRecord?.gerencia_solicitante || (isTEDDept ? "TED" : initialUserData?.departamentos?.nombre || "SERVICIOS"),
     solicitante: editRecord?.solicitante || initialUserData?.nombre_apellido || "",
     prioridad: editRecord?.prioridad || "Alta",
 
@@ -121,10 +131,51 @@ function RequisicionFormContent({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const isCapacitacion = formData.gerencia_solicitante.trim().toLowerCase() === "capacitacion";
+  const isTEDMode = formData.gerencia_solicitante.trim().toLowerCase() === "ted";
+
+  const handleModeSwitch = (mode: "capacitacion" | "servicios tecnicos" | "ted") => {
+    const gerenciaMap = {
+      capacitacion: "Capacitacion",
+      "servicios tecnicos": "Servicios Tecnicos",
+      ted: "TED",
+    };
+    setFormData((prev) => ({
+      ...prev,
+      gerencia_solicitante: gerenciaMap[mode],
+      selectedOSI: null,
+    }));
+    setSearchTerm("");
+  };
+
+  // Ensure at least one empty row for personalized items when non-Capacitacion (including TED mode)
+  useEffect(() => {
+    if (!isCapacitacion && formData.additional_items.length === 0) {
+      const newItem: RequisicionItem = {
+        id: Math.random().toString(36).substr(2, 9),
+        cant: 1,
+        unidad: "",
+        descripcion: "",
+        costo_unitario: 0,
+        total: 0,
+      };
+      setFormData((prev) => ({
+        ...prev,
+        additional_items: [...prev.additional_items, newItem],
+      }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCapacitacion]);
+
+  const osiTipoServicio = isCapacitacion ? "capacitacion" : "servicios tecnicos";
+
+  const isOSIRequired = !isTEDMode;
+
   const filteredOSIs = osis.filter(
     (osi) =>
-      osi.nro_osi?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      osi.servicio?.toLowerCase().includes(searchTerm.toLowerCase()),
+      osi.tipo_servicio?.toLowerCase() === osiTipoServicio &&
+      (osi.nro_osi?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        osi.servicio?.toLowerCase().includes(searchTerm.toLowerCase())),
   );
 
   const handleOSISelect = (osi: OSIFullData) => {
@@ -194,7 +245,7 @@ function RequisicionFormContent({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.selectedOSI) {
+    if (isOSIRequired && !formData.selectedOSI) {
       alert("Por favor seleccione una OSI");
       return;
     }
@@ -207,10 +258,8 @@ function RequisicionFormContent({
         await createRequisicionRecord(formData);
       }
       setShowSuccess(true);
-      // Stay in shell app as requested
       setTimeout(() => {
-        router.refresh();
-        setShowSuccess(false);
+        router.push("/requisiciones");
       }, 2000);
     } catch (error) {
       console.error("Error saving requisition:", error);
@@ -241,23 +290,53 @@ function RequisicionFormContent({
         </div>
       )}
 
+      {canSwitchMode && (
+        <div className="flex gap-1 mb-4">
+          {isTEDDept && (
+            <button
+              type="button"
+              onClick={() => handleModeSwitch("ted")}
+              className={`px-4 py-2 text-sm font-bold rounded-t-lg border-b-2 transition-colors ${
+                isTEDMode
+                  ? "border-blue-600 text-blue-600 bg-blue-50"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              General
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => handleModeSwitch("capacitacion")}
+            className={`px-4 py-2 text-sm font-bold rounded-t-lg border-b-2 transition-colors ${
+              isCapacitacion
+                ? "border-blue-600 text-blue-600 bg-blue-50"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+            }`}
+          >
+            Capacitación
+          </button>
+          <button
+            type="button"
+            onClick={() => handleModeSwitch("servicios tecnicos")}
+            className={`px-4 py-2 text-sm font-bold rounded-t-lg border-b-2 transition-colors ${
+              !isCapacitacion && !isTEDMode
+                ? "border-blue-600 text-blue-600 bg-blue-50"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+            }`}
+          >
+            Servicios Técnicos
+          </button>
+        </div>
+      )}
+
       <Card className="shadow-md border-gray-300">
         <CardContent className="p-0">
           <div className="grid grid-cols-12 border-b border-gray-300">
             <div className="col-span-3 p-3 border-r border-gray-300 bg-gray-50 flex items-center font-bold text-sm">
-              Corresponde a:
-            </div>
-            <div className="col-span-4 p-3 border-r border-gray-300">
-              <Input 
-                value={formData.corresponde_a} 
-                onChange={(e) => setFormData(p => ({...p, corresponde_a: e.target.value}))}
-                className="h-8 border-none focus-visible:ring-0 px-0 font-medium"
-              />
-            </div>
-            <div className="col-span-2 p-3 border-r border-gray-300 bg-gray-50 flex items-center font-bold text-sm">
               Fecha de solicitud:
             </div>
-            <div className="col-span-3 p-3">
+            <div className={`p-3 border-r border-gray-300 ${isTEDMode ? "col-span-9" : "col-span-4"}`}>
               <Input 
                 type="date"
                 value={formData.fecha_solicitud}
@@ -265,61 +344,8 @@ function RequisicionFormContent({
                 className="h-8 border-none focus-visible:ring-0 px-0"
               />
             </div>
-          </div>
-
-          <div className="grid grid-cols-12 border-b border-gray-300">
-            <div className="col-span-3 p-3 border-r border-gray-300 bg-gray-50 flex items-center font-bold text-sm">
-              Tipo de solicitud:
-            </div>
-            <div className="col-span-2 p-3 border-r border-gray-300 flex gap-4 items-center">
-              <RadioGroup 
-                value={formData.tipo_solicitud} 
-                onValueChange={(v: any) => setFormData(p => ({...p, tipo_solicitud: v}))}
-                className="flex gap-4"
-              >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="Interno" id="interno" />
-                  <Label htmlFor="interno" className="text-xs">Interno</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="Externo" id="externo" />
-                  <Label htmlFor="externo" className="text-xs">Externo</Label>
-                </div>
-              </RadioGroup>
-            </div>
-            <div className="col-span-2 p-3 border-r border-gray-300 bg-gray-50 flex items-center font-bold text-sm">
-              Nro de Correlativo:
-            </div>
-            <div className="col-span-5 p-3 flex items-center">
-              <Input 
-                value={formData.nro_correlativo}
-                onChange={(e) => setFormData(p => ({...p, nro_correlativo: e.target.value}))}
-                className="h-8 border-none focus-visible:ring-0 px-0 flex-1 font-bold"
-                placeholder="Ej: GS-DC-001"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-12 border-b border-gray-300">
-            <div className="col-span-3 p-3 border-r border-gray-300 bg-gray-50 flex flex-col justify-center">
-              <span className="font-bold text-sm">Tipo de servicio:</span>
-            </div>
-            <div className="col-span-4 p-3 border-r border-gray-300 flex gap-4 items-center">
-              <RadioGroup 
-                value={formData.tipo_servicio} 
-                onValueChange={(v: any) => setFormData(p => ({...p, tipo_servicio: v}))}
-                className="grid-flow-col gap-4"
-              >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="Servicio Técnico" id="st" />
-                  <Label htmlFor="st" className="text-xs">Servicio Técnico</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="Capacitación" id="cap" />
-                  <Label htmlFor="cap" className="text-xs">Capacitación</Label>
-                </div>
-              </RadioGroup>
-            </div>
+            {!isTEDMode && (
+            <>
             <div className="col-span-2 p-3 border-r border-gray-300 bg-gray-50 flex items-center font-bold text-sm">
               N° OSI:
             </div>
@@ -349,6 +375,8 @@ function RequisicionFormContent({
                   </div>
                 )}
             </div>
+            </>
+            )}
           </div>
 
           <div className="grid grid-cols-12 border-b border-gray-300">
@@ -358,8 +386,8 @@ function RequisicionFormContent({
             <div className="col-span-4 p-3 border-r border-gray-300">
               <Input 
                 value={formData.gerencia_solicitante}
-                onChange={(e) => setFormData(p => ({...p, gerencia_solicitante: e.target.value}))}
-                className="h-8 border-none focus-visible:ring-0 px-0 text-sm font-medium uppercase"
+                readOnly
+                className="h-8 border-none focus-visible:ring-0 px-0 text-sm font-medium uppercase bg-gray-50/50 cursor-not-allowed"
               />
             </div>
             <div className="col-span-2 p-3 border-r border-gray-300 bg-gray-50 flex flex-col justify-center">
@@ -416,6 +444,8 @@ function RequisicionFormContent({
               </tr>
             </thead>
             <tbody>
+              {isCapacitacion && (
+              <>
               {/* Item 1: Traslado */}
               <tr className="border-b border-gray-300">
                 <td className="p-2 text-center border-r border-gray-300 font-bold">1</td>
@@ -524,11 +554,13 @@ function RequisicionFormContent({
                 </td>
                 <td className="p-2 border-l border-gray-300"></td>
               </tr>
+              </>
+              )}
 
               {/* Additional Items */}
               {formData.additional_items.map((item, index) => (
                 <tr key={item.id} className="border-b border-gray-300 bg-blue-50/30">
-                  <td className="p-2 text-center border-r border-gray-300 font-bold">{index + 5}</td>
+                  <td className="p-2 text-center border-r border-gray-300 font-bold">{index + (isCapacitacion ? 5 : 1)}</td>
                   <td className="p-2 border-r border-gray-300">
                     <Input 
                       className="h-6 w-full text-center border-gray-300 p-1 uppercase font-bold" 
@@ -578,10 +610,12 @@ function RequisicionFormContent({
                 <td colSpan={3} className="p-2 text-right font-bold uppercase text-sm">Total General:</td>
                 <td className="p-2 text-center font-bold text-sm bg-yellow-50">
                   ${(
-                    (formData.dias_traslado || 0) * (formData.costo_traslado || 0) +
-                    (formData.impresion_total || 0) +
-                    (formData.honorarios_total || 0) +
-                    (formData.informe_final_total || 0) +
+                    (isCapacitacion
+                      ? (formData.dias_traslado || 0) * (formData.costo_traslado || 0) +
+                        (formData.impresion_total || 0) +
+                        (formData.honorarios_total || 0) +
+                        (formData.informe_final_total || 0)
+                      : 0) +
                     formData.additional_items.reduce((sum, item) => sum + item.total, 0)
                   ).toFixed(2)}
                 </td>
@@ -616,6 +650,8 @@ function RequisicionFormContent({
             />
           </div>
 
+          {isCapacitacion && (
+          <>
           <div className="grid grid-cols-12 border-b border-gray-300 text-xs">
             <div className="col-span-3 p-2 border-r border-gray-300 bg-gray-50 flex items-center font-bold">
               Facilitador Asignado:
@@ -677,6 +713,8 @@ function RequisicionFormContent({
               {formData.nro_cuenta || "-"}
             </div>
           </div>
+          </>
+          )}
 
           <div className="p-4 flex justify-end gap-3 bg-gray-50">
             <Button

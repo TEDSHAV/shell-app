@@ -43,7 +43,7 @@ export default function RequisicionRow({ record }: { record: any }) {
       </td>
       <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
         {record.fecha_solicitud
-          ? new Date(record.fecha_solicitud).toLocaleDateString()
+          ? new Date(record.fecha_solicitud + "T00:00:00").toLocaleDateString()
           : "-"}
       </td>
       <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900" onClick={handleActionClick}>

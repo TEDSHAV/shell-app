@@ -4,6 +4,7 @@ import {
   getCurrentUser,
   getRequisicionRecord
 } from "@/actions/requisiciones";
+import { getUserRole } from "@/actions/apps";
 import RequisicionForm from "../../components/RequisicionForm";
 import { notFound } from "next/navigation";
 
@@ -18,12 +19,17 @@ export default async function EditRequisicionPage({
 }) {
   const { id } = await params;
   
-  const [osis, facilitators, userData, editRecord] = await Promise.all([
+  const [osis, facilitators, userData, editRecord, userRole] = await Promise.all([
     getAllOSIsForRequisiciones(),
     getFacilitatorsForDropdown(),
     getCurrentUser(),
     getRequisicionRecord(parseInt(id)),
+    getUserRole(),
   ]);
+
+  const userDept = userData?.departamentos?.nombre?.trim().toLowerCase() || "";
+  const isTEDDept = userDept === "ted";
+  const canSwitchMode = isTEDDept || ["admin", "superadmin"].includes(userRole?.toLowerCase());
 
   if (!editRecord) {
     notFound();
@@ -40,6 +46,8 @@ export default async function EditRequisicionPage({
         facilitators={facilitators} 
         userData={userData} 
         editRecord={editRecord}
+        canSwitchMode={canSwitchMode}
+        isTEDDept={isTEDDept}
       />
     </div>
   );

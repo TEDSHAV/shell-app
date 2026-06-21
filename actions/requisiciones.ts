@@ -66,6 +66,8 @@ export async function createRequisicionRecord(
   const userResponse = await supabase.auth.getUser();
   const userId = userResponse.data.user?.id || null;
 
+  const isCapacitacion = formData.gerencia_solicitante?.trim().toLowerCase() === "capacitacion";
+
   // Calculate totals for fixed items as requested (Cant is removed from UI, so we use 1)
   const totalTraslado = (formData.dias_traslado || 0) * (formData.costo_traslado || 0);
   const totalImpresion = (formData.impresion_total || 0);
@@ -78,17 +80,17 @@ export async function createRequisicionRecord(
     gerencia_solicitante: formData.gerencia_solicitante,
     fecha_solicitud: formData.fecha_solicitud,
     tipo_solicitud: formData.tipo_solicitud || null,
-    nro_correlativo: formData.nro_correlativo,
+    nro_correlativo: formData.nro_correlativo || null,
     tipo_servicio: formData.tipo_servicio || null,
     prioridad: formData.prioridad || null,
-    corresponde_a: formData.corresponde_a,
+    corresponde_a: formData.corresponde_a || null,
 
-    // Store calculated totals in numeric columns
-    costo_traslado: totalTraslado,
-    impresion_total: totalImpresion,
-    honorarios_total: totalHonorarios,
-    informe_final_total: totalInformeFinal,
-    dias_traslado: formData.dias_traslado,
+    // Store calculated totals in numeric columns (zeroed when non-Capacitacion)
+    costo_traslado: isCapacitacion ? totalTraslado : 0,
+    impresion_total: isCapacitacion ? totalImpresion : 0,
+    honorarios_total: isCapacitacion ? totalHonorarios : 0,
+    informe_final_total: isCapacitacion ? totalInformeFinal : 0,
+    dias_traslado: isCapacitacion ? formData.dias_traslado : 0,
 
     // DB Quantities set to 1 as requested (since we removed them from UI)
     cant_traslado: 1,
@@ -96,11 +98,11 @@ export async function createRequisicionRecord(
     cant_honorarios: 1,
     cant_informe_final: 1,
 
-    // Facilitator
-    cod_facilitador: formData.cod_facilitador ? parseInt(formData.cod_facilitador) : null,
-    facilitador: formData.facilitador,
-    banco: formData.banco,
-    nro_cuenta: formData.nro_cuenta,
+    // Facilitator (null when non-Capacitacion)
+    cod_facilitador: isCapacitacion && formData.cod_facilitador ? parseInt(formData.cod_facilitador) : null,
+    facilitador: isCapacitacion ? formData.facilitador : null,
+    banco: isCapacitacion ? formData.banco : null,
+    nro_cuenta: isCapacitacion ? formData.nro_cuenta : null,
 
     // Dynamic Items
     additional_items: formData.additional_items,
@@ -150,6 +152,8 @@ export async function updateRequisicionRecord(
   const userResponse = await supabase.auth.getUser();
   const userId = userResponse.data.user?.id || null;
 
+  const isCapacitacion = formData.gerencia_solicitante?.trim().toLowerCase() === "capacitacion";
+
   // Calculate totals for fixed items
   const totalTraslado = (formData.dias_traslado || 0) * (formData.costo_traslado || 0);
   const totalImpresion = (formData.impresion_total || 0);
@@ -162,17 +166,17 @@ export async function updateRequisicionRecord(
     gerencia_solicitante: formData.gerencia_solicitante,
     fecha_solicitud: formData.fecha_solicitud,
     tipo_solicitud: formData.tipo_solicitud || null,
-    nro_correlativo: formData.nro_correlativo,
+    nro_correlativo: formData.nro_correlativo || null,
     tipo_servicio: formData.tipo_servicio || null,
     prioridad: formData.prioridad || null,
-    corresponde_a: formData.corresponde_a,
+    corresponde_a: formData.corresponde_a || null,
 
-    // Store calculated totals in numeric columns
-    costo_traslado: totalTraslado,
-    impresion_total: totalImpresion,
-    honorarios_total: totalHonorarios,
-    informe_final_total: totalInformeFinal,
-    dias_traslado: formData.dias_traslado,
+    // Store calculated totals in numeric columns (zeroed when non-Capacitacion)
+    costo_traslado: isCapacitacion ? totalTraslado : 0,
+    impresion_total: isCapacitacion ? totalImpresion : 0,
+    honorarios_total: isCapacitacion ? totalHonorarios : 0,
+    informe_final_total: isCapacitacion ? totalInformeFinal : 0,
+    dias_traslado: isCapacitacion ? formData.dias_traslado : 0,
 
     // DB Quantities set to 1
     cant_traslado: 1,
@@ -180,11 +184,11 @@ export async function updateRequisicionRecord(
     cant_honorarios: 1,
     cant_informe_final: 1,
 
-    // Facilitator
-    cod_facilitador: formData.cod_facilitador ? parseInt(formData.cod_facilitador) : null,
-    facilitador: formData.facilitador,
-    banco: formData.banco,
-    nro_cuenta: formData.nro_cuenta,
+    // Facilitator (null when non-Capacitacion)
+    cod_facilitador: isCapacitacion && formData.cod_facilitador ? parseInt(formData.cod_facilitador) : null,
+    facilitador: isCapacitacion ? formData.facilitador : null,
+    banco: isCapacitacion ? formData.banco : null,
+    nro_cuenta: isCapacitacion ? formData.nro_cuenta : null,
 
     additional_items: formData.additional_items,
     observaciones_compras: formData.observaciones,

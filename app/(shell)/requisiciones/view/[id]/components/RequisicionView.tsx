@@ -12,11 +12,14 @@ export default function RequisicionView({
 }) {
   const additionalItems: RequisicionItem[] = record.additional_items || [];
   
+  const isCapacitacion = record.gerencia_solicitante?.trim().toLowerCase() === "capacitacion";
+  const isTEDMode = record.gerencia_solicitante?.trim().toLowerCase() === "ted";
+  
   // Totals calculations based on totals stored in DB (as updated in create/update actions)
-  const totalTraslado = record.costo_traslado || 0;
-  const totalImpresion = record.impresion_total || 0;
-  const totalHonorarios = record.honorarios_total || 0;
-  const totalInformeFinal = record.informe_final_total || 0;
+  const totalTraslado = isCapacitacion ? (record.costo_traslado || 0) : 0;
+  const totalImpresion = isCapacitacion ? (record.impresion_total || 0) : 0;
+  const totalHonorarios = isCapacitacion ? (record.honorarios_total || 0) : 0;
+  const totalInformeFinal = isCapacitacion ? (record.informe_final_total || 0) : 0;
   const totalAdditional = additionalItems.reduce((sum, item) => sum + (item.total || 0), 0);
   const totalGeneral = totalTraslado + totalImpresion + totalHonorarios + totalInformeFinal + totalAdditional;
 
@@ -27,51 +30,21 @@ export default function RequisicionView({
           {/* Header section */}
           <div className="grid grid-cols-12 border-b border-gray-300">
             <div className="col-span-3 p-3 border-r border-gray-300 bg-gray-50 flex items-center font-bold text-sm">
-              Corresponde a:
-            </div>
-            <div className="col-span-4 p-3 border-r border-gray-300 flex items-center font-medium">
-              {record.corresponde_a || "-"}
-            </div>
-            <div className="col-span-2 p-3 border-r border-gray-300 bg-gray-50 flex items-center font-bold text-sm">
               Fecha de solicitud:
             </div>
-            <div className="col-span-3 p-3 flex items-center">
-              {record.fecha_solicitud ? new Date(record.fecha_solicitud).toLocaleDateString() : "-"}
+            <div className={`p-3 border-r border-gray-300 flex items-center ${isTEDMode ? "col-span-9" : "col-span-4"}`}>
+              {record.fecha_solicitud ? new Date(record.fecha_solicitud + "T00:00:00").toLocaleDateString() : "-"}
             </div>
-          </div>
-
-          <div className="grid grid-cols-12 border-b border-gray-300">
-            <div className="col-span-3 p-3 border-r border-gray-300 bg-gray-50 flex items-center font-bold text-sm">
-              Tipo de solicitud:
-            </div>
-            <div className="col-span-2 p-3 border-r border-gray-300 flex items-center">
-              <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
-                record.tipo_solicitud === 'Interno' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
-              }`}>
-                {record.tipo_solicitud || "-"}
-              </span>
-            </div>
-            <div className="col-span-2 p-3 border-r border-gray-300 bg-gray-50 flex items-center font-bold text-sm">
-              Nro de Correlativo:
-            </div>
-            <div className="col-span-5 p-3 flex items-center font-bold">
-              {record.nro_correlativo || "-"}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-12 border-b border-gray-300">
-            <div className="col-span-3 p-3 border-r border-gray-300 bg-gray-50 flex flex-col justify-center">
-              <span className="font-bold text-sm">Tipo de servicio:</span>
-            </div>
-            <div className="col-span-4 p-3 border-r border-gray-300 flex items-center">
-              {record.tipo_servicio || "-"}
-            </div>
+            {!isTEDMode && (
+            <>
             <div className="col-span-2 p-3 border-r border-gray-300 bg-gray-50 flex items-center font-bold text-sm">
               N° OSI:
             </div>
             <div className="col-span-3 p-3 flex items-center font-bold text-blue-700">
               {osiData?.nro_osi || record.numero_osi || "-"}
             </div>
+            </>
+            )}
           </div>
 
           <div className="grid grid-cols-12 border-b border-gray-300">
@@ -119,6 +92,8 @@ export default function RequisicionView({
               </tr>
             </thead>
             <tbody>
+              {isCapacitacion && (
+              <>
               {/* Item 1: Traslado */}
               <tr className="border-b border-gray-300">
                 <td className="p-2 text-center border-r border-gray-300 font-bold">1</td>
@@ -175,11 +150,13 @@ export default function RequisicionView({
                   ${totalInformeFinal.toFixed(2)}
                 </td>
               </tr>
+              </>
+              )}
 
               {/* Additional Items */}
               {additionalItems.map((item, index) => (
                 <tr key={item.id} className="border-b border-gray-300 bg-blue-50/10">
-                  <td className="p-2 text-center border-r border-gray-300 font-bold">{index + 5}</td>
+                  <td className="p-2 text-center border-r border-gray-300 font-bold">{index + (isCapacitacion ? 5 : 1)}</td>
                   <td className="p-2 border-r border-gray-300 text-center uppercase font-bold">
                     {item.unidad || "UND"}
                   </td>
@@ -213,6 +190,8 @@ export default function RequisicionView({
             {record.observaciones_compras || "SIN OBSERVACIONES"}
           </div>
 
+          {isCapacitacion && (
+          <>
           <div className="grid grid-cols-12 border-b border-gray-300 text-xs">
             <div className="col-span-3 p-2 border-r border-gray-300 bg-gray-50 flex items-center font-bold">
               Facilitador Asignado:
@@ -257,6 +236,8 @@ export default function RequisicionView({
               {record.nro_cuenta || "-"}
             </div>
           </div>
+          </>
+          )}
         </CardContent>
       </Card>
     </div>
