@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home } from "lucide-react";
-import { apps, getAppByPath } from "@/config/apps";
+import { Home, ChevronDown, ChevronRight } from "lucide-react";
+import { useState } from "react";
+import { apps, appGroups, getAppByPath } from "@/config/apps";
 import { prefetchFramePath } from "@/lib/frame-url";
 import {
   get_app_icon_style,
@@ -14,7 +15,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useMobileSidebar } from "./MobileSidebarContext";
 import { useSidebarCollapse } from "./Sidebar";
-import { NavLink, NavGroup, AppConfig } from "@/types";
+import { NavLink, NavGroup, AppConfig, AppGroupConfig } from "@/types";
 
 function isNavGroup(item: NavLink | NavGroup): item is NavGroup {
   return "groupLabel" in item;
@@ -75,6 +76,16 @@ export function SidebarNavClient({
   };
 
   if (!currentApp) {
+    const allowedApps = apps.filter(canAccessApp);
+    const ungroupedApps = allowedApps.filter((app) => !app.groupId);
+    const groupedApps = allowedApps.filter((app) => app.groupId);
+    const groupMap = new Map<string, AppConfig[]>();
+    for (const app of groupedApps) {
+      const existing = groupMap.get(app.groupId!) ?? [];
+      existing.push(app);
+      groupMap.set(app.groupId!, existing);
+    }
+
     return (
       <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1 sidebar-scrollbar">
         {homeLink}
@@ -87,7 +98,7 @@ export function SidebarNavClient({
             </span>
           </div>
         )}
-        {apps.filter(canAccessApp).map((app) => {
+        {ungroupedApps.map((app) => {
           const external = opens_in_new_tab(app);
           const icon_style = get_app_icon_style(app.brandColor);
 
@@ -120,6 +131,20 @@ export function SidebarNavClient({
               <app.icon className="h-4 w-4 shrink-0" style={icon_style} />
               {!isCollapsed && app.name}
             </Link>
+          );
+        })}
+        {appGroups.map((group) => {
+          const groupApps = groupMap.get(group.id);
+          if (!groupApps || groupApps.length === 0) return null;
+          return (
+            <GroupedSidebarItem
+              key={group.id}
+              group={group}
+              apps={groupApps}
+              isCollapsed={isCollapsed}
+              pathname={pathname}
+              onClose={onClose}
+            />
           );
         })}
       </nav>
@@ -259,5 +284,116 @@ export function SidebarNavClient({
         return renderNavLink(item);
       })}
     </nav>
+  );
+}
+
+function GroupedSidebarItem({
+  group,
+  apps: groupApps,
+  isCollapsed,
+  pathname,
+  onClose,
+}: {
+  group: AppGroupConfig;
+  apps: AppConfig[];
+  isCollapsed: boolean;
+  pathname: string;
+  onClose: () => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const icon_style = get_app_icon_style(group.brandColor);
+  const anyChildActive = groupApps.some((app) =>
+    pathname.startsWith(app.basePath),
+  );
+
+  if (isCollapsed) {
+    return (
+      <div className="space-y-1">
+        {groupApps.map((app) => {
+          const external = opens_in_new_tab(app);
+          const appIconStyle = get_app_icon_style(app.brandColor);
+          return external ? (
+            <a
+              key={app.id}
+              href={app.upstreamUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={cn(default_link_class, "justify-center")}
+              title={isCollapsed ? app.name : undefined}
+            >
+              <app.icon className="h-4 w-4 shrink-0" style={appIconStyle} />
+            </a>
+          ) : (
+            <Link
+              key={app.id}
+              href={app.basePath}
+              onClick={onClose}
+              className={cn(default_link_class, "justify-center")}
+              title={app.name}
+            >
+              <app.icon className="h-4 w-4 shrink-0" style={appIconStyle} />
+            </Link>
+          );
+        })}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-0.5">
+      <button
+        onClick={() => setIsOpen((v) => !v)}
+        className={cn(
+          "w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-all sidebar-link text-slate-600 hover:text-slate-900 hover:bg-slate-100",
+          anyChildActive && "text-slate-900 font-medium",
+        )}
+      >
+        <group.icon className="h-4 w-4 shrink-0" style={icon_style} />
+        <span className="flex-1 text-left">{group.label}</span>
+        {isOpen ? (
+          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+        ) : (
+          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+        )}
+      </button>
+      {isOpen && (
+        <div className="ml-4 space-y-0.5">
+          {groupApps.map((app) => {
+            const external = opens_in_new_tab(app);
+            const appIconStyle = get_app_icon_style(app.brandColor);
+            const isActive = pathname.startsWith(app.basePath);
+
+            return external ? (
+              <a
+                key={app.id}
+                href={app.upstreamUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={cn(
+                  default_link_class,
+                  isActive && "text-slate-900 font-medium",
+                )}
+              >
+                <app.icon className="h-3.5 w-3.5 shrink-0" style={appIconStyle} />
+                {app.name}
+              </a>
+            ) : (
+              <Link
+                key={app.id}
+                href={app.basePath}
+                onClick={onClose}
+                className={cn(
+                  default_link_class,
+                  isActive && "text-slate-900 font-medium",
+                )}
+              >
+                <app.icon className="h-3.5 w-3.5 shrink-0" style={appIconStyle} />
+                {app.name}
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }

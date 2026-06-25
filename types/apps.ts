@@ -23,6 +23,13 @@ export interface AppBadge {
 
 export type AppEmbedMode = "shell" | "raw" | "external" | "native";
 
+export interface AppGroupConfig {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  brandColor: string;
+}
+
 export interface AppConfig {
   id: string;
   dbSlug?: string;
@@ -38,4 +45,5 @@ export interface AppConfig {
   badge: AppBadge;
   navLinks: (NavLink | NavGroup)[];
   requiredRoles?: string[];
+  groupId?: string;
 }

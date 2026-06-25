@@ -34,7 +34,11 @@ const SEGMENT_LABELS: Record<string, string> = {
   lista: "Lista",
   view: "Ver",
   solicitud: "Solicitud",
-  "solicitud-requisiciones": "Solicitud de Requisiciones"
+  "solicitud-requisiciones": "Solicitud de Requisiciones",
+  "servicios-tecnicos": "Servicios Técnicos",
+  "control-calibracion": "Control de Calibración",
+  "entrada-salida-equipos": "Entrada y Salida de Equipos",
+  "formulario-novedades": "Formulario de Novedades",
 };
 
 function isNavGroup(item: NavLink | NavGroup): item is NavGroup {

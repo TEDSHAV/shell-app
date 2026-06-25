@@ -27,10 +27,24 @@ import {
   Cloud,
   Calendar,
   Ticket,
+  Wrench,
+  Gauge,
+  ArrowLeftRight,
+  FileText,
+  Boxes,
 } from "lucide-react";
 import { build_app_config } from "@/lib/app-theme";
 import { get_tickets_form_base_url } from "@/lib/tickets-form-url";
-import { AppConfig } from "@/types";
+import { AppConfig, AppGroupConfig } from "@/types";
+
+export const appGroups: AppGroupConfig[] = [
+  {
+    id: "utilidades",
+    label: "Utilidades",
+    icon: Boxes,
+    brandColor: "#64748B",
+  },
+];
 
 export const apps: AppConfig[] = [
   build_app_config({
@@ -305,6 +319,7 @@ export const apps: AppConfig[] = [
     icon: Cloud,
     brandColor: "#19DEFF",
     embedMode: "shell",
+    groupId: "utilidades",
     navLinks: [],
   }),
   build_app_config({
@@ -319,7 +334,28 @@ export const apps: AppConfig[] = [
     icon: Package,
     brandColor: "#B61031",
     embedMode: "shell",
+    groupId: "utilidades",
     navLinks: [],
+  }),
+  build_app_config({
+    id: "servicios-tecnicos",
+    dbSlug: "st",
+    name: "Servicios Técnicos",
+    description: "Gestión de servicios técnicos y control de equipos",
+    basePath: "/servicios-tecnicos",
+    upstreamUrl:
+      process.env.NEXT_PUBLIC_SERVICIOS_URL ||
+      "https://st.shadevenezuela.com.ve",
+    icon: Wrench,
+    brandColor: "#F5803E",
+    embedMode: "shell",
+    navLinks: [
+      { label: "Dashboard", path: "/", icon: LayoutDashboard },
+      { label: "Control de Calibración", path: "/dashboard/control-calibracion", icon: Gauge },
+      { label: "Entrada y Salida de Equipos", path: "/dashboard/entrada-salida-equipos", icon: ArrowLeftRight },
+      { label: "Formulario de Novedades", path: "/dashboard/formulario-novedades", icon: FileText },
+      { label: "Requisiciones", path: "/dashboard/requisiciones", icon: ClipboardList },
+    ],
   }),
   build_app_config({
     id: "requisiciones",

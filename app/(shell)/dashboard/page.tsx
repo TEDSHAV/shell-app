@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { apps } from "@/config/apps";
-import { NavLink, NavGroup, AppConfig } from "@/types";
+import { apps, appGroups } from "@/config/apps";
+import { NavLink, NavGroup, AppConfig, AppGroupConfig } from "@/types";
 import { ArrowRight } from "lucide-react";
 import {
   get_app_icon_style,
@@ -41,7 +41,36 @@ export default async function DashboardPage() {
   };
 
   const allowedApps = apps.filter(canAccessApp);
-  const has_lone_last_card = allowedApps.length % 2 === 1;
+  const ungroupedApps = allowedApps.filter((app) => !app.groupId);
+  const groupedApps = allowedApps.filter((app) => app.groupId);
+  const groupMap = new Map<string, AppConfig[]>();
+  for (const app of groupedApps) {
+    const existing = groupMap.get(app.groupId!) ?? [];
+    existing.push(app);
+    groupMap.set(app.groupId!, existing);
+  }
+
+  const visibleGroups = appGroups.filter(
+    (g) => groupMap.has(g.id) && groupMap.get(g.id)!.length > 0,
+  );
+
+  // Total cards = ungrouped apps + visible groups
+  const totalCards = ungroupedApps.length + visibleGroups.length;
+  const has_lone_last_card = totalCards % 2 === 1;
+
+  // Build a unified render list: items are either single apps or group cards
+  type RenderItem =
+    | { type: "app"; app: AppConfig }
+    | { type: "group"; group: AppGroupConfig; apps: AppConfig[] };
+
+  const renderItems: RenderItem[] = [
+    ...ungroupedApps.map((app) => ({ type: "app" as const, app })),
+    ...visibleGroups.map((group) => ({
+      type: "group" as const,
+      group,
+      apps: groupMap.get(group.id)!,
+    })),
+  ];
 
   return (
     <div className="p-8 w-full max-w-6xl mx-auto">
@@ -53,76 +82,144 @@ export default async function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {allowedApps.map((app, index) => {
-          const external = opens_in_new_tab(app);
+        {renderItems.map((item, index) => {
           const is_lone_last =
-            has_lone_last_card && index === allowedApps.length - 1;
-          const icon_style = get_app_icon_style(app.brandColor);
-          const strip_style = get_app_strip_style(app.brandColor);
-          const badge_bg = {
-            backgroundColor: hex_to_rgba(app.brandColor, 0.14),
-          };
+            has_lone_last_card && index === renderItems.length - 1;
 
           const cardClassName = cn(
             "group relative flex flex-col gap-4 p-6 pt-7 rounded-xl border border-border bg-white hover:bg-accent/40 hover:border-border/80 transition-all duration-150 overflow-hidden",
             is_lone_last && "sm:col-span-2",
           );
 
-          const CardContent = () => (
-            <>
+          if (item.type === "app") {
+            const app = item.app;
+            const external = opens_in_new_tab(app);
+            const icon_style = get_app_icon_style(app.brandColor);
+            const strip_style = get_app_strip_style(app.brandColor);
+            const badge_bg = {
+              backgroundColor: hex_to_rgba(app.brandColor, 0.14),
+            };
+
+            const CardContent = () => (
+              <>
+                <div
+                  className="absolute inset-x-0 top-0 h-1 rounded-t-xl"
+                  style={strip_style}
+                />
+                <div className="flex items-start justify-between">
+                  <div className="p-2.5 rounded-lg" style={badge_bg}>
+                    <app.icon className="h-5 w-5" style={icon_style} />
+                  </div>
+                  <ArrowRight className="h-4 w-4 text-muted-foreground/0 group-hover:text-muted-foreground transition-all translate-x-1 group-hover:translate-x-0 duration-150" />
+                </div>
+                <div>
+                  <h2 className="font-semibold text-foreground text-base">
+                    {app.name}
+                  </h2>
+                  <p className="mt-0.5 text-sm text-muted-foreground">
+                    {app.description}
+                  </p>
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  {flattenNavLinks(app.navLinks)
+                    .slice(0, 3)
+                    .map((link) => (
+                      <span
+                        key={link.path}
+                        className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground"
+                      >
+                        <link.icon className="h-2.5 w-2.5" />
+                        {link.label}
+                      </span>
+                    ))}
+                  {flattenNavLinks(app.navLinks).length > 3 && (
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                      +{flattenNavLinks(app.navLinks).length - 3} más
+                    </span>
+                  )}
+                </div>
+              </>
+            );
+
+            return external ? (
+              <a
+                key={app.id}
+                href={app.upstreamUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={cardClassName}
+              >
+                <CardContent />
+              </a>
+            ) : (
+              <Link key={app.id} href={app.basePath} className={cardClassName}>
+                <CardContent />
+              </Link>
+            );
+          }
+
+          // Group card
+          const group = item.group;
+          const groupApps = item.apps;
+          const icon_style = get_app_icon_style(group.brandColor);
+          const strip_style = get_app_strip_style(group.brandColor);
+          const badge_bg = {
+            backgroundColor: hex_to_rgba(group.brandColor, 0.14),
+          };
+
+          return (
+            <div key={group.id} className={cardClassName}>
               <div
                 className="absolute inset-x-0 top-0 h-1 rounded-t-xl"
                 style={strip_style}
               />
               <div className="flex items-start justify-between">
                 <div className="p-2.5 rounded-lg" style={badge_bg}>
-                  <app.icon className="h-5 w-5" style={icon_style} />
+                  <group.icon className="h-5 w-5" style={icon_style} />
                 </div>
-                <ArrowRight className="h-4 w-4 text-muted-foreground/0 group-hover:text-muted-foreground transition-all translate-x-1 group-hover:translate-x-0 duration-150" />
               </div>
               <div>
                 <h2 className="font-semibold text-foreground text-base">
-                  {app.name}
+                  {group.label}
                 </h2>
                 <p className="mt-0.5 text-sm text-muted-foreground">
-                  {app.description}
+                  {groupApps.map((a) => a.name).join(" · ")}
                 </p>
               </div>
               <div className="flex gap-2 flex-wrap">
-                {flattenNavLinks(app.navLinks)
-                  .slice(0, 3)
-                  .map((link) => (
-                    <span
-                      key={link.path}
-                      className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground"
-                    >
-                      <link.icon className="h-2.5 w-2.5" />
-                      {link.label}
-                    </span>
-                  ))}
-                {flattenNavLinks(app.navLinks).length > 3 && (
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
-                    +{flattenNavLinks(app.navLinks).length - 3} más
-                  </span>
-                )}
-              </div>
-            </>
-          );
+                {groupApps.map((app) => {
+                  const external = opens_in_new_tab(app);
+                  const appIconStyle = get_app_icon_style(app.brandColor);
+                  const appBadgeBg = {
+                    backgroundColor: hex_to_rgba(app.brandColor, 0.14),
+                  };
 
-          return external ? (
-            <a
-              key={app.id}
-              href={app.upstreamUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={cardClassName}
-            >
-              <CardContent />
-            </a>
-          ) : (
-            <Link key={app.id} href={app.basePath} className={cardClassName}>
-              <CardContent />
-            </Link>
+                  return external ? (
+                    <a
+                      key={app.id}
+                      href={app.upstreamUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full transition-all hover:scale-105"
+                      style={{ ...appBadgeBg, color: app.brandColor }}
+                    >
+                      <app.icon className="h-3 w-3" style={appIconStyle} />
+                      {app.name}
+                    </a>
+                  ) : (
+                    <Link
+                      key={app.id}
+                      href={app.basePath}
+                      className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full transition-all hover:scale-105"
+                      style={{ ...appBadgeBg, color: app.brandColor }}
+                    >
+                      <app.icon className="h-3 w-3" style={appIconStyle} />
+                      {app.name}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
           );
         })}
       </div>

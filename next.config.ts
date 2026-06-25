@@ -11,6 +11,11 @@ const CAPACITACION_URL =
   process.env.NEXT_PUBLIC_CAPACITACION_URL ||
   "https://capacitacion.shadevenezuela.com.ve";
 
+const SERVICIOS_URL =
+  process.env.SERVICIOS_INTERNAL_URL ||
+  process.env.NEXT_PUBLIC_SERVICIOS_URL ||
+  "https://st.shadevenezuela.com.ve";
+
 const nextConfig: NextConfig = {
   output: "standalone",
   async rewrites() {
@@ -30,6 +35,14 @@ const nextConfig: NextConfig = {
       {
         source: "/capacitacion/api/:path*",
         destination: `${CAPACITACION_URL}/api/:path*`,
+      },
+      {
+        source: "/servicios-tecnicos/_next/:path*",
+        destination: `${SERVICIOS_URL}/_next/:path*`,
+      },
+      {
+        source: "/servicios-tecnicos/api/:path*",
+        destination: `${SERVICIOS_URL}/api/:path*`,
       },
     ];
   },
