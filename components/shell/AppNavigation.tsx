@@ -37,7 +37,8 @@ export const AppNavigation = ({ userRolesByApp = {}, globalRole }: AppNavigation
     return true;
   };
 
-  const allowedApps = apps.filter(canAccessApp);
+  const hiddenFromNav = new Set(["capacitacion", "servicios-tecnicos", "negocios"]);
+  const allowedApps = apps.filter((app) => !hiddenFromNav.has(app.id) && canAccessApp(app));
   const ungroupedApps = allowedApps.filter((app) => !app.groupId);
   const groupedApps = allowedApps.filter((app) => app.groupId);
   const groupMap = new Map<string, AppConfig[]>();
