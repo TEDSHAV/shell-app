@@ -181,6 +181,29 @@ export const apps: AppConfig[] = [
           },
         ],
       },
+      {
+        groupLabel: "Reportes",
+        links: [
+          {
+            label: "Indicador Presupuesto",
+            path: "/reportes/presupuestos",
+            icon: BarChart2,
+            requiredRoles: ["admin", "superadmin"],
+          },
+          {
+            label: "Administración de cierres",
+            path: "/reportes/cierres",
+            icon: Calendar,
+            requiredRoles: ["admin", "superadmin"],
+          },
+          {
+            label: "Manual",
+            path: "/reportes/cierres/manual",
+            icon: BookOpen,
+            requiredRoles: ["admin", "superadmin"],
+          },
+        ],
+      },
     ],
   }),
   build_app_config({
@@ -203,6 +226,18 @@ export const apps: AppConfig[] = [
             label: "Indicador Presupuesto",
             path: "/presupuestos",
             icon: BarChart2,
+            requiredRoles: ["admin", "superadmin"],
+          },
+          {
+            label: "Administración de cierres",
+            path: "/cierres",
+            icon: Calendar,
+            requiredRoles: ["admin", "superadmin"],
+          },
+          {
+            label: "Manual",
+            path: "/cierres/manual",
+            icon: BookOpen,
             requiredRoles: ["admin", "superadmin"],
           },
         ],
