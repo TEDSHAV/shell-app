@@ -10,6 +10,16 @@ export async function getFrameUrl(
   return buildFrameUrl(appId, subPath);
 }
 
+export async function isSgestionAdmin(): Promise<boolean> {
+  const [roles, globalRole] = await Promise.all([
+    getUserRolesByApp(),
+    getUserRole(),
+  ]);
+  const appRole = roles.sgestion?.toLowerCase();
+  const lowerGlobal = globalRole?.toLowerCase();
+  return appRole === "admin" || appRole === "superadmin" || lowerGlobal === "admin" || lowerGlobal === "superadmin";
+}
+
 export async function getUserRole(): Promise<string> {
   const supabase = await createClient();
   const { data } = await supabase.auth.getClaims();

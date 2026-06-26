@@ -16,7 +16,14 @@ export function buildFrameUrl(appId: string, subPath?: string): string {
   }
 
   const normalized = subPath?.replace(/^\//, "") ?? "";
-  const path = normalized.length > 0 ? `/${normalized}` : "";
+  const path =
+    appId === "reportes"
+      ? normalized.length > 0
+        ? `/reportes/${normalized}`
+        : "/reportes"
+      : normalized.length > 0
+        ? `/${normalized}`
+        : "";
 
   if (app.embedMode === "raw") {
     return `${app.upstreamUrl!}${path}`;

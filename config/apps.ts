@@ -184,6 +184,32 @@ export const apps: AppConfig[] = [
     ],
   }),
   build_app_config({
+    id: "reportes",
+    dbSlug: "sgestion",
+    name: "Reportes",
+    description: "Indicadores y análisis de negocio",
+    basePath: "/reportes",
+    upstreamUrl:
+      process.env.NEXT_PUBLIC_NEGOCIOS_URL ||
+      "https://gestion.shadevenezuela.com.ve",
+    icon: BarChart2,
+    brandColor: "#159714",
+    embedMode: "shell",
+    navLinks: [
+      {
+        groupLabel: "Reportes",
+        links: [
+          {
+            label: "Indicador Presupuesto",
+            path: "/presupuestos",
+            icon: BarChart2,
+            requiredRoles: ["admin", "superadmin"],
+          },
+        ],
+      },
+    ],
+  }),
+  build_app_config({
     id: "capacitacion",
     dbSlug: "scapacitacion",
     name: "Capacitación",

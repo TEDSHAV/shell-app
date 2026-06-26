@@ -24,6 +24,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   "consulta-participantes": "Consulta de Participantes",
   participantes: "Participantes",
   reportes: "Reportes",
+  presupuestos: "Indicador Presupuesto",
   "gestion-osi": "Gestión de OSI",
   "planificacion-servicios": "Planificación de Servicios",
   inventario: "Inventario",
