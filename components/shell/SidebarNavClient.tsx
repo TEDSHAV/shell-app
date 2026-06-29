@@ -13,6 +13,7 @@ import {
   uses_iframe_in_shell,
 } from "@/lib/app-theme";
 import { cn } from "@/lib/utils";
+import { can_access_shell_app } from "@/lib/shell-app-access";
 import { useMobileSidebar } from "./MobileSidebarContext";
 import { useSidebarCollapse } from "./Sidebar";
 import { NavLink, NavGroup, AppConfig, AppGroupConfig } from "@/types";
@@ -58,22 +59,8 @@ export function SidebarNavClient({
     </Link>
   );
 
-  const canAccessApp = (app: AppConfig): boolean => {
-    const userRole = userRolesByApp[app.dbSlug ?? app.id];
-    const lowerRole = userRole?.toLowerCase() || globalRole?.toLowerCase();
-    
-    // Always allow admin/superadmin
-    if (lowerRole === "admin" || lowerRole === "superadmin") return true;
-
-    // Check app-level roles if defined
-    if (app.requiredRoles && app.requiredRoles.length > 0) {
-      if (!lowerRole || !app.requiredRoles.some(r => r.toLowerCase() === lowerRole)) {
-        return false;
-      }
-    }
-
-    return true;
-  };
+  const canAccessApp = (app: AppConfig) =>
+    can_access_shell_app(app, userRolesByApp, globalRole);
 
   if (!currentApp) {
     const homeNavApps = HOME_NAV_APP_IDS.map((id) =>

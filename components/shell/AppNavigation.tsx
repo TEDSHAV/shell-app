@@ -13,6 +13,7 @@ import {
   opens_in_new_tab,
 } from "@/lib/app-theme";
 import { cn } from "@/lib/utils";
+import { can_access_shell_app } from "@/lib/shell-app-access";
 
 interface AppNavigationProps {
   userRolesByApp?: Record<string, string>;
@@ -22,20 +23,8 @@ interface AppNavigationProps {
 export const AppNavigation = ({ userRolesByApp = {}, globalRole }: AppNavigationProps) => {
   const pathname = usePathname();
 
-  const canAccessApp = (app: AppConfig): boolean => {
-    const userRole = userRolesByApp[app.dbSlug ?? app.id];
-    const lowerRole = userRole?.toLowerCase() || globalRole?.toLowerCase();
-
-    if (lowerRole === "admin" || lowerRole === "superadmin") return true;
-
-    if (app.requiredRoles && app.requiredRoles.length > 0) {
-      if (!lowerRole || !app.requiredRoles.some(r => r.toLowerCase() === lowerRole)) {
-        return false;
-      }
-    }
-
-    return true;
-  };
+  const canAccessApp = (app: AppConfig) =>
+    can_access_shell_app(app, userRolesByApp, globalRole);
 
   const groupMap = new Map<string, AppConfig[]>();
   for (const app of apps.filter((a) => a.groupId && canAccessApp(a))) {

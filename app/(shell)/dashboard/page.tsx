@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { apps, appGroups } from "@/config/apps";
-import { NavLink, NavGroup, AppConfig, AppGroupConfig } from "@/types";import { ArrowRight } from "lucide-react";
+import { NavLink, NavGroup, AppConfig, AppGroupConfig } from "@/types";
+import { ArrowRight } from "lucide-react";
 import {
   get_app_icon_style,
   get_app_strip_style,
@@ -9,6 +10,7 @@ import {
 } from "@/lib/app-theme";
 import { cn } from "@/lib/utils";
 import { getUserRolesByApp, getUserRole } from "@/actions/apps";
+import { can_access_shell_app } from "@/lib/shell-app-access";
 
 function flattenNavLinks(navLinks: (NavLink | NavGroup)[]): NavLink[] {
   return navLinks.flatMap((item) =>
@@ -22,22 +24,8 @@ export default async function DashboardPage() {
     getUserRole()
   ]);
 
-  const canAccessApp = (app: AppConfig): boolean => {
-    const userRole = userRolesByApp[app.dbSlug ?? app.id];
-    const lowerRole = userRole?.toLowerCase() || globalRole?.toLowerCase();
-    
-    // Always allow admin/superadmin
-    if (lowerRole === "admin" || lowerRole === "superadmin") return true;
-
-    // Check app-level roles if defined
-    if (app.requiredRoles && app.requiredRoles.length > 0) {
-      if (!lowerRole || !app.requiredRoles.some(r => r.toLowerCase() === lowerRole)) {
-        return false;
-      }
-    }
-
-    return true;
-  };
+  const canAccessApp = (app: AppConfig) =>
+    can_access_shell_app(app, userRolesByApp, globalRole);
 
   const allowedApps = apps.filter(
     (app) => !app.hiddenFromDashboard && canAccessApp(app),

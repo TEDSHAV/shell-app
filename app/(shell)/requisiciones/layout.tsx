@@ -1,5 +1,6 @@
-import { redirect } from "next/navigation";
+import { UnderConstruction } from "@/components/shell/UnderConstruction";
 import { getUserRolesByApp, getUserRole } from "@/actions/apps";
+import { can_access_requisiciones } from "@/lib/shell-app-access";
 
 export default async function RequisicionesLayout({
   children,
@@ -8,20 +9,13 @@ export default async function RequisicionesLayout({
 }) {
   const [roles, globalRole] = await Promise.all([
     getUserRolesByApp(),
-    getUserRole()
+    getUserRole(),
   ]);
-  
-  const appRole = roles["requisiciones"]?.toLowerCase();
-  const userGlobalRole = globalRole?.toLowerCase();
 
-  const allowedRoles = ["admin", "lider", "superadmin"];
-  
-  const isAuthorized = 
-    (appRole && allowedRoles.includes(appRole)) || 
-    (userGlobalRole && allowedRoles.includes(userGlobalRole));
+  const allowed = can_access_requisiciones(roles, globalRole);
 
-  if (!isAuthorized) {
-    redirect("/dashboard");
+  if (!allowed) {
+    return <UnderConstruction title="Administración" />;
   }
 
   return <>{children}</>;

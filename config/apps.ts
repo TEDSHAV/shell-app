@@ -368,6 +368,7 @@ export const apps: AppConfig[] = [
   }),
   build_app_config({
     id: "administracion",
+    dbSlug: "sgestion",
     name: "Administración",
     description: "Procesos administrativos y requisiciones",
     basePath: "/requisiciones",
@@ -375,7 +376,6 @@ export const apps: AppConfig[] = [
     brandColor: "#4F46E5",
     embedMode: "native",
     dashboardOrder: 5,
-    requiredRoles: ["admin", "lider", "superadmin"],
     navLinks: [administracionNavGroup],
   }),
   build_app_config({
