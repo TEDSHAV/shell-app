@@ -202,6 +202,13 @@ export const apps: AppConfig[] = [
             icon: BookOpen,
             requiredRoles: ["admin", "superadmin"],
           },
+          {
+            label: "Mi avance",
+            path: "/reportes/presupuestos/mi-avance",
+            icon: Target,
+            requiredRoles: ["gestor_clientes"],
+            excludeRoles: ["admin", "superadmin"],
+          },
         ],
       },
     ],
@@ -216,7 +223,7 @@ export const apps: AppConfig[] = [
       process.env.NEXT_PUBLIC_NEGOCIOS_URL ||
       "https://gestion.shadevenezuela.com.ve",
     icon: BarChart2,
-    brandColor: "#159714",
+    brandColor: "#F97316",
     embedMode: "shell",
     navLinks: [
       {
@@ -239,6 +246,13 @@ export const apps: AppConfig[] = [
             path: "/cierres/manual",
             icon: BookOpen,
             requiredRoles: ["admin", "superadmin"],
+          },
+          {
+            label: "Mi avance",
+            path: "/presupuestos/mi-avance",
+            icon: Target,
+            requiredRoles: ["gestor_clientes"],
+            excludeRoles: ["admin", "superadmin"],
           },
         ],
       },

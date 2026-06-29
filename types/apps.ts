@@ -6,6 +6,7 @@ export interface NavLink {
   icon: LucideIcon;
   requiredPermissions?: string[];
   requiredRoles?: string[];
+  excludeRoles?: string[];
 }
 
 export interface NavGroup {

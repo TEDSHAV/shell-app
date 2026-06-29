@@ -20,6 +20,21 @@ export async function isSgestionAdmin(): Promise<boolean> {
   return appRole === "admin" || appRole === "superadmin" || lowerGlobal === "admin" || lowerGlobal === "superadmin";
 }
 
+export async function isSgestionGestorClientes(): Promise<boolean> {
+  const roles = await getUserRolesByApp();
+  return roles.sgestion?.toLowerCase() === "gestor_clientes";
+}
+
+export async function canAccessSgestionReportes(): Promise<boolean> {
+  return (await isSgestionAdmin()) || (await isSgestionGestorClientes());
+}
+
+export async function getReportesHomePath(): Promise<string | null> {
+  if (await isSgestionAdmin()) return "/reportes/presupuestos";
+  if (await isSgestionGestorClientes()) return "/reportes/presupuestos/mi-avance";
+  return null;
+}
+
 export async function getUserRole(): Promise<string> {
   const supabase = await createClient();
   const { data } = await supabase.auth.getClaims();

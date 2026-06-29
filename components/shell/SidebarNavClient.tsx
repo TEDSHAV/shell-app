@@ -216,6 +216,15 @@ export function SidebarNavClient({
 
   const canAccess = (link: NavLink): boolean => {
     const lowerRole = userRole?.toLowerCase() || globalRole?.toLowerCase();
+    if (
+      link.excludeRoles?.some(
+        (r) =>
+          r.toLowerCase() === lowerRole ||
+          r.toLowerCase() === globalRole?.toLowerCase(),
+      )
+    ) {
+      return false;
+    }
     if (lowerRole === "admin" || lowerRole === "superadmin") return true;
 
     // Check roles first if defined

@@ -1,9 +1,10 @@
 import { redirect } from "next/navigation";
-import { isSgestionAdmin } from "@/actions/apps";
+import { getReportesHomePath } from "@/actions/apps";
 
 export default async function ReportesPage() {
-  if (await isSgestionAdmin()) {
-    redirect("/reportes/presupuestos");
+  const homePath = await getReportesHomePath();
+  if (homePath) {
+    redirect(homePath);
   }
 
   return null;
