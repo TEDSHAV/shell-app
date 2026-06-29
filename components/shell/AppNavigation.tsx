@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
 import { ChevronDown } from "lucide-react";
-import { apps, appGroups } from "@/config/apps";
+import { apps, appGroups, HOME_NAV_APP_IDS, HOME_NAV_GROUP_IDS } from "@/config/apps";
 import { AppConfig, AppGroupConfig } from "@/types";
 import {
   get_app_icon_style,
@@ -37,20 +37,20 @@ export const AppNavigation = ({ userRolesByApp = {}, globalRole }: AppNavigation
     return true;
   };
 
-  const hiddenFromNav = new Set(["capacitacion", "servicios-tecnicos", "negocios"]);
-  const allowedApps = apps.filter((app) => !hiddenFromNav.has(app.id) && canAccessApp(app));
-  const ungroupedApps = allowedApps.filter((app) => !app.groupId);
-  const groupedApps = allowedApps.filter((app) => app.groupId);
   const groupMap = new Map<string, AppConfig[]>();
-  for (const app of groupedApps) {
+  for (const app of apps.filter((a) => a.groupId && canAccessApp(a))) {
     const existing = groupMap.get(app.groupId!) ?? [];
     existing.push(app);
     groupMap.set(app.groupId!, existing);
   }
 
+  const homeNavApps = HOME_NAV_APP_IDS.map((id) =>
+    apps.find((app) => app.id === id),
+  ).filter((app): app is AppConfig => !!app && canAccessApp(app));
+
   return (
     <nav className="hidden md:flex items-center gap-1 mr-2">
-      {ungroupedApps.map((app) => {
+      {homeNavApps.map((app) => {
         const external = opens_in_new_tab(app);
         const is_active = pathname.startsWith(app.basePath);
         const icon_style = get_app_icon_style(app.brandColor);
@@ -89,9 +89,10 @@ export const AppNavigation = ({ userRolesByApp = {}, globalRole }: AppNavigation
           </Link>
         );
       })}
-      {appGroups.map((group) => {
-        const groupApps = groupMap.get(group.id);
-        if (!groupApps || groupApps.length === 0) return null;
+      {HOME_NAV_GROUP_IDS.map((groupId) => {
+        const group = appGroups.find((g) => g.id === groupId);
+        const groupApps = groupMap.get(groupId);
+        if (!group || !groupApps?.length) return null;
         return (
           <GroupedNavDropdown
             key={group.id}

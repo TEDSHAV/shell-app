@@ -35,6 +35,20 @@ export async function getReportesHomePath(): Promise<string | null> {
   return null;
 }
 
+export async function isSgestionGestorMarketing(): Promise<boolean> {
+  const roles = await getUserRolesByApp();
+  return roles.sgestion?.toLowerCase() === "gestor_marketing";
+}
+
+export async function canAccessSgestionMarketing(): Promise<boolean> {
+  return (await isSgestionAdmin()) || (await isSgestionGestorMarketing());
+}
+
+export async function getMarketingHomePath(): Promise<string | null> {
+  if (await canAccessSgestionMarketing()) return "/marketing";
+  return null;
+}
+
 export async function getUserRole(): Promise<string> {
   const supabase = await createClient();
   const { data } = await supabase.auth.getClaims();

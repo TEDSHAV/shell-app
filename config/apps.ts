@@ -32,10 +32,50 @@ import {
   ArrowLeftRight,
   FileText,
   Boxes,
+  Megaphone,
+  Landmark,
 } from "lucide-react";
 import { build_app_config } from "@/lib/app-theme";
 import { get_tickets_form_base_url } from "@/lib/tickets-form-url";
-import { AppConfig, AppGroupConfig } from "@/types";
+import { AppConfig, AppGroupConfig, NavGroup } from "@/types";
+
+const requisicionesNavGroup: NavGroup = {
+  groupLabel: "Requisiciones",
+  links: [
+    {
+      label: "Mis Requisiciones",
+      path: "/",
+      href: "/requisiciones",
+      icon: ListOrdered,
+      requiredRoles: ["admin", "lider", "superadmin"],
+    },
+    {
+      label: "Nueva Requisición",
+      path: "/create",
+      href: "/requisiciones/create",
+      icon: FilePlus2,
+      requiredRoles: ["admin", "lider", "superadmin"],
+    },
+  ],
+};
+
+const administracionNavGroup: NavGroup = {
+  groupLabel: "Requisiciones",
+  links: [
+    {
+      label: "Mis Requisiciones",
+      path: "/",
+      icon: ListOrdered,
+      requiredRoles: ["admin", "lider", "superadmin"],
+    },
+    {
+      label: "Nueva Requisición",
+      path: "/create",
+      icon: FilePlus2,
+      requiredRoles: ["admin", "lider", "superadmin"],
+    },
+  ],
+};
 
 export const appGroups: AppGroupConfig[] = [
   {
@@ -43,8 +83,13 @@ export const appGroups: AppGroupConfig[] = [
     label: "Utilidades",
     icon: Boxes,
     brandColor: "#64748B",
+    dashboardOrder: 8,
   },
 ];
+
+/** Apps visibles en header/sidebar del home de Shell, en este orden. */
+export const HOME_NAV_APP_IDS = ["reportes", "tickets"] as const;
+export const HOME_NAV_GROUP_IDS = ["utilidades"] as const;
 
 export const apps: AppConfig[] = [
   build_app_config({
@@ -53,6 +98,7 @@ export const apps: AppConfig[] = [
     name: "Negocios",
     description: "Gestión comercial y operativa",
     basePath: "/negocios",
+    dashboardOrder: 1,
     upstreamUrl:
       process.env.NEXT_PUBLIC_NEGOCIOS_URL ||
       "https://gestion.shadevenezuela.com.ve",
@@ -97,12 +143,14 @@ export const apps: AppConfig[] = [
             path: "/pipeline",
             icon: GitBranch,
             requiredPermissions: ["pipeline:access"],
+            excludeRoles: ["gestor_marketing"],
           },
           {
             label: "Leads",
             path: "/crm/leads",
             icon: Target,
             requiredPermissions: ["mkt:leads:write", "sales:leads:access"],
+            excludeRoles: ["gestor_marketing"],
           },
           {
             label: "Contactos",
@@ -113,6 +161,7 @@ export const apps: AppConfig[] = [
               "sales:clientes:access",
               "directorio:manage",
             ],
+            excludeRoles: ["gestor_marketing"],
           },
           {
             label: "Tratos",
@@ -211,6 +260,7 @@ export const apps: AppConfig[] = [
           },
         ],
       },
+      requisicionesNavGroup,
     ],
   }),
   build_app_config({
@@ -223,8 +273,9 @@ export const apps: AppConfig[] = [
       process.env.NEXT_PUBLIC_NEGOCIOS_URL ||
       "https://gestion.shadevenezuela.com.ve",
     icon: BarChart2,
-    brandColor: "#F97316",
+    brandColor: "#B61031",
     embedMode: "shell",
+    dashboardOrder: 6,
     navLinks: [
       {
         groupLabel: "Reportes",
@@ -259,11 +310,81 @@ export const apps: AppConfig[] = [
     ],
   }),
   build_app_config({
+    id: "marketing",
+    dbSlug: "sgestion",
+    name: "Marketing",
+    description: "Gestión de leads y contactos comerciales",
+    basePath: "/marketing",
+    upstreamUrl:
+      process.env.NEXT_PUBLIC_NEGOCIOS_URL ||
+      "https://gestion.shadevenezuela.com.ve",
+    icon: Megaphone,
+    brandColor: "#EC4899",
+    embedMode: "shell",
+    requiredRoles: ["gestor_marketing"],
+    dashboardOrder: 3,
+    navLinks: [
+      {
+        groupLabel: "Marketing",
+        links: [
+          {
+            label: "Inicio",
+            path: "/",
+            icon: LayoutDashboard,
+            requiredPermissions: ["pipeline:access"],
+          },
+          {
+            label: "Pipeline",
+            path: "/pipeline",
+            icon: GitBranch,
+            requiredPermissions: ["pipeline:access"],
+          },
+          {
+            label: "Leads",
+            path: "/crm/leads",
+            icon: Target,
+            requiredPermissions: ["mkt:leads:write", "sales:leads:access"],
+          },
+          {
+            label: "Contactos",
+            path: "/pipeline/contactos",
+            icon: Phone,
+            requiredPermissions: ["mkt:contactos:read"],
+          },
+        ],
+      },
+      {
+        groupLabel: "Directorio",
+        links: [
+          {
+            label: "Servicios",
+            path: "/directorio/servicios",
+            icon: Package,
+            requiredRoles: ["gestor_marketing"],
+          },
+        ],
+      },
+    ],
+  }),
+  build_app_config({
+    id: "administracion",
+    name: "Administración",
+    description: "Procesos administrativos y requisiciones",
+    basePath: "/requisiciones",
+    icon: Landmark,
+    brandColor: "#4F46E5",
+    embedMode: "native",
+    dashboardOrder: 5,
+    requiredRoles: ["admin", "lider", "superadmin"],
+    navLinks: [administracionNavGroup],
+  }),
+  build_app_config({
     id: "capacitacion",
     dbSlug: "scapacitacion",
     name: "Capacitación",
     description: "Plataforma de formación y aprendizaje",
     basePath: "/capacitacion",
+    dashboardOrder: 2,
     upstreamUrl:
       process.env.NEXT_PUBLIC_CAPACITACION_URL ||
       "https://capacitacion.shadevenezuela.com.ve",
@@ -380,6 +501,7 @@ export const apps: AppConfig[] = [
           },
         ],
       },
+      requisicionesNavGroup,
     ],
   }),
   build_app_config({
@@ -424,26 +546,13 @@ export const apps: AppConfig[] = [
     icon: Wrench,
     brandColor: "#F5803E",
     embedMode: "shell",
+    dashboardOrder: 4,
     navLinks: [
       { label: "Dashboard", path: "/", icon: LayoutDashboard },
       { label: "Control de Calibración", path: "/dashboard/control-calibracion", icon: Gauge },
       { label: "Entrada y Salida de Equipos", path: "/dashboard/entrada-salida-equipos", icon: ArrowLeftRight },
       { label: "Formulario de Novedades", path: "/dashboard/formulario-novedades", icon: FileText },
-      { label: "Requisiciones", path: "/dashboard/requisiciones", icon: ClipboardList },
-    ],
-  }),
-  build_app_config({
-    id: "requisiciones",
-    name: "Requisiciones",
-    description: "Crear y gestionar solicitudes de requisición para todos los departamentos",
-    basePath: "/requisiciones",
-    icon: ClipboardList,
-    brandColor: "#3b82f6",
-    embedMode: "native",
-    requiredRoles: ["admin", "lider", "superadmin"],
-    navLinks: [
-      { label: "Mis Requisiciones", path: "/", icon: ListOrdered },
-      { label: "Nueva Requisición", path: "/create", icon: FilePlus2 },
+      requisicionesNavGroup,
     ],
   }),
   build_app_config({
@@ -454,8 +563,9 @@ export const apps: AppConfig[] = [
     basePath: "/tickets",
     upstreamUrl: get_tickets_form_base_url(),
     icon: Ticket,
-    brandColor: "#6B7280",
+    brandColor: "#0C3F69",
     embedMode: "raw",
+    dashboardOrder: 7,
     navLinks: [],
   }),
 ];

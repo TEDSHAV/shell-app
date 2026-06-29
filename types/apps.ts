@@ -7,6 +7,8 @@ export interface NavLink {
   requiredPermissions?: string[];
   requiredRoles?: string[];
   excludeRoles?: string[];
+  /** Ruta absoluta en Shell (p. ej. /requisiciones) sin prefijo de la app actual */
+  href?: string;
 }
 
 export interface NavGroup {
@@ -29,6 +31,7 @@ export interface AppGroupConfig {
   label: string;
   icon: LucideIcon;
   brandColor: string;
+  dashboardOrder?: number;
 }
 
 export interface AppConfig {
@@ -47,4 +50,6 @@ export interface AppConfig {
   navLinks: (NavLink | NavGroup)[];
   requiredRoles?: string[];
   groupId?: string;
+  hiddenFromDashboard?: boolean;
+  dashboardOrder?: number;
 }

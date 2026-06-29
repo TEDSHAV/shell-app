@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, ChevronDown, ChevronRight } from "lucide-react";
 import { useState } from "react";
-import { apps, appGroups, getAppByPath } from "@/config/apps";
+import { apps, appGroups, getAppByPath, HOME_NAV_APP_IDS, HOME_NAV_GROUP_IDS } from "@/config/apps";
 import { prefetchFramePath } from "@/lib/frame-url";
 import {
   get_app_icon_style,
@@ -76,12 +76,11 @@ export function SidebarNavClient({
   };
 
   if (!currentApp) {
-    const hiddenFromNav = new Set(["capacitacion", "servicios-tecnicos", "negocios"]);
-    const allowedApps = apps.filter((app) => !hiddenFromNav.has(app.id) && canAccessApp(app));
-    const ungroupedApps = allowedApps.filter((app) => !app.groupId);
-    const groupedApps = allowedApps.filter((app) => app.groupId);
+    const homeNavApps = HOME_NAV_APP_IDS.map((id) =>
+      apps.find((app) => app.id === id),
+    ).filter((app): app is AppConfig => !!app && canAccessApp(app));
     const groupMap = new Map<string, AppConfig[]>();
-    for (const app of groupedApps) {
+    for (const app of apps.filter((a) => a.groupId && canAccessApp(a))) {
       const existing = groupMap.get(app.groupId!) ?? [];
       existing.push(app);
       groupMap.set(app.groupId!, existing);
@@ -99,7 +98,7 @@ export function SidebarNavClient({
             </span>
           </div>
         )}
-        {ungroupedApps.map((app) => {
+        {homeNavApps.map((app) => {
           const external = opens_in_new_tab(app);
           const icon_style = get_app_icon_style(app.brandColor);
 
@@ -134,9 +133,10 @@ export function SidebarNavClient({
             </Link>
           );
         })}
-        {appGroups.map((group) => {
-          const groupApps = groupMap.get(group.id);
-          if (!groupApps || groupApps.length === 0) return null;
+        {HOME_NAV_GROUP_IDS.map((groupId) => {
+          const group = appGroups.find((g) => g.id === groupId);
+          const groupApps = groupMap.get(groupId);
+          if (!group || !groupApps?.length) return null;
           return (
             <GroupedSidebarItem
               key={group.id}
@@ -155,9 +155,12 @@ export function SidebarNavClient({
   const sidebar_theme_style = get_sidebar_nav_style(currentApp.brandColor);
 
   const renderNavLink = (link: NavLink) => {
-    const fullPath = `${currentApp.basePath}${link.path === "/" ? "" : link.path}`;
-    const isActive =
-      link.path === "/"
+    const fullPath =
+      link.href ??
+      `${currentApp.basePath}${link.path === "/" ? "" : link.path}`;
+    const isActive = link.href
+      ? pathname === link.href || pathname.startsWith(`${link.href}/`)
+      : link.path === "/"
         ? pathname === currentApp.basePath ||
           pathname === currentApp.basePath + "/"
         : pathname.startsWith(fullPath);
@@ -171,7 +174,7 @@ export function SidebarNavClient({
       link.path === "/" ? undefined : link.path.replace(/^\//, "");
 
     const prefetchFrame = () => {
-      if (external || !uses_iframe_in_shell(currentApp)) {
+      if (link.href || external || !uses_iframe_in_shell(currentApp)) {
         return;
       }
       prefetchFramePath(currentApp.id, frameSubPath);

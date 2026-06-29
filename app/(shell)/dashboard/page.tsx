@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { apps, appGroups } from "@/config/apps";
-import { NavLink, NavGroup, AppConfig, AppGroupConfig } from "@/types";
-import { ArrowRight } from "lucide-react";
+import { NavLink, NavGroup, AppConfig, AppGroupConfig } from "@/types";import { ArrowRight } from "lucide-react";
 import {
   get_app_icon_style,
   get_app_strip_style,
@@ -40,8 +39,9 @@ export default async function DashboardPage() {
     return true;
   };
 
-  const allowedApps = apps.filter(canAccessApp);
-  const ungroupedApps = allowedApps.filter((app) => !app.groupId);
+  const allowedApps = apps.filter(
+    (app) => !app.hiddenFromDashboard && canAccessApp(app),
+  );
   const groupedApps = allowedApps.filter((app) => app.groupId);
   const groupMap = new Map<string, AppConfig[]>();
   for (const app of groupedApps) {
@@ -54,24 +54,28 @@ export default async function DashboardPage() {
     (g) => groupMap.has(g.id) && groupMap.get(g.id)!.length > 0,
   );
 
-  // Total cards = ungrouped apps + visible groups
-  const totalCards = ungroupedApps.length + visibleGroups.length;
-  const has_lone_last_card = totalCards % 2 === 1;
+  type DashboardEntry =
+    | { type: "app"; order: number; app: AppConfig }
+    | { type: "group"; order: number; group: AppGroupConfig; apps: AppConfig[] };
 
-  // Build a unified render list: items are either single apps or group cards
-  type RenderItem =
-    | { type: "app"; app: AppConfig }
-    | { type: "group"; group: AppGroupConfig; apps: AppConfig[] };
-
-  const renderItems: RenderItem[] = [
-    ...ungroupedApps.map((app) => ({ type: "app" as const, app })),
+  const renderItems: DashboardEntry[] = [
+    ...allowedApps
+      .filter((app) => !app.groupId)
+      .map((app) => ({
+        type: "app" as const,
+        order: app.dashboardOrder ?? 999,
+        app,
+      })),
     ...visibleGroups.map((group) => ({
       type: "group" as const,
+      order: group.dashboardOrder ?? 999,
       group,
       apps: groupMap.get(group.id)!,
     })),
-  ];
+  ].sort((a, b) => a.order - b.order);
 
+  const totalCards = renderItems.length;
+  const has_lone_last_card = totalCards % 2 === 1;
   return (
     <div className="p-8 w-full max-w-6xl mx-auto">
       <div className="mb-10">
