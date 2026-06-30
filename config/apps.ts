@@ -34,6 +34,7 @@ import {
   Boxes,
   Megaphone,
   Landmark,
+  KeyRound,
 } from "lucide-react";
 import { build_app_config } from "@/lib/app-theme";
 import { get_tickets_form_base_url } from "@/lib/tickets-form-url";
@@ -566,6 +567,17 @@ export const apps: AppConfig[] = [
     brandColor: "#0C3F69",
     embedMode: "raw",
     dashboardOrder: 7,
+    navLinks: [],
+  }),
+  build_app_config({
+    id: "credenciales-clientes",
+    name: "Credenciales de Clientes",
+    description: "Gestión de credenciales del portal de clientes",
+    basePath: "/credenciales-clientes",
+    icon: KeyRound,
+    brandColor: "#0891B2",
+    embedMode: "native",
+    hiddenFromDashboard: true,
     navLinks: [],
   }),
 ];

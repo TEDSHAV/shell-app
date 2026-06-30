@@ -10,6 +10,23 @@ import { getSupabaseCookieOptions } from "./cookie-options";
  * TODO: Consider implementing request-scoped client caching for better performance
  * in high-traffic scenarios.
  */
+export async function createAdminClient() {
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return [];
+        },
+        setAll() {
+          // No-op for admin client
+        },
+      },
+    },
+  );
+}
+
 export async function createClient() {
   const cookieStore = await cookies();
   const cookieOptions = getSupabaseCookieOptions();
