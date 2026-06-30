@@ -24,7 +24,7 @@ export async function createClienteCredentials(
   const supabase = await createAdminClient();
   const passwordHash = hashPassword(password);
 
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from("cliente_credenciales")
     .insert({
       empresa_id: empresaId,
@@ -35,9 +35,7 @@ export async function createClienteCredentials(
       updated_at: new Date().toISOString(),
       id_ciudad: cityId || null,
       id_sede: sedeIds && sedeIds.length > 0 ? sedeIds : null,
-    })
-    .select()
-    .single();
+    });
 
   if (error) {
     console.error("Error creating cliente credentials:", error);

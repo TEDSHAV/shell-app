@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { X, ChevronDown, Check, Search, Check as CheckIcon } from "lucide-react";
+import { X, ChevronDown, Search, Check as CheckIcon } from "lucide-react";
 
 interface MultiSelectProps {
   options: { id: number; label: string }[];

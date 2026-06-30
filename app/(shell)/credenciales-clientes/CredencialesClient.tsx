@@ -459,7 +459,7 @@ export default function CredencialesClient() {
                           setLogoUrl(result.logoUrl);
                           setSuccess("Logo actualizado exitosamente");
                         }
-                      } catch (err) {
+                      } catch {
                         setError("Error al procesar la imagen");
                       } finally {
                         setIsUploadingLogo(false);
@@ -497,7 +497,7 @@ export default function CredencialesClient() {
                             setLogoUrl(null);
                             setSuccess("Logo eliminado");
                           }
-                        } catch (err) {
+                        } catch {
                           setError("Error al eliminar el logo");
                         } finally {
                           setIsRemovingLogo(false);
