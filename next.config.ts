@@ -50,12 +50,18 @@ const nextConfig: NextConfig = {
 
 const sentry_org = process.env.SENTRY_ORG ?? "sha-de-venezuela";
 const sentry_project = process.env.SENTRY_PROJECT ?? "shell-app";
+const sentry_auth_token = process.env.SENTRY_AUTH_TOKEN;
+const has_valid_sentry_token =
+  sentry_auth_token && !sentry_auth_token.includes("...");
 
 export default withSentryConfig(nextConfig, {
   org: sentry_org,
   project: sentry_project,
-  authToken: process.env.SENTRY_AUTH_TOKEN,
+  authToken: has_valid_sentry_token ? sentry_auth_token : undefined,
   widenClientFileUpload: true,
   tunnelRoute: "/monitoring",
   silent: !process.env.CI,
+  sourcemaps: {
+    disable: !has_valid_sentry_token,
+  },
 });
