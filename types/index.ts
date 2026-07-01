@@ -3,6 +3,7 @@ export * from './shell';
 export * from './auth';
 export * from './apps';
 export * from './notifications';
+export * from './directory';
 
 // Common utility types
 export type Optional<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>;

@@ -21,7 +21,7 @@ function flattenNavLinks(navLinks: (NavLink | NavGroup)[]): NavLink[] {
 export default async function DashboardPage() {
   const [userRolesByApp, globalRole] = await Promise.all([
     getUserRolesByApp(),
-    getUserRole()
+    getUserRole(),
   ]);
 
   const canAccessApp = (app: AppConfig) =>
