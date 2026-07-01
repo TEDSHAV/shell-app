@@ -26,6 +26,7 @@ interface SidebarNavClientProps {
   userPermsByApp: Record<string, string[]>;
   userRolesByApp: Record<string, string>;
   globalRole?: string;
+  canAccessConsultaOSI?: boolean;
 }
 
 const default_link_class =
@@ -35,6 +36,7 @@ export function SidebarNavClient({
   userPermsByApp,
   userRolesByApp,
   globalRole,
+  canAccessConsultaOSI,
 }: SidebarNavClientProps) {
   const pathname = usePathname();
   const currentApp = getAppByPath(pathname);
@@ -94,7 +96,7 @@ export function SidebarNavClient({
     return (
       <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1 sidebar-scrollbar">
         {homeLink}
-        {consultaOsiLink}
+        {canAccessConsultaOSI && consultaOsiLink}
         {isCollapsed ? (
           <div className="my-2 border-t border-slate-200" />
         ) : (
@@ -224,6 +226,9 @@ export function SidebarNavClient({
   const userRole = userRolesByApp[currentApp.dbSlug ?? currentApp.id];
 
   const canAccess = (link: NavLink): boolean => {
+    if (link.href === "/consulta-osi" && !canAccessConsultaOSI) {
+      return false;
+    }
     const lowerRole = userRole?.toLowerCase() || globalRole?.toLowerCase();
     if (
       link.excludeRoles?.some(

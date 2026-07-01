@@ -438,7 +438,6 @@ export const apps: AppConfig[] = [
             path: "/consulta-osi",
             href: "/consulta-osi",
             icon: Search,
-            requiredPermissions: ["scapacitacion:all:access"],
           },
         ],
       },

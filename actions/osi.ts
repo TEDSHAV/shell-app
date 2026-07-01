@@ -225,3 +225,43 @@ async function getOSIStatuses(): Promise<OSIStatusOption[]> {
     return [];
   }
 }
+
+export async function canAccessConsultaOSI(): Promise<boolean> {
+  try {
+    const supabase = await createClient();
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
+
+    // Get user's auth claims for global role
+    const { data: claimsData } = await supabase.auth.getClaims();
+    const globalRole = (
+      claimsData?.claims?.user_role as string
+    )?.toLowerCase();
+
+    if (globalRole === "admin" || globalRole === "superadmin") return true;
+
+    // Get usuario record to check department
+    const { data: usuario } = await supabase
+      .from("usuarios")
+      .select("departamento")
+      .eq("id_auth", user.id)
+      .single();
+
+    if (!usuario?.departamento) return false;
+
+    // Check if user's department is TED
+    const { data: depto } = await supabase
+      .from("departamentos")
+      .select("nombre")
+      .eq("id", usuario.departamento)
+      .single();
+
+    if (!depto?.nombre) return false;
+
+    return depto.nombre.toUpperCase().includes("TED");
+  } catch (err) {
+    console.error("Error checking consulta-osi access:", err);
+    return false;
+  }
+}
