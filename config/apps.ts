@@ -197,6 +197,18 @@ export const apps: AppConfig[] = [
         ],
       },
       {
+        groupLabel: "Gestión clientes",
+        links: [
+          {
+            label: "Credenciales de clientes",
+            path: "/credenciales-clientes",
+            href: "/credenciales-clientes",
+            icon: KeyRound,
+            requiredPermissions: ["clientes:cuentas:manage"],
+          },
+        ],
+      },
+      {
         groupLabel: "Ingeniería de costos",
         links: [
           {

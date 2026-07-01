@@ -49,6 +49,12 @@ export async function getMarketingHomePath(): Promise<string | null> {
   return null;
 }
 
+export async function canManageClientesCuentas(): Promise<boolean> {
+  if (await isSgestionAdmin()) return true;
+  const perms = await getUserPermissionsByApp();
+  return (perms.sgestion ?? []).includes("clientes:cuentas:manage");
+}
+
 export async function getUserRole(): Promise<string> {
   const supabase = await createClient();
   const { data } = await supabase.auth.getClaims();
