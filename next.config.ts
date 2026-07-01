@@ -54,6 +54,10 @@ const sentry_auth_token = process.env.SENTRY_AUTH_TOKEN;
 const has_valid_sentry_token =
   sentry_auth_token && !sentry_auth_token.includes("...");
 
+const should_upload_sourcemaps =
+  has_valid_sentry_token &&
+  process.env.SENTRY_UPLOAD_SOURCE_MAPS === "1";
+
 export default withSentryConfig(nextConfig, {
   org: sentry_org,
   project: sentry_project,
@@ -62,6 +66,6 @@ export default withSentryConfig(nextConfig, {
   tunnelRoute: "/monitoring",
   silent: !process.env.CI,
   sourcemaps: {
-    disable: !has_valid_sentry_token,
+    disable: !should_upload_sourcemaps,
   },
 });
