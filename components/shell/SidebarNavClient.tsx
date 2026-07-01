@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, ChevronDown, ChevronRight } from "lucide-react";
+import { Home, ChevronDown, ChevronRight, FileCheck } from "lucide-react";
 import { useState } from "react";
 import { apps, appGroups, getAppByPath, HOME_NAV_APP_IDS, HOME_NAV_GROUP_IDS } from "@/config/apps";
 import { prefetchFramePath } from "@/lib/frame-url";
@@ -62,6 +62,24 @@ export function SidebarNavClient({
   const canAccessApp = (app: AppConfig) =>
     can_access_shell_app(app, userRolesByApp, globalRole);
 
+  const consultaOsiLink = (
+    <Link
+      href="/consulta-osi"
+      onClick={onClose}
+      className={cn(
+        "flex items-center gap-2.5 px-3 py-2 rounded-md text-sm font-medium transition-all sidebar-link",
+        pathname.startsWith("/consulta-osi")
+          ? "bg-blue-50 text-blue-700 font-semibold"
+          : "text-slate-600 hover:text-slate-900 hover:bg-slate-100",
+        isCollapsed ? "justify-center" : "",
+      )}
+      title={isCollapsed ? "Consulta de OSIs" : undefined}
+    >
+      <FileCheck className="h-4 w-4 shrink-0" />
+      {!isCollapsed && "Consulta de OSIs"}
+    </Link>
+  );
+
   if (!currentApp) {
     const homeNavApps = HOME_NAV_APP_IDS.map((id) =>
       apps.find((app) => app.id === id),
@@ -76,6 +94,7 @@ export function SidebarNavClient({
     return (
       <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1 sidebar-scrollbar">
         {homeLink}
+        {consultaOsiLink}
         {isCollapsed ? (
           <div className="my-2 border-t border-slate-200" />
         ) : (

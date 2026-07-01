@@ -433,6 +433,13 @@ export const apps: AppConfig[] = [
             icon: FileCheck,
             requiredPermissions: ["scapacitacion:all:access"],
           },
+          {
+            label: "Consulta de OSIs",
+            path: "/consulta-osi",
+            href: "/consulta-osi",
+            icon: Search,
+            requiredPermissions: ["scapacitacion:all:access"],
+          },
         ],
       },
       {
