@@ -1,0 +1,31 @@
+{
+  "name": "@sha/osi-formato",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "files": [
+    "src",
+    "tailwind.document.config.js"
+  ],
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./styles.css": "./src/osi-formato.css"
+  },
+  "scripts": {
+    "build:css": "tailwindcss -c tailwind.document.config.js -i ./src/osi-document-tailwind.css -o ./src/osi-document-utilities.css --minify",
+    "prepare": "npm run build:css"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19",
+    "react": "^19.0.0",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5"
+  },
+  "dependencies": {}
+}

@@ -1,0 +1,100 @@
+export type OsiPreviewData = {
+  sesionesProgramadas?: Array<{
+    fecha: string;
+    hora_inicio?: string | null;
+    hora_fin?: string | null;
+  }>;
+  nroOsi: string;
+  fechaEmisionPresupuesto: string | null;
+  nroPresupuesto: string | null;
+  nroOrdenCompra: string | null;
+  codigoCliente: string | null;
+  fechaDocumento?: string | null;
+  revisionDocumento?: string | null;
+  detalleServicio: string | null;
+  servicio: string | null;
+  tipoServicio: string | null;
+  nombreEmpresa: string | null;
+  clienteRif: string | null;
+  direccionFiscal: string | null;
+  personaContacto: string | null;
+  contactoTelefono: string | null;
+  contactoEmail: string | null;
+  direccionEjecucion: string | null;
+  direccionEnvio: string | null;
+  ejecutivoNegocios: string | null;
+  responsableRecepcion: string | null;
+  fechaInicioReal: string | null;
+  fechaFinReal: string | null;
+  horaInicioServicio: string | null;
+  participantesMaxSolped: number | null;
+  horasAcademicasSolped: number | null;
+  sesionesSolped: number | null;
+  pretensionesTotales: string | null;
+  observacionesTotales: string | null;
+  pretensionesSolped?: string | null;
+  pretensionesOsi?: string | null;
+  observacionesSolped?: string | null;
+  costoImpresionMaterial: number;
+  costoLogisticaComida: number;
+  costoTraslado: number;
+  trasladoExterno: number;
+  costoPop: number;
+  costoOtros: number;
+  horasHonorariosInstructor: number;
+  diasLogisticaFacilitador?: number;
+  diasHospedajeFacilitador?: number;
+  tarifaHoraHonorarios: number;
+  costoHonorariosInstructor: number;
+  popIncluido: boolean;
+  costoCarnetizacion: number;
+  costoDiasEspecialista: number;
+  costoHospedaje: number;
+  costoBateria: number;
+  certificadoImpreso: boolean;
+  carnetImpreso: boolean;
+  audiovisuales: boolean;
+  isCapacitacion: boolean;
+  stServicios?: Array<{
+    nombre: string;
+    detalle: string | null;
+    pretensiones?: string | null;
+    observaciones?: string | null;
+  }>;
+  observacionesOsiSolicitud?: string | null;
+  observacionesOsi?: string | null;
+  stDiasCampo?: number;
+  stDiasInforme?: number;
+  stAnalistas?: number;
+  stLogisticaRecursos?: number;
+  stEnvioFactura?: number;
+  stEnvioMateriales?: number;
+  stTraslados?: Array<{
+    tipo: "urbano" | "extraurbano" | "rutas";
+    cantidad: number;
+    costo_unidad: number;
+  }>;
+  impresionMaterialIncluida?: boolean;
+  bateriaIncluida?: boolean;
+  participantesDocumento?: number | null;
+  previewHighlights?: {
+    participantes?: boolean;
+    detalle?: boolean;
+    direccionEjecucion?: boolean;
+    fechaServicio?: boolean;
+  };
+  publicCostMask?: Record<string, boolean>;
+  isPublicView?: boolean;
+};
+
+export type OsiStServicioLine = {
+  nombre: string;
+  detalle: string | null;
+  pretensiones?: string | null;
+  observaciones?: string | null;
+};
+
+export type OsiDocumentAssets = {
+  logoSrc: string;
+  footerSrc: string;
+};

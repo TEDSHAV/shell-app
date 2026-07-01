@@ -9,7 +9,7 @@ export default {
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/**/*.{js,ts,jsx,tsx,mdx}",
     "./config/**/*.{js,ts,jsx,tsx,mdx}",
-    "../packages/osi-formato/src/**/*.{js,ts,jsx,tsx,mdx}",
+    "./packages/osi-formato/src/**/*.{js,ts,jsx,tsx,mdx}",
     "./node_modules/@sha/osi-formato/src/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   safelist: [
