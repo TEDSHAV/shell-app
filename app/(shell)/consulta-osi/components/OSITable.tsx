@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import type { OSIListItem } from "@/types/osi";
-import { FileText } from "lucide-react";
+import { Eye, FileText } from "lucide-react";
 
 interface OSITableProps {
   osis: OSIListItem[];
@@ -83,6 +84,9 @@ export default function OSITable({ osis, loading, onRowClick, selectedOSI }: OSI
             <th className="w-28 px-3 py-2 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider">
               Estado
             </th>
+            <th className="w-24 px-3 py-2 text-center text-[11px] font-semibold text-gray-600 uppercase tracking-wider">
+              Acciones
+            </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100">
@@ -155,6 +159,17 @@ export default function OSITable({ osis, loading, onRowClick, selectedOSI }: OSI
                 >
                   {osi.status_name}
                 </span>
+              </td>
+              <td className="px-3 py-2 text-center">
+                <Link
+                  href={`/consulta-osi/preview/${osi.id_osi}`}
+                  onClick={(event) => event.stopPropagation()}
+                  className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-[11px] font-medium text-blue-700 hover:bg-blue-50"
+                  title="Ver formato OSI"
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                  Ver OSI
+                </Link>
               </td>
             </tr>
             );

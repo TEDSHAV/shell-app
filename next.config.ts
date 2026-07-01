@@ -18,6 +18,7 @@ const SERVICIOS_URL =
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  transpilePackages: ["@sha/osi-formato"],
   async rewrites() {
     return [
       {

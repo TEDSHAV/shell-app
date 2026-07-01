@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import type { BuildOsiPreviewInput } from "@sha/osi-formato";
 import type {
   OSIListFilters,
   OSIListItem,
@@ -223,6 +224,87 @@ async function getOSIStatuses(): Promise<OSIStatusOption[]> {
     }));
   } catch {
     return [];
+  }
+}
+
+export async function getOSIPreviewBundle(
+  osiId: number,
+): Promise<BuildOsiPreviewInput | null> {
+  if (!Number.isFinite(osiId) || osiId <= 0) return null;
+
+  try {
+    const supabase = await createClient();
+    const { data: view_row, error } = await supabase
+      .from("v_osi_formato_completo")
+      .select("*")
+      .eq("id_osi", osiId)
+      .single();
+
+    if (error || !view_row) {
+      console.error("Error fetching OSI preview view:", error);
+      return null;
+    }
+
+    const { data: osi_base_row } = await supabase
+      .from("ejecucion_osi")
+      .select("id, pretenciones_adicionales_osi, observaciones_adicionales_osi")
+      .eq("id", osiId)
+      .maybeSingle();
+
+    const { data: recursos_row } = await supabase
+      .from("osi_recursos_estimados")
+      .select("public_cost_mask")
+      .eq("id_osi", osiId)
+      .maybeSingle();
+
+    const id_ecc = Number(
+      (view_row as Record<string, unknown>).id_ecc_actual ??
+        (view_row as Record<string, unknown>).id_ecc_origen ??
+        0,
+    );
+
+    let ecc_children: Record<string, unknown>[] = [];
+    if (id_ecc > 0) {
+      const { data: children } = await supabase
+        .from("ecc_encabezado")
+        .select(
+          "servicio_id, numero_areas, numero_trabajadores, numero_puntos_evaluar, pretenciones_cliente, observaciones_cliente",
+        )
+        .eq("id_ecc_consolidada", id_ecc);
+      ecc_children = (children ?? []) as Record<string, unknown>[];
+    }
+
+    const { data: servicios_rows } = await supabase
+      .from("catalogo_servicios")
+      .select("id, nombre")
+      .limit(500);
+
+    const servicio_nombre_by_id: Record<number, string> = {};
+    for (const row of servicios_rows ?? []) {
+      const id = Number((row as { id?: number }).id ?? 0);
+      const nombre = String((row as { nombre?: string }).nombre ?? "").trim();
+      if (id > 0 && nombre) {
+        servicio_nombre_by_id[id] = nombre;
+      }
+    }
+
+    const public_cost_mask =
+      recursos_row?.public_cost_mask &&
+      typeof recursos_row.public_cost_mask === "object"
+        ? (recursos_row.public_cost_mask as Record<string, boolean>)
+        : {};
+
+    return {
+      view_row: view_row as Record<string, unknown>,
+      osi_base_row: (osi_base_row ?? null) as Record<string, unknown> | null,
+      ecc_children,
+      servicio_nombre_by_id,
+      public_cost_mask,
+      can_see_private_costs: true,
+    };
+  } catch (err) {
+    console.error("Unexpected error in getOSIPreviewBundle:", err);
+    return null;
   }
 }
 

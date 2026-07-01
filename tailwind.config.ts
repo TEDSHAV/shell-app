@@ -9,6 +9,8 @@ export default {
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/**/*.{js,ts,jsx,tsx,mdx}",
     "./config/**/*.{js,ts,jsx,tsx,mdx}",
+    "../packages/osi-formato/src/**/*.{js,ts,jsx,tsx,mdx}",
+    "./node_modules/@sha/osi-formato/src/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   safelist: [
     "bg-green-50", "text-green-700", "text-green-800", "border-green-200", "bg-green-700", "hover:bg-green-50",
