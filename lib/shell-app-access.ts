@@ -32,15 +32,3 @@ export function can_access_shell_app(
 
   return true;
 }
-
-const REQUISICIONES_ROLES = ["admin", "lider", "superadmin"] as const;
-
-export function can_access_requisiciones(
-  userRolesByApp: Record<string, string>,
-  globalRole?: string,
-): boolean {
-  const roles = collect_user_roles(userRolesByApp, globalRole);
-  return roles.some((r) =>
-    REQUISICIONES_ROLES.includes(r as (typeof REQUISICIONES_ROLES)[number]),
-  );
-}

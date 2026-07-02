@@ -1,0 +1,308 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { RequisicionFilters } from "@/types/requisiciones";
+import RequisicionRow from "./RequisicionRow";
+import { Search, X } from "lucide-react";
+
+const TABS: { key: RequisicionFilters["tab"]; label: string }[] = [
+  { key: "todas", label: "Todas" },
+  { key: "internas", label: "Internas" },
+  { key: "externas", label: "Externas" },
+];
+
+const EMPTY_FILTERS: RequisicionFilters = {
+  tab: "todas",
+  gerencia: "",
+  estatus: "",
+  fechaDesde: "",
+  fechaHasta: "",
+  search: "",
+};
+
+function isInterna(record: any): boolean {
+  return (
+    record.tipo_solicitud === "Interno" ||
+    (!record.tipo_solicitud && !record.id_osi)
+  );
+}
+
+export default function RequisicionesTable({
+  records,
+  isAdminView,
+}: {
+  records: any[];
+  isAdminView: boolean;
+}) {
+  const [filters, setFilters] = useState<RequisicionFilters>(EMPTY_FILTERS);
+
+  const gerencias = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of records) {
+      const g = r.gerencia_solicitante?.trim();
+      if (g) set.add(g.toUpperCase());
+    }
+    return [...set].sort();
+  }, [records]);
+
+  const filtered = useMemo(() => {
+    return records.filter((r) => {
+      if (filters.tab === "internas" && !isInterna(r)) return false;
+      if (filters.tab === "externas" && isInterna(r)) return false;
+
+      if (
+        filters.gerencia &&
+        r.gerencia_solicitante?.trim().toUpperCase() !== filters.gerencia
+      ) {
+        return false;
+      }
+
+      if (filters.estatus) {
+        const estatus = r.estatus_admin === "procesada" ? "procesada" : "pendiente";
+        if (estatus !== filters.estatus) return false;
+      }
+
+      if (filters.fechaDesde && (!r.fecha_solicitud || r.fecha_solicitud < filters.fechaDesde)) {
+        return false;
+      }
+      if (filters.fechaHasta && (!r.fecha_solicitud || r.fecha_solicitud > filters.fechaHasta)) {
+        return false;
+      }
+
+      if (filters.search) {
+        const q = filters.search.toLowerCase();
+        const haystack = [
+          r.nro_correlativo,
+          r.solicitante,
+          r.gerencia_solicitante,
+          r.v_osi_formato_completo?.nro_osi,
+          r.v_osi_formato_completo?.servicio,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+
+      return true;
+    });
+  }, [records, filters]);
+
+  const counts = useMemo(
+    () => ({
+      todas: records.length,
+      internas: records.filter(isInterna).length,
+      externas: records.filter((r) => !isInterna(r)).length,
+    }),
+    [records],
+  );
+
+  const hasActiveFilters =
+    filters.gerencia ||
+    filters.estatus ||
+    filters.fechaDesde ||
+    filters.fechaHasta ||
+    filters.search;
+
+  return (
+    <div className="space-y-4">
+      {isAdminView && (
+        <>
+          {/* Internas / Externas tabs */}
+          <div className="flex gap-1 border-b border-gray-200">
+            {TABS.map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setFilters((f) => ({ ...f, tab: tab.key }))}
+                className={`px-4 py-2 text-sm font-bold rounded-t-lg border-b-2 transition-colors -mb-px ${
+                  filters.tab === tab.key
+                    ? "border-blue-600 text-blue-600 bg-blue-50"
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                }`}
+              >
+                {tab.label}
+                <span className="ml-2 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                  {counts[tab.key]}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {/* Filters bar */}
+          <div className="bg-white border border-gray-200 rounded-lg p-3 flex flex-wrap items-end gap-3">
+            <div className="flex flex-col gap-1">
+              <span className="text-[11px] font-medium text-gray-500 uppercase">Buscar</span>
+              <div className="relative">
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  value={filters.search}
+                  onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
+                  placeholder="Correlativo, solicitante, OSI..."
+                  className="h-9 pl-8 w-56"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <span className="text-[11px] font-medium text-gray-500 uppercase">Gerencia</span>
+              <Select
+                value={filters.gerencia || "todas"}
+                onValueChange={(v: string) =>
+                  setFilters((f) => ({ ...f, gerencia: v === "todas" ? "" : v }))
+                }
+              >
+                <SelectTrigger className="h-9 w-44">
+                  <SelectValue placeholder="Todas" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todas">Todas</SelectItem>
+                  {gerencias.map((g) => (
+                    <SelectItem key={g} value={g}>
+                      {g}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <span className="text-[11px] font-medium text-gray-500 uppercase">Estatus</span>
+              <Select
+                value={filters.estatus || "todos"}
+                onValueChange={(v: string) =>
+                  setFilters((f) => ({
+                    ...f,
+                    estatus: v === "todos" ? "" : (v as "pendiente" | "procesada"),
+                  }))
+                }
+              >
+                <SelectTrigger className="h-9 w-36">
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos</SelectItem>
+                  <SelectItem value="pendiente">Pendiente</SelectItem>
+                  <SelectItem value="procesada">Procesada</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <span className="text-[11px] font-medium text-gray-500 uppercase">Desde</span>
+              <Input
+                type="date"
+                value={filters.fechaDesde}
+                onChange={(e) => setFilters((f) => ({ ...f, fechaDesde: e.target.value }))}
+                className="h-9 w-38"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <span className="text-[11px] font-medium text-gray-500 uppercase">Hasta</span>
+              <Input
+                type="date"
+                value={filters.fechaHasta}
+                onChange={(e) => setFilters((f) => ({ ...f, fechaHasta: e.target.value }))}
+                className="h-9 w-38"
+              />
+            </div>
+
+            {hasActiveFilters && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-9 text-gray-500 flex gap-1"
+                onClick={() => setFilters((f) => ({ ...EMPTY_FILTERS, tab: f.tab }))}
+              >
+                <X className="h-4 w-4" />
+                Limpiar
+              </Button>
+            )}
+          </div>
+        </>
+      )}
+
+      <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Correlativo
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  OSI
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Solicitante
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Gerencia
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Tipo
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Fecha
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Estatus
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Acciones
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {filtered.length > 0 ? (
+                filtered.map((record: any) => (
+                  <RequisicionRow
+                    key={record.id}
+                    record={record}
+                    isAdminView={isAdminView}
+                  />
+                ))
+              ) : (
+                <tr>
+                  <td
+                    colSpan={8}
+                    className="px-4 py-12 text-center text-sm text-gray-500"
+                  >
+                    {records.length === 0 ? (
+                      <div className="flex flex-col items-center gap-2">
+                        <p>
+                          {isAdminView
+                            ? "No hay requisiciones registradas todavía."
+                            : "No has creado ninguna requisición todavía."}
+                        </p>
+                        <Link href="/requisiciones/create">
+                          <Button variant="link" className="text-blue-600 p-0 h-auto">
+                            Crear tu primera solicitud ahora
+                          </Button>
+                        </Link>
+                      </div>
+                    ) : (
+                      <p>No hay resultados para los filtros aplicados.</p>
+                    )}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}

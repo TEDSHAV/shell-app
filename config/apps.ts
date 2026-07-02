@@ -40,7 +40,9 @@ import { build_app_config } from "@/lib/app-theme";
 import { get_tickets_form_base_url } from "@/lib/tickets-form-url";
 import { AppConfig, AppGroupConfig, NavGroup } from "@/types";
 
-const requisicionesNavGroup: NavGroup = {
+const isDev = process.env.NODE_ENV === "development";
+
+const requisicionesNavGroup: NavGroup | null = isDev ? {
   groupLabel: "Requisiciones",
   links: [
     {
@@ -48,35 +50,31 @@ const requisicionesNavGroup: NavGroup = {
       path: "/",
       href: "/requisiciones",
       icon: ListOrdered,
-      requiredRoles: ["admin", "lider", "superadmin"],
     },
     {
       label: "Nueva Requisición",
       path: "/create",
       href: "/requisiciones/create",
       icon: FilePlus2,
-      requiredRoles: ["admin", "lider", "superadmin"],
     },
   ],
-};
+} : null;
 
-const administracionNavGroup: NavGroup = {
+const administracionNavGroup: NavGroup | null = isDev ? {
   groupLabel: "Requisiciones",
   links: [
     {
       label: "Mis Requisiciones",
       path: "/",
       icon: ListOrdered,
-      requiredRoles: ["admin", "lider", "superadmin"],
     },
     {
       label: "Nueva Requisición",
       path: "/create",
       icon: FilePlus2,
-      requiredRoles: ["admin", "lider", "superadmin"],
     },
   ],
-};
+} : null;
 
 export const appGroups: AppGroupConfig[] = [
   {
@@ -273,7 +271,7 @@ export const apps: AppConfig[] = [
           },
         ],
       },
-      requisicionesNavGroup,
+      ...(requisicionesNavGroup ? [requisicionesNavGroup] : []),
     ],
   }),
   build_app_config({
@@ -389,7 +387,7 @@ export const apps: AppConfig[] = [
     brandColor: "#4F46E5",
     embedMode: "native",
     dashboardOrder: 5,
-    navLinks: [administracionNavGroup],
+    navLinks: administracionNavGroup ? [administracionNavGroup] : [],
   }),
   build_app_config({
     id: "capacitacion",
@@ -520,7 +518,7 @@ export const apps: AppConfig[] = [
           },
         ],
       },
-      requisicionesNavGroup,
+      ...(requisicionesNavGroup ? [requisicionesNavGroup] : []),
     ],
   }),
   build_app_config({
@@ -571,7 +569,7 @@ export const apps: AppConfig[] = [
       { label: "Control de Calibración", path: "/dashboard/control-calibracion", icon: Gauge },
       { label: "Entrada y Salida de Equipos", path: "/dashboard/entrada-salida-equipos", icon: ArrowLeftRight },
       { label: "Formulario de Novedades", path: "/dashboard/formulario-novedades", icon: FileText },
-      requisicionesNavGroup,
+      ...(requisicionesNavGroup ? [requisicionesNavGroup] : []),
     ],
   }),
   build_app_config({

@@ -13,7 +13,8 @@ export default function RequisicionView({
   const additionalItems: RequisicionItem[] = record.additional_items || [];
   
   const isCapacitacion = record.gerencia_solicitante?.trim().toLowerCase() === "capacitacion";
-  const isTEDMode = record.gerencia_solicitante?.trim().toLowerCase() === "ted";
+  const isGeneralMode = record.tipo_solicitud === "Interno";
+  const linkedOSIs: { id_osi: number }[] = record.requisiciones_osis || [];
   
   // Totals calculations based on totals stored in DB (as updated in create/update actions)
   const totalTraslado = isCapacitacion ? (record.costo_traslado || 0) : 0;
@@ -32,16 +33,23 @@ export default function RequisicionView({
             <div className="col-span-3 p-3 border-r border-gray-300 bg-gray-50 flex items-center font-bold text-sm">
               Fecha de solicitud:
             </div>
-            <div className={`p-3 border-r border-gray-300 flex items-center ${isTEDMode ? "col-span-9" : "col-span-4"}`}>
+            <div className={`p-3 border-r border-gray-300 flex items-center ${isGeneralMode ? "col-span-9" : "col-span-4"}`}>
               {record.fecha_solicitud ? new Date(record.fecha_solicitud + "T00:00:00").toLocaleDateString() : "-"}
             </div>
-            {!isTEDMode && (
+            {!isGeneralMode && (
             <>
             <div className="col-span-2 p-3 border-r border-gray-300 bg-gray-50 flex items-center font-bold text-sm">
               N° OSI:
             </div>
-            <div className="col-span-3 p-3 flex items-center font-bold text-blue-700">
-              {osiData?.nro_osi || record.numero_osi || "-"}
+            <div className="col-span-3 p-3 flex flex-wrap items-center gap-1 font-bold text-blue-700">
+              {linkedOSIs.length > 0
+                ? linkedOSIs.map((ro, i) => (
+                    <span key={ro.id_osi} className="inline-flex items-center gap-1">
+                      {i > 0 && <span className="text-gray-400">,</span>}
+                      {osiData?.id_osi === ro.id_osi ? osiData.nro_osi : `#${ro.id_osi}`}
+                    </span>
+                  ))
+                : osiData?.nro_osi || record.numero_osi || "-"}
             </div>
             </>
             )}
@@ -87,8 +95,13 @@ export default function RequisicionView({
               <tr className="bg-gray-50 text-center border-b border-gray-300">
                 <th className="p-2 border-r border-gray-300 w-12">ITEM</th>
                 <th className="p-2 border-r border-gray-300 w-20">UNIDAD/ CONCEPTO</th>
+                <th className="p-2 border-r border-gray-300 w-16">CANT</th>
                 <th className="p-2 border-r border-gray-300">DESCRIPCIÓN</th>
-                <th className="p-2 w-32">TOTAL</th>
+                {isGeneralMode ? (
+                  <th className="p-2 w-24">VERIF.</th>
+                ) : (
+                  <th className="p-2 w-32">TOTAL</th>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -158,27 +171,44 @@ export default function RequisicionView({
                 <tr key={item.id} className="border-b border-gray-300 bg-blue-50/10">
                   <td className="p-2 text-center border-r border-gray-300 font-bold">{index + (isCapacitacion ? 5 : 1)}</td>
                   <td className="p-2 border-r border-gray-300 text-center uppercase font-bold">
-                    {item.unidad || "UND"}
+                    {item.unidad || "und"}
+                  </td>
+                  <td className="p-2 text-center border-r border-gray-300 font-bold">
+                    {item.cant || 1}
                   </td>
                   <td className="p-2 border-r border-gray-300">
                     <div className="flex justify-between items-center px-1">
                       <span className="uppercase">{item.descripcion || "-"}</span>
-                      <span className="font-medium text-gray-500">Costo Unit: ${item.costo_unitario?.toFixed(2) || "0.00"}</span>
+                      {!isGeneralMode && (
+                        <span className="font-medium text-gray-500">Costo Unit: ${item.costo_unitario?.toFixed(2) || "0.00"}</span>
+                      )}
                     </div>
                   </td>
-                  <td className="p-2 text-center font-bold bg-blue-50/20">
-                    ${item.total?.toFixed(2) || "0.00"}
-                  </td>
+                  {isGeneralMode ? (
+                    <td className="p-2 text-center">
+                      <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
+                        item.verificacion === "listo" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
+                      }`}>
+                        {item.verificacion === "listo" ? "Listo" : "Pendiente"}
+                      </span>
+                    </td>
+                  ) : (
+                    <td className="p-2 text-center font-bold bg-blue-50/20">
+                      ${item.total?.toFixed(2) || "0.00"}
+                    </td>
+                  )}
                 </tr>
               ))}
 
-              {/* Total Row */}
+              {/* Total Row — only for OSI modes */}
+              {!isGeneralMode && (
               <tr className="bg-gray-100 border-b border-gray-300">
-                <td colSpan={3} className="p-2 text-right font-bold uppercase text-sm">Total General:</td>
+                <td colSpan={4} className="p-2 text-right font-bold uppercase text-sm">Total General:</td>
                 <td className="p-2 text-center font-bold text-sm bg-yellow-50">
                   ${totalGeneral.toFixed(2)}
                 </td>
               </tr>
+              )}
             </tbody>
           </table>
 

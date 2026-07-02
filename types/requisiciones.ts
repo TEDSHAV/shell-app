@@ -1,4 +1,10 @@
 
+export type RequisicionMode = "general" | "capacitacion" | "servicios tecnicos";
+
+export type VerificacionStatus = "listo" | "pendiente";
+
+export type EstatusAdmin = "pendiente" | "procesada";
+
 export interface RequisicionItem {
   id: string;
   cant: number;
@@ -6,10 +12,22 @@ export interface RequisicionItem {
   descripcion: string;
   costo_unitario: number;
   total: number;
+  id_osi?: number | null;
+  verificacion?: VerificacionStatus;
+}
+
+export interface RequisicionFilters {
+  tab: "todas" | "internas" | "externas";
+  gerencia: string;
+  estatus: "" | EstatusAdmin;
+  fechaDesde: string;
+  fechaHasta: string;
+  search: string;
 }
 
 export interface RequisicionFormData {
-  selectedOSI?: OSIFullData | null;
+  selectedOSIs: OSIFullData[];
+  is_general: boolean;
   corresponde_a: string;
   fecha_solicitud: string;
   tipo_solicitud: "Interno" | "Externo" | "";

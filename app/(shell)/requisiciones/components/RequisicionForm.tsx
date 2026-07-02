@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Plus, Trash2, CheckCircle2 } from "lucide-react";
+import { Plus, Trash2, CheckCircle2, Lock } from "lucide-react";
 import { RequisicionFormData, OSIFullData, RequisicionItem } from "@/types/requisiciones";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,15 +30,15 @@ export default function RequisicionForm({
   facilitators = [], 
   userData = null,
   editRecord = null,
-  canSwitchMode = false,
-  isTEDDept = false
+  userDept = "",
+  isLocked = false,
 }: { 
   osis?: OSIFullData[], 
   facilitators?: any[], 
   userData?: any,
   editRecord?: any,
-  canSwitchMode?: boolean,
-  isTEDDept?: boolean
+  userDept?: string,
+  isLocked?: boolean,
 }) {
   return (
     <Suspense fallback={<div>Cargando formulario...</div>}>
@@ -47,8 +47,8 @@ export default function RequisicionForm({
         initialFacilitators={facilitators} 
         initialUserData={userData}
         editRecord={editRecord}
-        canSwitchMode={canSwitchMode}
-        isTEDDept={isTEDDept}
+        userDept={userDept}
+        isLocked={isLocked}
       />
     </Suspense>
   );
@@ -59,15 +59,15 @@ function RequisicionFormContent({
   initialFacilitators, 
   initialUserData,
   editRecord,
-  canSwitchMode,
-  isTEDDept
+  userDept,
+  isLocked,
 }: { 
   initialOsis: OSIFullData[], 
   initialFacilitators: any[], 
   initialUserData: any,
   editRecord: any,
-  canSwitchMode: boolean,
-  isTEDDept: boolean
+  userDept: string,
+  isLocked: boolean,
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -80,14 +80,30 @@ function RequisicionFormContent({
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  // Determine department-based default mode
+  const deptLower = userDept.trim().toLowerCase();
+  const isCapacitacionDept = deptLower === "capacitacion";
+  const isServiciosDept = deptLower === "servicios tecnicos" || deptLower === "servicios técnicos";
+  // Capacitación and Servicios Técnicos default to their OSI mode; everyone else defaults to General
+  const defaultIsGeneral = !isCapacitacionDept && !isServiciosDept;
+  const defaultGerencia = isCapacitacionDept ? "Capacitacion" : isServiciosDept ? "Servicios Tecnicos" : (initialUserData?.departamentos?.nombre || userDept || "");
+
+  // For edit mode: reconstruct selectedOSIs from record
+  const editSelectedOSIs: OSIFullData[] = editRecord ? 
+    (editRecord.requisiciones_osis || []).map((ro: any) => 
+      initialOsis.find((o: any) => o.id_osi === ro.id_osi)).filter(Boolean) : 
+    (editRecord?.id_osi ? [initialOsis.find((o: any) => o.id_osi === editRecord.id_osi)].filter(Boolean) : []);
+  const editIsGeneral = editRecord ? (editRecord.tipo_solicitud === "Interno" || (!editRecord.tipo_solicitud && !editRecord.id_osi)) : defaultIsGeneral;
+
   const [formData, setFormData] = useState<RequisicionFormData>({
-    selectedOSI: editRecord ? (initialOsis.find((o: any) => o.id_osi === editRecord.id_osi) || null) : null,
+    selectedOSIs: editRecord ? editSelectedOSIs : [],
+    is_general: editIsGeneral,
     corresponde_a: editRecord?.corresponde_a || "",
     fecha_solicitud: editRecord?.fecha_solicitud || new Date().toISOString().split("T")[0],
-    tipo_solicitud: editRecord?.tipo_solicitud || "",
+    tipo_solicitud: editRecord?.tipo_solicitud || (editIsGeneral ? "Interno" : "Externo"),
     nro_correlativo: editRecord?.nro_correlativo || "",
     tipo_servicio: editRecord?.tipo_servicio || "",
-    gerencia_solicitante: editRecord?.gerencia_solicitante || (isTEDDept ? "TED" : initialUserData?.departamentos?.nombre || "SERVICIOS"),
+    gerencia_solicitante: editRecord?.gerencia_solicitante || defaultGerencia,
     solicitante: editRecord?.solicitante || initialUserData?.nombre_apellido || "",
     prioridad: editRecord?.prioridad || "Alta",
 
@@ -120,6 +136,12 @@ function RequisicionFormContent({
     observaciones: editRecord?.observaciones_compras || "",
   });
 
+  const [mode, setMode] = useState<"general" | "capacitacion" | "servicios tecnicos">(
+    editRecord
+      ? (editIsGeneral ? "general" : (editRecord.gerencia_solicitante?.trim().toLowerCase() === "capacitacion" ? "capacitacion" : "servicios tecnicos"))
+      : (defaultIsGeneral ? "general" : (isCapacitacionDept ? "capacitacion" : "servicios tecnicos"))
+  );
+
   // Handle outside click for OSI dropdown
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -131,33 +153,37 @@ function RequisicionFormContent({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const isCapacitacion = formData.gerencia_solicitante.trim().toLowerCase() === "capacitacion";
-  const isTEDMode = formData.gerencia_solicitante.trim().toLowerCase() === "ted";
+  const isGeneralMode = mode === "general";
+  const isCapacitacion = !isGeneralMode && formData.gerencia_solicitante.trim().toLowerCase() === "capacitacion";
 
-  const handleModeSwitch = (mode: "capacitacion" | "servicios tecnicos" | "ted") => {
+  const handleModeSwitch = (newMode: "general" | "capacitacion" | "servicios tecnicos") => {
     const gerenciaMap = {
+      general: initialUserData?.departamentos?.nombre || userDept || "",
       capacitacion: "Capacitacion",
       "servicios tecnicos": "Servicios Tecnicos",
-      ted: "TED",
     };
+    setMode(newMode);
     setFormData((prev) => ({
       ...prev,
-      gerencia_solicitante: gerenciaMap[mode],
-      selectedOSI: null,
+      is_general: newMode === "general",
+      gerencia_solicitante: gerenciaMap[newMode],
+      selectedOSIs: [],
+      tipo_solicitud: newMode === "general" ? "Interno" : "Externo",
     }));
     setSearchTerm("");
   };
 
-  // Ensure at least one empty row for personalized items when non-Capacitacion (including TED mode)
+  // Ensure at least one empty row for personalized items
   useEffect(() => {
-    if (!isCapacitacion && formData.additional_items.length === 0) {
+    if (formData.additional_items.length === 0) {
       const newItem: RequisicionItem = {
         id: Math.random().toString(36).substr(2, 9),
         cant: 1,
-        unidad: "",
+        unidad: "und",
         descripcion: "",
         costo_unitario: 0,
         total: 0,
+        verificacion: "pendiente",
       };
       setFormData((prev) => ({
         ...prev,
@@ -165,11 +191,11 @@ function RequisicionFormContent({
       }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isCapacitacion]);
+  }, [mode]);
 
   const osiTipoServicio = isCapacitacion ? "capacitacion" : "servicios tecnicos";
 
-  const isOSIRequired = !isTEDMode;
+  const isOSIRequired = !isGeneralMode;
 
   const filteredOSIs = osis.filter(
     (osi) =>
@@ -178,18 +204,29 @@ function RequisicionFormContent({
         osi.servicio?.toLowerCase().includes(searchTerm.toLowerCase())),
   );
 
-  const handleOSISelect = (osi: OSIFullData) => {
-    setFormData((prev) => ({
-      ...prev,
-      selectedOSI: osi,
-      costo_traslado: osi.costo_traslado || 0,
-      impresion_total: osi.costo_impresion_material || 0,
-      honorarios_horas: osi.horas_honorarios_instructor || 0,
-      honorarios_costo_hora: osi.tarifa_hora_honorarios || 0,
-      honorarios_total: (osi.horas_honorarios_instructor || 0) * (osi.tarifa_hora_honorarios || 0),
-    }));
-    setIsDropdownOpen(false);
-    setSearchTerm("");
+  const isOSISelected = (osi: OSIFullData) =>
+    formData.selectedOSIs.some((s) => s.id_osi === osi.id_osi);
+
+  const handleOSIToggle = (osi: OSIFullData) => {
+    setFormData((prev) => {
+      const already = prev.selectedOSIs.some((s) => s.id_osi === osi.id_osi);
+      const newSelection = already
+        ? prev.selectedOSIs.filter((s) => s.id_osi !== osi.id_osi)
+        : [...prev.selectedOSIs, osi];
+      // Auto-populate cost fields from the first selected OSI
+      const firstOSI = newSelection[0];
+      return {
+        ...prev,
+        selectedOSIs: newSelection,
+        costo_traslado: firstOSI?.costo_traslado || 0,
+        impresion_total: firstOSI?.costo_impresion_material || 0,
+        honorarios_horas: firstOSI?.horas_honorarios_instructor || 0,
+        honorarios_costo_hora: firstOSI?.tarifa_hora_honorarios || 0,
+        honorarios_total: firstOSI
+          ? (firstOSI.horas_honorarios_instructor || 0) * (firstOSI.tarifa_hora_honorarios || 0)
+          : 0,
+      };
+    });
   };
 
   const handleFacilitatorChange = (facilitatorId: string) => {
@@ -211,10 +248,11 @@ function RequisicionFormContent({
     const newItem: RequisicionItem = {
       id: Math.random().toString(36).substr(2, 9),
       cant: 1,
-      unidad: "",
+      unidad: "und",
       descripcion: "",
       costo_unitario: 0,
       total: 0,
+      verificacion: isGeneralMode ? "pendiente" : undefined,
     };
     setFormData((prev) => ({
       ...prev,
@@ -245,8 +283,12 @@ function RequisicionFormContent({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isOSIRequired && !formData.selectedOSI) {
-      alert("Por favor seleccione una OSI");
+    if (isOSIRequired && formData.selectedOSIs.length === 0) {
+      alert("Por favor seleccione al menos una OSI");
+      return;
+    }
+    if (isLocked) {
+      alert("Esta requisición ya fue procesada por Administración y no puede editarse.");
       return;
     }
 
@@ -290,45 +332,49 @@ function RequisicionFormContent({
         </div>
       )}
 
-      {canSwitchMode && (
-        <div className="flex gap-1 mb-4">
-          {isTEDDept && (
-            <button
-              type="button"
-              onClick={() => handleModeSwitch("ted")}
-              className={`px-4 py-2 text-sm font-bold rounded-t-lg border-b-2 transition-colors ${
-                isTEDMode
-                  ? "border-blue-600 text-blue-600 bg-blue-50"
-                  : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
-              }`}
-            >
-              General
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => handleModeSwitch("capacitacion")}
-            className={`px-4 py-2 text-sm font-bold rounded-t-lg border-b-2 transition-colors ${
-              isCapacitacion
-                ? "border-blue-600 text-blue-600 bg-blue-50"
-                : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
-            }`}
-          >
-            Capacitación
-          </button>
-          <button
-            type="button"
-            onClick={() => handleModeSwitch("servicios tecnicos")}
-            className={`px-4 py-2 text-sm font-bold rounded-t-lg border-b-2 transition-colors ${
-              !isCapacitacion && !isTEDMode
-                ? "border-blue-600 text-blue-600 bg-blue-50"
-                : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
-            }`}
-          >
-            Servicios Técnicos
-          </button>
+      {isLocked && (
+        <div className="mb-4 p-3 bg-amber-50 border border-amber-300 rounded-lg flex items-center gap-2 text-amber-800 text-sm font-medium">
+          <Lock className="h-4 w-4" />
+          Esta requisición fue procesada por Administración y está bloqueada para edición.
         </div>
       )}
+
+      {/* Mode tabs — visible to all users */}
+      <div className="flex gap-1 mb-4">
+        <button
+          type="button"
+          onClick={() => handleModeSwitch("general")}
+          className={`px-4 py-2 text-sm font-bold rounded-t-lg border-b-2 transition-colors ${
+            isGeneralMode
+              ? "border-blue-600 text-blue-600 bg-blue-50"
+              : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+          }`}
+        >
+          General
+        </button>
+        <button
+          type="button"
+          onClick={() => handleModeSwitch("capacitacion")}
+          className={`px-4 py-2 text-sm font-bold rounded-t-lg border-b-2 transition-colors ${
+            isCapacitacion
+              ? "border-blue-600 text-blue-600 bg-blue-50"
+              : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+          }`}
+        >
+          Capacitación
+        </button>
+        <button
+          type="button"
+          onClick={() => handleModeSwitch("servicios tecnicos")}
+          className={`px-4 py-2 text-sm font-bold rounded-t-lg border-b-2 transition-colors ${
+            !isCapacitacion && !isGeneralMode
+              ? "border-blue-600 text-blue-600 bg-blue-50"
+              : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+          }`}
+        >
+          Servicios Técnicos
+        </button>
+      </div>
 
       <Card className="shadow-md border-gray-300">
         <CardContent className="p-0">
@@ -336,7 +382,7 @@ function RequisicionFormContent({
             <div className="col-span-3 p-3 border-r border-gray-300 bg-gray-50 flex items-center font-bold text-sm">
               Fecha de solicitud:
             </div>
-            <div className={`p-3 border-r border-gray-300 ${isTEDMode ? "col-span-9" : "col-span-4"}`}>
+            <div className={`p-3 border-r border-gray-300 ${isGeneralMode ? "col-span-9" : "col-span-4"}`}>
               <Input 
                 type="date"
                 value={formData.fecha_solicitud}
@@ -344,7 +390,7 @@ function RequisicionFormContent({
                 className="h-8 border-none focus-visible:ring-0 px-0"
               />
             </div>
-            {!isTEDMode && (
+            {!isGeneralMode && (
             <>
             <div className="col-span-2 p-3 border-r border-gray-300 bg-gray-50 flex items-center font-bold text-sm">
               N° OSI:
@@ -352,7 +398,7 @@ function RequisicionFormContent({
             <div className="col-span-3 p-3 relative" ref={dropdownRef}>
                <Input 
                   placeholder="Buscar OSI..."
-                  value={searchTerm || (formData.selectedOSI?.nro_osi || "")}
+                  value={searchTerm}
                   onChange={(e) => {
                     setSearchTerm(e.target.value);
                     setIsDropdownOpen(true);
@@ -365,10 +411,15 @@ function RequisicionFormContent({
                     {filteredOSIs.map((osi) => (
                       <div
                         key={osi.id_osi}
-                        onClick={() => handleOSISelect(osi)}
-                        className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-xs"
+                        onClick={() => handleOSIToggle(osi)}
+                        className={`px-3 py-2 cursor-pointer text-xs ${
+                          isOSISelected(osi) ? "bg-blue-50" : "hover:bg-gray-100"
+                        }`}
                       >
-                        <div className="font-bold">{osi.nro_osi}</div>
+                        <div className="font-bold flex items-center gap-1">
+                          {isOSISelected(osi) && <CheckCircle2 className="h-3 w-3 text-blue-600" />}
+                          {osi.nro_osi}
+                        </div>
                         <div className="text-gray-600 truncate">{osi.servicio}</div>
                       </div>
                     ))}
@@ -378,6 +429,27 @@ function RequisicionFormContent({
             </>
             )}
           </div>
+
+          {/* Selected OSI chips */}
+          {!isGeneralMode && formData.selectedOSIs.length > 0 && (
+            <div className="flex flex-wrap gap-2 p-3 border-b border-gray-300 bg-blue-50/30">
+              {formData.selectedOSIs.map((osi) => (
+                <span
+                  key={osi.id_osi}
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-blue-100 text-blue-800 text-xs font-bold"
+                >
+                  {osi.nro_osi}
+                  <button
+                    type="button"
+                    onClick={() => handleOSIToggle(osi)}
+                    className="hover:text-blue-600"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
 
           <div className="grid grid-cols-12 border-b border-gray-300">
             <div className="col-span-3 p-3 border-r border-gray-300 bg-gray-50 flex flex-col justify-center">
@@ -438,8 +510,16 @@ function RequisicionFormContent({
               <tr className="bg-gray-50 text-center border-b border-gray-300">
                 <th className="p-2 border-r border-gray-300 w-12">ITEM</th>
                 <th className="p-2 border-r border-gray-300 w-20">UNIDAD/ CONCEPTO</th>
+                <th className="p-2 border-r border-gray-300 w-16">CANT</th>
                 <th className="p-2 border-r border-gray-300">DESCRIPCIÓN</th>
-                <th className="p-2 w-32">TOTAL</th>
+                {!isGeneralMode && formData.selectedOSIs.length > 1 && (
+                  <th className="p-2 border-r border-gray-300 w-32">OSI</th>
+                )}
+                {isGeneralMode ? (
+                  <th className="p-2 w-24">VERIF.</th>
+                ) : (
+                  <th className="p-2 w-32">TOTAL</th>
+                )}
                 <th className="p-2 w-10"></th>
               </tr>
             </thead>
@@ -566,7 +646,15 @@ function RequisicionFormContent({
                       className="h-6 w-full text-center border-gray-300 p-1 uppercase font-bold" 
                       value={item.unidad}
                       onChange={(e) => updateAdditionalItem(item.id, { unidad: e.target.value })}
-                      placeholder="UND"
+                      placeholder="und"
+                    />
+                  </td>
+                  <td className="p-2 border-r border-gray-300">
+                    <Input 
+                      type="number"
+                      className="h-6 w-full text-center border-gray-300 p-1" 
+                      value={item.cant}
+                      onChange={(e) => updateAdditionalItem(item.id, { cant: parseInt(e.target.value) || 1 })}
                     />
                   </td>
                   <td className="p-2 border-r border-gray-300">
@@ -577,20 +665,51 @@ function RequisicionFormContent({
                         onChange={(e) => updateAdditionalItem(item.id, { descripcion: e.target.value })}
                         placeholder="Descripción del item..."
                       />
-                      <div className="flex items-center gap-1">
-                        <span>$</span>
-                        <Input 
-                          type="number"
-                          className="h-6 w-20 border-gray-300 p-1" 
-                          value={item.costo_unitario}
-                          onChange={(e) => updateAdditionalItem(item.id, { costo_unitario: parseFloat(e.target.value) || 0 })}
-                        />
-                      </div>
+                      {!isGeneralMode && (
+                        <div className="flex items-center gap-1">
+                          <span>$</span>
+                          <Input 
+                            type="number"
+                            className="h-6 w-20 border-gray-300 p-1" 
+                            value={item.costo_unitario}
+                            onChange={(e) => updateAdditionalItem(item.id, { costo_unitario: parseFloat(e.target.value) || 0 })}
+                          />
+                        </div>
+                      )}
                     </div>
                   </td>
-                  <td className="p-2 text-center font-bold">
-                    ${item.total.toFixed(2)}
-                  </td>
+                  {!isGeneralMode && formData.selectedOSIs.length > 1 && (
+                    <td className="p-2 border-r border-gray-300">
+                      <Select
+                        value={item.id_osi?.toString() || ""}
+                        onValueChange={(v: string) => updateAdditionalItem(item.id, { id_osi: parseInt(v) })}
+                      >
+                        <SelectTrigger className="h-6 text-xs border-gray-300">
+                          <SelectValue placeholder="Sin asignar" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {formData.selectedOSIs.map((osi) => (
+                            <SelectItem key={osi.id_osi} value={osi.id_osi.toString()}>
+                              {osi.nro_osi}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </td>
+                  )}
+                  {isGeneralMode ? (
+                    <td className="p-2 text-center">
+                      <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
+                        item.verificacion === "listo" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
+                      }`}>
+                        {item.verificacion === "listo" ? "Listo" : "Pendiente"}
+                      </span>
+                    </td>
+                  ) : (
+                    <td className="p-2 text-center font-bold">
+                      ${item.total.toFixed(2)}
+                    </td>
+                  )}
                   <td className="p-2 border-l border-gray-300 text-center">
                     <Button
                       type="button"
@@ -605,9 +724,10 @@ function RequisicionFormContent({
                 </tr>
               ))}
 
-              {/* Total Row */}
+              {/* Total Row — only for OSI modes */}
+              {!isGeneralMode && (
               <tr className="bg-gray-100 border-b border-gray-300">
-                <td colSpan={3} className="p-2 text-right font-bold uppercase text-sm">Total General:</td>
+                <td colSpan={formData.selectedOSIs.length > 1 ? 5 : 4} className="p-2 text-right font-bold uppercase text-sm">Total General:</td>
                 <td className="p-2 text-center font-bold text-sm bg-yellow-50">
                   ${(
                     (isCapacitacion
@@ -621,6 +741,7 @@ function RequisicionFormContent({
                 </td>
                 <td className="p-2 border-l border-gray-300"></td>
               </tr>
+              )}
             </tbody>
           </table>
 
@@ -727,7 +848,7 @@ function RequisicionFormContent({
             </Button>
             <Button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || isLocked}
               className="bg-blue-600 hover:bg-blue-700 text-white"
             >
               {isLoading ? "Guardando..." : editId ? "Actualizar Requisición" : "Crear Requisición"}

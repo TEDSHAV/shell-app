@@ -2,10 +2,21 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { getUserRole } from "@/actions/apps";
 import {
   RequisicionFormData,
   OSIFullData,
+  RequisicionItem,
+  VerificacionStatus,
 } from "@/types/requisiciones";
+
+const ADMIN_ROLES = ["admin", "superadmin"];
+
+// Check if the current user can manage all requisiciones (Administración)
+export async function isRequisicionesAdmin(): Promise<boolean> {
+  const role = (await getUserRole())?.toLowerCase() || "";
+  return ADMIN_ROLES.includes(role);
+}
 
 // Get all OSIs for the dropdown
 export async function getAllOSIsForRequisiciones() {
@@ -66,7 +77,8 @@ export async function createRequisicionRecord(
   const userResponse = await supabase.auth.getUser();
   const userId = userResponse.data.user?.id || null;
 
-  const isCapacitacion = formData.gerencia_solicitante?.trim().toLowerCase() === "capacitacion";
+  const isCapacitacion = !formData.is_general && formData.gerencia_solicitante?.trim().toLowerCase() === "capacitacion";
+  const primaryOSI = formData.is_general ? null : formData.selectedOSIs[0] || null;
 
   // Calculate totals for fixed items as requested (Cant is removed from UI, so we use 1)
   const totalTraslado = (formData.dias_traslado || 0) * (formData.costo_traslado || 0);
@@ -75,11 +87,12 @@ export async function createRequisicionRecord(
   const totalInformeFinal = (formData.informe_final_total || 0);
 
   const record = {
-    id_osi: formData.selectedOSI?.id_osi || null,
+    id_osi: primaryOSI?.id_osi || null,
     solicitante: formData.solicitante,
     gerencia_solicitante: formData.gerencia_solicitante,
     fecha_solicitud: formData.fecha_solicitud,
-    tipo_solicitud: formData.tipo_solicitud || null,
+    // Auto-derived: Internas = General (no OSI), Externas = OSI-based
+    tipo_solicitud: formData.is_general ? "Interno" : "Externo",
     nro_correlativo: formData.nro_correlativo || null,
     tipo_servicio: formData.tipo_servicio || null,
     prioridad: formData.prioridad || null,
@@ -112,9 +125,10 @@ export async function createRequisicionRecord(
     updated_by: userId,
     
     // Schema fields
-    item_solicitado: formData.selectedOSI?.servicio || null,
+    item_solicitado: primaryOSI?.servicio || null,
     cantidad: 1,
     id_estatus: 1, // Default status
+    estatus_admin: "pendiente",
   };
 
   const { data, error } = await supabase
@@ -124,10 +138,41 @@ export async function createRequisicionRecord(
     .single();
 
   if (error) throw error;
-  
+
+  await syncRequisicionOsis(data.id, formData);
+
   // Revalidate both the shell and potentially the capacitacion app list if needed
-  revalidatePath("/dashboard/requisiciones");
+  revalidatePath("/requisiciones");
   return data;
+}
+
+// Persist the multi-OSI links in the junction table
+async function syncRequisicionOsis(
+  requisicionId: number,
+  formData: RequisicionFormData,
+) {
+  const supabase = await createClient();
+
+  const { error: deleteError } = await supabase
+    .from("requisiciones_osis")
+    .delete()
+    .eq("id_requisicion", requisicionId);
+
+  if (deleteError) {
+    console.error("Error clearing requisicion OSI links:", deleteError);
+  }
+
+  if (formData.is_general || formData.selectedOSIs.length === 0) return;
+
+  const rows = formData.selectedOSIs.map((osi) => ({
+    id_requisicion: requisicionId,
+    id_osi: osi.id_osi,
+  }));
+
+  const { error } = await supabase.from("requisiciones_osis").insert(rows);
+  if (error) {
+    console.error("Error saving requisicion OSI links:", error);
+  }
 }
 
 // Get single record for editing
@@ -135,12 +180,28 @@ export async function getRequisicionRecord(id: number) {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("requisiciones")
-    .select("*")
+    .select("*, requisiciones_osis(id_osi)")
     .eq("id", id)
     .single();
 
   if (error) throw error;
   return data;
+}
+
+// Get OSI details for a list of ids (used by the view page)
+export async function getOsisByIds(ids: number[]) {
+  if (!ids.length) return [];
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("v_osi_formato_completo")
+    .select("*")
+    .in("id_osi", ids);
+
+  if (error) {
+    console.error("Error fetching OSIs by ids:", error);
+    return [];
+  }
+  return data as OSIFullData[];
 }
 
 // Update requisition record
@@ -152,7 +213,19 @@ export async function updateRequisicionRecord(
   const userResponse = await supabase.auth.getUser();
   const userId = userResponse.data.user?.id || null;
 
-  const isCapacitacion = formData.gerencia_solicitante?.trim().toLowerCase() === "capacitacion";
+  // Locked once Administración marks it as procesada (unless caller is admin)
+  const { data: existing } = await supabase
+    .from("requisiciones")
+    .select("estatus_admin")
+    .eq("id", id)
+    .single();
+
+  if (existing?.estatus_admin === "procesada" && !(await isRequisicionesAdmin())) {
+    throw new Error("Esta requisición ya fue procesada por Administración y no puede editarse.");
+  }
+
+  const isCapacitacion = !formData.is_general && formData.gerencia_solicitante?.trim().toLowerCase() === "capacitacion";
+  const primaryOSI = formData.is_general ? null : formData.selectedOSIs[0] || null;
 
   // Calculate totals for fixed items
   const totalTraslado = (formData.dias_traslado || 0) * (formData.costo_traslado || 0);
@@ -161,11 +234,12 @@ export async function updateRequisicionRecord(
   const totalInformeFinal = (formData.informe_final_total || 0);
 
   const record = {
-    id_osi: formData.selectedOSI?.id_osi || null,
+    id_osi: primaryOSI?.id_osi || null,
     solicitante: formData.solicitante,
     gerencia_solicitante: formData.gerencia_solicitante,
     fecha_solicitud: formData.fecha_solicitud,
-    tipo_solicitud: formData.tipo_solicitud || null,
+    // Auto-derived: Internas = General (no OSI), Externas = OSI-based
+    tipo_solicitud: formData.is_general ? "Interno" : "Externo",
     nro_correlativo: formData.nro_correlativo || null,
     tipo_servicio: formData.tipo_servicio || null,
     prioridad: formData.prioridad || null,
@@ -195,7 +269,7 @@ export async function updateRequisicionRecord(
     updated_by: userId,
 
     // Schema fields
-    item_solicitado: formData.selectedOSI?.servicio || null,
+    item_solicitado: primaryOSI?.servicio || null,
   };
 
   const { data, error } = await supabase
@@ -206,12 +280,15 @@ export async function updateRequisicionRecord(
     .single();
 
   if (error) throw error;
-  
-  revalidatePath("/dashboard/requisiciones");
+
+  await syncRequisicionOsis(id, formData);
+
+  revalidatePath("/requisiciones");
   return data;
 }
 
-// Get all requisitions for list view
+// Get requisitions for list view.
+// Administración (admin/superadmin) sees all records; regular users only their own.
 export async function getAllRequisiciones() {
   const supabase = await createClient();
   const userResponse = await supabase.auth.getUser();
@@ -219,7 +296,9 @@ export async function getAllRequisiciones() {
 
   if (!userId) return [];
 
-  const { data, error } = await supabase
+  const isAdmin = await isRequisicionesAdmin();
+
+  let query = supabase
     .from("requisiciones")
     .select(`
       *,
@@ -231,10 +310,18 @@ export async function getAllRequisiciones() {
       facilitadores!left (
         nombre_apellido,
         cedula
+      ),
+      requisiciones_osis (
+        id_osi
       )
     `)
-    .eq("created_by", userId)
     .order("id", { ascending: false });
+
+  if (!isAdmin) {
+    query = query.eq("created_by", userId);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error("Error fetching requisiciones:", error);
@@ -246,10 +333,80 @@ export async function getAllRequisiciones() {
 // Delete requisition record
 export async function deleteRequisicionRecord(id: number) {
   const supabase = await createClient();
+
+  const { data: existing } = await supabase
+    .from("requisiciones")
+    .select("estatus_admin")
+    .eq("id", id)
+    .single();
+
+  if (existing?.estatus_admin === "procesada" && !(await isRequisicionesAdmin())) {
+    throw new Error("Esta requisición ya fue procesada por Administración y no puede eliminarse.");
+  }
+
   const { error } = await supabase
     .from("requisiciones")
     .delete()
     .eq("id", id);
+
+  if (error) throw error;
+  revalidatePath("/requisiciones");
+}
+
+// Mark a requisition as procesada / pendiente (Administración only)
+export async function setRequisicionEstatus(
+  id: number,
+  estatus: "pendiente" | "procesada",
+) {
+  if (!(await isRequisicionesAdmin())) {
+    throw new Error("No tiene permisos para cambiar el estatus de requisiciones.");
+  }
+
+  const supabase = await createClient();
+  const userResponse = await supabase.auth.getUser();
+  const userId = userResponse.data.user?.id || null;
+
+  const { error } = await supabase
+    .from("requisiciones")
+    .update({
+      estatus_admin: estatus,
+      procesada_por: estatus === "procesada" ? userId : null,
+      procesada_at: estatus === "procesada" ? new Date().toISOString() : null,
+    })
+    .eq("id", id);
+
+  if (error) throw error;
+  revalidatePath("/requisiciones");
+}
+
+// Toggle LISTO/PENDIENTE for an item of a General requisition (Administración only)
+export async function updateItemVerificacion(
+  requisicionId: number,
+  itemId: string,
+  verificacion: VerificacionStatus,
+) {
+  if (!(await isRequisicionesAdmin())) {
+    throw new Error("No tiene permisos para verificar items de requisiciones.");
+  }
+
+  const supabase = await createClient();
+  const { data: record, error: fetchError } = await supabase
+    .from("requisiciones")
+    .select("additional_items")
+    .eq("id", requisicionId)
+    .single();
+
+  if (fetchError) throw fetchError;
+
+  const items: RequisicionItem[] = (record?.additional_items || []).map(
+    (item: RequisicionItem) =>
+      item.id === itemId ? { ...item, verificacion } : item,
+  );
+
+  const { error } = await supabase
+    .from("requisiciones")
+    .update({ additional_items: items })
+    .eq("id", requisicionId);
 
   if (error) throw error;
   revalidatePath("/requisiciones");
