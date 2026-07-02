@@ -598,6 +598,18 @@ export const apps: AppConfig[] = [
     hiddenFromDashboard: true,
     navLinks: [],
   }),
+  build_app_config({
+    id: "directorio",
+    name: "Directorio",
+    description: "Directorio de usuarios: nombres, teléfonos y emails",
+    basePath: "/directorio",
+    icon: Users,
+    brandColor: "#2563EB",
+    embedMode: "native",
+    groupId: "utilidades",
+    dashboardOrder: 8,
+    navLinks: [],
+  }),
 ];
 
 export function getAppByPath(pathname: string): AppConfig | undefined {

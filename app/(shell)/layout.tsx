@@ -30,7 +30,7 @@ export default async function ShellLayout({
     // Fetch roles in parallel
     const [roles, gRole] = await Promise.all([
       getUserRolesByApp(),
-      getUserRole()
+      getUserRole(),
     ]);
     userRolesByApp = roles;
     globalRole = gRole;
