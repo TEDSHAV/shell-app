@@ -5,6 +5,7 @@ WORKDIR /app
 
 # Install dependencies based on the preferred package manager
 COPY package.json package-lock.json* ./
+COPY packages/osi-formato ./packages/osi-formato
 RUN npm ci
 
 # Stage 2: Builder
