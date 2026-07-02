@@ -9,6 +9,13 @@ import type { OsiStServicioLine } from "./osi-preview-data";
 import { type OsiDocumentAssets, type OsiPreviewData } from "./osi-preview-data";
 import { compute_st_recursos_totals, OSI_ST_TRASLADO_LABELS } from "./st-recursos-types";
 
+/** Fixed header metadata (CÓDIGO / FECHA / REVISIÓN block). */
+const OSI_FORM_META = {
+  codigo: "SHA-RG-NEG-003",
+  fecha: "09/06/2026",
+  revision: "0",
+} as const;
+
 function OsiRichHtmlContent({
   content,
   className,
@@ -386,11 +393,11 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
           <div className="w-[170px] text-[8px] text-slate-700">
             <div className="grid grid-cols-[60px_1fr] gap-x-2">
               <span className="font-bold">CÓDIGO</span>
-              <span>{data.codigoCliente || "—"}</span>
+              <span>{OSI_FORM_META.codigo}</span>
               <span className="font-bold">FECHA</span>
-              <span>{data.fechaDocumento || data.fechaEmisionPresupuesto || "—"}</span>
+              <span>{OSI_FORM_META.fecha}</span>
               <span className="font-bold">REVISIÓN</span>
-              <span>{data.revisionDocumento || "1"}</span>
+              <span>{OSI_FORM_META.revision}</span>
               <span className="font-bold">PÁGINA</span>
               <span>1 de 1</span>
             </div>
