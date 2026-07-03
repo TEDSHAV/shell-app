@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { getAllRequisiciones, isRequisicionesAdmin } from "@/actions/requisiciones";
+import { getAllRequisiciones, isRequisicionesAdmin, getAllOSIsForRequisiciones } from "@/actions/requisiciones";
 import RequisicionesTable from "./components/RequisicionesTable";
 import { FilePlus2 } from "lucide-react";
 
@@ -20,10 +20,18 @@ export default async function RequisicionesPage() {
     );
   }
 
-  const [records, isAdminView] = await Promise.all([
+  const [records, isAdminView, allOsis] = await Promise.all([
     getAllRequisiciones(),
     isRequisicionesAdmin(),
+    getAllOSIsForRequisiciones(),
   ]);
+
+  const osiLookup = new Map<number, string>();
+  (allOsis || []).forEach((osi: any) => {
+    if (osi.id_osi && osi.nro_osi) {
+      osiLookup.set(osi.id_osi, osi.nro_osi);
+    }
+  });
 
   return (
     <div className="p-4 sm:p-8">
@@ -46,7 +54,7 @@ export default async function RequisicionesPage() {
         </Link>
       </div>
 
-      <RequisicionesTable records={records || []} isAdminView={isAdminView} />
+      <RequisicionesTable records={records || []} isAdminView={isAdminView} osiLookup={osiLookup} />
     </div>
   );
 }

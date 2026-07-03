@@ -10,9 +10,11 @@ import { Button } from "@/components/ui/button";
 export default function RequisicionRow({
   record,
   isAdminView = false,
+  osiLookup,
 }: {
   record: any;
   isAdminView?: boolean;
+  osiLookup?: Map<number, string>;
 }) {
   const router = useRouter();
   const [isUpdating, setIsUpdating] = useState(false);
@@ -55,15 +57,14 @@ export default function RequisicionRow({
       onClick={handleRowClick}
       className="hover:bg-gray-50 cursor-pointer transition-colors"
     >
-      <td className="px-4 py-4 whitespace-nowrap text-sm font-bold text-blue-700">
-        {record.nro_correlativo || "-"}
-      </td>
       <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
         {isInterna ? (
           <span className="text-gray-400 italic">N/A</span>
         ) : record.requisiciones_osis?.length > 0 ? (
           <span className="font-medium text-blue-700">
-            {record.requisiciones_osis.map((ro: any) => ro.id_osi).join(", ")}
+            {record.requisiciones_osis
+              .map((ro: any) => osiLookup?.get(ro.id_osi) || ro.id_osi)
+              .join(", ")}
           </span>
         ) : (
           record.v_osi_formato_completo?.nro_osi || "-"

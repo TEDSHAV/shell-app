@@ -40,9 +40,11 @@ function isInterna(record: any): boolean {
 export default function RequisicionesTable({
   records,
   isAdminView,
+  osiLookup,
 }: {
   records: any[];
   isAdminView: boolean;
+  osiLookup?: Map<number, string>;
 }) {
   const [filters, setFilters] = useState<RequisicionFilters>(EMPTY_FILTERS);
 
@@ -81,12 +83,15 @@ export default function RequisicionesTable({
 
       if (filters.search) {
         const q = filters.search.toLowerCase();
+        const linkedOsiNumbers = (r.requisiciones_osis || [])
+          .map((ro: any) => osiLookup?.get(ro.id_osi))
+          .filter(Boolean);
         const haystack = [
-          r.nro_correlativo,
           r.solicitante,
           r.gerencia_solicitante,
           r.v_osi_formato_completo?.nro_osi,
           r.v_osi_formato_completo?.servicio,
+          ...linkedOsiNumbers,
         ]
           .filter(Boolean)
           .join(" ")
@@ -96,7 +101,7 @@ export default function RequisicionesTable({
 
       return true;
     });
-  }, [records, filters]);
+  }, [records, filters, osiLookup]);
 
   const counts = useMemo(
     () => ({
@@ -148,7 +153,7 @@ export default function RequisicionesTable({
                 <Input
                   value={filters.search}
                   onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
-                  placeholder="Correlativo, solicitante, OSI..."
+                  placeholder="Solicitante, OSI..."
                   className="h-9 pl-8 w-56"
                 />
               </div>
@@ -240,9 +245,6 @@ export default function RequisicionesTable({
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Correlativo
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   OSI
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -272,12 +274,13 @@ export default function RequisicionesTable({
                     key={record.id}
                     record={record}
                     isAdminView={isAdminView}
+                    osiLookup={osiLookup}
                   />
                 ))
               ) : (
                 <tr>
                   <td
-                    colSpan={8}
+                    colSpan={7}
                     className="px-4 py-12 text-center text-sm text-gray-500"
                   >
                     {records.length === 0 ? (

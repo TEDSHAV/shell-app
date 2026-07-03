@@ -180,11 +180,24 @@ export async function getRequisicionRecord(id: number) {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("requisiciones")
-    .select("*, requisiciones_osis(id_osi)")
+    .select(`
+      *,
+      v_osi_formato_completo!left (
+        id_osi,
+        nro_osi,
+        servicio
+      ),
+      requisiciones_osis (
+        id_osi
+      )
+    `)
     .eq("id", id)
     .single();
 
-  if (error) throw error;
+  if (error) {
+    console.error("Error fetching requisicion record:", error);
+    return null;
+  }
   return data;
 }
 

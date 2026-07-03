@@ -213,7 +213,15 @@ function RequisicionFormContent({
       const newSelection = already
         ? prev.selectedOSIs.filter((s) => s.id_osi !== osi.id_osi)
         : [...prev.selectedOSIs, osi];
-      // Auto-populate cost fields from the first selected OSI
+      
+      // Auto-populate cost fields ONLY for Capacitación department
+      if (!isCapacitacionDept) {
+        return {
+          ...prev,
+          selectedOSIs: newSelection,
+        };
+      }
+
       const firstOSI = newSelection[0];
       return {
         ...prev,
@@ -350,29 +358,18 @@ function RequisicionFormContent({
               : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
           }`}
         >
-          General
+          Interna
         </button>
         <button
           type="button"
-          onClick={() => handleModeSwitch("capacitacion")}
+          onClick={() => handleModeSwitch(isCapacitacionDept ? "capacitacion" : "servicios tecnicos")}
           className={`px-4 py-2 text-sm font-bold rounded-t-lg border-b-2 transition-colors ${
-            isCapacitacion
+            !isGeneralMode
               ? "border-blue-600 text-blue-600 bg-blue-50"
               : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
           }`}
         >
-          Capacitación
-        </button>
-        <button
-          type="button"
-          onClick={() => handleModeSwitch("servicios tecnicos")}
-          className={`px-4 py-2 text-sm font-bold rounded-t-lg border-b-2 transition-colors ${
-            !isCapacitacion && !isGeneralMode
-              ? "border-blue-600 text-blue-600 bg-blue-50"
-              : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
-          }`}
-        >
-          Servicios Técnicos
+          Externa
         </button>
       </div>
 
@@ -512,6 +509,9 @@ function RequisicionFormContent({
                 <th className="p-2 border-r border-gray-300 w-20">UNIDAD/ CONCEPTO</th>
                 <th className="p-2 border-r border-gray-300 w-16">CANT</th>
                 <th className="p-2 border-r border-gray-300">DESCRIPCIÓN</th>
+                {!isGeneralMode && (
+                  <th className="p-2 border-r border-gray-300 w-32">PRECIO U.</th>
+                )}
                 {!isGeneralMode && formData.selectedOSIs.length > 1 && (
                   <th className="p-2 border-r border-gray-300 w-32">OSI</th>
                 )}
@@ -530,6 +530,7 @@ function RequisicionFormContent({
               <tr className="border-b border-gray-300">
                 <td className="p-2 text-center border-r border-gray-300 font-bold">1</td>
                 <td className="p-2 text-center border-r border-gray-300 font-bold uppercase">T</td>
+                <td className="p-2 border-r border-gray-300"></td>
                 <td className="p-2 border-r border-gray-300">
                   <div className="flex items-center gap-2">
                     <Input 
@@ -547,6 +548,12 @@ function RequisicionFormContent({
                     />
                   </div>
                 </td>
+                <td className="p-2 border-r border-gray-300 text-center font-bold">
+                  ${((formData.dias_traslado || 0) * (formData.costo_traslado || 0)).toFixed(2)}
+                </td>
+                {formData.selectedOSIs.length > 1 && (
+                  <td className="p-2 border-r border-gray-300"></td>
+                )}
                 <td className="p-2 text-center font-bold">
                   ${((formData.dias_traslado || 0) * (formData.costo_traslado || 0)).toFixed(2)}
                 </td>
@@ -556,6 +563,7 @@ function RequisicionFormContent({
               <tr className="border-b border-gray-300">
                 <td className="p-2 text-center border-r border-gray-300 font-bold">2</td>
                 <td className="p-2 text-center border-r border-gray-300 font-bold uppercase">I</td>
+                <td className="p-2 border-r border-gray-300"></td>
                 <td className="p-2 border-r border-gray-300">
                   <div className="flex items-center gap-2">
                     <span className="uppercase font-medium">IMPRESIÓN TOTAL $</span>
@@ -567,6 +575,12 @@ function RequisicionFormContent({
                     />
                   </div>
                 </td>
+                <td className="p-2 border-r border-gray-300 text-center font-bold">
+                  ${(formData.impresion_total || 0).toFixed(2)}
+                </td>
+                {formData.selectedOSIs.length > 1 && (
+                  <td className="p-2 border-r border-gray-300"></td>
+                )}
                 <td className="p-2 text-center font-bold">
                   ${(formData.impresion_total || 0).toFixed(2)}
                 </td>
@@ -576,6 +590,7 @@ function RequisicionFormContent({
               <tr className="border-b border-gray-300">
                 <td className="p-2 text-center border-r border-gray-300 font-bold">3</td>
                 <td className="p-2 text-center border-r border-gray-300 font-bold uppercase">H</td>
+                <td className="p-2 border-r border-gray-300"></td>
                 <td className="p-2 border-r border-gray-300">
                   <div className="flex items-center gap-2">
                     <span className="font-medium uppercase">HONORARIOS $</span>
@@ -608,6 +623,12 @@ function RequisicionFormContent({
                     />
                   </div>
                 </td>
+                <td className="p-2 border-r border-gray-300 text-center font-bold">
+                  ${(formData.honorarios_total || 0).toFixed(2)}
+                </td>
+                {formData.selectedOSIs.length > 1 && (
+                  <td className="p-2 border-r border-gray-300"></td>
+                )}
                 <td className="p-2 text-center font-bold">
                   ${(formData.honorarios_total || 0).toFixed(2)}
                 </td>
@@ -617,6 +638,7 @@ function RequisicionFormContent({
               <tr className="border-b border-gray-300">
                 <td className="p-2 text-center border-r border-gray-300 font-bold">4</td>
                 <td className="p-2 text-center border-r border-gray-300 font-bold uppercase whitespace-nowrap">IF</td>
+                <td className="p-2 border-r border-gray-300"></td>
                 <td className="p-2 border-r border-gray-300">
                   <div className="flex items-center gap-2">
                     <span className="uppercase font-medium">INFORME FINAL $</span>
@@ -629,6 +651,12 @@ function RequisicionFormContent({
                     />
                   </div>
                 </td>
+                <td className="p-2 border-r border-gray-300 text-center font-bold">
+                  ${(formData.informe_final_total || 0).toFixed(2)}
+                </td>
+                {formData.selectedOSIs.length > 1 && (
+                  <td className="p-2 border-r border-gray-300"></td>
+                )}
                 <td className="p-2 text-center font-bold">
                   ${(formData.informe_final_total || 0).toFixed(2)}
                 </td>
@@ -658,26 +686,26 @@ function RequisicionFormContent({
                     />
                   </td>
                   <td className="p-2 border-r border-gray-300">
-                    <div className="flex items-center gap-2">
-                      <Input 
-                        className="h-6 flex-1 border-gray-300 p-1 uppercase" 
-                        value={item.descripcion}
-                        onChange={(e) => updateAdditionalItem(item.id, { descripcion: e.target.value })}
-                        placeholder="Descripción del item..."
-                      />
-                      {!isGeneralMode && (
-                        <div className="flex items-center gap-1">
-                          <span>$</span>
-                          <Input 
-                            type="number"
-                            className="h-6 w-20 border-gray-300 p-1" 
-                            value={item.costo_unitario}
-                            onChange={(e) => updateAdditionalItem(item.id, { costo_unitario: parseFloat(e.target.value) || 0 })}
-                          />
-                        </div>
-                      )}
-                    </div>
+                    <Input 
+                      className="h-6 w-full border-gray-300 p-1 uppercase" 
+                      value={item.descripcion}
+                      onChange={(e) => updateAdditionalItem(item.id, { descripcion: e.target.value })}
+                      placeholder="Descripción del item..."
+                    />
                   </td>
+                  {!isGeneralMode && (
+                    <td className="p-2 border-r border-gray-300">
+                      <div className="flex items-center gap-1">
+                        <span>$</span>
+                        <Input 
+                          type="number"
+                          className="h-6 w-full border-gray-300 p-1 font-bold text-center" 
+                          value={item.costo_unitario}
+                          onChange={(e) => updateAdditionalItem(item.id, { costo_unitario: parseFloat(e.target.value) || 0 })}
+                        />
+                      </div>
+                    </td>
+                  )}
                   {!isGeneralMode && formData.selectedOSIs.length > 1 && (
                     <td className="p-2 border-r border-gray-300">
                       <Select
@@ -724,10 +752,9 @@ function RequisicionFormContent({
                 </tr>
               ))}
 
-              {/* Total Row — only for OSI modes */}
               {!isGeneralMode && (
               <tr className="bg-gray-100 border-b border-gray-300">
-                <td colSpan={formData.selectedOSIs.length > 1 ? 5 : 4} className="p-2 text-right font-bold uppercase text-sm">Total General:</td>
+                <td colSpan={formData.selectedOSIs.length > 1 ? 6 : 5} className="p-2 text-right font-bold uppercase text-sm">Total General:</td>
                 <td className="p-2 text-center font-bold text-sm bg-yellow-50">
                   ${(
                     (isCapacitacion

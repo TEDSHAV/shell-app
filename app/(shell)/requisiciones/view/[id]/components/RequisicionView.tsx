@@ -5,10 +5,12 @@ import { RequisicionItem } from "@/types/requisiciones";
 
 export default function RequisicionView({ 
   record, 
-  osiData 
+  osiData,
+  osiLookup
 }: { 
   record: any, 
-  osiData: any 
+  osiData: any,
+  osiLookup?: Map<number, string>
 }) {
   const additionalItems: RequisicionItem[] = record.additional_items || [];
   
@@ -43,10 +45,10 @@ export default function RequisicionView({
             </div>
             <div className="col-span-3 p-3 flex flex-wrap items-center gap-1 font-bold text-blue-700">
               {linkedOSIs.length > 0
-                ? linkedOSIs.map((ro, i) => (
+                ? linkedOSIs.map((ro: any, i) => (
                     <span key={ro.id_osi} className="inline-flex items-center gap-1">
                       {i > 0 && <span className="text-gray-400">,</span>}
-                      {osiData?.id_osi === ro.id_osi ? osiData.nro_osi : `#${ro.id_osi}`}
+                      {osiLookup?.get(ro.id_osi) || osiData?.nro_osi || `#${ro.id_osi}`}
                     </span>
                   ))
                 : osiData?.nro_osi || record.numero_osi || "-"}
@@ -97,6 +99,9 @@ export default function RequisicionView({
                 <th className="p-2 border-r border-gray-300 w-20">UNIDAD/ CONCEPTO</th>
                 <th className="p-2 border-r border-gray-300 w-16">CANT</th>
                 <th className="p-2 border-r border-gray-300">DESCRIPCIÓN</th>
+                {!isGeneralMode && (
+                  <th className="p-2 border-r border-gray-300 w-32">PRECIO U.</th>
+                )}
                 {isGeneralMode ? (
                   <th className="p-2 w-24">VERIF.</th>
                 ) : (
@@ -111,11 +116,15 @@ export default function RequisicionView({
               <tr className="border-b border-gray-300">
                 <td className="p-2 text-center border-r border-gray-300 font-bold">1</td>
                 <td className="p-2 text-center border-r border-gray-300 font-bold uppercase">T</td>
+                <td className="p-2 border-r border-gray-300"></td>
                 <td className="p-2 border-r border-gray-300">
                   <div className="flex items-center gap-2">
                     <span className="font-bold">{record.dias_traslado || 0}</span>
                     <span className="uppercase text-[10px] font-medium">DÍAS DE TRASL. COSTO TOTAL $</span>
                   </div>
+                </td>
+                <td className="p-2 text-center font-bold border-r border-gray-300 bg-gray-50/50">
+                  ${totalTraslado.toFixed(2)}
                 </td>
                 <td className="p-2 text-center font-bold bg-gray-50/50">
                   ${totalTraslado.toFixed(2)}
@@ -125,10 +134,14 @@ export default function RequisicionView({
               <tr className="border-b border-gray-300">
                 <td className="p-2 text-center border-r border-gray-300 font-bold">2</td>
                 <td className="p-2 text-center border-r border-gray-300 font-bold uppercase">I</td>
+                <td className="p-2 border-r border-gray-300"></td>
                 <td className="p-2 border-r border-gray-300">
                   <div className="flex items-center gap-2">
                     <span className="uppercase font-medium">IMPRESIÓN TOTAL $</span>
                   </div>
+                </td>
+                <td className="p-2 text-center font-bold border-r border-gray-300 bg-gray-50/50">
+                  ${totalImpresion.toFixed(2)}
                 </td>
                 <td className="p-2 text-center font-bold bg-gray-50/50">
                   ${totalImpresion.toFixed(2)}
@@ -138,6 +151,7 @@ export default function RequisicionView({
               <tr className="border-b border-gray-300">
                 <td className="p-2 text-center border-r border-gray-300 font-bold">3</td>
                 <td className="p-2 text-center border-r border-gray-300 font-bold uppercase">H</td>
+                <td className="p-2 border-r border-gray-300"></td>
                 <td className="p-2 border-r border-gray-300">
                   <div className="flex items-center gap-2">
                     <span className="font-medium uppercase">HONORARIOS TOTAL $</span>
@@ -145,6 +159,9 @@ export default function RequisicionView({
                     <span className="font-medium uppercase">, POR HORAS</span>
                     <span className="font-bold">{record.honorarios_horas || 0}</span>
                   </div>
+                </td>
+                <td className="p-2 text-center font-bold border-r border-gray-300 bg-gray-50/50">
+                  ${totalHonorarios.toFixed(2)}
                 </td>
                 <td className="p-2 text-center font-bold bg-gray-50/50">
                   ${totalHonorarios.toFixed(2)}
@@ -154,10 +171,14 @@ export default function RequisicionView({
               <tr className="border-b border-gray-300">
                 <td className="p-2 text-center border-r border-gray-300 font-bold">4</td>
                 <td className="p-2 text-center border-r border-gray-300 font-bold uppercase whitespace-nowrap">IF</td>
+                <td className="p-2 border-r border-gray-300"></td>
                 <td className="p-2 border-r border-gray-300">
                   <div className="flex items-center gap-2">
                     <span className="uppercase font-medium">INFORME FINAL $</span>
                   </div>
+                </td>
+                <td className="p-2 text-center font-bold border-r border-gray-300 bg-gray-50/50">
+                  ${totalInformeFinal.toFixed(2)}
                 </td>
                 <td className="p-2 text-center font-bold bg-gray-50/50">
                   ${totalInformeFinal.toFixed(2)}
@@ -179,11 +200,13 @@ export default function RequisicionView({
                   <td className="p-2 border-r border-gray-300">
                     <div className="flex justify-between items-center px-1">
                       <span className="uppercase">{item.descripcion || "-"}</span>
-                      {!isGeneralMode && (
-                        <span className="font-medium text-gray-500">Costo Unit: ${item.costo_unitario?.toFixed(2) || "0.00"}</span>
-                      )}
                     </div>
                   </td>
+                  {!isGeneralMode && (
+                    <td className="p-2 text-center font-bold border-r border-gray-300">
+                      ${item.costo_unitario?.toFixed(2) || "0.00"}
+                    </td>
+                  )}
                   {isGeneralMode ? (
                     <td className="p-2 text-center">
                       <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
@@ -200,10 +223,9 @@ export default function RequisicionView({
                 </tr>
               ))}
 
-              {/* Total Row — only for OSI modes */}
               {!isGeneralMode && (
               <tr className="bg-gray-100 border-b border-gray-300">
-                <td colSpan={4} className="p-2 text-right font-bold uppercase text-sm">Total General:</td>
+                <td colSpan={5} className="p-2 text-right font-bold uppercase text-sm">Total General:</td>
                 <td className="p-2 text-center font-bold text-sm bg-yellow-50">
                   ${totalGeneral.toFixed(2)}
                 </td>

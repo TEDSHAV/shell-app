@@ -1,6 +1,7 @@
 import { 
   getRequisicionRecord, 
-  getOSIForRequisicion 
+  getOSIForRequisicion,
+  getOsisByIds
 } from "@/actions/requisiciones";
 import RequisicionView from "./components/RequisicionView";
 import { notFound } from "next/navigation";
@@ -25,12 +26,33 @@ export default async function ViewRequisicionPage({
   }
 
   let osiData = null;
+  let osiLookup = new Map<number, string>();
   const isLocked = record?.estatus_admin === "procesada";
   if (record.id_osi) {
     try {
       osiData = await getOSIForRequisicion(record.id_osi);
+      if (osiData && osiData.nro_osi) {
+        osiLookup.set(osiData.id_osi, osiData.nro_osi);
+      }
     } catch (e) {
       console.error("Error fetching OSI data for view:", e);
+    }
+  }
+
+  // Fetch nro_osi for all linked OSIs via junction table
+  const linkedOsiIds: number[] = (record.requisiciones_osis || []).map(
+    (ro: any) => ro.id_osi
+  );
+  if (linkedOsiIds.length > 0) {
+    try {
+      const linkedOsis = await getOsisByIds(linkedOsiIds);
+      (linkedOsis || []).forEach((osi: any) => {
+        if (osi.id_osi && osi.nro_osi) {
+          osiLookup.set(osi.id_osi, osi.nro_osi);
+        }
+      });
+    } catch (e) {
+      console.error("Error fetching linked OSI data:", e);
     }
   }
 
@@ -67,7 +89,7 @@ export default async function ViewRequisicionPage({
         )}
       </div>
 
-      <RequisicionView record={record} osiData={osiData} />
+      <RequisicionView record={record} osiData={osiData} osiLookup={osiLookup} />
     </div>
   );
 }
