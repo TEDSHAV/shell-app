@@ -239,7 +239,12 @@ export function SidebarNavClient({
     ) {
       return false;
     }
-    if (lowerRole === "admin" || lowerRole === "superadmin") return true;
+    // Privilegios admin/superadmin: permitir atajo SOLO cuando la ruta no
+    // declare reglas de permisos/roles explícitas.
+    const isPrivileged = lowerRole === "admin" || lowerRole === "superadmin";
+    const hasExplicitRules =
+      (link.requiredRoles?.length ?? 0) > 0 || (link.requiredPermissions?.length ?? 0) > 0;
+    if (isPrivileged && !hasExplicitRules) return true;
 
     // Check roles first if defined
     if (link.requiredRoles && link.requiredRoles.length > 0) {
