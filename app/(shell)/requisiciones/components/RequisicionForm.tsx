@@ -86,6 +86,7 @@ function RequisicionFormContent({
   const isServiciosDept = deptLower === "servicios tecnicos" || deptLower === "servicios técnicos";
   // Capacitación and Servicios Técnicos default to their OSI mode; everyone else defaults to General
   const defaultIsGeneral = !isCapacitacionDept && !isServiciosDept;
+  const editIsGeneral = editRecord ? (editRecord.tipo_solicitud === "Interno" || (!editRecord.tipo_solicitud && !editRecord.id_osi)) : defaultIsGeneral;
   const canUseExternal = isCapacitacionDept || isServiciosDept || (editRecord && !editIsGeneral);
   const defaultGerencia = isCapacitacionDept ? "Capacitacion" : isServiciosDept ? "Servicios Tecnicos" : (initialUserData?.departamentos?.nombre || userDept || "");
 
@@ -94,7 +95,6 @@ function RequisicionFormContent({
     (editRecord.requisiciones_osis || []).map((ro: any) => 
       initialOsis.find((o: any) => o.id_osi === ro.id_osi)).filter(Boolean) : 
     (editRecord?.id_osi ? [initialOsis.find((o: any) => o.id_osi === editRecord.id_osi)].filter(Boolean) : []);
-  const editIsGeneral = editRecord ? (editRecord.tipo_solicitud === "Interno" || (!editRecord.tipo_solicitud && !editRecord.id_osi)) : defaultIsGeneral;
 
   const [formData, setFormData] = useState<RequisicionFormData>({
     selectedOSIs: editRecord ? editSelectedOSIs : [],
