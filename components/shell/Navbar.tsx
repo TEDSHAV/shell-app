@@ -1,4 +1,5 @@
 import { Menu, X } from "lucide-react";
+import Link from "next/link";
 import Image from "next/image";
 import logo from "@/app/logo.png";
 import { AppBreadcrumb } from "./AppBreadcrumb";
@@ -28,7 +29,7 @@ export const Navbar = ({
         )}
       </button>
 
-      <a href="/dashboard" className="flex items-center shrink-0">
+      <Link href="/dashboard" className="flex items-center shrink-0">
         <Image
           src={logo}
           alt="SHA de Venezuela, C.A."
@@ -36,7 +37,7 @@ export const Navbar = ({
           className="h-9 w-auto object-contain rounded-sm bg-white px-1.5 py-0.5 shadow-sm"
           priority
         />
-      </a>
+      </Link>
 
       <div className="hidden md:block w-px h-5 bg-slate-200 shrink-0" />
 

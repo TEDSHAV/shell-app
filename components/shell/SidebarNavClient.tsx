@@ -44,7 +44,7 @@ export function SidebarNavClient({
   const { isCollapsed } = useSidebarCollapse();
 
   const homeLink = (
-    <a
+    <Link
       href="/dashboard"
       onClick={onClose}
       className={cn(
@@ -58,7 +58,7 @@ export function SidebarNavClient({
     >
       <Home className="h-4 w-4 shrink-0" />
       {!isCollapsed && "Inicio"}
-    </a>
+    </Link>
   );
 
   const canAccessApp = (app: AppConfig) =>

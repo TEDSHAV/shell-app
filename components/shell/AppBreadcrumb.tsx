@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { ChevronRight, Home } from "lucide-react";
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
@@ -133,13 +134,13 @@ export const AppBreadcrumb = () => {
     <nav aria-label="Breadcrumb" className="flex items-center text-sm overflow-hidden">
       <ol className="flex items-center gap-2 whitespace-nowrap">
         <li>
-          <a
+          <Link
             href="/dashboard"
             className="flex items-center gap-1.5 font-semibold text-slate-800 hover:text-blue-600 transition-colors"
           >
             <Home className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">PRISMA</span>
-          </a>
+          </Link>
         </li>
 
         {crumbs.map((crumb, index) => (
@@ -150,12 +151,21 @@ export const AppBreadcrumb = () => {
                 {crumb.label}
               </span>
             ) : (
-              <a
-                href={crumb.href}
-                className="text-slate-400 hover:text-blue-600 transition-colors truncate max-w-[100px] sm:max-w-[200px]"
-              >
-                {crumb.label}
-              </a>
+              crumb.href === currentApp?.basePath ? (
+                <a
+                  href={crumb.href}
+                  className="text-slate-400 hover:text-blue-600 transition-colors truncate max-w-[100px] sm:max-w-[200px]"
+                >
+                  {crumb.label}
+                </a>
+              ) : (
+                <Link
+                  href={crumb.href}
+                  className="text-slate-400 hover:text-blue-600 transition-colors truncate max-w-[100px] sm:max-w-[200px]"
+                >
+                  {crumb.label}
+                </Link>
+              )
             )}
           </li>
         ))}
