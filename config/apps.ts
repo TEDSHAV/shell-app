@@ -35,6 +35,7 @@ import {
   Megaphone,
   Landmark,
   KeyRound,
+  SquareCheckBig,
 } from "lucide-react";
 import { build_app_config } from "@/lib/app-theme";
 import { get_tickets_form_base_url } from "@/lib/tickets-form-url";
@@ -279,6 +280,16 @@ export const apps: AppConfig[] = [
         ],
       },
       ...(requisicionesNavGroup ? [requisicionesNavGroup] : []),
+      {
+        groupLabel: "Tareas",
+        links: [
+          {
+            label: "Tareas",
+            path: "/tareas",
+            icon: SquareCheckBig,
+          },
+        ],
+      },
     ],
   }),
   build_app_config({
@@ -534,6 +545,22 @@ export const apps: AppConfig[] = [
       },
       ...(requisicionesNavGroup ? [requisicionesNavGroup] : []),
     ],
+  }),
+  build_app_config({
+    id: "tareas",
+    dbSlug: "sgestion",
+    name: "Tareas",
+    description: "Gestión de tareas personales y de equipo",
+    basePath: "/tareas",
+    upstreamUrl:
+      process.env.NEXT_PUBLIC_NEGOCIOS_URL ||
+      "https://gestion.shadevenezuela.com.ve",
+    icon: SquareCheckBig,
+    brandColor: "#088BE3",
+    embedMode: "shell",
+    groupId: "utilidades",
+    dashboardOrder: 7,
+    navLinks: [],
   }),
   build_app_config({
     id: "drive",
