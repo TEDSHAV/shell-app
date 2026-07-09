@@ -1,17 +1,30 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import type { OSIListItem } from "@/types/osi";
-import { Eye, FileText } from "lucide-react";
+import type { OSIListItem, OSIStatusOption } from "@/types/osi";
+import { Eye, FileText, Loader2, ChevronDown } from "lucide-react";
 
 interface OSITableProps {
   osis: OSIListItem[];
   loading: boolean;
   onRowClick: (osi: OSIListItem) => void;
   selectedOSI: OSIListItem | null;
+  canChangeStatus: boolean;
+  statuses: OSIStatusOption[];
+  onStatusChange: (osi: OSIListItem, newStatusId: number) => Promise<{ success: boolean; error?: string }>;
 }
 
-export default function OSITable({ osis, loading, onRowClick, selectedOSI }: OSITableProps) {
+export default function OSITable({
+  osis,
+  loading,
+  onRowClick,
+  selectedOSI,
+  canChangeStatus,
+  statuses,
+  onStatusChange,
+}: OSITableProps) {
+  const [statusLoadingId, setStatusLoadingId] = useState<number | null>(null);
   const formatDate = (dateString: string | null) => {
     if (!dateString) return "-";
     return new Date(dateString).toLocaleDateString("es-ES", {
@@ -52,40 +65,50 @@ export default function OSITable({ osis, loading, onRowClick, selectedOSI }: OSI
     );
   }
 
+  const handleStatusSelect = async (osi: OSIListItem, newStatusId: number) => {
+    if (!osi.id_osi || osi.id_estatus === newStatusId) return;
+    setStatusLoadingId(osi.id_osi);
+    try {
+      await onStatusChange(osi, newStatusId);
+    } finally {
+      setStatusLoadingId(null);
+    }
+  };
+
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-      <table className="w-full table-fixed">
+      <table className="w-full">
         <thead className="bg-gray-50 border-b border-gray-200">
           <tr>
-            <th className="w-28 px-3 py-2 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider">
+            <th className="px-3 py-2 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
               OSI
             </th>
-            <th className="w-36 px-3 py-2 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider">
+            <th className="px-3 py-2 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider min-w-0">
               Empresa
             </th>
-            <th className="w-40 px-3 py-2 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider">
+            <th className="px-3 py-2 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider min-w-0">
               Servicio
             </th>
-            <th className="w-28 px-3 py-2 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider">
+            <th className="px-3 py-2 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
               Ciudad
             </th>
-            <th className="w-32 px-3 py-2 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider">
+            <th className="px-3 py-2 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider min-w-0">
               Ejecutivo
             </th>
-            <th className="w-24 px-3 py-2 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider">
+            <th className="px-3 py-2 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
               F. Inicio
             </th>
-            <th className="w-24 px-3 py-2 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider">
+            <th className="px-3 py-2 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
               F. Fin
             </th>
-            <th className="w-16 px-3 py-2 text-center text-[11px] font-semibold text-gray-600 uppercase tracking-wider">
+            <th className="px-3 py-2 text-center text-[11px] font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
               Part.
             </th>
-            <th className="w-28 px-3 py-2 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider">
+            <th className="px-3 py-2 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
               Estado
             </th>
-            <th className="w-24 px-3 py-2 text-center text-[11px] font-semibold text-gray-600 uppercase tracking-wider">
-              Acciones
+            <th className="px-3 py-2 text-center text-[11px] font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
+              Acción
             </th>
           </tr>
         </thead>
@@ -107,30 +130,30 @@ export default function OSITable({ osis, loading, onRowClick, selectedOSI }: OSI
                   {osi.nro_osi || "-"}
                 </span>
               </td>
-              <td className="px-3 py-2">
-                <span className="text-sm text-gray-700 truncate block">
+              <td className="px-3 py-2 min-w-0">
+                <span className="text-sm text-gray-700 truncate block max-w-[120px]">
                   {osi.nombre_empresa || "-"}
                 </span>
               </td>
-              <td className="px-3 py-2">
-                <div className="flex flex-col">
-                  <span className="text-sm text-gray-900 truncate">
+              <td className="px-3 py-2 min-w-0">
+                <div className="flex flex-col min-w-0">
+                  <span className="text-sm text-gray-900 truncate max-w-[140px]">
                     {osi.servicio || "-"}
                   </span>
                   {osi.tipo_servicio && (
-                    <span className="text-[10px] text-gray-500 truncate">
+                    <span className="text-[10px] text-gray-500 truncate max-w-[140px]">
                       {osi.tipo_servicio}
                     </span>
                   )}
                 </div>
               </td>
               <td className="px-3 py-2">
-                <span className="text-sm text-gray-700 truncate block">
+                <span className="text-sm text-gray-700 truncate block max-w-[100px]">
                   {osi.ciudad_ejecucion || "-"}
                 </span>
               </td>
-              <td className="px-3 py-2">
-                <span className="text-sm text-gray-700 truncate block">
+              <td className="px-3 py-2 min-w-0">
+                <span className="text-sm text-gray-700 truncate block max-w-[100px]">
                   {osi.ejecutivo_negocios || "-"}
                 </span>
               </td>
@@ -150,25 +173,77 @@ export default function OSITable({ osis, loading, onRowClick, selectedOSI }: OSI
                 </span>
               </td>
               <td className="px-3 py-2">
-                <span
-                  className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase whitespace-nowrap"
-                  style={{
-                    backgroundColor: `${osi.status_color}20`,
-                    color: osi.status_color,
-                  }}
-                >
-                  {osi.status_name}
-                </span>
+                {canChangeStatus && osi.id_osi ? (
+                  <div className="relative inline-block">
+                    {statusLoadingId === osi.id_osi ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] text-gray-500">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        ...
+                      </span>
+                    ) : (
+                      <div
+                        className="relative inline-flex items-center rounded-full transition-opacity hover:opacity-80"
+                        style={{
+                          backgroundColor: `${osi.status_color}20`,
+                          border: `1px solid ${osi.status_color}60`,
+                        }}
+                      >
+                        <select
+                          value={osi.id_estatus ?? undefined}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            handleStatusSelect(osi, parseInt(e.target.value));
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-[10px] font-bold uppercase rounded-full pl-2 pr-5 py-0.5 text-center border-0 cursor-pointer focus:ring-2 focus:ring-blue-400 focus:outline-none appearance-none bg-transparent min-w-[70px]"
+                          style={{
+                            color: osi.status_color,
+                          }}
+                          title={`${osi.status_name} — Click para cambiar`}
+                        >
+                        {statuses.map((status) => (
+                          <option
+                            key={status.id}
+                            value={status.id}
+                            style={{
+                              backgroundColor: "white",
+                              color: "#374151",
+                              textTransform: "none",
+                              fontWeight: "normal",
+                              fontSize: "12px",
+                            }}
+                          >
+                            {status.nombre_estado}
+                          </option>
+                        ))}
+                        </select>
+                        <ChevronDown
+                          className="pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 h-3 w-3"
+                          style={{ color: osi.status_color }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <span
+                    className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase whitespace-nowrap"
+                    style={{
+                      backgroundColor: `${osi.status_color}20`,
+                      color: osi.status_color,
+                    }}
+                  >
+                    {osi.status_name}
+                  </span>
+                )}
               </td>
               <td className="px-3 py-2 text-center">
                 <Link
                   href={`/consulta-osi/preview/${osi.id_osi}`}
                   onClick={(event) => event.stopPropagation()}
-                  className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-[11px] font-medium text-blue-700 hover:bg-blue-50"
+                  className="inline-flex items-center justify-center rounded-md border border-gray-200 p-1.5 text-blue-700 hover:bg-blue-50 transition-colors"
                   title="Ver formato OSI"
                 >
                   <Eye className="h-3.5 w-3.5" />
-                  Ver OSI
                 </Link>
               </td>
             </tr>
