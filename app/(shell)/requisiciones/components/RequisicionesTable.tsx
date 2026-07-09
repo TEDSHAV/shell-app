@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { RequisicionFilters } from "@/types/requisiciones";
+import { RequisicionFilters, EstatusAdmin } from "@/types/requisiciones";
 import RequisicionRow from "./RequisicionRow";
 import { Search, X } from "lucide-react";
 
@@ -70,7 +70,7 @@ export default function RequisicionesTable({
       }
 
       if (filters.estatus) {
-        const estatus = r.estatus_admin === "procesada" ? "procesada" : "pendiente";
+        const estatus = r.estatus_admin || "pendiente";
         if (estatus !== filters.estatus) return false;
       }
 
@@ -188,7 +188,7 @@ export default function RequisicionesTable({
                 onValueChange={(v: string) =>
                   setFilters((f) => ({
                     ...f,
-                    estatus: v === "todos" ? "" : (v as "pendiente" | "procesada"),
+                    estatus: v === "todos" ? "" : (v as EstatusAdmin),
                   }))
                 }
               >
@@ -199,6 +199,7 @@ export default function RequisicionesTable({
                   <SelectItem value="todos">Todos</SelectItem>
                   <SelectItem value="pendiente">Pendiente</SelectItem>
                   <SelectItem value="procesada">Procesada</SelectItem>
+                  <SelectItem value="rechazada">Rechazada</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -262,7 +263,12 @@ export default function RequisicionesTable({
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Estatus
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                {isAdminView && (
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Progreso
+                  </th>
+                )}
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Acciones
                 </th>
               </tr>
@@ -280,7 +286,7 @@ export default function RequisicionesTable({
               ) : (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={isAdminView ? 8 : 7}
                     className="px-4 py-12 text-center text-sm text-gray-500"
                   >
                     {records.length === 0 ? (

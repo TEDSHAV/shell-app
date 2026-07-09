@@ -96,7 +96,39 @@ export async function notifyCreatorOfProcesada(
         insertError,
       );
     }
-  } catch (err) {
+    } catch (err) {
     console.error("[notifyCreatorOfProcesada] Unexpected error:", err);
+  }
+}
+
+export async function notifyCreatorOfRechazada(
+  requisicionId: number,
+  creatorAuthId: string,
+) {
+  try {
+    const supabase = await createAdminClient();
+
+    const { error: insertError } = await supabase
+      .schema("notify")
+      .from("inbox")
+      .insert({
+          app_slug: "administracion",
+          event_key: "requisicion_rechazada",
+          recipient_id_auth: creatorAuthId,
+          title: "Requisición Rechazada",
+          body: `Tu requisición #${requisicionId} ha sido rechazada por Administración.`,
+          link_path: `/requisiciones/view/${requisicionId}`,
+          dedupe_key: `requisicion:${requisicionId}:rechazada`,
+          priority: 2,
+        });
+
+    if (insertError) {
+      console.error(
+        "[notifyCreatorOfRechazada] Error inserting notification:",
+        insertError,
+      );
+    }
+  } catch (err) {
+    console.error("[notifyCreatorOfRechazada] Unexpected error:", err);
   }
 }

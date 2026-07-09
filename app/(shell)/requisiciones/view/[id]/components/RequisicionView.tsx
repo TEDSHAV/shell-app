@@ -1,19 +1,36 @@
 "use client";
 
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { RequisicionItem } from "@/types/requisiciones";
+import { setRequisicionEstatus, updateItemVerificacion, markAllItemsVerificadas } from "@/actions/requisiciones";
+import { CheckCircle2, XCircle, Undo2, Clock, AlertTriangle, CalendarClock } from "lucide-react";
 
 export default function RequisicionView({ 
   record, 
   osiData,
-  osiLookup
+  osiLookup,
+  isAdminView = false,
 }: { 
   record: any, 
   osiData: any,
-  osiLookup?: Map<number, string>
+  osiLookup?: Map<number, string>,
+  isAdminView?: boolean,
 }) {
-  const additionalItems: RequisicionItem[] = record.additional_items || [];
+  const router = useRouter();
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [togglingItemId, setTogglingItemId] = useState<string | null>(null);
+  const [localItems, setLocalItems] = useState<RequisicionItem[]>(record.additional_items || []);
+
+  const additionalItems: RequisicionItem[] = localItems;
   
+  const estatus = record.estatus_admin || "pendiente";
+  const isProcesada = estatus === "procesada";
+  const isRechazada = estatus === "rechazada";
+  const isPendiente = estatus === "pendiente";
+  const isResolved = isProcesada || isRechazada;
   const isCapacitacion = record.gerencia_solicitante?.trim().toLowerCase() === "capacitacion";
   const isGeneralMode = record.tipo_solicitud === "Interno";
   const linkedOSIs: { id_osi: number }[] = record.requisiciones_osis || [];
@@ -26,8 +43,185 @@ export default function RequisicionView({
   const totalAdditional = additionalItems.reduce((sum, item) => sum + (item.total || 0), 0);
   const totalGeneral = totalTraslado + totalImpresion + totalHonorarios + totalInformeFinal + totalAdditional;
 
+  // Item verification progress
+  const verifiedCount = additionalItems.filter(item => item.verificacion === "listo").length;
+  const totalCount = additionalItems.length;
+  const progressPct = totalCount > 0 ? (verifiedCount / totalCount) * 100 : 0;
+
+  // Execution date alert
+  const executionDate = osiData?.fecha_inicio_real;
+  let executionAlert: { text: string; color: string; icon: any } | null = null;
+  if (!isGeneralMode && executionDate) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const exec = new Date(executionDate + "T00:00:00");
+    const diffMs = exec.getTime() - today.getTime();
+    const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+    if (diffDays > 7) {
+      executionAlert = { text: `Faltan ${diffDays} días para la fecha de ejecución`, color: "blue", icon: CalendarClock };
+    } else if (diffDays > 0) {
+      executionAlert = { text: `Atención: Quedan ${diffDays} días para la ejecución`, color: "amber", icon: AlertTriangle };
+    } else if (diffDays === 0) {
+      executionAlert = { text: "La fecha de ejecución es hoy", color: "red", icon: AlertTriangle };
+    } else {
+      executionAlert = { text: `La fecha de ejecución fue hace ${Math.abs(diffDays)} días`, color: "red", icon: Clock };
+    }
+  }
+
+  const handleSetEstatus = async (target: "pendiente" | "procesada" | "rechazada") => {
+    if (target === "procesada" && totalCount > 0 && verifiedCount < totalCount) {
+      if (!confirm(`Hay ${verifiedCount} de ${totalCount} items verificados. ¿Marcar todos como Listo y procesar?`)) return;
+      setIsUpdating(true);
+      try {
+        await markAllItemsVerificadas(record.id);
+        setLocalItems(prev => prev.map(item => ({ ...item, verificacion: "listo" as const })));
+        await setRequisicionEstatus(record.id, "procesada");
+        router.refresh();
+      } catch (error) {
+        console.error("Error updating estatus:", error);
+        alert("Error al actualizar el estatus");
+      } finally {
+        setIsUpdating(false);
+      }
+      return;
+    }
+    const messages: Record<string, string> = {
+      procesada: "¿Marcar esta requisición como Procesada? El solicitante ya no podrá editarla.",
+      rechazada: "¿Rechazar esta requisición? El solicitante será notificado y no podrá editarla.",
+      pendiente: "¿Revertir esta requisición a Pendiente?",
+    };
+    if (!confirm(messages[target])) return;
+    setIsUpdating(true);
+    try {
+      await setRequisicionEstatus(record.id, target);
+      router.refresh();
+    } catch (error) {
+      console.error("Error updating estatus:", error);
+      alert("Error al actualizar el estatus");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleToggleItem = async (itemId: string, currentStatus: string) => {
+    const newStatus = currentStatus === "listo" ? "pendiente" : "listo";
+    // Optimistic update: immediately reflect the change in local state
+    setLocalItems(prev => prev.map(item =>
+      item.id === itemId ? { ...item, verificacion: newStatus as "listo" | "pendiente" } : item
+    ));
+    setTogglingItemId(itemId);
+    try {
+      await updateItemVerificacion(record.id, itemId, newStatus as "listo" | "pendiente");
+    } catch (error) {
+      console.error("Error updating item verification:", error);
+      // Rollback on error
+      setLocalItems(prev => prev.map(item =>
+        item.id === itemId ? { ...item, verificacion: currentStatus as "listo" | "pendiente" } : item
+      ));
+      alert("Error al actualizar el item");
+    } finally {
+      setTogglingItemId(null);
+    }
+  };
+
   return (
     <div className="max-w-5xl mx-auto pb-10">
+      {/* Execution date alert */}
+      {executionAlert && (() => {
+        const Icon = executionAlert.icon;
+        const colorClasses = {
+          blue: "bg-blue-50 border-blue-300 text-blue-800",
+          amber: "bg-amber-50 border-amber-300 text-amber-800",
+          red: "bg-red-50 border-red-300 text-red-800",
+        };
+        return (
+          <div className={`mb-4 flex items-center gap-2 px-4 py-3 border rounded-lg text-sm font-medium ${colorClasses[executionAlert.color as keyof typeof colorClasses]}`}>
+            <Icon className="h-4 w-4 flex-shrink-0" />
+            {executionAlert.text}
+            {executionDate && (
+              <span className="ml-auto text-xs font-normal opacity-70">
+                {new Date(executionDate + "T00:00:00").toLocaleDateString()}
+              </span>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* Admin action bar */}
+      {isAdminView && (
+        <div className="mb-4 flex items-center gap-3 px-4 py-3 bg-white border border-gray-200 rounded-lg shadow-sm">
+          <span className="text-sm font-medium text-gray-600">Estatus:</span>
+          <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
+            isProcesada ? 'bg-emerald-100 text-emerald-800' : isRechazada ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'
+          }`}>
+            {isProcesada ? "Procesada" : isRechazada ? "Rechazada" : "Pendiente"}
+          </span>
+          <div className="ml-auto flex gap-2">
+            {isPendiente && (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isUpdating}
+                  onClick={() => handleSetEstatus("procesada")}
+                  className="h-8 px-3 text-xs flex gap-1 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Procesar
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isUpdating}
+                  onClick={() => handleSetEstatus("rechazada")}
+                  className="h-8 px-3 text-xs flex gap-1 border-red-300 text-red-700 hover:bg-red-50"
+                >
+                  <XCircle className="h-3.5 w-3.5" />
+                  Rechazar
+                </Button>
+              </>
+            )}
+            {isResolved && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isUpdating}
+                onClick={() => handleSetEstatus("pendiente")}
+                className="h-8 px-3 text-xs flex gap-1 border-amber-300 text-amber-700 hover:bg-amber-50"
+              >
+                <Undo2 className="h-3.5 w-3.5" />
+                Revertir
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Verification progress (admin only, when there are additional items) */}
+      {isAdminView && totalCount > 0 && (
+        <div className="mb-4 px-4 py-3 bg-white border border-gray-200 rounded-lg shadow-sm">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium text-gray-600">Progreso de verificación de items:</span>
+            <span className={`text-xs font-bold ${
+              verifiedCount === totalCount ? "text-emerald-600" : verifiedCount > 0 ? "text-amber-600" : "text-gray-400"
+            }`}>
+              {verifiedCount} de {totalCount} verificados
+            </span>
+          </div>
+          <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+            <div 
+              className={`h-full rounded-full transition-all ${
+                verifiedCount === totalCount ? "bg-emerald-500" : verifiedCount > 0 ? "bg-amber-500" : "bg-gray-300"
+              }`}
+              style={{ width: `${progressPct}%` }}
+            />
+          </div>
+        </div>
+      )}
+
       <Card className="shadow-md border-gray-300">
         <CardContent className="p-0">
           {/* Header section */}
@@ -107,6 +301,9 @@ export default function RequisicionView({
                 ) : (
                   <th className="p-2 w-32">TOTAL</th>
                 )}
+                {isAdminView && (
+                  <th className="p-2 w-20 border-l border-gray-300">✓</th>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -129,6 +326,7 @@ export default function RequisicionView({
                 <td className="p-2 text-center font-bold bg-gray-50/50">
                   ${totalTraslado.toFixed(2)}
                 </td>
+                {isAdminView && <td className="p-2 border-l border-gray-300"></td>}
               </tr>
               {/* Item 2: Impresión */}
               <tr className="border-b border-gray-300">
@@ -146,6 +344,7 @@ export default function RequisicionView({
                 <td className="p-2 text-center font-bold bg-gray-50/50">
                   ${totalImpresion.toFixed(2)}
                 </td>
+                {isAdminView && <td className="p-2 border-l border-gray-300"></td>}
               </tr>
               {/* Item 3: Honorarios */}
               <tr className="border-b border-gray-300">
@@ -166,6 +365,7 @@ export default function RequisicionView({
                 <td className="p-2 text-center font-bold bg-gray-50/50">
                   ${totalHonorarios.toFixed(2)}
                 </td>
+                {isAdminView && <td className="p-2 border-l border-gray-300"></td>}
               </tr>
               {/* Item 4: Informe Final */}
               <tr className="border-b border-gray-300">
@@ -183,6 +383,7 @@ export default function RequisicionView({
                 <td className="p-2 text-center font-bold bg-gray-50/50">
                   ${totalInformeFinal.toFixed(2)}
                 </td>
+                {isAdminView && <td className="p-2 border-l border-gray-300"></td>}
               </tr>
               </>
               )}
@@ -220,15 +421,30 @@ export default function RequisicionView({
                       ${item.total?.toFixed(2) || "0.00"}
                     </td>
                   )}
+                  {isAdminView && (
+                    <td className="p-2 text-center border-l border-gray-300">
+                      <input
+                        type="checkbox"
+                        checked={item.verificacion === "listo"}
+                        disabled={togglingItemId === item.id}
+                        onChange={() => handleToggleItem(item.id, item.verificacion || "pendiente")}
+                        className="h-4 w-4 cursor-pointer accent-emerald-600"
+                        title={item.verificacion === "listo" ? "Verificado" : "Marcar como verificado"}
+                      />
+                    </td>
+                  )}
                 </tr>
               ))}
 
               {!isGeneralMode && (
               <tr className="bg-gray-100 border-b border-gray-300">
-                <td colSpan={5} className="p-2 text-right font-bold uppercase text-sm">Total General:</td>
+                <td colSpan={isAdminView ? 5 : 5} className="p-2 text-right font-bold uppercase text-sm">Total General:</td>
                 <td className="p-2 text-center font-bold text-sm bg-yellow-50">
                   ${totalGeneral.toFixed(2)}
                 </td>
+                {isAdminView && (
+                  <td className="p-2 border-l border-gray-300 bg-gray-100"></td>
+                )}
               </tr>
               )}
             </tbody>

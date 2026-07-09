@@ -3,7 +3,7 @@ export type RequisicionMode = "general" | "capacitacion" | "servicios tecnicos";
 
 export type VerificacionStatus = "listo" | "pendiente";
 
-export type EstatusAdmin = "pendiente" | "procesada";
+export type EstatusAdmin = "pendiente" | "procesada" | "rechazada";
 
 export interface RequisicionItem {
   id: string;

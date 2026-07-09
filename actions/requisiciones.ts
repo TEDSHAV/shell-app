@@ -12,6 +12,7 @@ import {
 import {
   notifyAdminsOfNewRequisicion,
   notifyCreatorOfProcesada,
+  notifyCreatorOfRechazada,
 } from "@/actions/requisicion-notifications";
 
 const ADMIN_ROLES = ["admin", "superadmin"];
@@ -232,14 +233,15 @@ export async function updateRequisicionRecord(
   const userResponse = await supabase.auth.getUser();
   const userId = userResponse.data.user?.id || null;
 
-  // Locked once Administración marks it as procesada (unless caller is admin)
+  // Locked once Administración marks it as procesada or rechazada (unless caller is admin)
   const { data: existing } = await supabase
     .from("requisiciones")
     .select("estatus_admin")
     .eq("id", id)
     .single();
 
-  if (existing?.estatus_admin === "procesada" && !(await isRequisicionesAdmin())) {
+  const isLocked = existing?.estatus_admin === "procesada" || existing?.estatus_admin === "rechazada";
+  if (isLocked && !(await isRequisicionesAdmin())) {
     throw new Error("Esta requisición ya fue procesada por Administración y no puede editarse.");
   }
 
@@ -359,7 +361,8 @@ export async function deleteRequisicionRecord(id: number) {
     .eq("id", id)
     .single();
 
-  if (existing?.estatus_admin === "procesada" && !(await isRequisicionesAdmin())) {
+  const isLocked = existing?.estatus_admin === "procesada" || existing?.estatus_admin === "rechazada";
+  if (isLocked && !(await isRequisicionesAdmin())) {
     throw new Error("Esta requisición ya fue procesada por Administración y no puede eliminarse.");
   }
 
@@ -375,7 +378,7 @@ export async function deleteRequisicionRecord(id: number) {
 // Mark a requisition as procesada / pendiente (Administración only)
 export async function setRequisicionEstatus(
   id: number,
-  estatus: "pendiente" | "procesada",
+  estatus: "pendiente" | "procesada" | "rechazada",
 ) {
   if (!(await isRequisicionesAdmin())) {
     throw new Error("No tiene permisos para cambiar el estatus de requisiciones.");
@@ -385,18 +388,20 @@ export async function setRequisicionEstatus(
   const userResponse = await supabase.auth.getUser();
   const userId = userResponse.data.user?.id || null;
 
+  const isResolved = estatus === "procesada" || estatus === "rechazada";
+
   const { error } = await supabase
     .from("requisiciones")
     .update({
       estatus_admin: estatus,
-      procesada_por: estatus === "procesada" ? userId : null,
-      procesada_at: estatus === "procesada" ? new Date().toISOString() : null,
+      procesada_por: isResolved ? userId : null,
+      procesada_at: isResolved ? new Date().toISOString() : null,
     })
     .eq("id", id);
 
   if (error) throw error;
 
-  if (estatus === "procesada") {
+  if (isResolved) {
     const { data: req } = await supabase
       .from("requisiciones")
       .select("created_by")
@@ -404,7 +409,11 @@ export async function setRequisicionEstatus(
       .single();
 
     if (req?.created_by) {
-      await notifyCreatorOfProcesada(id, req.created_by);
+      if (estatus === "procesada") {
+        await notifyCreatorOfProcesada(id, req.created_by);
+      } else if (estatus === "rechazada") {
+        await notifyCreatorOfRechazada(id, req.created_by);
+      }
     }
   }
 
@@ -433,6 +442,34 @@ export async function updateItemVerificacion(
   const items: RequisicionItem[] = (record?.additional_items || []).map(
     (item: RequisicionItem) =>
       item.id === itemId ? { ...item, verificacion } : item,
+  );
+
+  const { error } = await supabase
+    .from("requisiciones")
+    .update({ additional_items: items })
+    .eq("id", requisicionId);
+
+  if (error) throw error;
+  revalidatePath("/requisiciones");
+}
+
+// Mark all additional_items as "listo" (Administración only)
+export async function markAllItemsVerificadas(requisicionId: number) {
+  if (!(await isRequisicionesAdmin())) {
+    throw new Error("No tiene permisos para verificar items de requisiciones.");
+  }
+
+  const supabase = await createClient();
+  const { data: record, error: fetchError } = await supabase
+    .from("requisiciones")
+    .select("additional_items")
+    .eq("id", requisicionId)
+    .single();
+
+  if (fetchError) throw fetchError;
+
+  const items: RequisicionItem[] = (record?.additional_items || []).map(
+    (item: RequisicionItem) => ({ ...item, verificacion: "listo" }),
   );
 
   const { error } = await supabase

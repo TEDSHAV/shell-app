@@ -86,6 +86,7 @@ function RequisicionFormContent({
   const isServiciosDept = deptLower === "servicios tecnicos" || deptLower === "servicios técnicos";
   // Capacitación and Servicios Técnicos default to their OSI mode; everyone else defaults to General
   const defaultIsGeneral = !isCapacitacionDept && !isServiciosDept;
+  const canUseExternal = isCapacitacionDept || isServiciosDept || (editRecord && !editIsGeneral);
   const defaultGerencia = isCapacitacionDept ? "Capacitacion" : isServiciosDept ? "Servicios Tecnicos" : (initialUserData?.departamentos?.nombre || userDept || "");
 
   // For edit mode: reconstruct selectedOSIs from record
@@ -360,6 +361,7 @@ function RequisicionFormContent({
         >
           Interna
         </button>
+        {canUseExternal && (
         <button
           type="button"
           onClick={() => handleModeSwitch(isCapacitacionDept ? "capacitacion" : "servicios tecnicos")}
@@ -371,6 +373,7 @@ function RequisicionFormContent({
         >
           Externa
         </button>
+        )}
       </div>
 
       <Card className="shadow-md border-gray-300">

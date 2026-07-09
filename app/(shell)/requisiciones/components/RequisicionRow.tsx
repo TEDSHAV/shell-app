@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { deleteRequisicionRecord, setRequisicionEstatus } from "@/actions/requisiciones";
-import { Eye, Edit, Trash2, Lock, CheckCircle2, Undo2 } from "lucide-react";
+import { deleteRequisicionRecord, setRequisicionEstatus, markAllItemsVerificadas } from "@/actions/requisiciones";
+import { Eye, Edit, Trash2, Lock, CheckCircle2, Undo2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function RequisicionRow({
@@ -19,11 +19,19 @@ export default function RequisicionRow({
   const router = useRouter();
   const [isUpdating, setIsUpdating] = useState(false);
 
-  const isProcesada = record.estatus_admin === "procesada";
+  const estatus = record.estatus_admin || "pendiente";
+  const isProcesada = estatus === "procesada";
+  const isRechazada = estatus === "rechazada";
+  const isPendiente = estatus === "pendiente";
+  const isResolved = isProcesada || isRechazada;
   const isInterna =
     record.tipo_solicitud === "Interno" ||
     (!record.tipo_solicitud && !record.id_osi);
-  const locked = isProcesada && !isAdminView;
+  const locked = isResolved && !isAdminView;
+
+  const additionalItems = record.additional_items || [];
+  const verifiedCount = additionalItems.filter((item: any) => item.verificacion === "listo").length;
+  const totalCount = additionalItems.length;
 
   const handleRowClick = () => {
     router.push(`/requisiciones/view/${record.id}`);
@@ -33,13 +41,29 @@ export default function RequisicionRow({
     e.stopPropagation();
   };
 
-  const handleToggleEstatus = async (e: React.MouseEvent) => {
+  const handleSetEstatus = async (e: React.MouseEvent, target: "pendiente" | "procesada" | "rechazada") => {
     e.stopPropagation();
-    const target = isProcesada ? "pendiente" : "procesada";
-    const message = isProcesada
-      ? "¿Revertir esta requisición a Pendiente?"
-      : "¿Marcar esta requisición como Procesada? El solicitante ya no podrá editarla.";
-    if (!confirm(message)) return;
+    if (target === "procesada" && totalCount > 0 && verifiedCount < totalCount) {
+      if (!confirm(`Hay ${verifiedCount} de ${totalCount} items verificados. ¿Marcar todos como Listo y procesar?`)) return;
+      setIsUpdating(true);
+      try {
+        await markAllItemsVerificadas(record.id);
+        await setRequisicionEstatus(record.id, "procesada");
+        router.refresh();
+      } catch (error) {
+        console.error("Error updating estatus:", error);
+        alert("Error al actualizar el estatus");
+      } finally {
+        setIsUpdating(false);
+      }
+      return;
+    }
+    const messages: Record<string, string> = {
+      procesada: "¿Marcar esta requisición como Procesada? El solicitante ya no podrá editarla.",
+      rechazada: "¿Rechazar esta requisición? El solicitante será notificado y no podrá editarla.",
+      pendiente: "¿Revertir esta requisición a Pendiente?",
+    };
+    if (!confirm(messages[target])) return;
     setIsUpdating(true);
     try {
       await setRequisicionEstatus(record.id, target);
@@ -90,13 +114,26 @@ export default function RequisicionRow({
       </td>
       <td className="px-4 py-4 whitespace-nowrap text-sm">
         <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
-          isProcesada ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+          isProcesada ? 'bg-emerald-100 text-emerald-800' : isRechazada ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'
         }`}>
-          {isProcesada ? "Procesada" : "Pendiente"}
+          {isProcesada ? "Procesada" : isRechazada ? "Rechazada" : "Pendiente"}
         </span>
       </td>
+      {isAdminView && (
+        <td className="px-4 py-4 whitespace-nowrap text-sm text-center">
+          {totalCount > 0 ? (
+            <span className={`text-xs font-bold ${
+              verifiedCount === totalCount ? "text-emerald-600" : verifiedCount > 0 ? "text-amber-600" : "text-gray-400"
+            }`}>
+              {verifiedCount}/{totalCount}
+            </span>
+          ) : (
+            <span className="text-gray-300">—</span>
+          )}
+        </td>
+      )}
       <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900" onClick={handleActionClick}>
-        <div className="flex gap-1 items-center">
+        <div className="flex gap-1 items-center justify-center">
           <Link href={`/requisiciones/view/${record.id}`}>
             <Button 
               variant="ghost" 
@@ -107,14 +144,14 @@ export default function RequisicionRow({
               <Eye className="h-4 w-4" />
             </Button>
           </Link>
-          {locked ? (
+          {!isAdminView && locked ? (
             <span
               className="h-8 w-8 flex items-center justify-center text-gray-400"
               title="Procesada por Administración: bloqueada para edición"
             >
               <Lock className="h-4 w-4" />
             </span>
-          ) : (
+          ) : !isAdminView ? (
             <>
               <Link href={`/requisiciones/edit/${record.id}`}>
                 <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:text-blue-800" title="Editar">
@@ -135,31 +172,44 @@ export default function RequisicionRow({
                 </Button>
               </form>
             </>
+          ) : null}
+          {isAdminView && isPendiente && (
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                disabled={isUpdating}
+                onClick={(e) => handleSetEstatus(e, "procesada")}
+                className="h-8 w-8 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50"
+                title="Procesar"
+              >
+                <CheckCircle2 className="h-4 w-4" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                disabled={isUpdating}
+                onClick={(e) => handleSetEstatus(e, "rechazada")}
+                className="h-8 w-8 text-red-600 hover:text-red-800 hover:bg-red-50"
+                title="Rechazar"
+              >
+                <XCircle className="h-4 w-4" />
+              </Button>
+            </>
           )}
-          {isAdminView && (
+          {isAdminView && isResolved && (
             <Button
               type="button"
-              variant="outline"
-              size="sm"
+              variant="ghost"
+              size="icon"
               disabled={isUpdating}
-              onClick={handleToggleEstatus}
-              className={`h-7 px-2 text-[11px] flex gap-1 ${
-                isProcesada
-                  ? "border-amber-300 text-amber-700 hover:bg-amber-50"
-                  : "border-emerald-300 text-emerald-700 hover:bg-emerald-50"
-              }`}
+              onClick={(e) => handleSetEstatus(e, "pendiente")}
+              className="h-8 w-8 text-amber-600 hover:text-amber-800 hover:bg-amber-50"
+              title="Revertir"
             >
-              {isProcesada ? (
-                <>
-                  <Undo2 className="h-3 w-3" />
-                  Revertir
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 className="h-3 w-3" />
-                  Procesar
-                </>
-              )}
+              <Undo2 className="h-4 w-4" />
             </Button>
           )}
         </div>

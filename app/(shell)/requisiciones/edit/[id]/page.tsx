@@ -2,10 +2,11 @@ import {
   getAllOSIsForRequisiciones, 
   getFacilitatorsForDropdown, 
   getCurrentUser,
-  getRequisicionRecord
+  getRequisicionRecord,
+  isRequisicionesAdmin
 } from "@/actions/requisiciones";
 import RequisicionForm from "../../components/RequisicionForm";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 export const metadata = {
   title: "Editar Requisición | PRISMA",
@@ -18,6 +19,11 @@ export default async function EditRequisicionPage({
 }) {
   const { id } = await params;
   
+  const isAdmin = await isRequisicionesAdmin();
+  if (isAdmin) {
+    redirect(`/requisiciones/view/${id}`);
+  }
+
   const [osis, facilitators, userData, editRecord] = await Promise.all([
     getAllOSIsForRequisiciones(),
     getFacilitatorsForDropdown(),

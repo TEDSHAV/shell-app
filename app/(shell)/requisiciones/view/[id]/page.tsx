@@ -1,7 +1,8 @@
 import { 
   getRequisicionRecord, 
   getOSIForRequisicion,
-  getOsisByIds
+  getOsisByIds,
+  isRequisicionesAdmin
 } from "@/actions/requisiciones";
 import RequisicionView from "./components/RequisicionView";
 import { notFound } from "next/navigation";
@@ -19,7 +20,10 @@ export default async function ViewRequisicionPage({
   params: Promise<{ id: string }> 
 }) {
   const { id } = await params;
-  const record = await getRequisicionRecord(parseInt(id));
+  const [record, isAdminView] = await Promise.all([
+    getRequisicionRecord(parseInt(id)),
+    isRequisicionesAdmin(),
+  ]);
 
   if (!record) {
     notFound();
@@ -27,7 +31,7 @@ export default async function ViewRequisicionPage({
 
   let osiData = null;
   let osiLookup = new Map<number, string>();
-  const isLocked = record?.estatus_admin === "procesada";
+  const isLocked = record?.estatus_admin === "procesada" || record?.estatus_admin === "rechazada";
   if (record.id_osi) {
     try {
       osiData = await getOSIForRequisicion(record.id_osi);
@@ -77,19 +81,19 @@ export default async function ViewRequisicionPage({
         {isLocked ? (
           <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-300 rounded-lg text-amber-800 text-sm font-medium">
             <Lock className="h-4 w-4" />
-            Procesada por Administración
+            {record.estatus_admin === "rechazada" ? "Rechazada por Administración" : "Procesada por Administración"}
           </div>
-        ) : (
+        ) : !isAdminView ? (
           <Link href={`/requisiciones/edit/${id}`}>
             <Button className="bg-blue-600 hover:bg-blue-700 text-white flex gap-2">
               <Edit className="h-4 w-4" />
               Editar Requisición
             </Button>
           </Link>
-        )}
+        ) : null}
       </div>
 
-      <RequisicionView record={record} osiData={osiData} osiLookup={osiLookup} />
+      <RequisicionView record={record} osiData={osiData} osiLookup={osiLookup} isAdminView={isAdminView} />
     </div>
   );
 }

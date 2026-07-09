@@ -35,12 +35,14 @@ export default async function RequisicionesPage() {
               : "Listado de todas las solicitudes de requisición que has creado."}
           </p>
         </div>
-        <Link href="/requisiciones/create">
-          <Button className="bg-blue-600 hover:bg-blue-700 text-white flex gap-2">
-            <FilePlus2 className="h-4 w-4" />
-            Nueva Requisición
-          </Button>
-        </Link>
+        {!isAdminView && (
+          <Link href="/requisiciones/create">
+            <Button className="bg-blue-600 hover:bg-blue-700 text-white flex gap-2">
+              <FilePlus2 className="h-4 w-4" />
+              Nueva Requisición
+            </Button>
+          </Link>
+        )}
       </div>
 
       <RequisicionesTable records={records || []} isAdminView={isAdminView} osiLookup={osiLookup} />
