@@ -18,8 +18,10 @@ export default function RequisicionRow({
 }) {
   const router = useRouter();
   const [isUpdating, setIsUpdating] = useState(false);
+  const [localEstatus, setLocalEstatus] = useState<string>(record.estatus_admin || "pendiente");
+  const [localItems, setLocalItems] = useState<any[]>(record.additional_items || []);
 
-  const estatus = record.estatus_admin || "pendiente";
+  const estatus = localEstatus;
   const isProcesada = estatus === "procesada";
   const isRechazada = estatus === "rechazada";
   const isPendiente = estatus === "pendiente";
@@ -29,7 +31,7 @@ export default function RequisicionRow({
     (!record.tipo_solicitud && !record.id_osi);
   const locked = isResolved && !isAdminView;
 
-  const additionalItems = record.additional_items || [];
+  const additionalItems = localItems;
   const verifiedCount = additionalItems.filter((item: any) => item.verificacion === "listo").length;
   const totalCount = additionalItems.length;
 
@@ -45,13 +47,20 @@ export default function RequisicionRow({
     e.stopPropagation();
     if (target === "procesada" && totalCount > 0 && verifiedCount < totalCount) {
       if (!confirm(`Hay ${verifiedCount} de ${totalCount} items verificados. ¿Marcar todos como Listo y procesar?`)) return;
+      const prevEstatus = localEstatus;
+      const prevItems = localItems;
+      // Optimistic: mark all as listo + set procesada
+      setLocalItems(prev => prev.map(item => ({ ...item, verificacion: "listo" })));
+      setLocalEstatus("procesada");
       setIsUpdating(true);
       try {
         await markAllItemsVerificadas(record.id);
         await setRequisicionEstatus(record.id, "procesada");
-        router.refresh();
       } catch (error) {
         console.error("Error updating estatus:", error);
+        // Rollback
+        setLocalEstatus(prevEstatus);
+        setLocalItems(prevItems);
         alert("Error al actualizar el estatus");
       } finally {
         setIsUpdating(false);
@@ -64,12 +73,16 @@ export default function RequisicionRow({
       pendiente: "¿Revertir esta requisición a Pendiente?",
     };
     if (!confirm(messages[target])) return;
+    const prevEstatus = localEstatus;
+    // Optimistic update
+    setLocalEstatus(target);
     setIsUpdating(true);
     try {
       await setRequisicionEstatus(record.id, target);
-      router.refresh();
     } catch (error) {
       console.error("Error updating estatus:", error);
+      // Rollback
+      setLocalEstatus(prevEstatus);
       alert("Error al actualizar el estatus");
     } finally {
       setIsUpdating(false);

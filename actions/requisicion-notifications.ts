@@ -85,8 +85,8 @@ export async function notifyCreatorOfProcesada(
           recipient_id_auth: creatorAuthId,
           title: "Requisición Procesada",
           body: `Tu requisición #${requisicionId} ha sido procesada por Administración.`,
-          link_path: `/requisiciones/edit/${requisicionId}`,
-          dedupe_key: `requisicion:${requisicionId}:procesada`,
+          link_path: `/requisiciones/view/${requisicionId}`,
+          dedupe_key: `requisicion:${requisicionId}:procesada:${Date.now()}`,
           priority: 2,
         });
 
@@ -108,7 +108,9 @@ export async function notifyCreatorOfRechazada(
   try {
     const supabase = await createAdminClient();
 
-    const { error: insertError } = await supabase
+    console.log(`[notifyCreatorOfRechazada] Inserting notification for creator ${creatorAuthId}, req #${requisicionId}`);
+
+    const { data: insertData, error: insertError } = await supabase
       .schema("notify")
       .from("inbox")
       .insert({
@@ -118,15 +120,18 @@ export async function notifyCreatorOfRechazada(
           title: "Requisición Rechazada",
           body: `Tu requisición #${requisicionId} ha sido rechazada por Administración.`,
           link_path: `/requisiciones/view/${requisicionId}`,
-          dedupe_key: `requisicion:${requisicionId}:rechazada`,
+          dedupe_key: `requisicion:${requisicionId}:rechazada:${Date.now()}`,
           priority: 2,
-        });
+        })
+      .select();
 
     if (insertError) {
       console.error(
         "[notifyCreatorOfRechazada] Error inserting notification:",
         insertError,
       );
+    } else {
+      console.log(`[notifyCreatorOfRechazada] Insert successful:`, insertData);
     }
   } catch (err) {
     console.error("[notifyCreatorOfRechazada] Unexpected error:", err);
