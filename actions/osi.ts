@@ -1,6 +1,6 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import type { BuildOsiPreviewInput } from "@sha/osi-formato";
 import type {
   OSIListFilters,
@@ -345,5 +345,123 @@ export async function canAccessConsultaOSI(): Promise<boolean> {
   } catch (err) {
     console.error("Error checking consulta-osi access:", err);
     return false;
+  }
+}
+
+export async function canChangeOSIStatus(): Promise<boolean> {
+  try {
+    const supabase = await createClient();
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
+
+    const { data: claimsData } = await supabase.auth.getClaims();
+    const globalRole = (
+      claimsData?.claims?.user_role as string
+    )?.toLowerCase();
+
+    if (globalRole === "admin" || globalRole === "superadmin") return true;
+
+    const { data: usuario } = await supabase
+      .from("usuarios")
+      .select("departamento")
+      .eq("id_auth", user.id)
+      .single();
+
+    if (!usuario?.departamento) return false;
+
+    const { data: depto } = await supabase
+      .from("departamentos")
+      .select("nombre")
+      .eq("id", usuario.departamento)
+      .single();
+
+    if (!depto?.nombre) return false;
+
+    const deptUpper = depto.nombre.toUpperCase();
+    return deptUpper.includes("TED") || deptUpper.includes("CAPACITACION");
+  } catch (err) {
+    console.error("Error checking OSI status change permission:", err);
+    return false;
+  }
+}
+
+export async function updateOSIStatus(
+  osiId: number,
+  newStatusId: number,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const canChange = await canChangeOSIStatus();
+    if (!canChange) {
+      return { success: false, error: "No tiene permisos para cambiar el estado de OSIs" };
+    }
+
+    const supabase = await createClient();
+
+    const { error: updateError } = await supabase
+      .from("ejecucion_osi")
+      .update({ id_estatus: newStatusId })
+      .eq("id", osiId);
+
+    if (updateError) {
+      console.error("Error updating OSI status:", updateError);
+      return { success: false, error: "Error al actualizar el estado" };
+    }
+
+    // Fetch OSI info for notification
+    const { data: osiRow } = await supabase
+      .from("v_osi_formato_completo")
+      .select("nro_osi, ejecutivo_negocios")
+      .eq("id_osi", osiId)
+      .single();
+
+    if (!osiRow?.ejecutivo_negocios) return { success: true };
+
+    // Fetch the new status name
+    const { data: statusRow } = await supabase
+      .from("conf_estatus")
+      .select("nombre_estado")
+      .eq("id", newStatusId)
+      .single();
+
+    const newStatusName = statusRow?.nombre_estado || `ID ${newStatusId}`;
+    const nroOsi = osiRow.nro_osi || `ID ${osiId}`;
+    const ejecutivoNombre = osiRow.ejecutivo_negocios as string;
+
+    // Find the ejecutivo_negocios user in usuarios table
+    const adminClient = await createAdminClient();
+    const { data: ejecutivoUser } = await adminClient
+      .from("usuarios")
+      .select("id_auth")
+      .ilike("nombre_apellido", ejecutivoNombre)
+      .not("id_auth", "is", null)
+      .limit(1)
+      .maybeSingle();
+
+    if (!ejecutivoUser?.id_auth) return { success: true };
+
+    // Insert notification
+    const { error: notifError } = await adminClient
+      .schema("notify")
+      .from("inbox")
+      .insert({
+        app_slug: "shell",
+        event_key: "osi_status_changed",
+        recipient_id_auth: ejecutivoUser.id_auth,
+        title: "Estado de OSI Actualizado",
+        body: `El estado de la OSI ${nroOsi} ha cambiado a "${newStatusName}"`,
+        link_path: "/consulta-osi",
+        dedupe_key: `osi:${osiId}:status_changed:${newStatusId}:${Date.now()}`,
+        priority: 2,
+      });
+
+    if (notifError) {
+      console.error("Error inserting OSI status notification:", notifError);
+    }
+
+    return { success: true };
+  } catch (err) {
+    console.error("Unexpected error in updateOSIStatus:", err);
+    return { success: false, error: "Error inesperado" };
   }
 }

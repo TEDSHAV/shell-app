@@ -29,8 +29,9 @@ export function ShellURLSync() {
             // but in App Router we can just use replaceState and the usePathname hook in breadcrumbs 
             // *should* pick it up if it's a client component.
             
-            // Dispatch a popstate-like event so hooks can detect the change
-            window.dispatchEvent(new Event('popstate'));
+            // Dispatch a custom event so breadcrumb/sidebar hooks can detect the change
+            // without confusing the Next.js App Router's internal state
+            window.dispatchEvent(new CustomEvent('shell-url-change'));
           }
         }
       }

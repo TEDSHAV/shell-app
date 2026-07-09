@@ -9,17 +9,6 @@ export const metadata = {
 };
 
 export default async function RequisicionesPage() {
-  if (process.env.NODE_ENV !== "development") {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3 text-center">
-        <h2 className="text-xl font-bold text-gray-700">Módulo en desarrollo</h2>
-        <p className="text-sm text-gray-500 max-w-md">
-          El módulo de Requisiciones está en fase de desarrollo y no está disponible en producción.
-        </p>
-      </div>
-    );
-  }
-
   const [records, isAdminView, allOsis] = await Promise.all([
     getAllRequisiciones(),
     isRequisicionesAdmin(),

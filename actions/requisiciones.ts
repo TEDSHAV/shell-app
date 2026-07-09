@@ -9,6 +9,10 @@ import {
   RequisicionItem,
   VerificacionStatus,
 } from "@/types/requisiciones";
+import {
+  notifyAdminsOfNewRequisicion,
+  notifyCreatorOfProcesada,
+} from "@/actions/requisicion-notifications";
 
 const ADMIN_ROLES = ["admin", "superadmin"];
 
@@ -140,6 +144,8 @@ export async function createRequisicionRecord(
   if (error) throw error;
 
   await syncRequisicionOsis(data.id, formData);
+
+  await notifyAdminsOfNewRequisicion(data.id, formData.solicitante);
 
   // Revalidate both the shell and potentially the capacitacion app list if needed
   revalidatePath("/requisiciones");
@@ -389,6 +395,19 @@ export async function setRequisicionEstatus(
     .eq("id", id);
 
   if (error) throw error;
+
+  if (estatus === "procesada") {
+    const { data: req } = await supabase
+      .from("requisiciones")
+      .select("created_by")
+      .eq("id", id)
+      .single();
+
+    if (req?.created_by) {
+      await notifyCreatorOfProcesada(id, req.created_by);
+    }
+  }
+
   revalidatePath("/requisiciones");
 }
 

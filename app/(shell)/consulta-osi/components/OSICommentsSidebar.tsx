@@ -1,7 +1,7 @@
 "use client";
 
 import type { OSIListItem } from "@/types/osi";
-import { X, MessageSquare, Building2, MapPin, User, Calendar, Users, FileText, Sparkles } from "lucide-react";
+import { X, MessageSquare, Sparkles } from "lucide-react";
 
 interface OSICommentsSidebarProps {
   osi: OSIListItem | null;
@@ -16,18 +16,9 @@ export default function OSICommentsSidebar({
 }: OSICommentsSidebarProps) {
   if (!osi) return null;
 
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return "-";
-    return new Date(dateString).toLocaleDateString("es-ES", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
-  };
-
   return (
     <div
-      className={`flex flex-col bg-white border-l border-gray-200 shadow-sm transition-all duration-300 ease-in-out overflow-hidden ${
+      className={`flex flex-col h-full shrink-0 bg-white border-l border-gray-200 shadow-sm transition-all duration-300 ease-in-out overflow-hidden ${
         isOpen ? "w-96 opacity-100" : "w-0 opacity-0"
       }`}
     >
@@ -61,75 +52,6 @@ export default function OSICommentsSidebar({
             >
               <X className="w-4 h-4" />
             </button>
-          </div>
-
-          {/* OSI Info Card */}
-          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50/50">
-            <div className="grid grid-cols-2 gap-x-3 gap-y-2.5">
-              <div className="min-w-0">
-                <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-0.5">
-                  Empresa
-                </p>
-                <p className="text-xs text-gray-700 truncate flex items-center gap-1">
-                  <Building2 className="w-3 h-3 text-gray-400 shrink-0" />
-                  {osi.nombre_empresa || "-"}
-                </p>
-              </div>
-              <div className="min-w-0">
-                <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-0.5">
-                  Servicio
-                </p>
-                <p className="text-xs text-gray-700 truncate flex items-center gap-1">
-                  <FileText className="w-3 h-3 text-gray-400 shrink-0" />
-                  {osi.servicio || "-"}
-                </p>
-              </div>
-              <div className="min-w-0">
-                <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-0.5">
-                  Ciudad
-                </p>
-                <p className="text-xs text-gray-700 truncate flex items-center gap-1">
-                  <MapPin className="w-3 h-3 text-gray-400 shrink-0" />
-                  {osi.ciudad_ejecucion || "-"}
-                </p>
-              </div>
-              <div className="min-w-0">
-                <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-0.5">
-                  Ejecutivo
-                </p>
-                <p className="text-xs text-gray-700 truncate flex items-center gap-1">
-                  <User className="w-3 h-3 text-gray-400 shrink-0" />
-                  {osi.ejecutivo_negocios || "-"}
-                </p>
-              </div>
-              <div className="min-w-0">
-                <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-0.5">
-                  F. Inicio
-                </p>
-                <p className="text-xs text-gray-700 flex items-center gap-1">
-                  <Calendar className="w-3 h-3 text-gray-400 shrink-0" />
-                  {formatDate(osi.fecha_inicio_real)}
-                </p>
-              </div>
-              <div className="min-w-0">
-                <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-0.5">
-                  F. Fin
-                </p>
-                <p className="text-xs text-gray-700 flex items-center gap-1">
-                  <Calendar className="w-3 h-3 text-gray-400 shrink-0" />
-                  {formatDate(osi.fecha_fin_real)}
-                </p>
-              </div>
-              <div className="min-w-0 col-span-2">
-                <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-0.5">
-                  Participantes
-                </p>
-                <p className="text-xs text-gray-700 flex items-center gap-1">
-                  <Users className="w-3 h-3 text-gray-400 shrink-0" />
-                  {osi.participantes ?? "-"}
-                </p>
-              </div>
-            </div>
           </div>
 
           {/* Comments section */}

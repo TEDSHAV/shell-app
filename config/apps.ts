@@ -41,9 +41,7 @@ import { build_app_config } from "@/lib/app-theme";
 import { get_tickets_form_base_url } from "@/lib/tickets-form-url";
 import { AppConfig, AppGroupConfig, NavGroup } from "@/types";
 
-const isDev = process.env.NODE_ENV === "development";
-
-const requisicionesNavGroup: NavGroup | null = isDev ? {
+const requisicionesNavGroup: NavGroup = {
   groupLabel: "Requisiciones",
   links: [
     {
@@ -59,9 +57,9 @@ const requisicionesNavGroup: NavGroup | null = isDev ? {
       icon: FilePlus2,
     },
   ],
-} : null;
+};
 
-const administracionNavGroup: NavGroup | null = isDev ? {
+const administracionNavGroup: NavGroup = {
   groupLabel: "Requisiciones",
   links: [
     {
@@ -75,7 +73,7 @@ const administracionNavGroup: NavGroup | null = isDev ? {
       icon: FilePlus2,
     },
   ],
-} : null;
+};
 
 export const appGroups: AppGroupConfig[] = [
   {
@@ -279,7 +277,7 @@ export const apps: AppConfig[] = [
           },
         ],
       },
-      ...(requisicionesNavGroup ? [requisicionesNavGroup] : []),
+      ...[requisicionesNavGroup],
       {
         groupLabel: "Tareas",
         links: [
@@ -412,7 +410,7 @@ export const apps: AppConfig[] = [
     brandColor: "#4F46E5",
     embedMode: "native",
     dashboardOrder: 5,
-    navLinks: administracionNavGroup ? [administracionNavGroup] : [],
+    navLinks: [administracionNavGroup],
   }),
   build_app_config({
     id: "capacitacion",
@@ -543,7 +541,7 @@ export const apps: AppConfig[] = [
           },
         ],
       },
-      ...(requisicionesNavGroup ? [requisicionesNavGroup] : []),
+      ...[requisicionesNavGroup],
     ],
   }),
   build_app_config({
@@ -610,7 +608,7 @@ export const apps: AppConfig[] = [
       { label: "Control de Calibración", path: "/dashboard/control-calibracion", icon: Gauge },
       { label: "Entrada y Salida de Equipos", path: "/dashboard/entrada-salida-equipos", icon: ArrowLeftRight },
       { label: "Formulario de Novedades", path: "/dashboard/formulario-novedades", icon: FileText },
-      ...(requisicionesNavGroup ? [requisicionesNavGroup] : []),
+      ...[requisicionesNavGroup],
     ],
   }),
   build_app_config({
@@ -660,5 +658,5 @@ export function getAppById(id: string): AppConfig | undefined {
 }
 
 export function getAppByDbSlug(slug: string): AppConfig | undefined {
-  return apps.find((app) => (app.dbSlug ?? app.id) === slug);
+  return apps.find((app) => (app.dbSlug ?? app.id) === slug || app.id === slug);
 }

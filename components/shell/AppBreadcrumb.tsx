@@ -68,8 +68,12 @@ export const AppBreadcrumb = () => {
       setCurrentPathname(window.location.pathname);
     };
 
+    window.addEventListener('shell-url-change', handleLocationChange);
     window.addEventListener('popstate', handleLocationChange);
-    return () => window.removeEventListener('popstate', handleLocationChange);
+    return () => {
+      window.removeEventListener('shell-url-change', handleLocationChange);
+      window.removeEventListener('popstate', handleLocationChange);
+    };
   }, []);
 
   const currentApp = getAppByPath(currentPathname);
@@ -147,12 +151,21 @@ export const AppBreadcrumb = () => {
                 {crumb.label}
               </span>
             ) : (
-              <Link
-                href={crumb.href}
-                className="text-slate-400 hover:text-blue-600 transition-colors truncate max-w-[100px] sm:max-w-[200px]"
-              >
-                {crumb.label}
-              </Link>
+              crumb.href === currentApp?.basePath ? (
+                <a
+                  href={crumb.href}
+                  className="text-slate-400 hover:text-blue-600 transition-colors truncate max-w-[100px] sm:max-w-[200px]"
+                >
+                  {crumb.label}
+                </a>
+              ) : (
+                <Link
+                  href={crumb.href}
+                  className="text-slate-400 hover:text-blue-600 transition-colors truncate max-w-[100px] sm:max-w-[200px]"
+                >
+                  {crumb.label}
+                </Link>
+              )
             )}
           </li>
         ))}

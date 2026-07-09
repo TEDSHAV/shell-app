@@ -6,13 +6,17 @@ import type {
   OSIListItem,
   OSIStatusOption,
 } from "@/types/osi";
-import { getOSIList, getOSIListFilterOptions } from "@/actions/osi";
+import { getOSIList, getOSIListFilterOptions, updateOSIStatus } from "@/actions/osi";
 import OSIFilters from "./components/OSIFilters";
 import OSITable from "./components/OSITable";
 import OSIPagination from "./components/OSIPagination";
 import OSICommentsSidebar from "./components/OSICommentsSidebar";
 
-export default function ConsultaOSIClient() {
+interface ConsultaOSIClientProps {
+  canChangeStatus: boolean;
+}
+
+export default function ConsultaOSIClient({ canChangeStatus }: ConsultaOSIClientProps) {
   const [loading, setLoading] = useState(true);
   const [osis, setOsis] = useState<OSIListItem[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -89,11 +93,38 @@ export default function ConsultaOSIClient() {
     setSidebarOpen(false);
   }, []);
 
+  const handleStatusChange = useCallback(
+    async (osi: OSIListItem, newStatusId: number) => {
+      if (!osi.id_osi) return { success: false, error: "OSI inválido" };
+      const result = await updateOSIStatus(osi.id_osi, newStatusId);
+      if (result.success) {
+        setOsis((prev) =>
+          prev.map((o) => {
+            if (o.id_osi === osi.id_osi) {
+              const newStatus = statuses.find((s) => s.id === newStatusId);
+              return {
+                ...o,
+                id_estatus: newStatusId,
+                status_name: newStatus?.nombre_estado || "Desconocido",
+                status_color: newStatus?.color_hex || "#9CA3AF",
+              };
+            }
+            return o;
+          }),
+        );
+      } else {
+        console.error("Error changing OSI status:", result.error);
+      }
+      return result;
+    },
+    [statuses],
+  );
+
   const totalPages = Math.ceil(totalCount / itemsPerPage);
 
   return (
-    <div className="flex h-full">
-      <div className="flex-1 p-4 sm:p-6">
+    <div className="flex h-full min-h-0">
+      <div className="flex-1 overflow-auto p-4 sm:p-6 min-w-0">
         <div className="mb-4">
           <h1 className="text-xl font-bold text-gray-900">Consulta de OSIs</h1>
           <p className="mt-0.5 text-sm text-gray-600">
@@ -111,7 +142,15 @@ export default function ConsultaOSIClient() {
           loading={loadingFilters}
         />
 
-        <OSITable osis={osis} loading={loading} onRowClick={handleRowClick} selectedOSI={selectedOSI} />
+        <OSITable
+          osis={osis}
+          loading={loading}
+          onRowClick={handleRowClick}
+          selectedOSI={selectedOSI}
+          canChangeStatus={canChangeStatus}
+          statuses={statuses}
+          onStatusChange={handleStatusChange}
+        />
 
         <div className="mt-4">
           <OSIPagination
