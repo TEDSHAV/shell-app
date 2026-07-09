@@ -5,7 +5,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "postinstall": "npm --prefix ./packages/osi-formato run build:css"
+    "postinstall": "npm --prefix ./packages/osi-formato run build:css",
+    "update-types": "supabase gen types typescript --project-id oboslhhemuvzvjnbqeih > src/types/supabase.ts"
   },
   "dependencies": {
     "@sha/osi-formato": "file:./packages/osi-formato",

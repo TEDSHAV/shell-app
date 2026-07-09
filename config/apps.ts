@@ -631,5 +631,5 @@ export function getAppById(id: string): AppConfig | undefined {
 }
 
 export function getAppByDbSlug(slug: string): AppConfig | undefined {
-  return apps.find((app) => (app.dbSlug ?? app.id) === slug);
+  return apps.find((app) => (app.dbSlug ?? app.id) === slug || app.id === slug);
 }
