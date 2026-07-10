@@ -1,6 +1,7 @@
 "use server";
 
-import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
+import { notifyOsiStatusChanged } from "@/actions/osi-notifications";
 import type { BuildOsiPreviewInput } from "@sha/osi-formato";
 import type {
   OSIListFilters,
@@ -478,9 +479,6 @@ export async function updateOSIStatus(
       .eq("id_osi", osiId)
       .single();
 
-    if (!osiRow?.ejecutivo_negocios) return { success: true };
-
-    // Fetch the new status name
     const { data: statusRow } = await supabase
       .from("conf_estatus")
       .select("nombre_estado")
@@ -488,39 +486,15 @@ export async function updateOSIStatus(
       .single();
 
     const newStatusName = statusRow?.nombre_estado || `ID ${newStatusId}`;
-    const nroOsi = osiRow.nro_osi || `ID ${osiId}`;
-    const ejecutivoNombre = osiRow.ejecutivo_negocios as string;
+    const nroOsi = osiRow?.nro_osi || `ID ${osiId}`;
 
-    // Find the ejecutivo_negocios user in usuarios table
-    const adminClient = await createAdminClient();
-    const { data: ejecutivoUser } = await adminClient
-      .from("usuarios")
-      .select("id_auth")
-      .ilike("nombre_apellido", ejecutivoNombre)
-      .not("id_auth", "is", null)
-      .limit(1)
-      .maybeSingle();
-
-    if (!ejecutivoUser?.id_auth) return { success: true };
-
-    // Insert notification
-    const { error: notifError } = await adminClient
-      .schema("notify")
-      .from("inbox")
-      .insert({
-        app_slug: "shell",
-        event_key: "osi_status_changed",
-        recipient_id_auth: ejecutivoUser.id_auth,
-        title: "Estado de OSI Actualizado",
-        body: `El estado de la OSI ${nroOsi} ha cambiado a "${newStatusName}"`,
-        link_path: "/consulta-osi",
-        dedupe_key: `osi:${osiId}:status_changed:${newStatusId}:${Date.now()}`,
-        priority: 2,
-      });
-
-    if (notifError) {
-      console.error("Error inserting OSI status notification:", notifError);
-    }
+    await notifyOsiStatusChanged({
+      osiId,
+      newStatusId,
+      nroOsi,
+      newStatusName,
+      ejecutivoNegocios: osiRow?.ejecutivo_negocios,
+    });
 
     return { success: true };
   } catch (err) {
