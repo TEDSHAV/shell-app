@@ -159,6 +159,11 @@ function RequisicionFormContent({
 
   const isGeneralMode = mode === "general";
   const isCapacitacion = !isGeneralMode && formData.gerencia_solicitante.trim().toLowerCase() === "capacitacion";
+  // Capacitación Externa is restricted to a single OSI selection; Servicios Técnicos Externa remains multi-OSI.
+  const isSingleOSIMode = !isGeneralMode && isCapacitacion;
+  // Interna gets an (optional) OSI selector too, but only for Capacitación/Servicios Técnicos users.
+  const showOSISelector = !isGeneralMode || canUseExternal;
+  const internaOsiTipoServicio = isCapacitacionDept ? "capacitacion" : "servicios tecnicos";
 
   const handleModeSwitch = (newMode: "general" | "capacitacion" | "servicios tecnicos") => {
     const gerenciaMap = {
@@ -198,7 +203,7 @@ function RequisicionFormContent({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
-  const osiTipoServicio = isCapacitacion ? "capacitacion" : "servicios tecnicos";
+  const osiTipoServicio = isGeneralMode ? internaOsiTipoServicio : (isCapacitacion ? "capacitacion" : "servicios tecnicos");
 
   const isOSIRequired = !isGeneralMode;
 
@@ -217,10 +222,11 @@ function RequisicionFormContent({
       const already = prev.selectedOSIs.some((s) => s.id_osi === osi.id_osi);
       const newSelection = already
         ? prev.selectedOSIs.filter((s) => s.id_osi !== osi.id_osi)
-        : [...prev.selectedOSIs, osi];
+        // Capacitación Externa only allows a single OSI: picking a new one replaces the current selection.
+        : (isSingleOSIMode ? [osi] : [...prev.selectedOSIs, osi]);
 
-      // Auto-populate cost fields ONLY for Capacitación department
-      if (!isCapacitacionDept) {
+      // Auto-populate cost fields ONLY for Capacitación department, and only in Externa mode.
+      if (!isCapacitacionDept || isGeneralMode) {
         return {
           ...prev,
           selectedOSIs: newSelection,
@@ -249,7 +255,8 @@ function RequisicionFormContent({
           verificacion_honorarios: "pendiente",
           verificacion_informe_final: "pendiente",
         };
-        newFixedItems = [...prev.osi_fixed_items, newFixedItem];
+        // Single-OSI mode (Capacitación Externa) replaces the fixed-items block entirely.
+        newFixedItems = isSingleOSIMode ? [newFixedItem] : [...prev.osi_fixed_items, newFixedItem];
       }
 
       // Keep legacy single-value fields in sync with first OSI for backward compat
@@ -462,7 +469,7 @@ function RequisicionFormContent({
             <div className="col-span-3 p-3 border-r border-gray-300 bg-gray-50 flex items-center font-bold text-sm">
               Fecha de solicitud:
             </div>
-            <div className={`p-3 border-r border-gray-300 ${isGeneralMode ? "col-span-9" : "col-span-4"}`}>
+            <div className={`p-3 border-r border-gray-300 ${showOSISelector ? "col-span-4" : "col-span-9"}`}>
               <Input 
                 type="date"
                 value={formData.fecha_solicitud}
@@ -470,7 +477,7 @@ function RequisicionFormContent({
                 className="h-8 border-none focus-visible:ring-0 px-0"
               />
             </div>
-            {!isGeneralMode && (
+            {showOSISelector && (
             <>
             <div className="col-span-2 p-3 border-r border-gray-300 bg-gray-50 flex items-center font-bold text-sm">
               N° OSI:
@@ -511,7 +518,7 @@ function RequisicionFormContent({
           </div>
 
           {/* Selected OSI chips */}
-          {!isGeneralMode && formData.selectedOSIs.length > 0 && (
+          {showOSISelector && formData.selectedOSIs.length > 0 && (
             <div className="flex flex-wrap gap-2 p-3 border-b border-gray-300 bg-blue-50/30">
               {formData.selectedOSIs.map((osi) => (
                 <span
@@ -595,7 +602,7 @@ function RequisicionFormContent({
                 {!isGeneralMode && (
                   <th className="p-2 border-r border-gray-300 w-32">PRECIO U.</th>
                 )}
-                {!isGeneralMode && formData.selectedOSIs.length > 1 && (
+                {formData.selectedOSIs.length > 1 && (
                   <th className="p-2 border-r border-gray-300 w-32">OSI</th>
                 )}
                 {isGeneralMode ? (
@@ -818,7 +825,7 @@ function RequisicionFormContent({
                         </div>
                       </td>
                     )}
-                    {!isGeneralMode && formData.selectedOSIs.length > 1 && (
+                    {formData.selectedOSIs.length > 1 && (
                       <td className="p-2 border-r border-gray-300">
                         <Select
                           value={item.id_osi?.toString() || ""}
@@ -910,7 +917,7 @@ function RequisicionFormContent({
                         </div>
                       </td>
                     )}
-                    {!isGeneralMode && formData.selectedOSIs.length > 1 && (
+                    {formData.selectedOSIs.length > 1 && (
                       <td className="p-2 border-r border-gray-300">
                         <Select
                           value={item.id_osi?.toString() || ""}
@@ -1001,7 +1008,7 @@ function RequisicionFormContent({
                       </div>
                     </td>
                   )}
-                  {!isGeneralMode && formData.selectedOSIs.length > 1 && (
+                  {formData.selectedOSIs.length > 1 && (
                     <td className="p-2 border-r border-gray-300">
                       <Select
                         value={item.id_osi?.toString() || ""}

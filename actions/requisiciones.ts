@@ -85,7 +85,7 @@ export async function createRequisicionRecord(
   const userId = userResponse.data.user?.id || null;
 
   const isCapacitacion = !formData.is_general && formData.gerencia_solicitante?.trim().toLowerCase() === "capacitacion";
-  const primaryOSI = formData.is_general ? null : formData.selectedOSIs[0] || null;
+  const primaryOSI = formData.selectedOSIs[0] || null;
 
   // Calculate totals for fixed items as requested (Cant is removed from UI, so we use 1)
   const totalTraslado = (formData.dias_traslado || 0) * (formData.costo_traslado || 0);
@@ -174,7 +174,7 @@ async function syncRequisicionOsis(
     console.error("Error clearing requisicion OSI links:", deleteError);
   }
 
-  if (formData.is_general || formData.selectedOSIs.length === 0) return;
+  if (formData.selectedOSIs.length === 0) return;
 
   const rows = formData.selectedOSIs.map((osi) => ({
     id_requisicion: requisicionId,
@@ -251,7 +251,7 @@ export async function updateRequisicionRecord(
   }
 
   const isCapacitacion = !formData.is_general && formData.gerencia_solicitante?.trim().toLowerCase() === "capacitacion";
-  const primaryOSI = formData.is_general ? null : formData.selectedOSIs[0] || null;
+  const primaryOSI = formData.selectedOSIs[0] || null;
 
   // Calculate totals for fixed items
   const totalTraslado = (formData.dias_traslado || 0) * (formData.costo_traslado || 0);
