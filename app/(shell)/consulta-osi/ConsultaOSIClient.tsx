@@ -10,7 +10,7 @@ import { getOSIList, getOSIListFilterOptions, updateOSIStatus } from "@/actions/
 import OSIFilters from "./components/OSIFilters";
 import OSITable from "./components/OSITable";
 import OSIPagination from "./components/OSIPagination";
-import OSICommentsSidebar from "./components/OSICommentsSidebar";
+import OSICommentsSheet from "./components/OSICommentsSheet";
 
 interface ConsultaOSIClientProps {
   canChangeStatus: boolean;
@@ -123,8 +123,8 @@ export default function ConsultaOSIClient({ canChangeStatus }: ConsultaOSIClient
   const totalPages = Math.ceil(totalCount / itemsPerPage);
 
   return (
-    <div className="flex h-full min-h-0">
-      <div className="flex-1 overflow-auto p-4 sm:p-6 min-w-0">
+    <div className="relative h-full min-h-0">
+      <div className="h-full overflow-auto p-4 sm:p-6">
         <div className="mb-4">
           <h1 className="text-xl font-bold text-gray-900">Consulta de OSIs</h1>
           <p className="mt-0.5 text-sm text-gray-600">
@@ -165,9 +165,9 @@ export default function ConsultaOSIClient({ canChangeStatus }: ConsultaOSIClient
         </div>
       </div>
 
-      <OSICommentsSidebar
+      <OSICommentsSheet
         osi={selectedOSI}
-        isOpen={sidebarOpen}
+        open={sidebarOpen}
         onClose={handleSidebarClose}
       />
     </div>

@@ -5,6 +5,7 @@ import {
   build_osi_preview_data,
 } from "@sha/osi-formato";
 import { canAccessConsultaOSI, getOSIPreviewBundle, getUserOSIAccessFilter } from "@/actions/osi";
+import { OsiPreviewCommentsHost } from "../../components/OsiPreviewCommentsHost";
 import { OsiPreviewToolbar } from "./OsiPreviewToolbar";
 
 export const metadata = {
@@ -50,7 +51,7 @@ export default async function ConsultaOSIPreviewPage({
   const previewData = build_osi_preview_data(bundle);
 
   return (
-    <div className="min-h-screen bg-white overflow-x-auto">
+    <div className="relative min-h-screen overflow-x-auto bg-white">
       <Suspense fallback={null}>
         <OsiPreviewToolbar osiLabel={previewData.nroOsi || String(osiId)} />
       </Suspense>
@@ -63,6 +64,11 @@ export default async function ConsultaOSIPreviewPage({
           }}
         />
       </div>
+      <OsiPreviewCommentsHost
+        osi_id={osiId}
+        osi_label={previewData.nroOsi || String(osiId)}
+        servicio={previewData.servicio ?? null}
+      />
     </div>
   );
 }
