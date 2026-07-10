@@ -25,9 +25,13 @@ export function buildFrameUrl(appId: string, subPath?: string): string {
         ? normalized.length > 0
           ? `/${normalized}`
           : "/tareas"
-        : normalized.length > 0
-          ? `/${normalized}`
-          : "";
+        : appId === "comentarios"
+          ? normalized.length > 0
+            ? `/${normalized}`
+            : "/comentarios"
+          : normalized.length > 0
+            ? `/${normalized}`
+            : "";
 
   if (app.embedMode === "raw") {
     return `${app.upstreamUrl!}${path}`;

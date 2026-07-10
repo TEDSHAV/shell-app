@@ -36,6 +36,7 @@ import {
   Landmark,
   KeyRound,
   SquareCheckBig,
+  MessageSquare,
 } from "lucide-react";
 import { build_app_config } from "@/lib/app-theme";
 import { get_tickets_form_base_url } from "@/lib/tickets-form-url";
@@ -130,6 +131,23 @@ export const apps: AppConfig[] = [
             path: "/directorio/facilitadores",
             icon: UserCheck,
             requiredPermissions: ["directorio:manage"],
+          },
+        ],
+      },
+      {
+        groupLabel: "Actividad",
+        links: [
+          {
+            label: "Tareas",
+            path: "/tareas",
+            href: "/tareas",
+            icon: SquareCheckBig,
+          },
+          {
+            label: "Comentarios",
+            path: "/comentarios",
+            href: "/comentarios",
+            icon: MessageSquare,
           },
         ],
       },
@@ -278,16 +296,6 @@ export const apps: AppConfig[] = [
         ],
       },
       ...[requisicionesNavGroup],
-      {
-        groupLabel: "Tareas",
-        links: [
-          {
-            label: "Tareas",
-            path: "/tareas",
-            icon: SquareCheckBig,
-          },
-        ],
-      },
     ],
   }),
   build_app_config({
@@ -558,6 +566,22 @@ export const apps: AppConfig[] = [
     embedMode: "shell",
     groupId: "utilidades",
     dashboardOrder: 7,
+    navLinks: [],
+  }),
+  build_app_config({
+    id: "comentarios",
+    dbSlug: "sgestion",
+    name: "Comentarios",
+    description: "Notas personales y comentarios de equipo",
+    basePath: "/comentarios",
+    upstreamUrl:
+      process.env.NEXT_PUBLIC_NEGOCIOS_URL ||
+      "https://gestion.shadevenezuela.com.ve",
+    icon: MessageSquare,
+    brandColor: "#14B8A6",
+    embedMode: "shell",
+    groupId: "utilidades",
+    dashboardOrder: 8,
     navLinks: [],
   }),
   build_app_config({

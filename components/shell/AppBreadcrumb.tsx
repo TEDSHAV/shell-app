@@ -36,6 +36,8 @@ const SEGMENT_LABELS: Record<string, string> = {
   "planificacion-servicios": "Planificación de Servicios",
   inventario: "Inventario",
   drive: "Drive",
+  tareas: "Tareas",
+  comentarios: "Comentarios",
   requisiciones: "Requisiciones",
   create: "Nueva",
   edit: "Editar",
