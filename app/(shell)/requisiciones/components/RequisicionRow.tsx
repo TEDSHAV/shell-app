@@ -32,8 +32,17 @@ export default function RequisicionRow({
   const locked = isResolved && !isAdminView;
 
   const additionalItems = localItems;
-  const verifiedCount = additionalItems.filter((item: any) => item.verificacion === "listo").length;
-  const totalCount = additionalItems.length;
+  const osiFixedItems: any[] = record.osi_fixed_items || [];
+  const fixedVerifiedCount = osiFixedItems.reduce((sum: number, fi: any) =>
+    sum +
+    (fi.verificacion_traslado === "listo" ? 1 : 0) +
+    (fi.verificacion_impresion === "listo" ? 1 : 0) +
+    (fi.verificacion_honorarios === "listo" ? 1 : 0) +
+    (fi.verificacion_informe_final === "listo" ? 1 : 0), 0);
+  const fixedTotalCount = osiFixedItems.length * 4;
+  const additionalVerifiedCount = additionalItems.filter((item: any) => item.verificacion === "listo").length;
+  const verifiedCount = fixedVerifiedCount + additionalVerifiedCount;
+  const totalCount = fixedTotalCount + additionalItems.length;
 
   const handleRowClick = () => {
     router.push(`/requisiciones/view/${record.id}`);

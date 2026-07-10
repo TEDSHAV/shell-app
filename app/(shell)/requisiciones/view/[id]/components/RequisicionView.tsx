@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Fragment } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { RequisicionItem } from "@/types/requisiciones";
-import { setRequisicionEstatus, updateItemVerificacion, markAllItemsVerificadas } from "@/actions/requisiciones";
+import { RequisicionItem, OSIFixedItem } from "@/types/requisiciones";
+import { setRequisicionEstatus, updateItemVerificacion, updateFixedItemVerificacion, markAllItemsVerificadas } from "@/actions/requisiciones";
 import { CheckCircle2, XCircle, Undo2, Clock, AlertTriangle, CalendarClock } from "lucide-react";
 
 export default function RequisicionView({ 
@@ -23,29 +23,39 @@ export default function RequisicionView({
   const [isUpdating, setIsUpdating] = useState(false);
   const [togglingItemId, setTogglingItemId] = useState<string | null>(null);
   const [localItems, setLocalItems] = useState<RequisicionItem[]>(record.additional_items || []);
+  const [localFixedItems, setLocalFixedItems] = useState<OSIFixedItem[]>(record.osi_fixed_items || []);
 
   const additionalItems: RequisicionItem[] = localItems;
+  const isCapacitacion = record.gerencia_solicitante?.trim().toLowerCase() === "capacitacion";
+  const osiFixedItems: OSIFixedItem[] = isCapacitacion ? localFixedItems : [];
   
   const estatus = record.estatus_admin || "pendiente";
   const isProcesada = estatus === "procesada";
   const isRechazada = estatus === "rechazada";
   const isPendiente = estatus === "pendiente";
   const isResolved = isProcesada || isRechazada;
-  const isCapacitacion = record.gerencia_solicitante?.trim().toLowerCase() === "capacitacion";
   const isGeneralMode = record.tipo_solicitud === "Interno";
   const linkedOSIs: { id_osi: number }[] = record.requisiciones_osis || [];
   
-  // Totals calculations based on totals stored in DB (as updated in create/update actions)
-  const totalTraslado = isCapacitacion ? (record.costo_traslado || 0) : 0;
-  const totalImpresion = isCapacitacion ? (record.impresion_total || 0) : 0;
-  const totalHonorarios = isCapacitacion ? (record.honorarios_total || 0) : 0;
-  const totalInformeFinal = isCapacitacion ? (record.informe_final_total || 0) : 0;
+  const totalFixed = osiFixedItems.reduce((sum, fi) =>
+    sum + (fi.dias_traslado || 0) * (fi.costo_traslado || 0) +
+    (fi.impresion_total || 0) +
+    (fi.honorarios_total || 0) +
+    (fi.informe_final_total || 0), 0);
   const totalAdditional = additionalItems.reduce((sum, item) => sum + (item.total || 0), 0);
-  const totalGeneral = totalTraslado + totalImpresion + totalHonorarios + totalInformeFinal + totalAdditional;
+  const totalGeneral = totalFixed + totalAdditional;
 
-  // Item verification progress
-  const verifiedCount = additionalItems.filter(item => item.verificacion === "listo").length;
-  const totalCount = additionalItems.length;
+  // Item verification progress (fixed items + additional items)
+  const fixedVerifiedCount = osiFixedItems.reduce((sum, fi) =>
+    sum +
+    (fi.verificacion_traslado === "listo" ? 1 : 0) +
+    (fi.verificacion_impresion === "listo" ? 1 : 0) +
+    (fi.verificacion_honorarios === "listo" ? 1 : 0) +
+    (fi.verificacion_informe_final === "listo" ? 1 : 0), 0);
+  const fixedTotalCount = osiFixedItems.length * 4;
+  const additionalVerifiedCount = additionalItems.filter(item => item.verificacion === "listo").length;
+  const verifiedCount = fixedVerifiedCount + additionalVerifiedCount;
+  const totalCount = fixedTotalCount + additionalItems.length;
   const progressPct = totalCount > 0 ? (verifiedCount / totalCount) * 100 : 0;
 
   // Execution date alert
@@ -75,6 +85,13 @@ export default function RequisicionView({
       try {
         await markAllItemsVerificadas(record.id);
         setLocalItems(prev => prev.map(item => ({ ...item, verificacion: "listo" as const })));
+        setLocalFixedItems(prev => prev.map(fi => ({
+          ...fi,
+          verificacion_traslado: "listo" as const,
+          verificacion_impresion: "listo" as const,
+          verificacion_honorarios: "listo" as const,
+          verificacion_informe_final: "listo" as const,
+        })));
         await setRequisicionEstatus(record.id, "procesada");
         router.refresh();
       } catch (error) {
@@ -117,6 +134,29 @@ export default function RequisicionView({
       // Rollback on error
       setLocalItems(prev => prev.map(item =>
         item.id === itemId ? { ...item, verificacion: currentStatus as "listo" | "pendiente" } : item
+      ));
+      alert("Error al actualizar el item");
+    } finally {
+      setTogglingItemId(null);
+    }
+  };
+
+  const handleToggleFixedItem = async (
+    idOsi: number,
+    field: "verificacion_traslado" | "verificacion_impresion" | "verificacion_honorarios" | "verificacion_informe_final",
+    currentStatus: string,
+  ) => {
+    const newStatus = currentStatus === "listo" ? "pendiente" : "listo";
+    setLocalFixedItems(prev => prev.map(fi =>
+      fi.id_osi === idOsi ? { ...fi, [field]: newStatus } : fi
+    ));
+    setTogglingItemId(`${idOsi}-${field}`);
+    try {
+      await updateFixedItemVerificacion(record.id, idOsi, field, newStatus as "listo" | "pendiente");
+    } catch (error) {
+      console.error("Error updating fixed item verification:", error);
+      setLocalFixedItems(prev => prev.map(fi =>
+        fi.id_osi === idOsi ? { ...fi, [field]: currentStatus } : fi
       ));
       alert("Error al actualizar el item");
     } finally {
@@ -200,7 +240,7 @@ export default function RequisicionView({
         </div>
       )}
 
-      {/* Verification progress (admin only, when there are additional items) */}
+      {/* Verification progress (admin only) */}
       {isAdminView && totalCount > 0 && (
         <div className="mb-4 px-4 py-3 bg-white border border-gray-200 rounded-lg shadow-sm">
           <div className="flex items-center justify-between mb-2">
@@ -296,6 +336,9 @@ export default function RequisicionView({
                 {!isGeneralMode && (
                   <th className="p-2 border-r border-gray-300 w-32">PRECIO U.</th>
                 )}
+                {isCapacitacion && osiFixedItems.length > 1 && (
+                  <th className="p-2 border-r border-gray-300 w-28">OSI</th>
+                )}
                 {isGeneralMode ? (
                   <th className="p-2 w-24">VERIF.</th>
                 ) : (
@@ -307,30 +350,63 @@ export default function RequisicionView({
               </tr>
             </thead>
             <tbody>
-              {isCapacitacion && (
-              <>
+              {isCapacitacion && (() => {
+                let dynItemNum = osiFixedItems.length * 4 + 1;
+                return (<>
+                {osiFixedItems.map((fi, osiIdx) => {
+                const osiTotal =
+                  (fi.dias_traslado || 0) * (fi.costo_traslado || 0) +
+                  (fi.impresion_total || 0) +
+                  (fi.honorarios_total || 0) +
+                  (fi.informe_final_total || 0);
+                const osiAddlItems = additionalItems.filter(item => item.id_osi === fi.id_osi);
+                const osiAddlTotal = osiAddlItems.reduce((sum, i) => sum + (i.total || 0), 0);
+                return (
+                <Fragment key={`osi-view-${fi.id_osi}`}>
+              {/* OSI block header */}
+              <tr className="bg-blue-100/60 border-b border-gray-300">
+                <td colSpan={isAdminView ? (osiFixedItems.length > 1 ? 8 : 7) : (osiFixedItems.length > 1 ? 7 : 6)} className="p-2 font-bold text-xs text-blue-800">
+                  OSI: {fi.nro_osi || `#${fi.id_osi}`}
+                </td>
+              </tr>
               {/* Item 1: Traslado */}
               <tr className="border-b border-gray-300">
-                <td className="p-2 text-center border-r border-gray-300 font-bold">1</td>
+                <td className="p-2 text-center border-r border-gray-300 font-bold">{osiIdx * 4 + 1}</td>
                 <td className="p-2 text-center border-r border-gray-300 font-bold uppercase">T</td>
                 <td className="p-2 border-r border-gray-300"></td>
                 <td className="p-2 border-r border-gray-300">
                   <div className="flex items-center gap-2">
-                    <span className="font-bold">{record.dias_traslado || 0}</span>
+                    <span className="font-bold">{fi.dias_traslado || 0}</span>
                     <span className="uppercase text-[10px] font-medium">DÍAS DE TRASL. COSTO TOTAL $</span>
                   </div>
                 </td>
                 <td className="p-2 text-center font-bold border-r border-gray-300 bg-gray-50/50">
-                  ${totalTraslado.toFixed(2)}
+                  ${((fi.dias_traslado || 0) * (fi.costo_traslado || 0)).toFixed(2)}
                 </td>
+                {osiFixedItems.length > 1 && (
+                  <td className="p-2 text-center border-r border-gray-300 font-bold text-blue-700 text-[10px]">
+                    {fi.nro_osi || `#${fi.id_osi}`}
+                  </td>
+                )}
                 <td className="p-2 text-center font-bold bg-gray-50/50">
-                  ${totalTraslado.toFixed(2)}
+                  {""}
                 </td>
-                {isAdminView && <td className="p-2 border-l border-gray-300"></td>}
+                {isAdminView && (
+                  <td className="p-2 text-center border-l border-gray-300">
+                    <input
+                      type="checkbox"
+                      checked={fi.verificacion_traslado === "listo"}
+                      disabled={togglingItemId === `${fi.id_osi}-verificacion_traslado`}
+                      onChange={() => handleToggleFixedItem(fi.id_osi, "verificacion_traslado", fi.verificacion_traslado || "pendiente")}
+                      className="h-4 w-4 cursor-pointer accent-emerald-600"
+                      title={fi.verificacion_traslado === "listo" ? "Verificado" : "Marcar como verificado"}
+                    />
+                  </td>
+                )}
               </tr>
               {/* Item 2: Impresión */}
               <tr className="border-b border-gray-300">
-                <td className="p-2 text-center border-r border-gray-300 font-bold">2</td>
+                <td className="p-2 text-center border-r border-gray-300 font-bold">{osiIdx * 4 + 2}</td>
                 <td className="p-2 text-center border-r border-gray-300 font-bold uppercase">I</td>
                 <td className="p-2 border-r border-gray-300"></td>
                 <td className="p-2 border-r border-gray-300">
@@ -339,37 +415,69 @@ export default function RequisicionView({
                   </div>
                 </td>
                 <td className="p-2 text-center font-bold border-r border-gray-300 bg-gray-50/50">
-                  ${totalImpresion.toFixed(2)}
+                  ${(fi.impresion_total || 0).toFixed(2)}
                 </td>
+                {osiFixedItems.length > 1 && (
+                  <td className="p-2 text-center border-r border-gray-300 font-bold text-blue-700 text-[10px]">
+                    {fi.nro_osi || `#${fi.id_osi}`}
+                  </td>
+                )}
                 <td className="p-2 text-center font-bold bg-gray-50/50">
-                  ${totalImpresion.toFixed(2)}
+                  {""}
                 </td>
-                {isAdminView && <td className="p-2 border-l border-gray-300"></td>}
+                {isAdminView && (
+                  <td className="p-2 text-center border-l border-gray-300">
+                    <input
+                      type="checkbox"
+                      checked={fi.verificacion_impresion === "listo"}
+                      disabled={togglingItemId === `${fi.id_osi}-verificacion_impresion`}
+                      onChange={() => handleToggleFixedItem(fi.id_osi, "verificacion_impresion", fi.verificacion_impresion || "pendiente")}
+                      className="h-4 w-4 cursor-pointer accent-emerald-600"
+                      title={fi.verificacion_impresion === "listo" ? "Verificado" : "Marcar como verificado"}
+                    />
+                  </td>
+                )}
               </tr>
               {/* Item 3: Honorarios */}
               <tr className="border-b border-gray-300">
-                <td className="p-2 text-center border-r border-gray-300 font-bold">3</td>
+                <td className="p-2 text-center border-r border-gray-300 font-bold">{osiIdx * 4 + 3}</td>
                 <td className="p-2 text-center border-r border-gray-300 font-bold uppercase">H</td>
                 <td className="p-2 border-r border-gray-300"></td>
                 <td className="p-2 border-r border-gray-300">
                   <div className="flex items-center gap-2">
                     <span className="font-medium uppercase">HONORARIOS TOTAL $</span>
-                    <span className="mx-2 font-bold">{totalHonorarios.toFixed(2)}</span>
+                    <span className="mx-2 font-bold">${(fi.honorarios_total || 0).toFixed(2)}</span>
                     <span className="font-medium uppercase">, POR HORAS</span>
-                    <span className="font-bold">{record.honorarios_horas || 0}</span>
+                    <span className="font-bold">{fi.honorarios_horas || 0}</span>
                   </div>
                 </td>
                 <td className="p-2 text-center font-bold border-r border-gray-300 bg-gray-50/50">
-                  ${totalHonorarios.toFixed(2)}
+                  ${(fi.honorarios_total || 0).toFixed(2)}
                 </td>
+                {osiFixedItems.length > 1 && (
+                  <td className="p-2 text-center border-r border-gray-300 font-bold text-blue-700 text-[10px]">
+                    {fi.nro_osi || `#${fi.id_osi}`}
+                  </td>
+                )}
                 <td className="p-2 text-center font-bold bg-gray-50/50">
-                  ${totalHonorarios.toFixed(2)}
+                  {""}
                 </td>
-                {isAdminView && <td className="p-2 border-l border-gray-300"></td>}
+                {isAdminView && (
+                  <td className="p-2 text-center border-l border-gray-300">
+                    <input
+                      type="checkbox"
+                      checked={fi.verificacion_honorarios === "listo"}
+                      disabled={togglingItemId === `${fi.id_osi}-verificacion_honorarios`}
+                      onChange={() => handleToggleFixedItem(fi.id_osi, "verificacion_honorarios", fi.verificacion_honorarios || "pendiente")}
+                      className="h-4 w-4 cursor-pointer accent-emerald-600"
+                      title={fi.verificacion_honorarios === "listo" ? "Verificado" : "Marcar como verificado"}
+                    />
+                  </td>
+                )}
               </tr>
               {/* Item 4: Informe Final */}
               <tr className="border-b border-gray-300">
-                <td className="p-2 text-center border-r border-gray-300 font-bold">4</td>
+                <td className="p-2 text-center border-r border-gray-300 font-bold">{osiIdx * 4 + 4}</td>
                 <td className="p-2 text-center border-r border-gray-300 font-bold uppercase whitespace-nowrap">IF</td>
                 <td className="p-2 border-r border-gray-300"></td>
                 <td className="p-2 border-r border-gray-300">
@@ -378,20 +486,182 @@ export default function RequisicionView({
                   </div>
                 </td>
                 <td className="p-2 text-center font-bold border-r border-gray-300 bg-gray-50/50">
-                  ${totalInformeFinal.toFixed(2)}
+                  ${(fi.informe_final_total || 0).toFixed(2)}
                 </td>
+                {osiFixedItems.length > 1 && (
+                  <td className="p-2 text-center border-r border-gray-300 font-bold text-blue-700 text-[10px]">
+                    {fi.nro_osi || `#${fi.id_osi}`}
+                  </td>
+                )}
                 <td className="p-2 text-center font-bold bg-gray-50/50">
-                  ${totalInformeFinal.toFixed(2)}
+                  {""}
+                </td>
+                {isAdminView && (
+                  <td className="p-2 text-center border-l border-gray-300">
+                    <input
+                      type="checkbox"
+                      checked={fi.verificacion_informe_final === "listo"}
+                      disabled={togglingItemId === `${fi.id_osi}-verificacion_informe_final`}
+                      onChange={() => handleToggleFixedItem(fi.id_osi, "verificacion_informe_final", fi.verificacion_informe_final || "pendiente")}
+                      className="h-4 w-4 cursor-pointer accent-emerald-600"
+                      title={fi.verificacion_informe_final === "listo" ? "Verificado" : "Marcar como verificado"}
+                    />
+                  </td>
+                )}
+              </tr>
+              {/* Per-OSI subtotal */}
+              <tr className="bg-gray-50 border-b border-gray-300">
+                <td colSpan={osiFixedItems.length > 1 ? 5 : 4} className="p-2 text-right font-bold uppercase text-[10px]">Subtotal OSI {fi.nro_osi}:</td>
+                {osiFixedItems.length > 1 ? (
+                  <td className="p-2 text-center font-bold text-blue-700 text-[10px] border-r border-gray-300">
+                    {fi.nro_osi || `#${fi.id_osi}`}
+                  </td>
+                ) : (
+                  <td className="p-2 text-center font-bold text-xs border-r border-gray-300">
+                    ${osiTotal.toFixed(2)}
+                  </td>
+                )}
+                <td className="p-2 text-center font-bold text-xs bg-yellow-50">
+                  ${osiTotal.toFixed(2)}
                 </td>
                 {isAdminView && <td className="p-2 border-l border-gray-300"></td>}
               </tr>
-              </>
+              {/* Dynamic items assigned to this OSI */}
+              {osiAddlItems.length > 0 && (
+                <tr className="bg-blue-100/40 border-b border-gray-300">
+                  <td colSpan={isAdminView ? (osiFixedItems.length > 1 ? 8 : 7) : (osiFixedItems.length > 1 ? 7 : 6)} className="p-2 font-bold text-[10px] text-blue-700">
+                    Items dinámicos — OSI: {fi.nro_osi || `#${fi.id_osi}`}
+                  </td>
+                </tr>
               )}
+              {osiAddlItems.map((item) => {
+                const itemNum = dynItemNum++;
+                return (
+                  <tr key={item.id} className="border-b border-gray-300 bg-blue-50/10">
+                    <td className="p-2 text-center border-r border-gray-300 font-bold">{itemNum}</td>
+                    <td className="p-2 border-r border-gray-300 text-center uppercase font-bold">
+                      {item.unidad || "und"}
+                    </td>
+                    <td className="p-2 text-center border-r border-gray-300 font-bold">
+                      {item.cant || 1}
+                    </td>
+                    <td className="p-2 border-r border-gray-300">
+                      <div className="flex justify-between items-center px-1">
+                        <span className="uppercase">{item.descripcion || "-"}</span>
+                      </div>
+                    </td>
+                    <td className="p-2 text-center font-bold border-r border-gray-300">
+                      ${item.costo_unitario?.toFixed(2) || "0.00"}
+                    </td>
+                    {osiFixedItems.length > 1 && (
+                      <td className="p-2 text-center border-r border-gray-300 font-bold text-blue-700 text-[10px]">
+                        {fi.nro_osi || `#${fi.id_osi}`}
+                      </td>
+                    )}
+                    <td className="p-2 text-center font-bold bg-blue-50/20">
+                      ${item.total?.toFixed(2) || "0.00"}
+                    </td>
+                    {isAdminView && (
+                      <td className="p-2 text-center border-l border-gray-300">
+                        <input
+                          type="checkbox"
+                          checked={item.verificacion === "listo"}
+                          disabled={togglingItemId === item.id}
+                          onChange={() => handleToggleItem(item.id, item.verificacion || "pendiente")}
+                          className="h-4 w-4 cursor-pointer accent-emerald-600"
+                          title={item.verificacion === "listo" ? "Verificado" : "Marcar como verificado"}
+                        />
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
+              {/* Per-OSI dynamic subtotal */}
+              {osiAddlItems.length > 0 && (
+                <tr className="bg-gray-50 border-b border-gray-300">
+                  <td colSpan={osiFixedItems.length > 1 ? 5 : 4} className="p-2 text-right font-bold uppercase text-[10px]">Subtotal items din. OSI {fi.nro_osi}:</td>
+                  {osiFixedItems.length > 1 ? (
+                    <td className="p-2 text-center font-bold text-blue-700 text-[10px] border-r border-gray-300">
+                      {fi.nro_osi || `#${fi.id_osi}`}
+                    </td>
+                  ) : (
+                    <td className="p-2 text-center font-bold text-xs border-r border-gray-300">
+                      ${osiAddlTotal.toFixed(2)}
+                    </td>
+                  )}
+                  <td className="p-2 text-center font-bold text-xs bg-yellow-50">
+                    ${osiAddlTotal.toFixed(2)}
+                  </td>
+                  {isAdminView && <td className="p-2 border-l border-gray-300"></td>}
+                </tr>
+              )}
+                </Fragment>
+                );
+              })}
+              {/* Unassigned dynamic items (Capacitación) */}
+              {(() => {
+                const unassignedItems = additionalItems.filter(i => i.id_osi == null);
+                if (unassignedItems.length === 0) return null;
+                return (
+                  <Fragment key="addl-unassigned">
+                    <tr className="bg-amber-100/60 border-b border-gray-300">
+                      <td colSpan={isAdminView ? (osiFixedItems.length > 1 ? 8 : 7) : (osiFixedItems.length > 1 ? 7 : 6)} className="p-2 font-bold text-xs text-amber-800">
+                        Items dinámicos — Sin OSI asignada
+                      </td>
+                    </tr>
+                    {unassignedItems.map((item) => {
+                      const itemNum = dynItemNum++;
+                      return (
+                        <tr key={item.id} className="border-b border-gray-300 bg-amber-50/10">
+                          <td className="p-2 text-center border-r border-gray-300 font-bold">{itemNum}</td>
+                          <td className="p-2 border-r border-gray-300 text-center uppercase font-bold">
+                            {item.unidad || "und"}
+                          </td>
+                          <td className="p-2 text-center border-r border-gray-300 font-bold">
+                            {item.cant || 1}
+                          </td>
+                          <td className="p-2 border-r border-gray-300">
+                            <div className="flex justify-between items-center px-1">
+                              <span className="uppercase">{item.descripcion || "-"}</span>
+                            </div>
+                          </td>
+                          <td className="p-2 text-center font-bold border-r border-gray-300">
+                            ${item.costo_unitario?.toFixed(2) || "0.00"}
+                          </td>
+                          {osiFixedItems.length > 1 && (
+                            <td className="p-2 text-center border-r border-gray-300 font-bold text-amber-600 text-[10px]">
+                              —
+                            </td>
+                          )}
+                          <td className="p-2 text-center font-bold bg-amber-50/20">
+                            ${item.total?.toFixed(2) || "0.00"}
+                          </td>
+                          {isAdminView && (
+                            <td className="p-2 text-center border-l border-gray-300">
+                              <input
+                                type="checkbox"
+                                checked={item.verificacion === "listo"}
+                                disabled={togglingItemId === item.id}
+                                onChange={() => handleToggleItem(item.id, item.verificacion || "pendiente")}
+                                className="h-4 w-4 cursor-pointer accent-emerald-600"
+                                title={item.verificacion === "listo" ? "Verificado" : "Marcar como verificado"}
+                              />
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })}
+                  </Fragment>
+                );
+              })()}
+              </>
+              );
+              })()}
 
-              {/* Additional Items */}
-              {additionalItems.map((item, index) => (
+              {/* Additional Items (non-Capacitación) */}
+              {!isCapacitacion && additionalItems.map((item, index) => (
                 <tr key={item.id} className="border-b border-gray-300 bg-blue-50/10">
-                  <td className="p-2 text-center border-r border-gray-300 font-bold">{index + (isCapacitacion ? 5 : 1)}</td>
+                  <td className="p-2 text-center border-r border-gray-300 font-bold">{index + 1}</td>
                   <td className="p-2 border-r border-gray-300 text-center uppercase font-bold">
                     {item.unidad || "und"}
                   </td>
@@ -438,7 +708,7 @@ export default function RequisicionView({
 
               {!isGeneralMode && (
               <tr className="bg-gray-100 border-b border-gray-300">
-                <td colSpan={isAdminView ? 5 : 5} className="p-2 text-right font-bold uppercase text-sm">Total General:</td>
+                <td colSpan={isCapacitacion && osiFixedItems.length > 1 ? (isAdminView ? 6 : 6) : (isAdminView ? 5 : 5)} className="p-2 text-right font-bold uppercase text-sm">Total General:</td>
                 <td className="p-2 text-center font-bold text-sm bg-yellow-50">
                   ${totalGeneral.toFixed(2)}
                 </td>

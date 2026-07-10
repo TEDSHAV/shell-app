@@ -9,6 +9,7 @@ import {
   OSIFullData,
   RequisicionItem,
   VerificacionStatus,
+  OSIFixedItem,
 } from "@/types/requisiciones";
 import {
   notifyAdminsOfNewRequisicion,
@@ -116,6 +117,9 @@ export async function createRequisicionRecord(
     cant_impresion: 1,
     cant_honorarios: 1,
     cant_informe_final: 1,
+
+    // Per-OSI fixed items (Capacitación mode)
+    osi_fixed_items: isCapacitacion ? formData.osi_fixed_items : [],
 
     // Facilitator (null when non-Capacitacion)
     cod_facilitador: isCapacitacion && formData.cod_facilitador ? parseInt(formData.cod_facilitador) : null,
@@ -279,6 +283,9 @@ export async function updateRequisicionRecord(
     cant_impresion: 1,
     cant_honorarios: 1,
     cant_informe_final: 1,
+
+    // Per-OSI fixed items (Capacitación mode)
+    osi_fixed_items: isCapacitacion ? formData.osi_fixed_items : [],
 
     // Facilitator (null when non-Capacitacion)
     cod_facilitador: isCapacitacion && formData.cod_facilitador ? parseInt(formData.cod_facilitador) : null,
@@ -461,7 +468,41 @@ export async function updateItemVerificacion(
   revalidatePath("/requisiciones");
 }
 
-// Mark all additional_items as "listo" (Administración only)
+// Toggle verification for a fixed item field within an OSI block (Administración only)
+export async function updateFixedItemVerificacion(
+  requisicionId: number,
+  idOsi: number,
+  field: "verificacion_traslado" | "verificacion_impresion" | "verificacion_honorarios" | "verificacion_informe_final",
+  verificacion: VerificacionStatus,
+) {
+  if (!(await isRequisicionesAdmin())) {
+    throw new Error("No tiene permisos para verificar items de requisiciones.");
+  }
+
+  const supabase = await createClient();
+  const { data: record, error: fetchError } = await supabase
+    .from("requisiciones")
+    .select("osi_fixed_items")
+    .eq("id", requisicionId)
+    .single();
+
+  if (fetchError) throw fetchError;
+
+  const fixedItems: OSIFixedItem[] = (record?.osi_fixed_items || []).map(
+    (fi: OSIFixedItem) =>
+      fi.id_osi === idOsi ? { ...fi, [field]: verificacion } : fi,
+  );
+
+  const { error } = await supabase
+    .from("requisiciones")
+    .update({ osi_fixed_items: fixedItems })
+    .eq("id", requisicionId);
+
+  if (error) throw error;
+  revalidatePath("/requisiciones");
+}
+
+// Mark all additional_items and osi_fixed_items as "listo" (Administración only)
 export async function markAllItemsVerificadas(requisicionId: number) {
   if (!(await isRequisicionesAdmin())) {
     throw new Error("No tiene permisos para verificar items de requisiciones.");
@@ -470,7 +511,7 @@ export async function markAllItemsVerificadas(requisicionId: number) {
   const supabase = await createClient();
   const { data: record, error: fetchError } = await supabase
     .from("requisiciones")
-    .select("additional_items")
+    .select("additional_items, osi_fixed_items")
     .eq("id", requisicionId)
     .single();
 
@@ -480,9 +521,19 @@ export async function markAllItemsVerificadas(requisicionId: number) {
     (item: RequisicionItem) => ({ ...item, verificacion: "listo" }),
   );
 
+  const fixedItems: OSIFixedItem[] = (record?.osi_fixed_items || []).map(
+    (fi: OSIFixedItem) => ({
+      ...fi,
+      verificacion_traslado: "listo" as const,
+      verificacion_impresion: "listo" as const,
+      verificacion_honorarios: "listo" as const,
+      verificacion_informe_final: "listo" as const,
+    }),
+  );
+
   const { error } = await supabase
     .from("requisiciones")
-    .update({ additional_items: items })
+    .update({ additional_items: items, osi_fixed_items: fixedItems })
     .eq("id", requisicionId);
 
   if (error) throw error;

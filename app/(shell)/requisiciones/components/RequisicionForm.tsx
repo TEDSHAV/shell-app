@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect, Suspense, useRef } from "react";
+import { useState, useEffect, Suspense, useRef, Fragment } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Plus, Trash2, CheckCircle2, Lock } from "lucide-react";
-import { RequisicionFormData, OSIFullData, RequisicionItem } from "@/types/requisiciones";
+import { RequisicionFormData, OSIFullData, RequisicionItem, OSIFixedItem } from "@/types/requisiciones";
 import { Button } from "@/components/ui/button";
 import {
   getOSIForRequisicion,
@@ -123,6 +123,9 @@ function RequisicionFormContent({
     honorarios_total: editRecord?.honorarios_total ?? 0,
     informe_final_total: editRecord?.informe_final_total ?? 0,
 
+    // Per-OSI fixed items (Capacitación mode)
+    osi_fixed_items: editRecord?.osi_fixed_items || [],
+
     // Additional dynamic items
     additional_items: editRecord?.additional_items || [],
 
@@ -169,6 +172,7 @@ function RequisicionFormContent({
       is_general: newMode === "general",
       gerencia_solicitante: gerenciaMap[newMode],
       selectedOSIs: [],
+      osi_fixed_items: [],
       tipo_solicitud: newMode === "general" ? "Interno" : "Externo",
     }));
     setSearchTerm("");
@@ -214,7 +218,7 @@ function RequisicionFormContent({
       const newSelection = already
         ? prev.selectedOSIs.filter((s) => s.id_osi !== osi.id_osi)
         : [...prev.selectedOSIs, osi];
-      
+
       // Auto-populate cost fields ONLY for Capacitación department
       if (!isCapacitacionDept) {
         return {
@@ -223,17 +227,93 @@ function RequisicionFormContent({
         };
       }
 
-      const firstOSI = newSelection[0];
+      // Manage per-OSI fixed items
+      let newFixedItems: OSIFixedItem[];
+      if (already) {
+        // Removing this OSI - remove its fixed items block
+        newFixedItems = prev.osi_fixed_items.filter((fi) => fi.id_osi !== osi.id_osi);
+      } else {
+        // Adding this OSI - create a new fixed items block with auto-filled values
+        const newFixedItem: OSIFixedItem = {
+          id_osi: osi.id_osi,
+          nro_osi: osi.nro_osi,
+          dias_traslado: 1,
+          costo_traslado: osi.costo_traslado || 0,
+          impresion_total: osi.costo_impresion_material || 0,
+          honorarios_horas: osi.horas_honorarios_instructor || 0,
+          honorarios_costo_hora: osi.tarifa_hora_honorarios || 0,
+          honorarios_total: (osi.horas_honorarios_instructor || 0) * (osi.tarifa_hora_honorarios || 0),
+          informe_final_total: 0,
+          verificacion_traslado: "pendiente",
+          verificacion_impresion: "pendiente",
+          verificacion_honorarios: "pendiente",
+          verificacion_informe_final: "pendiente",
+        };
+        newFixedItems = [...prev.osi_fixed_items, newFixedItem];
+      }
+
+      // Keep legacy single-value fields in sync with first OSI for backward compat
+      const firstFixed = newFixedItems[0];
       return {
         ...prev,
         selectedOSIs: newSelection,
-        costo_traslado: firstOSI?.costo_traslado || 0,
-        impresion_total: firstOSI?.costo_impresion_material || 0,
-        honorarios_horas: firstOSI?.horas_honorarios_instructor || 0,
-        honorarios_costo_hora: firstOSI?.tarifa_hora_honorarios || 0,
-        honorarios_total: firstOSI
-          ? (firstOSI.horas_honorarios_instructor || 0) * (firstOSI.tarifa_hora_honorarios || 0)
-          : 0,
+        osi_fixed_items: newFixedItems,
+        costo_traslado: firstFixed?.costo_traslado || 0,
+        impresion_total: firstFixed?.impresion_total || 0,
+        honorarios_horas: firstFixed?.honorarios_horas || 0,
+        honorarios_costo_hora: firstFixed?.honorarios_costo_hora || 0,
+        honorarios_total: firstFixed?.honorarios_total || 0,
+        dias_traslado: firstFixed?.dias_traslado ?? 1,
+        informe_final_total: firstFixed?.informe_final_total || 0,
+      };
+    });
+  };
+
+  const updateOSIFixedItem = (idOsi: number, updates: Partial<OSIFixedItem>) => {
+    setFormData((prev) => {
+      const newFixedItems = prev.osi_fixed_items.map((fi) => {
+        if (fi.id_osi === idOsi) {
+          const updated = { ...fi, ...updates };
+          // Recalculate honorarios_total if relevant fields change
+          if ("honorarios_horas" in updates || "honorarios_costo_hora" in updates) {
+            updated.honorarios_total = (updated.honorarios_horas || 0) * (updated.honorarios_costo_hora || 0);
+          }
+          return updated;
+        }
+        return fi;
+      });
+      // Keep legacy single-value fields in sync with first OSI
+      const firstFixed = newFixedItems[0];
+      return {
+        ...prev,
+        osi_fixed_items: newFixedItems,
+        costo_traslado: firstFixed?.costo_traslado || 0,
+        impresion_total: firstFixed?.impresion_total || 0,
+        honorarios_horas: firstFixed?.honorarios_horas || 0,
+        honorarios_costo_hora: firstFixed?.honorarios_costo_hora || 0,
+        honorarios_total: firstFixed?.honorarios_total || 0,
+        dias_traslado: firstFixed?.dias_traslado ?? 1,
+        informe_final_total: firstFixed?.informe_final_total || 0,
+      };
+    });
+  };
+
+  const removeOSIFixedItemRow = (idOsi: number) => {
+    setFormData((prev) => {
+      const newFixedItems = prev.osi_fixed_items.filter((fi) => fi.id_osi !== idOsi);
+      const newSelection = prev.selectedOSIs.filter((s) => s.id_osi !== idOsi);
+      const firstFixed = newFixedItems[0];
+      return {
+        ...prev,
+        osi_fixed_items: newFixedItems,
+        selectedOSIs: newSelection,
+        costo_traslado: firstFixed?.costo_traslado || 0,
+        impresion_total: firstFixed?.impresion_total || 0,
+        honorarios_horas: firstFixed?.honorarios_horas || 0,
+        honorarios_costo_hora: firstFixed?.honorarios_costo_hora || 0,
+        honorarios_total: firstFixed?.honorarios_total || 0,
+        dias_traslado: firstFixed?.dias_traslado ?? 1,
+        informe_final_total: firstFixed?.informe_final_total || 0,
       };
     });
   };
@@ -527,44 +607,68 @@ function RequisicionFormContent({
               </tr>
             </thead>
             <tbody>
-              {isCapacitacion && (
-              <>
+              {isCapacitacion && (() => {
+                let dynItemNum = formData.osi_fixed_items.length * 4 + 1;
+                return (<>
+                {formData.osi_fixed_items.map((osiFi, osiIdx) => {
+                const osiTotal =
+                  (osiFi.dias_traslado || 0) * (osiFi.costo_traslado || 0) +
+                  (osiFi.impresion_total || 0) +
+                  (osiFi.honorarios_total || 0) +
+                  (osiFi.informe_final_total || 0);
+                return (
+                <Fragment key={`osi-block-${osiFi.id_osi}`}>
+              {/* OSI block header */}
+              <tr className="bg-blue-100/60 border-b border-gray-300">
+                <td colSpan={formData.selectedOSIs.length > 1 ? 8 : 7} className="p-2 font-bold text-xs text-blue-800 flex items-center justify-between">
+                  <span>OSI: {osiFi.nro_osi || `#${osiFi.id_osi}`}</span>
+                  <button
+                    type="button"
+                    onClick={() => removeOSIFixedItemRow(osiFi.id_osi)}
+                    className="text-red-500 hover:text-red-700"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </td>
+              </tr>
               {/* Item 1: Traslado */}
               <tr className="border-b border-gray-300">
-                <td className="p-2 text-center border-r border-gray-300 font-bold">1</td>
+                <td className="p-2 text-center border-r border-gray-300 font-bold">{osiIdx * 4 + 1}</td>
                 <td className="p-2 text-center border-r border-gray-300 font-bold uppercase">T</td>
                 <td className="p-2 border-r border-gray-300"></td>
                 <td className="p-2 border-r border-gray-300">
                   <div className="flex items-center gap-2">
                     <Input 
                       type="number" 
-                      value={formData.dias_traslado || ""} 
-                      onChange={(e) => setFormData(p => ({...p, dias_traslado: parseInt(e.target.value) || 0}))}
+                      value={osiFi.dias_traslado || ""} 
+                      onChange={(e) => updateOSIFixedItem(osiFi.id_osi, { dias_traslado: parseInt(e.target.value) || 0 })}
                       className="h-6 w-12 border-gray-300 p-1 text-center" 
                     />
                     <span className="uppercase text-[10px] font-medium">DÍAS DE TRASL. COSTO X C/U $</span>
                     <Input 
                       type="number" 
-                      value={formData.costo_traslado || ""} 
-                      onChange={(e) => setFormData(p => ({...p, costo_traslado: parseFloat(e.target.value) || 0}))}
+                      value={osiFi.costo_traslado || ""} 
+                      onChange={(e) => updateOSIFixedItem(osiFi.id_osi, { costo_traslado: parseFloat(e.target.value) || 0 })}
                       className="h-6 w-20 border-gray-300 p-1 font-bold" 
                     />
                   </div>
                 </td>
                 <td className="p-2 border-r border-gray-300 text-center font-bold">
-                  ${((formData.dias_traslado || 0) * (formData.costo_traslado || 0)).toFixed(2)}
+                  ${((osiFi.dias_traslado || 0) * (osiFi.costo_traslado || 0)).toFixed(2)}
                 </td>
                 {formData.selectedOSIs.length > 1 && (
-                  <td className="p-2 border-r border-gray-300"></td>
+                  <td className="p-2 border-r border-gray-300 text-center font-bold">
+                    ${((osiFi.dias_traslado || 0) * (osiFi.costo_traslado || 0)).toFixed(2)}
+                  </td>
                 )}
                 <td className="p-2 text-center font-bold">
-                  ${((formData.dias_traslado || 0) * (formData.costo_traslado || 0)).toFixed(2)}
+                  {""}
                 </td>
                 <td className="p-2 border-l border-gray-300"></td>
               </tr>
               {/* Item 2: Impresión */}
               <tr className="border-b border-gray-300">
-                <td className="p-2 text-center border-r border-gray-300 font-bold">2</td>
+                <td className="p-2 text-center border-r border-gray-300 font-bold">{osiIdx * 4 + 2}</td>
                 <td className="p-2 text-center border-r border-gray-300 font-bold uppercase">I</td>
                 <td className="p-2 border-r border-gray-300"></td>
                 <td className="p-2 border-r border-gray-300">
@@ -572,26 +676,28 @@ function RequisicionFormContent({
                     <span className="uppercase font-medium">IMPRESIÓN TOTAL $</span>
                     <Input 
                       type="number" 
-                      value={formData.impresion_total || ""} 
-                      onChange={(e) => setFormData(p => ({...p, impresion_total: parseFloat(e.target.value) || 0}))}
+                      value={osiFi.impresion_total || ""} 
+                      onChange={(e) => updateOSIFixedItem(osiFi.id_osi, { impresion_total: parseFloat(e.target.value) || 0 })}
                       className="h-6 w-24 border-gray-300 p-1 font-bold" 
                     />
                   </div>
                 </td>
                 <td className="p-2 border-r border-gray-300 text-center font-bold">
-                  ${(formData.impresion_total || 0).toFixed(2)}
+                  ${(osiFi.impresion_total || 0).toFixed(2)}
                 </td>
                 {formData.selectedOSIs.length > 1 && (
-                  <td className="p-2 border-r border-gray-300"></td>
+                  <td className="p-2 border-r border-gray-300 text-center font-bold">
+                    ${(osiFi.impresion_total || 0).toFixed(2)}
+                  </td>
                 )}
                 <td className="p-2 text-center font-bold">
-                  ${(formData.impresion_total || 0).toFixed(2)}
+                  {""}
                 </td>
                 <td className="p-2 border-l border-gray-300"></td>
               </tr>
               {/* Item 3: Honorarios */}
               <tr className="border-b border-gray-300">
-                <td className="p-2 text-center border-r border-gray-300 font-bold">3</td>
+                <td className="p-2 text-center border-r border-gray-300 font-bold">{osiIdx * 4 + 3}</td>
                 <td className="p-2 text-center border-r border-gray-300 font-bold uppercase">H</td>
                 <td className="p-2 border-r border-gray-300"></td>
                 <td className="p-2 border-r border-gray-300">
@@ -599,47 +705,35 @@ function RequisicionFormContent({
                     <span className="font-medium uppercase">HONORARIOS $</span>
                     <Input 
                       type="number" 
-                      value={formData.honorarios_costo_hora || ""} 
-                      onChange={(e) => {
-                        const cost = parseFloat(e.target.value) || 0;
-                        setFormData(p => ({
-                          ...p, 
-                          honorarios_costo_hora: cost, 
-                          honorarios_total: (p.honorarios_horas || 0) * cost
-                        }))
-                      }}
+                      value={osiFi.honorarios_costo_hora || ""} 
+                      onChange={(e) => updateOSIFixedItem(osiFi.id_osi, { honorarios_costo_hora: parseFloat(e.target.value) || 0 })}
                       className="h-6 w-24 border-gray-300 p-1 font-bold" 
                     />
                     <span className="font-medium uppercase">, POR HORAS</span>
                     <Input 
                       type="number" 
-                      value={formData.honorarios_horas || ""} 
-                      onChange={(e) => {
-                        const h = parseFloat(e.target.value) || 0;
-                        setFormData(p => ({
-                          ...p, 
-                          honorarios_horas: h, 
-                          honorarios_total: h * (p.honorarios_costo_hora ?? 0)
-                        }))
-                      }}
+                      value={osiFi.honorarios_horas || ""} 
+                      onChange={(e) => updateOSIFixedItem(osiFi.id_osi, { honorarios_horas: parseFloat(e.target.value) || 0 })}
                       className="h-6 w-12 border-gray-300 p-1 text-center" 
                     />
                   </div>
                 </td>
                 <td className="p-2 border-r border-gray-300 text-center font-bold">
-                  ${(formData.honorarios_total || 0).toFixed(2)}
+                  ${(osiFi.honorarios_total || 0).toFixed(2)}
                 </td>
                 {formData.selectedOSIs.length > 1 && (
-                  <td className="p-2 border-r border-gray-300"></td>
+                  <td className="p-2 border-r border-gray-300 text-center font-bold">
+                    ${(osiFi.honorarios_total || 0).toFixed(2)}
+                  </td>
                 )}
                 <td className="p-2 text-center font-bold">
-                  ${(formData.honorarios_total || 0).toFixed(2)}
+                  {""}
                 </td>
                 <td className="p-2 border-l border-gray-300"></td>
               </tr>
               {/* Item 4: Informe Final */}
               <tr className="border-b border-gray-300">
-                <td className="p-2 text-center border-r border-gray-300 font-bold">4</td>
+                <td className="p-2 text-center border-r border-gray-300 font-bold">{osiIdx * 4 + 4}</td>
                 <td className="p-2 text-center border-r border-gray-300 font-bold uppercase whitespace-nowrap">IF</td>
                 <td className="p-2 border-r border-gray-300"></td>
                 <td className="p-2 border-r border-gray-300">
@@ -647,31 +741,229 @@ function RequisicionFormContent({
                     <span className="uppercase font-medium">INFORME FINAL $</span>
                     <Input 
                       type="number" 
-                      value={formData.informe_final_total || ""} 
-                      onChange={(e) => setFormData(p => ({...p, informe_final_total: parseFloat(e.target.value) || 0}))}
+                      value={osiFi.informe_final_total || ""} 
+                      onChange={(e) => updateOSIFixedItem(osiFi.id_osi, { informe_final_total: parseFloat(e.target.value) || 0 })}
                       className="h-6 w-24 border-gray-300 p-1 font-bold" 
                       placeholder="0.00"
                     />
                   </div>
                 </td>
                 <td className="p-2 border-r border-gray-300 text-center font-bold">
-                  ${(formData.informe_final_total || 0).toFixed(2)}
+                  ${(osiFi.informe_final_total || 0).toFixed(2)}
+                </td>
+                {formData.selectedOSIs.length > 1 && (
+                  <td className="p-2 border-r border-gray-300 text-center font-bold">
+                    ${(osiFi.informe_final_total || 0).toFixed(2)}
+                  </td>
+                )}
+                <td className="p-2 text-center font-bold">
+                  {""}
+                </td>
+                <td className="p-2 border-l border-gray-300"></td>
+              </tr>
+              {/* Per-OSI subtotal */}
+              <tr className="bg-gray-50 border-b border-gray-300">
+                <td colSpan={4} className="p-2 text-right font-bold uppercase text-[10px]">Subtotal OSI {osiFi.nro_osi}:</td>
+                <td className="p-2 border-r border-gray-300 text-center font-bold text-xs">
+                  ${osiTotal.toFixed(2)}
                 </td>
                 {formData.selectedOSIs.length > 1 && (
                   <td className="p-2 border-r border-gray-300"></td>
                 )}
-                <td className="p-2 text-center font-bold">
-                  ${(formData.informe_final_total || 0).toFixed(2)}
+                <td className="p-2 text-center font-bold text-xs bg-yellow-50">
+                  ${osiTotal.toFixed(2)}
                 </td>
                 <td className="p-2 border-l border-gray-300"></td>
               </tr>
+              {/* Dynamic items assigned to this OSI */}
+              {formData.additional_items.filter(item => item.id_osi === osiFi.id_osi).map((item) => {
+                const dynIdx = dynItemNum++;
+                return (
+                  <tr key={item.id} className="border-b border-gray-300 bg-blue-50/30">
+                    <td className="p-2 text-center border-r border-gray-300 font-bold">{dynIdx}</td>
+                    <td className="p-2 border-r border-gray-300">
+                      <Input 
+                        className="h-6 w-full text-center border-gray-300 p-1 uppercase font-bold" 
+                        value={item.unidad}
+                        onChange={(e) => updateAdditionalItem(item.id, { unidad: e.target.value })}
+                        placeholder="und"
+                      />
+                    </td>
+                    <td className="p-2 border-r border-gray-300">
+                      <Input 
+                        type="number"
+                        className="h-6 w-full text-center border-gray-300 p-1" 
+                        value={item.cant}
+                        onChange={(e) => updateAdditionalItem(item.id, { cant: parseInt(e.target.value) || 1 })}
+                      />
+                    </td>
+                    <td className="p-2 border-r border-gray-300">
+                      <Input 
+                        className="h-6 w-full border-gray-300 p-1 uppercase" 
+                        value={item.descripcion}
+                        onChange={(e) => updateAdditionalItem(item.id, { descripcion: e.target.value })}
+                        placeholder="Descripción del item..."
+                      />
+                    </td>
+                    {!isGeneralMode && (
+                      <td className="p-2 border-r border-gray-300">
+                        <div className="flex items-center gap-1">
+                          <span>$</span>
+                          <Input 
+                            type="number"
+                            className="h-6 w-full border-gray-300 p-1 font-bold text-center" 
+                            value={item.costo_unitario}
+                            onChange={(e) => updateAdditionalItem(item.id, { costo_unitario: parseFloat(e.target.value) || 0 })}
+                          />
+                        </div>
+                      </td>
+                    )}
+                    {!isGeneralMode && formData.selectedOSIs.length > 1 && (
+                      <td className="p-2 border-r border-gray-300">
+                        <Select
+                          value={item.id_osi?.toString() || ""}
+                          onValueChange={(v: string) => updateAdditionalItem(item.id, { id_osi: parseInt(v) })}
+                        >
+                          <SelectTrigger className="h-6 text-xs border-gray-300">
+                            <SelectValue placeholder="Sin asignar" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {formData.selectedOSIs.map((osi) => (
+                              <SelectItem key={osi.id_osi} value={osi.id_osi.toString()}>
+                                {osi.nro_osi}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </td>
+                    )}
+                    {isGeneralMode ? (
+                      <td className="p-2 text-center">
+                        <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
+                          item.verificacion === "listo" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
+                        }`}>
+                          {item.verificacion === "listo" ? "Listo" : "Pendiente"}
+                        </span>
+                      </td>
+                    ) : (
+                      <td className="p-2 text-center font-bold">
+                        ${item.total.toFixed(2)}
+                      </td>
+                    )}
+                    <td className="p-2 border-l border-gray-300 text-center">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-red-500 hover:text-red-700 hover:bg-red-50"
+                        onClick={() => removeAdditionalItem(item.id)}
+                      >
+                        <Trash2 size={14} />
+                      </Button>
+                    </td>
+                  </tr>
+                );
+              })}
+                </Fragment>
+                );
+              })}
+              {/* Unassigned dynamic items (Capacitación) */}
+              {formData.additional_items.filter(item => item.id_osi == null).map((item) => {
+                const dynIdx = dynItemNum++;
+                return (
+                  <tr key={item.id} className="border-b border-gray-300 bg-blue-50/30">
+                    <td className="p-2 text-center border-r border-gray-300 font-bold">{dynIdx}</td>
+                    <td className="p-2 border-r border-gray-300">
+                      <Input 
+                        className="h-6 w-full text-center border-gray-300 p-1 uppercase font-bold" 
+                        value={item.unidad}
+                        onChange={(e) => updateAdditionalItem(item.id, { unidad: e.target.value })}
+                        placeholder="und"
+                      />
+                    </td>
+                    <td className="p-2 border-r border-gray-300">
+                      <Input 
+                        type="number"
+                        className="h-6 w-full text-center border-gray-300 p-1" 
+                        value={item.cant}
+                        onChange={(e) => updateAdditionalItem(item.id, { cant: parseInt(e.target.value) || 1 })}
+                      />
+                    </td>
+                    <td className="p-2 border-r border-gray-300">
+                      <Input 
+                        className="h-6 w-full border-gray-300 p-1 uppercase" 
+                        value={item.descripcion}
+                        onChange={(e) => updateAdditionalItem(item.id, { descripcion: e.target.value })}
+                        placeholder="Descripción del item..."
+                      />
+                    </td>
+                    {!isGeneralMode && (
+                      <td className="p-2 border-r border-gray-300">
+                        <div className="flex items-center gap-1">
+                          <span>$</span>
+                          <Input 
+                            type="number"
+                            className="h-6 w-full border-gray-300 p-1 font-bold text-center" 
+                            value={item.costo_unitario}
+                            onChange={(e) => updateAdditionalItem(item.id, { costo_unitario: parseFloat(e.target.value) || 0 })}
+                          />
+                        </div>
+                      </td>
+                    )}
+                    {!isGeneralMode && formData.selectedOSIs.length > 1 && (
+                      <td className="p-2 border-r border-gray-300">
+                        <Select
+                          value={item.id_osi?.toString() || ""}
+                          onValueChange={(v: string) => updateAdditionalItem(item.id, { id_osi: parseInt(v) })}
+                        >
+                          <SelectTrigger className="h-6 text-xs border-gray-300">
+                            <SelectValue placeholder="Sin asignar" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {formData.selectedOSIs.map((osi) => (
+                              <SelectItem key={osi.id_osi} value={osi.id_osi.toString()}>
+                                {osi.nro_osi}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </td>
+                    )}
+                    {isGeneralMode ? (
+                      <td className="p-2 text-center">
+                        <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
+                          item.verificacion === "listo" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
+                        }`}>
+                          {item.verificacion === "listo" ? "Listo" : "Pendiente"}
+                        </span>
+                      </td>
+                    ) : (
+                      <td className="p-2 text-center font-bold">
+                        ${item.total.toFixed(2)}
+                      </td>
+                    )}
+                    <td className="p-2 border-l border-gray-300 text-center">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-red-500 hover:text-red-700 hover:bg-red-50"
+                        onClick={() => removeAdditionalItem(item.id)}
+                      >
+                        <Trash2 size={14} />
+                      </Button>
+                    </td>
+                  </tr>
+                );
+              })}
               </>
-              )}
+              );
+              })()}
 
-              {/* Additional Items */}
-              {formData.additional_items.map((item, index) => (
+              {/* Additional Items (non-Capacitación) */}
+              {!isCapacitacion && formData.additional_items.map((item, index) => (
                 <tr key={item.id} className="border-b border-gray-300 bg-blue-50/30">
-                  <td className="p-2 text-center border-r border-gray-300 font-bold">{index + (isCapacitacion ? 5 : 1)}</td>
+                  <td className="p-2 text-center border-r border-gray-300 font-bold">{index + 1}</td>
                   <td className="p-2 border-r border-gray-300">
                     <Input 
                       className="h-6 w-full text-center border-gray-300 p-1 uppercase font-bold" 
@@ -761,10 +1053,12 @@ function RequisicionFormContent({
                 <td className="p-2 text-center font-bold text-sm bg-yellow-50">
                   ${(
                     (isCapacitacion
-                      ? (formData.dias_traslado || 0) * (formData.costo_traslado || 0) +
-                        (formData.impresion_total || 0) +
-                        (formData.honorarios_total || 0) +
-                        (formData.informe_final_total || 0)
+                      ? formData.osi_fixed_items.reduce((sum, fi) =>
+                          sum +
+                          (fi.dias_traslado || 0) * (fi.costo_traslado || 0) +
+                          (fi.impresion_total || 0) +
+                          (fi.honorarios_total || 0) +
+                          (fi.informe_final_total || 0), 0)
                       : 0) +
                     formData.additional_items.reduce((sum, item) => sum + item.total, 0)
                   ).toFixed(2)}

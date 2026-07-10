@@ -25,6 +25,22 @@ export interface RequisicionFilters {
   search: string;
 }
 
+export interface OSIFixedItem {
+  id_osi: number;
+  nro_osi: string | null;
+  dias_traslado: number;
+  costo_traslado: number;
+  impresion_total: number;
+  honorarios_horas: number;
+  honorarios_costo_hora: number;
+  honorarios_total: number;
+  informe_final_total: number;
+  verificacion_traslado: VerificacionStatus;
+  verificacion_impresion: VerificacionStatus;
+  verificacion_honorarios: VerificacionStatus;
+  verificacion_informe_final: VerificacionStatus;
+}
+
 export interface RequisicionFormData {
   selectedOSIs: OSIFullData[];
   is_general: boolean;
@@ -43,7 +59,7 @@ export interface RequisicionFormData {
   cant_honorarios: number;
   cant_informe_final: number;
 
-  // Details - Values
+  // Details - Values (legacy single-value, kept for backward compat)
   dias_traslado: number | null;
   costo_traslado: number | null;
   impresion_total: number | null;
@@ -51,6 +67,9 @@ export interface RequisicionFormData {
   honorarios_costo_hora: number | null;
   honorarios_total: number | null;
   informe_final_total: number | null;
+
+  // Per-OSI fixed items (Capacitación mode)
+  osi_fixed_items: OSIFixedItem[];
 
   // Additional dynamic items
   additional_items: RequisicionItem[];
