@@ -16,6 +16,9 @@ export async function getOSIList(
   limit = 20,
 ): Promise<OSIListResult> {
   try {
+    const accessFilter = await getUserOSIAccessFilter();
+    if (accessFilter === "none") return { osis: [], totalCount: 0 };
+
     const supabase = await createClient();
 
     let query = supabase
@@ -24,6 +27,13 @@ export async function getOSIList(
 
     // Exclude pending OSIs (nro_osi starting with PEN-)
     query = query.not("nro_osi", "like", "PEN-%");
+
+    // Apply department-based tipo_servicio filter
+    if (accessFilter === "capacitacion") {
+      query = query.ilike("tipo_servicio", "%capacitacion%");
+    } else if (accessFilter === "servicios_tecnicos") {
+      query = query.or("tipo_servicio.ilike.%servicios tecnicos%,tipo_servicio.ilike.%servicio tecnico%");
+    }
 
     // Apply filters
     if (filters.nroOsi) {
@@ -120,29 +130,80 @@ export async function getOSIList(
 
 export async function getOSIListFilterOptions(): Promise<OSIListFilterOptions> {
   try {
+    const accessFilter = await getUserOSIAccessFilter();
+    if (accessFilter === "none") {
+      return { companies: [], ejecutivos: [], cityOptions: [], statuses: [] };
+    }
+
     const supabase = await createClient();
+
+    const tipoServicioOr = accessFilter === "servicios_tecnicos"
+      ? "tipo_servicio.ilike.%servicios tecnicos%,tipo_servicio.ilike.%servicio tecnico%"
+      : null;
 
     const [companiesResult, ejecutivosResult, cityIdsResult, statusesResult] =
       await Promise.all([
-        supabase
-          .from("v_osi_formato_completo")
-          .select("id_empresa, nombre_empresa")
-          .not("nombre_empresa", "is", null)
-          .not("nro_osi", "like", "PEN-%")
-          .order("nombre_empresa"),
+        (accessFilter === "capacitacion"
+          ? supabase
+              .from("v_osi_formato_completo")
+              .select("id_empresa, nombre_empresa")
+              .not("nombre_empresa", "is", null)
+              .not("nro_osi", "like", "PEN-%")
+              .ilike("tipo_servicio", "%capacitacion%")
+          : tipoServicioOr
+            ? supabase
+                .from("v_osi_formato_completo")
+                .select("id_empresa, nombre_empresa")
+                .not("nombre_empresa", "is", null)
+                .not("nro_osi", "like", "PEN-%")
+                .or(tipoServicioOr)
+            : supabase
+                .from("v_osi_formato_completo")
+                .select("id_empresa, nombre_empresa")
+                .not("nombre_empresa", "is", null)
+                .not("nro_osi", "like", "PEN-%")
+        ).order("nombre_empresa"),
 
-        supabase
-          .from("v_osi_formato_completo")
-          .select("ejecutivo_negocios")
-          .not("ejecutivo_negocios", "is", null)
-          .not("nro_osi", "like", "PEN-%")
-          .order("ejecutivo_negocios"),
+        (accessFilter === "capacitacion"
+          ? supabase
+              .from("v_osi_formato_completo")
+              .select("ejecutivo_negocios")
+              .not("ejecutivo_negocios", "is", null)
+              .not("nro_osi", "like", "PEN-%")
+              .ilike("tipo_servicio", "%capacitacion%")
+          : tipoServicioOr
+            ? supabase
+                .from("v_osi_formato_completo")
+                .select("ejecutivo_negocios")
+                .not("ejecutivo_negocios", "is", null)
+                .not("nro_osi", "like", "PEN-%")
+                .or(tipoServicioOr)
+            : supabase
+                .from("v_osi_formato_completo")
+                .select("ejecutivo_negocios")
+                .not("ejecutivo_negocios", "is", null)
+                .not("nro_osi", "like", "PEN-%")
+        ).order("ejecutivo_negocios"),
 
-        supabase
-          .from("v_osi_formato_completo")
-          .select("id_ciudad_direccion_ejecucion_efectiva")
-          .not("id_ciudad_direccion_ejecucion_efectiva", "is", null)
-          .not("nro_osi", "like", "PEN-%"),
+        accessFilter === "capacitacion"
+          ? supabase
+              .from("v_osi_formato_completo")
+              .select("id_ciudad_direccion_ejecucion_efectiva")
+              .not("id_ciudad_direccion_ejecucion_efectiva", "is", null)
+              .not("nro_osi", "like", "PEN-%")
+              .ilike("tipo_servicio", "%capacitacion%")
+          : tipoServicioOr
+            ? supabase
+                .from("v_osi_formato_completo")
+                .select("id_ciudad_direccion_ejecucion_efectiva")
+                .not("id_ciudad_direccion_ejecucion_efectiva", "is", null)
+                .not("nro_osi", "like", "PEN-%")
+                .or(tipoServicioOr)
+            : supabase
+                .from("v_osi_formato_completo")
+                .select("id_ciudad_direccion_ejecucion_efectiva")
+                .not("id_ciudad_direccion_ejecucion_efectiva", "is", null)
+                .not("nro_osi", "like", "PEN-%"),
 
         supabase
           .from("conf_estatus")
@@ -308,78 +369,80 @@ export async function getOSIPreviewBundle(
   }
 }
 
-export async function canAccessConsultaOSI(): Promise<boolean> {
+export type OSIAccessFilter = "all" | "capacitacion" | "servicios_tecnicos" | "other" | "none";
+
+export async function getUserOSIAccessFilter(): Promise<OSIAccessFilter> {
   try {
     const supabase = await createClient();
 
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return false;
+    if (!user) return "none";
 
-    // Get user's auth claims for global role
     const { data: claimsData } = await supabase.auth.getClaims();
     const globalRole = (
       claimsData?.claims?.user_role as string
     )?.toLowerCase();
 
-    if (globalRole === "admin" || globalRole === "superadmin") return true;
+    if (globalRole === "superadmin") return "all";
 
-    // Get usuario record to check department
     const { data: usuario } = await supabase
       .from("usuarios")
       .select("departamento")
       .eq("id_auth", user.id)
       .single();
 
-    if (!usuario?.departamento) return false;
+    if (!usuario?.departamento) return "none";
 
-    // Check if user's department is TED
     const { data: depto } = await supabase
       .from("departamentos")
       .select("nombre")
       .eq("id", usuario.departamento)
       .single();
 
-    if (!depto?.nombre) return false;
+    if (!depto?.nombre) return "none";
 
-    return depto.nombre.toUpperCase().includes("TED");
+    const deptUpper = depto.nombre.toUpperCase();
+
+    if (deptUpper.includes("CAPACITACION")) return "capacitacion";
+    if (deptUpper.includes("SERVICIOS TECNICOS") || deptUpper.includes("SERVICIO TECNICO")) return "servicios_tecnicos";
+    if (deptUpper.includes("TED")) return "all";
+
+    return "other";
   } catch (err) {
-    console.error("Error checking consulta-osi access:", err);
-    return false;
+    console.error("Error getting OSI access filter:", err);
+    return "none";
   }
 }
 
-export async function canChangeOSIStatus(): Promise<boolean> {
+export async function canAccessConsultaOSI(): Promise<boolean> {
+  const filter = await getUserOSIAccessFilter();
+  return filter !== "none";
+}
+
+export async function canChangeOSIStatus(osiId?: number): Promise<boolean> {
   try {
-    const supabase = await createClient();
+    const filter = await getUserOSIAccessFilter();
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return false;
+    if (filter === "none" || filter === "other") return false;
+    if (filter === "all") return true;
 
-    const { data: claimsData } = await supabase.auth.getClaims();
-    const globalRole = (
-      claimsData?.claims?.user_role as string
-    )?.toLowerCase();
+    if (osiId !== undefined) {
+      const supabase = await createClient();
+      const { data: osi } = await supabase
+        .from("v_osi_formato_completo")
+        .select("tipo_servicio")
+        .eq("id_osi", osiId)
+        .single();
 
-    if (globalRole === "admin" || globalRole === "superadmin") return true;
+      if (!osi?.tipo_servicio) return false;
+      const tipoUpper = osi.tipo_servicio.toUpperCase();
 
-    const { data: usuario } = await supabase
-      .from("usuarios")
-      .select("departamento")
-      .eq("id_auth", user.id)
-      .single();
+      if (filter === "capacitacion") return tipoUpper.includes("CAPACITACION");
+      if (filter === "servicios_tecnicos")
+        return tipoUpper.includes("SERVICIOS TECNICOS") || tipoUpper.includes("SERVICIO TECNICO");
+    }
 
-    if (!usuario?.departamento) return false;
-
-    const { data: depto } = await supabase
-      .from("departamentos")
-      .select("nombre")
-      .eq("id", usuario.departamento)
-      .single();
-
-    if (!depto?.nombre) return false;
-
-    const deptUpper = depto.nombre.toUpperCase();
-    return deptUpper.includes("TED") || deptUpper.includes("CAPACITACION");
+    return true;
   } catch (err) {
     console.error("Error checking OSI status change permission:", err);
     return false;
@@ -391,7 +454,7 @@ export async function updateOSIStatus(
   newStatusId: number,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const canChange = await canChangeOSIStatus();
+    const canChange = await canChangeOSIStatus(osiId);
     if (!canChange) {
       return { success: false, error: "No tiene permisos para cambiar el estado de OSIs" };
     }

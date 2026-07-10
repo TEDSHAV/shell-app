@@ -4,7 +4,7 @@ import {
   OsiDocumentView,
   build_osi_preview_data,
 } from "@sha/osi-formato";
-import { canAccessConsultaOSI, getOSIPreviewBundle } from "@/actions/osi";
+import { canAccessConsultaOSI, getOSIPreviewBundle, getUserOSIAccessFilter } from "@/actions/osi";
 import { OsiPreviewToolbar } from "./OsiPreviewToolbar";
 
 export const metadata = {
@@ -30,6 +30,21 @@ export default async function ConsultaOSIPreviewPage({
   const bundle = await getOSIPreviewBundle(osiId);
   if (!bundle) {
     notFound();
+  }
+
+  const accessFilter = await getUserOSIAccessFilter();
+  if (accessFilter !== "all" && accessFilter !== "other") {
+    const tipoServicio = String(bundle.view_row?.tipo_servicio ?? "").toUpperCase();
+    if (accessFilter === "capacitacion" && !tipoServicio.includes("CAPACITACION")) {
+      redirect("/dashboard");
+    }
+    if (
+      accessFilter === "servicios_tecnicos" &&
+      !tipoServicio.includes("SERVICIOS TECNICOS") &&
+      !tipoServicio.includes("SERVICIO TECNICO")
+    ) {
+      redirect("/dashboard");
+    }
   }
 
   const previewData = build_osi_preview_data(bundle);
