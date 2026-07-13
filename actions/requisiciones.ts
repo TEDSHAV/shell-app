@@ -504,7 +504,7 @@ export async function setRequisicionEstatus(
     if (req?.created_by) {
       const requisicionLabel = req.tipo_solicitud === "Interno"
         ? "interna"
-        : `de la OSI N° ${req.v_osi_formato_completo?.nro_osi || ""}`;
+        : `de la OSI N° ${(req.v_osi_formato_completo as any)?.nro_osi || ""}`;
       if (estatus === "procesada") {
         console.log(`[setRequisicionEstatus] Calling notifyCreatorOfProcesada for creator ${req.created_by}`);
         await notifyCreatorOfProcesada(id, req.created_by, requisicionLabel);
@@ -710,7 +710,7 @@ export async function saveVerificacionProgress(requisicionId: number) {
   if (record?.created_by) {
     const requisicionLabel = record.tipo_solicitud === "Interno"
       ? "interna"
-      : `de la OSI N° ${record.v_osi_formato_completo?.nro_osi || ""}`;
+      : `de la OSI N° ${(record.v_osi_formato_completo as any)?.nro_osi || ""}`;
     await notifyCreatorOfPartialVerificacion(
       requisicionId,
       record.created_by,
