@@ -137,3 +137,37 @@ export async function notifyCreatorOfRechazada(
     console.error("[notifyCreatorOfRechazada] Unexpected error:", err);
   }
 }
+
+export async function notifyCreatorOfPartialVerificacion(
+  requisicionId: number,
+  creatorAuthId: string,
+  verifiedCount: number,
+  totalCount: number,
+) {
+  try {
+    const supabase = await createAdminClient();
+
+    const { error: insertError } = await supabase
+      .schema("notify")
+      .from("inbox")
+      .insert({
+          app_slug: "administracion",
+          event_key: "requisicion_parcial",
+          recipient_id_auth: creatorAuthId,
+          title: "Avance en Requisición",
+          body: `Tu requisición #${requisicionId} tiene ${verifiedCount} de ${totalCount} items verificados por Administración.`,
+          link_path: `/requisiciones/view/${requisicionId}`,
+          dedupe_key: `requisicion:${requisicionId}:parcial:${Date.now()}`,
+          priority: 1,
+        });
+
+    if (insertError) {
+      console.error(
+        "[notifyCreatorOfPartialVerificacion] Error inserting notification:",
+        insertError,
+      );
+    }
+  } catch (err) {
+    console.error("[notifyCreatorOfPartialVerificacion] Unexpected error:", err);
+  }
+}

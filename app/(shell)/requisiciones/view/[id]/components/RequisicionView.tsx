@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, Fragment } from "react";
+import { useState, Fragment, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { RequisicionItem, OSIFixedItem } from "@/types/requisiciones";
-import { setRequisicionEstatus, updateItemVerificacion, updateFixedItemVerificacion, markAllItemsVerificadas } from "@/actions/requisiciones";
-import { CheckCircle2, XCircle, Undo2, Clock, AlertTriangle, CalendarClock } from "lucide-react";
+import { setRequisicionEstatus, updateItemVerificacion, updateFixedItemVerificacion, markAllItemsVerificadas, saveVerificacionProgress, getExchangeRate } from "@/actions/requisiciones";
+import { CheckCircle2, XCircle, Undo2, Clock, AlertTriangle, CalendarClock, Copy, Check, Download, Save } from "lucide-react";
+import { pdf } from "@react-pdf/renderer";
+import RequisicionPdfDocument from "./RequisicionPdfDocument";
 
 export default function RequisicionView({ 
   record, 
@@ -24,10 +26,58 @@ export default function RequisicionView({
   const [togglingItemId, setTogglingItemId] = useState<string | null>(null);
   const [localItems, setLocalItems] = useState<RequisicionItem[]>(record.additional_items || []);
   const [localFixedItems, setLocalFixedItems] = useState<OSIFixedItem[]>(record.osi_fixed_items || []);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [exchangeRateInput, setExchangeRateInput] = useState<string>("");
+  const [isLoadingRate, setIsLoadingRate] = useState(false);
+
+  const isGeneralMode = record.tipo_solicitud === "Interno";
+  const isCapacitacionForRate = !isGeneralMode && record.gerencia_solicitante?.trim().toLowerCase() === "capacitacion";
+
+  useEffect(() => {
+    if (!isCapacitacionForRate) return;
+    let cancelled = false;
+    (async () => {
+      setIsLoadingRate(true);
+      try {
+        const rate = await getExchangeRate();
+        if (!cancelled && rate) {
+          setExchangeRateInput(String(rate));
+        }
+      } catch (e) {
+        console.error("Error fetching exchange rate:", e);
+      } finally {
+        if (!cancelled) setIsLoadingRate(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCapacitacionForRate]);
+
+  const verificadoPorMap: Record<string, string> = record.verificado_por_map || {};
+  const formatVerificadoTitle = (isListo: boolean, verificadoPor?: string | null, verificadoEn?: string | null) => {
+    if (!isListo) return "Marcar como verificado";
+    if (verificadoPor && verificadoEn) {
+      const nombre = verificadoPorMap[verificadoPor] || "usuario desconocido";
+      const d = new Date(verificadoEn);
+      const dateStr = `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}, ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}`;
+      return `Verificado por ${nombre} el ${dateStr}`;
+    }
+    return "Verificado";
+  };
+
+  const handleCopy = async (field: string, value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedField(field);
+      setTimeout(() => setCopiedField((prev) => (prev === field ? null : prev)), 1500);
+    } catch (e) {
+      console.error("Error copying to clipboard:", e);
+    }
+  };
 
   const additionalItems: RequisicionItem[] = localItems;
-  const isGeneralMode = record.tipo_solicitud === "Interno";
-  const isCapacitacion = !isGeneralMode && record.gerencia_solicitante?.trim().toLowerCase() === "capacitacion";
+  const isCapacitacion = isCapacitacionForRate;
   const osiFixedItems: OSIFixedItem[] = isCapacitacion ? localFixedItems : [];
   
   const estatus = record.estatus_admin || "pendiente";
@@ -121,6 +171,49 @@ export default function RequisicionView({
     }
   };
 
+  const handleSaveProgress = async () => {
+    setIsUpdating(true);
+    try {
+      const result = await saveVerificacionProgress(record.id);
+      alert(`Notificación enviada al solicitante: ${result.verifiedCount} de ${result.totalCount} items verificados.`);
+    } catch (error) {
+      console.error("Error saving verification progress:", error);
+      alert("Error al guardar el avance");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    setIsGeneratingPdf(true);
+    try {
+      const blob = await pdf(
+        <RequisicionPdfDocument
+          record={record}
+          isCapacitacion={isCapacitacion}
+          isGeneralMode={isGeneralMode}
+          osiFixedItems={osiFixedItems}
+          additionalItems={additionalItems}
+          linkedOSIs={linkedOSIs}
+          osiLookup={osiLookup}
+        />,
+      ).toBlob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Requisicion-${record.nro_correlativo || record.id}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      alert("Error al generar el PDF");
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
+
   const handleToggleItem = async (itemId: string, currentStatus: string) => {
     const newStatus = currentStatus === "listo" ? "pendiente" : "listo";
     // Optimistic update: immediately reflect the change in local state
@@ -167,6 +260,19 @@ export default function RequisicionView({
 
   return (
     <div className="max-w-5xl mx-auto pb-10">
+      <div className="mb-4 flex justify-end">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={isGeneratingPdf}
+          onClick={handleDownloadPdf}
+          className="h-8 px-3 text-xs flex gap-1"
+        >
+          <Download className="h-3.5 w-3.5" />
+          {isGeneratingPdf ? "Generando..." : "Descargar PDF"}
+        </Button>
+      </div>
       {/* Execution date alert */}
       {executionAlert && (() => {
         const Icon = executionAlert.icon;
@@ -197,9 +303,28 @@ export default function RequisicionView({
           }`}>
             {isProcesada ? "Procesada" : isRechazada ? "Rechazada" : "Pendiente"}
           </span>
+          {isResolved && record.procesada_por_nombre && (
+            <span className="text-xs text-gray-500">
+              {isProcesada ? "Procesada" : "Rechazada"} por <span className="font-medium text-gray-700">{record.procesada_por_nombre}</span>
+              {record.procesada_at && ` el ${new Date(record.procesada_at).toLocaleString()}`}
+            </span>
+          )}
           <div className="ml-auto flex gap-2">
             {isPendiente && (
               <>
+                {verifiedCount > 0 && verifiedCount < totalCount && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={isUpdating}
+                    onClick={handleSaveProgress}
+                    className="h-8 px-3 text-xs flex gap-1 border-blue-300 text-blue-700 hover:bg-blue-50"
+                  >
+                    <Save className="h-3.5 w-3.5" />
+                    Guardar Avance
+                  </Button>
+                )}
                 <Button
                   type="button"
                   variant="outline"
@@ -400,7 +525,7 @@ export default function RequisicionView({
                       disabled={togglingItemId === `${fi.id_osi}-verificacion_traslado`}
                       onChange={() => handleToggleFixedItem(fi.id_osi, "verificacion_traslado", fi.verificacion_traslado || "pendiente")}
                       className="h-4 w-4 cursor-pointer accent-emerald-600"
-                      title={fi.verificacion_traslado === "listo" ? "Verificado" : "Marcar como verificado"}
+                      title={formatVerificadoTitle(fi.verificacion_traslado === "listo", fi.verificado_por_traslado, fi.verificado_en_traslado)}
                     />
                   </td>
                 )}
@@ -434,7 +559,7 @@ export default function RequisicionView({
                       disabled={togglingItemId === `${fi.id_osi}-verificacion_impresion`}
                       onChange={() => handleToggleFixedItem(fi.id_osi, "verificacion_impresion", fi.verificacion_impresion || "pendiente")}
                       className="h-4 w-4 cursor-pointer accent-emerald-600"
-                      title={fi.verificacion_impresion === "listo" ? "Verificado" : "Marcar como verificado"}
+                      title={formatVerificadoTitle(fi.verificacion_impresion === "listo", fi.verificado_por_impresion, fi.verificado_en_impresion)}
                     />
                   </td>
                 )}
@@ -471,7 +596,7 @@ export default function RequisicionView({
                       disabled={togglingItemId === `${fi.id_osi}-verificacion_honorarios`}
                       onChange={() => handleToggleFixedItem(fi.id_osi, "verificacion_honorarios", fi.verificacion_honorarios || "pendiente")}
                       className="h-4 w-4 cursor-pointer accent-emerald-600"
-                      title={fi.verificacion_honorarios === "listo" ? "Verificado" : "Marcar como verificado"}
+                      title={formatVerificadoTitle(fi.verificacion_honorarios === "listo", fi.verificado_por_honorarios, fi.verificado_en_honorarios)}
                     />
                   </td>
                 )}
@@ -505,7 +630,7 @@ export default function RequisicionView({
                       disabled={togglingItemId === `${fi.id_osi}-verificacion_informe_final`}
                       onChange={() => handleToggleFixedItem(fi.id_osi, "verificacion_informe_final", fi.verificacion_informe_final || "pendiente")}
                       className="h-4 w-4 cursor-pointer accent-emerald-600"
-                      title={fi.verificacion_informe_final === "listo" ? "Verificado" : "Marcar como verificado"}
+                      title={formatVerificadoTitle(fi.verificacion_informe_final === "listo", fi.verificado_por_informe_final, fi.verificado_en_informe_final)}
                     />
                   </td>
                 )}
@@ -570,7 +695,7 @@ export default function RequisicionView({
                           disabled={togglingItemId === item.id}
                           onChange={() => handleToggleItem(item.id, item.verificacion || "pendiente")}
                           className="h-4 w-4 cursor-pointer accent-emerald-600"
-                          title={item.verificacion === "listo" ? "Verificado" : "Marcar como verificado"}
+                          title={formatVerificadoTitle(item.verificacion === "listo", item.verificado_por, item.verificado_en)}
                         />
                       </td>
                     )}
@@ -645,7 +770,7 @@ export default function RequisicionView({
                                 disabled={togglingItemId === item.id}
                                 onChange={() => handleToggleItem(item.id, item.verificacion || "pendiente")}
                                 className="h-4 w-4 cursor-pointer accent-emerald-600"
-                                title={item.verificacion === "listo" ? "Verificado" : "Marcar como verificado"}
+                                title={formatVerificadoTitle(item.verificacion === "listo", item.verificado_por, item.verificado_en)}
                               />
                             </td>
                           )}
@@ -705,7 +830,7 @@ export default function RequisicionView({
                         disabled={togglingItemId === item.id}
                         onChange={() => handleToggleItem(item.id, item.verificacion || "pendiente")}
                         className="h-4 w-4 cursor-pointer accent-emerald-600"
-                        title={item.verificacion === "listo" ? "Verificado" : "Marcar como verificado"}
+                        title={formatVerificadoTitle(item.verificacion === "listo", item.verificado_por, item.verificado_en)}
                       />
                     </td>
                   )}
@@ -734,7 +859,30 @@ export default function RequisicionView({
             {record.observaciones_compras || "SIN OBSERVACIONES"}
           </div>
 
-          {isCapacitacion && (
+          {isCapacitacion && (() => {
+            const parsedRate = parseFloat(exchangeRateInput) || 0;
+            const vesAmount = totalGeneral * parsedRate;
+            const copyBlock = [
+              `Nombre: ${record.facilitador || "-"}`,
+              `Cédula/RIF: ${record.cedula_facilitador || "-"} / ${record.rif_facilitador || "-"}`,
+              `Banco: ${record.banco || "-"}`,
+              `Cuenta: ${record.nro_cuenta || "-"}`,
+              `Teléfono: ${record.telefono_facilitador || "-"}`,
+              `Monto Total USD: $${totalGeneral.toFixed(2)}`,
+              `Tasa USD→VES: ${parsedRate || "-"}`,
+              `Monto Total VES: Bs. ${vesAmount.toFixed(2)}`,
+            ].join("\n");
+            const CopyIcon = ({ field, value }: { field: string; value: string }) => (
+              <button
+                type="button"
+                onClick={() => handleCopy(field, value)}
+                className="ml-1 text-gray-400 hover:text-blue-600 transition-colors"
+                title="Copiar"
+              >
+                {copiedField === field ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
+              </button>
+            );
+            return (
           <>
           <div className="grid grid-cols-12 border-b border-gray-300 text-xs">
             <div className="col-span-3 p-2 border-r border-gray-300 bg-gray-50 flex items-center font-bold">
@@ -746,8 +894,17 @@ export default function RequisicionView({
             <div className="col-span-3 p-2 border-r border-gray-300 bg-gray-50 flex items-center font-bold">
               CEDULA
             </div>
-            <div className="col-span-3 p-2 bg-gray-50 flex items-center font-bold">
+            <div className="col-span-3 p-2 bg-gray-50 flex items-center justify-between font-bold">
               RIF
+              <button
+                type="button"
+                onClick={() => handleCopy("todo", copyBlock)}
+                className="flex items-center gap-1 text-[10px] font-normal text-blue-700 hover:text-blue-900 normal-case"
+                title="Copiar todos los datos"
+              >
+                {copiedField === "todo" ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
+                Copiar todo
+              </button>
             </div>
           </div>
 
@@ -755,14 +912,17 @@ export default function RequisicionView({
             <div className="col-span-3 border-r border-gray-300 flex flex-col justify-center px-2">
               <span className="font-bold">{record.cod_facilitador || "-"}</span>
             </div>
-            <div className="col-span-3 p-2 border-r border-gray-300 flex items-center font-bold uppercase">
+            <div className="col-span-3 p-2 border-r border-gray-300 flex items-center justify-between font-bold uppercase">
               {record.facilitador || "-"}
+              {record.facilitador && <CopyIcon field="nombre" value={record.facilitador} />}
             </div>
-            <div className="col-span-3 p-2 border-r border-gray-300 flex items-center font-bold">
+            <div className="col-span-3 p-2 border-r border-gray-300 flex items-center justify-between font-bold">
               {record.cedula_facilitador || "-"}
+              {record.cedula_facilitador && <CopyIcon field="cedula" value={record.cedula_facilitador} />}
             </div>
-            <div className="col-span-3 p-2 flex items-center font-bold uppercase">
+            <div className="col-span-3 p-2 flex items-center justify-between font-bold uppercase">
               {record.rif_facilitador || "-"}
+              {record.rif_facilitador && <CopyIcon field="rif" value={record.rif_facilitador} />}
             </div>
           </div>
 
@@ -770,20 +930,114 @@ export default function RequisicionView({
             <div className="col-span-1 p-2 border-r border-gray-300 bg-gray-50 flex items-center font-bold">
               Banco
             </div>
-            <div className="col-span-6 p-2 border-r border-gray-300 flex items-center font-bold uppercase">
+            <div className="col-span-4 p-2 border-r border-gray-300 flex items-center justify-between font-bold uppercase">
               {record.banco || "-"}
+              {record.banco && <CopyIcon field="banco" value={record.banco} />}
             </div>
             <div className="col-span-2 p-2 border-r border-gray-300 bg-gray-50 flex items-center font-bold">
               Nro Cuenta.
             </div>
-            <div className="col-span-3 p-2 flex items-center font-bold">
+            <div className="col-span-2 p-2 border-r border-gray-300 flex items-center justify-between font-bold">
               {record.nro_cuenta || "-"}
+              {record.nro_cuenta && <CopyIcon field="cuenta" value={record.nro_cuenta} />}
+            </div>
+            <div className="col-span-1 p-2 border-r border-gray-300 bg-gray-50 flex items-center font-bold">
+              Tel.
+            </div>
+            <div className="col-span-2 p-2 flex items-center justify-between font-bold">
+              {record.telefono_facilitador || "-"}
+              {record.telefono_facilitador && <CopyIcon field="telefono" value={record.telefono_facilitador} />}
+            </div>
+          </div>
+
+          {/* Exchange rate row */}
+          <div className="grid grid-cols-12 text-xs h-12 border-b border-gray-300">
+            <div className="col-span-3 p-2 border-r border-gray-300 bg-gray-50 flex items-center font-bold">
+              Tasa USD→VES:
+            </div>
+            <div className="col-span-3 p-2 border-r border-gray-300 flex items-center gap-2">
+              <input
+                type="text"
+                value={exchangeRateInput}
+                onChange={(e) => setExchangeRateInput(e.target.value)}
+                placeholder={isLoadingRate ? "Cargando..." : "Ingrese tasa"}
+                disabled={isLoadingRate}
+                className="w-full px-2 py-1 text-xs border border-gray-300 rounded font-medium focus:outline-none focus:ring-1 focus:ring-blue-400"
+              />
+            </div>
+            <div className="col-span-3 p-2 border-r border-gray-300 bg-gray-50 flex items-center font-bold">
+              Monto Total VES:
+            </div>
+            <div className="col-span-3 p-2 flex items-center font-bold text-sm">
+              {parsedRate > 0 ? `Bs. ${vesAmount.toFixed(2)}` : "-"}
             </div>
           </div>
           </>
-          )}
+            );
+          })()}
         </CardContent>
       </Card>
+
+      {/* Bottom admin action bar */}
+      {isAdminView && (
+        <div className="mt-4 flex items-center gap-3 px-4 py-3 bg-white border border-gray-200 rounded-lg shadow-sm">
+          <span className="text-sm font-medium text-gray-600">Acciones:</span>
+          <div className="ml-auto flex gap-2">
+            {isPendiente && (
+              <>
+                {verifiedCount > 0 && verifiedCount < totalCount && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={isUpdating}
+                    onClick={handleSaveProgress}
+                    className="h-8 px-3 text-xs flex gap-1 border-blue-300 text-blue-700 hover:bg-blue-50"
+                  >
+                    <Save className="h-3.5 w-3.5" />
+                    Guardar Avance
+                  </Button>
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isUpdating}
+                  onClick={() => handleSetEstatus("procesada")}
+                  className="h-8 px-3 text-xs flex gap-1 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Procesar
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isUpdating}
+                  onClick={() => handleSetEstatus("rechazada")}
+                  className="h-8 px-3 text-xs flex gap-1 border-red-300 text-red-700 hover:bg-red-50"
+                >
+                  <XCircle className="h-3.5 w-3.5" />
+                  Rechazar
+                </Button>
+              </>
+            )}
+            {isResolved && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isUpdating}
+                onClick={() => handleSetEstatus("pendiente")}
+                className="h-8 px-3 text-xs flex gap-1 border-amber-300 text-amber-700 hover:bg-amber-50"
+              >
+                <Undo2 className="h-3.5 w-3.5" />
+                Revertir
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

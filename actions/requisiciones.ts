@@ -15,7 +15,9 @@ import {
   notifyAdminsOfNewRequisicion,
   notifyCreatorOfProcesada,
   notifyCreatorOfRechazada,
+  notifyCreatorOfPartialVerificacion,
 } from "@/actions/requisicion-notifications";
+import { getUsdToVesRate } from "@/lib/exchange-rate";
 
 const ADMIN_ROLES = ["admin", "superadmin"];
 
@@ -124,6 +126,9 @@ export async function createRequisicionRecord(
     // Facilitator (null when non-Capacitacion)
     cod_facilitador: isCapacitacion && formData.cod_facilitador ? parseInt(formData.cod_facilitador) : null,
     facilitador: isCapacitacion ? formData.facilitador : null,
+    cedula_facilitador: isCapacitacion ? formData.cedula_facilitador : null,
+    rif_facilitador: isCapacitacion ? formData.rif_facilitador : null,
+    telefono_facilitador: isCapacitacion ? formData.telefono_facilitador : null,
     banco: isCapacitacion ? formData.banco : null,
     nro_cuenta: isCapacitacion ? formData.nro_cuenta : null,
 
@@ -210,6 +215,39 @@ export async function getRequisicionRecord(id: number) {
     console.error("Error fetching requisicion record:", error);
     return null;
   }
+
+  if (data?.procesada_por) {
+    const { data: procesadaPorUser } = await supabase
+      .from("usuarios")
+      .select("nombre_apellido")
+      .eq("id_auth", data.procesada_por)
+      .single();
+    (data as Record<string, unknown>).procesada_por_nombre = procesadaPorUser?.nombre_apellido || null;
+  }
+
+  // Resolve distinct item-level verificador ids (additional_items + osi_fixed_items) to names
+  const verificadorIds = new Set<string>();
+  for (const item of (data?.additional_items || []) as RequisicionItem[]) {
+    if (item.verificado_por) verificadorIds.add(item.verificado_por);
+  }
+  for (const fi of (data?.osi_fixed_items || []) as OSIFixedItem[]) {
+    for (const key of ["verificado_por_traslado", "verificado_por_impresion", "verificado_por_honorarios", "verificado_por_informe_final"] as const) {
+      const v = fi[key];
+      if (v) verificadorIds.add(v);
+    }
+  }
+  if (verificadorIds.size > 0) {
+    const { data: verificadores } = await supabase
+      .from("usuarios")
+      .select("id_auth, nombre_apellido")
+      .in("id_auth", Array.from(verificadorIds));
+    const map: Record<string, string> = {};
+    (verificadores || []).forEach((u: { id_auth: string | null; nombre_apellido: string }) => {
+      if (u.id_auth) map[u.id_auth] = u.nombre_apellido;
+    });
+    (data as Record<string, unknown>).verificado_por_map = map;
+  }
+
   return data;
 }
 
@@ -290,6 +328,9 @@ export async function updateRequisicionRecord(
     // Facilitator (null when non-Capacitacion)
     cod_facilitador: isCapacitacion && formData.cod_facilitador ? parseInt(formData.cod_facilitador) : null,
     facilitador: isCapacitacion ? formData.facilitador : null,
+    cedula_facilitador: isCapacitacion ? formData.cedula_facilitador : null,
+    rif_facilitador: isCapacitacion ? formData.rif_facilitador : null,
+    telefono_facilitador: isCapacitacion ? formData.telefono_facilitador : null,
     banco: isCapacitacion ? formData.banco : null,
     nro_cuenta: isCapacitacion ? formData.nro_cuenta : null,
 
@@ -446,6 +487,9 @@ export async function updateItemVerificacion(
   }
 
   const supabase = await createClient();
+  const userResponse = await supabase.auth.getUser();
+  const userId = userResponse.data.user?.id || null;
+
   const { data: record, error: fetchError } = await supabase
     .from("requisiciones")
     .select("additional_items")
@@ -454,9 +498,17 @@ export async function updateItemVerificacion(
 
   if (fetchError) throw fetchError;
 
+  const isListo = verificacion === "listo";
   const items: RequisicionItem[] = (record?.additional_items || []).map(
     (item: RequisicionItem) =>
-      item.id === itemId ? { ...item, verificacion } : item,
+      item.id === itemId
+        ? {
+            ...item,
+            verificacion,
+            verificado_por: isListo ? userId : null,
+            verificado_en: isListo ? new Date().toISOString() : null,
+          }
+        : item,
   );
 
   const { error } = await supabase
@@ -480,6 +532,9 @@ export async function updateFixedItemVerificacion(
   }
 
   const supabase = await createClient();
+  const userResponse = await supabase.auth.getUser();
+  const userId = userResponse.data.user?.id || null;
+
   const { data: record, error: fetchError } = await supabase
     .from("requisiciones")
     .select("osi_fixed_items")
@@ -488,9 +543,24 @@ export async function updateFixedItemVerificacion(
 
   if (fetchError) throw fetchError;
 
+  const isListo = verificacion === "listo";
+  const suffixMap: Record<string, string> = {
+    verificacion_traslado: "traslado",
+    verificacion_impresion: "impresion",
+    verificacion_honorarios: "honorarios",
+    verificacion_informe_final: "informe_final",
+  };
+  const suffix = suffixMap[field];
   const fixedItems: OSIFixedItem[] = (record?.osi_fixed_items || []).map(
     (fi: OSIFixedItem) =>
-      fi.id_osi === idOsi ? { ...fi, [field]: verificacion } : fi,
+      fi.id_osi === idOsi
+        ? {
+            ...fi,
+            [field]: verificacion,
+            [`verificado_por_${suffix}`]: isListo ? userId : null,
+            [`verificado_en_${suffix}`]: isListo ? new Date().toISOString() : null,
+          }
+        : fi,
   );
 
   const { error } = await supabase
@@ -509,6 +579,9 @@ export async function markAllItemsVerificadas(requisicionId: number) {
   }
 
   const supabase = await createClient();
+  const userResponse = await supabase.auth.getUser();
+  const userId = userResponse.data.user?.id || null;
+
   const { data: record, error: fetchError } = await supabase
     .from("requisiciones")
     .select("additional_items, osi_fixed_items")
@@ -518,9 +591,10 @@ export async function markAllItemsVerificadas(requisicionId: number) {
   if (fetchError) throw fetchError;
 
   const items: RequisicionItem[] = (record?.additional_items || []).map(
-    (item: RequisicionItem) => ({ ...item, verificacion: "listo" }),
+    (item: RequisicionItem) => ({ ...item, verificacion: "listo", verificado_por: userId, verificado_en: new Date().toISOString() }),
   );
 
+  const nowIso = new Date().toISOString();
   const fixedItems: OSIFixedItem[] = (record?.osi_fixed_items || []).map(
     (fi: OSIFixedItem) => ({
       ...fi,
@@ -528,6 +602,14 @@ export async function markAllItemsVerificadas(requisicionId: number) {
       verificacion_impresion: "listo" as const,
       verificacion_honorarios: "listo" as const,
       verificacion_informe_final: "listo" as const,
+      verificado_por_traslado: userId,
+      verificado_en_traslado: nowIso,
+      verificado_por_impresion: userId,
+      verificado_en_impresion: nowIso,
+      verificado_por_honorarios: userId,
+      verificado_en_honorarios: nowIso,
+      verificado_por_informe_final: userId,
+      verificado_en_informe_final: nowIso,
     }),
   );
 
@@ -540,6 +622,54 @@ export async function markAllItemsVerificadas(requisicionId: number) {
   revalidatePath("/requisiciones");
 }
 
+// Save partial verification progress and notify the creator (Administración only)
+export async function saveVerificacionProgress(requisicionId: number) {
+  if (!(await isRequisicionesAdmin())) {
+    throw new Error("No tiene permisos para guardar el avance de verificación.");
+  }
+
+  const supabase = await createAdminClient();
+
+  const { data: record, error: fetchError } = await supabase
+    .from("requisiciones")
+    .select("created_by, additional_items, osi_fixed_items")
+    .eq("id", requisicionId)
+    .single();
+
+  if (fetchError) throw fetchError;
+
+  const fixedItems: OSIFixedItem[] = record?.osi_fixed_items || [];
+  const additionalItems: RequisicionItem[] = record?.additional_items || [];
+
+  const fixedVerifiedCount = fixedItems.reduce(
+    (sum, fi) =>
+      sum +
+      (fi.verificacion_traslado === "listo" ? 1 : 0) +
+      (fi.verificacion_impresion === "listo" ? 1 : 0) +
+      (fi.verificacion_honorarios === "listo" ? 1 : 0) +
+      (fi.verificacion_informe_final === "listo" ? 1 : 0),
+    0,
+  );
+  const fixedTotalCount = fixedItems.length * 4;
+  const additionalVerifiedCount = additionalItems.filter(
+    (item) => item.verificacion === "listo",
+  ).length;
+  const verifiedCount = fixedVerifiedCount + additionalVerifiedCount;
+  const totalCount = fixedTotalCount + additionalItems.length;
+
+  if (record?.created_by) {
+    await notifyCreatorOfPartialVerificacion(
+      requisicionId,
+      record.created_by,
+      verifiedCount,
+      totalCount,
+    );
+  }
+
+  revalidatePath("/requisiciones");
+  return { verifiedCount, totalCount };
+}
+
 // Get facilitators for dropdown with banking details
 export async function getFacilitatorsForDropdown() {
   const supabase = await createClient();
@@ -550,6 +680,7 @@ export async function getFacilitatorsForDropdown() {
       nombre_apellido, 
       cedula, 
       rif,
+      telefono,
       datos_bancarios (
         banco,
         nro_cuenta,
@@ -562,4 +693,9 @@ export async function getFacilitatorsForDropdown() {
 
   if (error) throw error;
   return data;
+}
+
+// Get USD→VES exchange rate for display in requisicion view
+export async function getExchangeRate(): Promise<number | null> {
+  return await getUsdToVesRate();
 }

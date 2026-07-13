@@ -134,6 +134,7 @@ function RequisicionFormContent({
     facilitador: editRecord?.facilitador || "",
     cedula_facilitador: editRecord?.cedula_facilitador || "",
     rif_facilitador: editRecord?.rif_facilitador || "",
+    telefono_facilitador: editRecord?.telefono_facilitador || "",
     banco: editRecord?.banco || "",
     nro_cuenta: editRecord?.nro_cuenta || "",
 
@@ -335,6 +336,7 @@ function RequisicionFormContent({
       facilitador: facilitator?.nombre_apellido || "",
       cedula_facilitador: facilitator?.cedula || "",
       rif_facilitador: facilitator?.rif || "",
+      telefono_facilitador: facilitator?.telefono || "",
       banco: mainBank?.banco || "",
       nro_cuenta: mainBank?.nro_cuenta || "",
     }));
@@ -1155,14 +1157,20 @@ function RequisicionFormContent({
             <div className="col-span-1 p-2 border-r border-gray-300 bg-gray-50 flex items-center font-bold">
               Banco
             </div>
-            <div className="col-span-6 p-2 border-r border-gray-300 flex items-center font-bold uppercase">
+            <div className="col-span-4 p-2 border-r border-gray-300 flex items-center font-bold uppercase">
               {formData.banco || "-"}
             </div>
             <div className="col-span-2 p-2 border-r border-gray-300 bg-gray-50 flex items-center font-bold">
               Nro Cuenta.
             </div>
-            <div className="col-span-3 p-2 flex items-center font-bold">
+            <div className="col-span-3 p-2 border-r border-gray-300 flex items-center font-bold">
               {formData.nro_cuenta || "-"}
+            </div>
+            <div className="col-span-1 p-2 border-r border-gray-300 bg-gray-50 flex items-center font-bold">
+              Tel.
+            </div>
+            <div className="col-span-1 p-2 flex items-center font-bold">
+              {formData.telefono_facilitador || "-"}
             </div>
           </div>
           </>

@@ -14,6 +14,8 @@ export interface RequisicionItem {
   total: number;
   id_osi?: number | null;
   verificacion?: VerificacionStatus;
+  verificado_por?: string | null;
+  verificado_en?: string | null;
 }
 
 export interface RequisicionFilters {
@@ -39,6 +41,14 @@ export interface OSIFixedItem {
   verificacion_impresion: VerificacionStatus;
   verificacion_honorarios: VerificacionStatus;
   verificacion_informe_final: VerificacionStatus;
+  verificado_por_traslado?: string | null;
+  verificado_en_traslado?: string | null;
+  verificado_por_impresion?: string | null;
+  verificado_en_impresion?: string | null;
+  verificado_por_honorarios?: string | null;
+  verificado_en_honorarios?: string | null;
+  verificado_por_informe_final?: string | null;
+  verificado_en_informe_final?: string | null;
 }
 
 export interface RequisicionFormData {
@@ -79,6 +89,7 @@ export interface RequisicionFormData {
   facilitador: string;
   cedula_facilitador: string;
   rif_facilitador: string;
+  telefono_facilitador: string;
   banco: string;
   nro_cuenta: string;
 
