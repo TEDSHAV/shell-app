@@ -209,6 +209,7 @@ export async function getRequisicionRecord(id: number) {
       )
     `)
     .eq("id", id)
+    .is("deleted_at", null)
     .single();
 
   if (error) {
@@ -386,7 +387,8 @@ export async function getAllRequisiciones() {
         id_osi
       )
     `)
-    .order("id", { ascending: false });
+    .order("id", { ascending: false })
+    .is("deleted_at", null);
 
   if (!isAdmin) {
     query = query.eq("created_by", userId);
@@ -402,6 +404,7 @@ export async function getAllRequisiciones() {
 }
 
 // Delete requisition record
+// Admin users: soft delete (sets deleted_at). Regular users: hard delete (only pending records).
 export async function deleteRequisicionRecord(id: number) {
   const supabase = await createClient();
 
@@ -416,12 +419,24 @@ export async function deleteRequisicionRecord(id: number) {
     throw new Error("Esta requisición ya fue procesada por Administración y no puede eliminarse.");
   }
 
-  const { error } = await supabase
-    .from("requisiciones")
-    .delete()
-    .eq("id", id);
+  const isAdmin = await isRequisicionesAdmin();
 
-  if (error) throw error;
+  if (isAdmin) {
+    const { error } = await supabase
+      .from("requisiciones")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("id", id);
+
+    if (error) throw error;
+  } else {
+    const { error } = await supabase
+      .from("requisiciones")
+      .delete()
+      .eq("id", id);
+
+    if (error) throw error;
+  }
+
   revalidatePath("/requisiciones");
 }
 
