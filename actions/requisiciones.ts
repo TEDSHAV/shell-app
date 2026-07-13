@@ -38,7 +38,7 @@ export async function isRequisicionesAdmin(): Promise<boolean> {
       .eq("id_auth", user.id)
       .single();
 
-    const deptName = usuario?.departamentos?.nombre?.toLowerCase() || "";
+    const deptName = (usuario?.departamentos as any)?.nombre?.toLowerCase() || "";
     return deptName.includes("admin");
   } catch {
     return false;
