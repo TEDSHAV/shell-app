@@ -24,7 +24,25 @@ const ADMIN_ROLES = ["admin", "superadmin"];
 // Check if the current user can manage all requisiciones (Administración)
 export async function isRequisicionesAdmin(): Promise<boolean> {
   const role = (await getUserRole())?.toLowerCase() || "";
-  return ADMIN_ROLES.includes(role);
+  if (ADMIN_ROLES.includes(role)) return true;
+
+  // Fallback: check if user belongs to the Administración department
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
+
+    const { data: usuario } = await supabase
+      .from("usuarios")
+      .select("departamentos(nombre)")
+      .eq("id_auth", user.id)
+      .single();
+
+    const deptName = usuario?.departamentos?.nombre?.toLowerCase() || "";
+    return deptName.includes("admin");
+  } catch {
+    return false;
+  }
 }
 
 // Get all OSIs for the dropdown
