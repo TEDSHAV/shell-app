@@ -94,6 +94,18 @@ export default function RequisicionView({
   const totalAdditional = additionalItems.reduce((sum, item) => sum + (item.total || 0), 0);
   const totalGeneral = totalFixed + totalAdditional;
 
+  // Total of only verified ("listo") items — used for copy-all VES calculation
+  const verifiedFixedTotal = osiFixedItems.reduce((sum, fi) =>
+    sum +
+    (fi.verificacion_traslado === "listo" ? (fi.dias_traslado || 0) * (fi.costo_traslado || 0) : 0) +
+    (fi.verificacion_impresion === "listo" ? (fi.impresion_total || 0) : 0) +
+    (fi.verificacion_honorarios === "listo" ? (fi.honorarios_total || 0) : 0) +
+    (fi.verificacion_informe_final === "listo" ? (fi.informe_final_total || 0) : 0), 0);
+  const verifiedAdditionalTotal = additionalItems
+    .filter(item => item.verificacion === "listo")
+    .reduce((sum, item) => sum + (item.total || 0), 0);
+  const verifiedTotal = verifiedFixedTotal + verifiedAdditionalTotal;
+
   // Item verification progress (fixed items + additional items)
   const fixedVerifiedCount = osiFixedItems.reduce((sum, fi) =>
     sum +
@@ -859,16 +871,23 @@ export default function RequisicionView({
             {record.observaciones_compras || "SIN OBSERVACIONES"}
           </div>
 
+          {isAdminView && isCapacitacion && (
+            <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border-b border-amber-200 text-amber-800 text-xs font-medium">
+              <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+              <span>Verifique cuidadosamente los datos bancarios del facilitador antes de realizar cualquier pago.</span>
+            </div>
+          )}
+
           {isCapacitacion && (() => {
             const parsedRate = parseFloat(exchangeRateInput) || 0;
-            const vesAmount = totalGeneral * parsedRate;
+            const vesAmount = verifiedTotal * parsedRate;
             const copyBlock = [
               `Nombre: ${record.facilitador || "-"}`,
               `Cédula/RIF: ${record.cedula_facilitador || "-"} / ${record.rif_facilitador || "-"}`,
               `Banco: ${record.banco || "-"}`,
               `Cuenta: ${record.nro_cuenta || "-"}`,
               `Teléfono: ${record.telefono_facilitador || "-"}`,
-              `Monto Total USD: $${totalGeneral.toFixed(2)}`,
+              `Monto Total USD (anticipado): $${verifiedTotal.toFixed(2)}`,
               `Tasa USD→VES: ${parsedRate || "-"}`,
               `Monto Total VES: Bs. ${vesAmount.toFixed(2)}`,
             ].join("\n");
