@@ -375,7 +375,8 @@ export async function getAllRequisiciones() {
       v_osi_formato_completo!left (
         id_osi,
         nro_osi,
-        servicio
+        servicio,
+        fecha_inicio_real
       ),
       facilitadores!left (
         nombre_apellido,

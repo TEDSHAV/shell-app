@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,7 +13,9 @@ import {
 } from "@/components/ui/select";
 import { RequisicionFilters, EstatusAdmin } from "@/types/requisiciones";
 import RequisicionRow from "./RequisicionRow";
-import { Search, X } from "lucide-react";
+import { Search, X, ChevronLeft, ChevronRight } from "lucide-react";
+
+const PAGE_SIZE = 10;
 
 const TABS: { key: RequisicionFilters["tab"]; label: string }[] = [
   { key: "todas", label: "Todas" },
@@ -58,7 +60,7 @@ export default function RequisicionesTable({
   }, [records]);
 
   const filtered = useMemo(() => {
-    return records.filter((r) => {
+    const result = records.filter((r) => {
       if (filters.tab === "internas" && !isInterna(r)) return false;
       if (filters.tab === "externas" && isInterna(r)) return false;
 
@@ -101,7 +103,27 @@ export default function RequisicionesTable({
 
       return true;
     });
+
+    // Sort: pendiente first, then procesada, then rechazada; preserve id DESC within each group
+    const statusOrder: Record<string, number> = { pendiente: 0, procesada: 1, rechazada: 2 };
+    result.sort((a, b) => {
+      const sa = statusOrder[a.estatus_admin || "pendiente"] ?? 3;
+      const sb = statusOrder[b.estatus_admin || "pendiente"] ?? 3;
+      if (sa !== sb) return sa - sb;
+      return (b.id || 0) - (a.id || 0);
+    });
+
+    return result;
   }, [records, filters, osiLookup]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const [currentPage, setCurrentPage] = useState(1);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filters]);
+
+  const paginated = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   const counts = useMemo(
     () => ({
@@ -274,8 +296,8 @@ export default function RequisicionesTable({
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filtered.length > 0 ? (
-                filtered.map((record: any) => (
+              {paginated.length > 0 ? (
+                paginated.map((record: any) => (
                   <RequisicionRow
                     key={record.id}
                     record={record}
@@ -289,7 +311,7 @@ export default function RequisicionesTable({
                     colSpan={isAdminView ? 8 : 7}
                     className="px-4 py-12 text-center text-sm text-gray-500"
                   >
-                    {records.length === 0 ? (
+                    {filtered.length === 0 && records.length === 0 ? (
                       <div className="flex flex-col items-center gap-2">
                         <p>
                           {isAdminView
@@ -311,6 +333,36 @@ export default function RequisicionesTable({
             </tbody>
           </table>
         </div>
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200">
+            <span className="text-xs text-gray-500">
+              {filtered.length} resultado{filtered.length !== 1 ? "s" : ""} · Página {currentPage} de {totalPages}
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage <= 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                className="h-8"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Anterior
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage >= totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                className="h-8"
+              >
+                Siguiente
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { deleteRequisicionRecord, setRequisicionEstatus, markAllItemsVerificadas } from "@/actions/requisiciones";
-import { Eye, Edit, Trash2, Lock, CheckCircle2, Undo2, XCircle } from "lucide-react";
+import { Eye, Edit, Trash2, Lock, CheckCircle2, Undo2, XCircle, CalendarClock, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function RequisicionRow({
@@ -43,6 +43,23 @@ export default function RequisicionRow({
   const additionalVerifiedCount = additionalItems.filter((item: any) => item.verificacion === "listo").length;
   const verifiedCount = fixedVerifiedCount + additionalVerifiedCount;
   const totalCount = fixedTotalCount + additionalItems.length;
+
+  // Execution date badge
+  const executionDate = record.v_osi_formato_completo?.fecha_inicio_real;
+  let executionBadge: { text: string; color: string } | null = null;
+  if (executionDate) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const exec = new Date(executionDate + "T00:00:00");
+    const diffDays = Math.round((exec.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    if (diffDays <= 0) {
+      executionBadge = { text: diffDays === 0 ? "Hoy" : `Vencida ${Math.abs(diffDays)}d`, color: "red" };
+    } else if (diffDays <= 7) {
+      executionBadge = { text: `Faltan ${diffDays}d`, color: "amber" };
+    } else {
+      executionBadge = { text: `Faltan ${diffDays}d`, color: "blue" };
+    }
+  }
 
   const handleRowClick = () => {
     router.push(`/requisiciones/view/${record.id}`);
@@ -130,9 +147,21 @@ export default function RequisicionRow({
         </span>
       </td>
       <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-        {record.fecha_solicitud
-          ? new Date(record.fecha_solicitud + "T00:00:00").toLocaleDateString()
-          : "-"}
+        <div className="flex items-center gap-2">
+          {record.fecha_solicitud
+            ? new Date(record.fecha_solicitud + "T00:00:00").toLocaleDateString()
+            : "-"}
+          {executionBadge && (
+            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+              executionBadge.color === "red" ? "bg-red-100 text-red-700" :
+              executionBadge.color === "amber" ? "bg-amber-100 text-amber-700" :
+              "bg-blue-100 text-blue-700"
+            }`}>
+              {executionBadge.color === "red" ? <AlertTriangle className="h-3 w-3" /> : <CalendarClock className="h-3 w-3" />}
+              {executionBadge.text}
+            </span>
+          )}
+        </div>
       </td>
       <td className="px-4 py-4 whitespace-nowrap text-sm">
         <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
