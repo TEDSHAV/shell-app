@@ -300,7 +300,7 @@ export default function RequisicionPdfDocument({
               <Text>Corresponde a:</Text>
             </View>
             <View style={[styles.cellValue, { width: "35%" }]}>
-              <Text>{record.corresponde_a || "-"}</Text>
+              <Text>Servicios</Text>
             </View>
             <View style={[styles.cellLabel, { width: "15%" }]}>
               <Text>Fecha de solicitud:</Text>
@@ -311,10 +311,10 @@ export default function RequisicionPdfDocument({
           </View>
 
           <View style={styles.row}>
-            <View style={[styles.cellLabel, { width: "17%" }]}>
+            <View style={[styles.cellLabel, { width: "15%" }]}>
               <Text>Tipo de solicitud:</Text>
             </View>
-            <View style={[styles.cellValue, { width: "13%" }]}>
+            <View style={[styles.cellValue, { width: "10%" }]}>
               <View style={styles.checkboxRow}>
                 <View style={record.tipo_solicitud === "Interno" ? styles.checkboxChecked : styles.checkbox} />
                 <Text>Interno</Text>
@@ -324,28 +324,30 @@ export default function RequisicionPdfDocument({
                 <Text>Externo</Text>
               </View>
             </View>
-            <View style={[styles.cellLabel, { width: "12%" }]}>
+            <View style={[styles.cellLabel, { width: "15%" }]}>
               <Text>Departamento solicitante:</Text>
             </View>
-            <View style={[styles.cellValue, { width: "33%" }]}>
-              {[["Negocios", "Marketing", "Administración", "TED"], ["SIG", "SSST", "Servicio Técnico", "Capacitación"]].map(
-                (rowDeps, idx) => (
-                  <View key={idx} style={{ flexDirection: "row", gap: 6, marginBottom: 2 }}>
-                    {rowDeps.map((dep) => (
-                      <View key={dep} style={styles.checkboxRow}>
-                        <View style={departamentoMatch === dep ? styles.checkboxChecked : styles.checkbox} />
-                        <Text>{dep}</Text>
-                      </View>
-                    ))}
+            <View style={[styles.cellValue, { width: "60%", borderRightWidth: 0 }]}>
+              <View style={{ flexDirection: "row", gap: 6, marginBottom: 2 }}>
+                {["Negocios", "Marketing", "Administración", "TED"].map((dep) => (
+                  <View key={dep} style={[styles.checkboxRow, { gap: 2 }]}>
+                    <View style={departamentoMatch === dep ? styles.checkboxChecked : styles.checkbox} />
+                    <Text style={{ fontSize: 7 }}>{dep}</Text>
                   </View>
-                ),
-              )}
-            </View>
-            <View style={[styles.cellLabel, { width: "8%" }]}>
-              <Text>N° OSI:</Text>
-            </View>
-            <View style={[styles.cellValue, { width: "17%", borderRightWidth: 0 }]}>
-              <Text>{!isGeneralMode ? (osiNumbers || "-") : ""}</Text>
+                ))}
+              </View>
+              <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
+                {["SIG", "SSST", "Servicio Técnico", "Capacitación"].map((dep) => (
+                  <View key={dep} style={[styles.checkboxRow, { gap: 2 }]}>
+                    <View style={departamentoMatch === dep ? styles.checkboxChecked : styles.checkbox} />
+                    <Text style={{ fontSize: 7 }}>{dep}</Text>
+                  </View>
+                ))}
+                <View style={[styles.checkboxRow, { gap: 2, marginLeft: 8 }]}>
+                  <Text style={{ fontSize: 7, fontWeight: 700 }}>N° OSI:</Text>
+                  <Text style={{ fontSize: 7 }}>{!isGeneralMode ? (osiNumbers || "-") : ""}</Text>
+                </View>
+              </View>
             </View>
           </View>
 
