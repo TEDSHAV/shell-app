@@ -174,7 +174,10 @@ export async function createRequisicionRecord(
 
   await syncRequisicionOsis(data.id, formData);
 
-  await notifyAdminsOfNewRequisicion(data.id, formData.solicitante);
+  const requisicionLabel = formData.is_general
+    ? "interna"
+    : `de la OSI N° ${primaryOSI?.nro_osi || formData.selectedOSIs[0]?.nro_osi || ""}`;
+  await notifyAdminsOfNewRequisicion(data.id, formData.solicitante, requisicionLabel);
 
   // Revalidate both the shell and potentially the capacitacion app list if needed
   revalidatePath("/requisiciones");
@@ -488,19 +491,26 @@ export async function setRequisicionEstatus(
     const adminClient = await createAdminClient();
     const { data: req, error: fetchError } = await adminClient
       .from("requisiciones")
-      .select("created_by")
+      .select(`
+        created_by,
+        tipo_solicitud,
+        v_osi_formato_completo (nro_osi)
+      `)
       .eq("id", id)
       .single();
 
     console.log(`[setRequisicionEstatus] id=${id} estatus=${estatus} created_by=${req?.created_by} fetchError=${fetchError?.message}`);
 
     if (req?.created_by) {
+      const requisicionLabel = req.tipo_solicitud === "Interno"
+        ? "interna"
+        : `de la OSI N° ${req.v_osi_formato_completo?.nro_osi || ""}`;
       if (estatus === "procesada") {
         console.log(`[setRequisicionEstatus] Calling notifyCreatorOfProcesada for creator ${req.created_by}`);
-        await notifyCreatorOfProcesada(id, req.created_by);
+        await notifyCreatorOfProcesada(id, req.created_by, requisicionLabel);
       } else if (estatus === "rechazada") {
         console.log(`[setRequisicionEstatus] Calling notifyCreatorOfRechazada for creator ${req.created_by}`);
-        await notifyCreatorOfRechazada(id, req.created_by);
+        await notifyCreatorOfRechazada(id, req.created_by, requisicionLabel);
       }
     } else {
       console.warn(`[setRequisicionEstatus] No created_by found for requisicion ${id}, skipping creator notification`);
@@ -666,7 +676,13 @@ export async function saveVerificacionProgress(requisicionId: number) {
 
   const { data: record, error: fetchError } = await supabase
     .from("requisiciones")
-    .select("created_by, additional_items, osi_fixed_items")
+    .select(`
+      created_by,
+      additional_items,
+      osi_fixed_items,
+      tipo_solicitud,
+      v_osi_formato_completo (nro_osi)
+    `)
     .eq("id", requisicionId)
     .single();
 
@@ -692,11 +708,15 @@ export async function saveVerificacionProgress(requisicionId: number) {
   const totalCount = fixedTotalCount + additionalItems.length;
 
   if (record?.created_by) {
+    const requisicionLabel = record.tipo_solicitud === "Interno"
+      ? "interna"
+      : `de la OSI N° ${record.v_osi_formato_completo?.nro_osi || ""}`;
     await notifyCreatorOfPartialVerificacion(
       requisicionId,
       record.created_by,
       verifiedCount,
       totalCount,
+      requisicionLabel,
     );
   }
 

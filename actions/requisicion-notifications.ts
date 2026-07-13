@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/server";
 export async function notifyAdminsOfNewRequisicion(
   requisicionId: number,
   solicitanteName: string,
+  requisicionLabel: string,
 ) {
   try {
     const supabase = await createAdminClient();
@@ -45,7 +46,7 @@ export async function notifyAdminsOfNewRequisicion(
         event_key: "requisicion_created",
         recipient_id_auth: u.id_auth,
         title: "Nueva Requisición Creada",
-        body: `${solicitanteName} ha creado una nueva requisición (#${requisicionId}).`,
+        body: `${solicitanteName} ha creado una nueva requisición ${requisicionLabel}.`,
         link_path: `/requisiciones/edit/${requisicionId}`,
         dedupe_key: `requisicion:${requisicionId}:created`,
         priority: 2,
@@ -72,6 +73,7 @@ export async function notifyAdminsOfNewRequisicion(
 export async function notifyCreatorOfProcesada(
   requisicionId: number,
   creatorAuthId: string,
+  requisicionLabel: string,
 ) {
   try {
     const supabase = await createAdminClient();
@@ -84,7 +86,7 @@ export async function notifyCreatorOfProcesada(
           event_key: "requisicion_procesada",
           recipient_id_auth: creatorAuthId,
           title: "Requisición Procesada",
-          body: `Tu requisición #${requisicionId} ha sido procesada por Administración.`,
+          body: `Tu requisición ${requisicionLabel} ha sido procesada por Administración.`,
           link_path: `/requisiciones/view/${requisicionId}`,
           dedupe_key: `requisicion:${requisicionId}:procesada:${Date.now()}`,
           priority: 2,
@@ -104,6 +106,7 @@ export async function notifyCreatorOfProcesada(
 export async function notifyCreatorOfRechazada(
   requisicionId: number,
   creatorAuthId: string,
+  requisicionLabel: string,
 ) {
   try {
     const supabase = await createAdminClient();
@@ -118,7 +121,7 @@ export async function notifyCreatorOfRechazada(
           event_key: "requisicion_rechazada",
           recipient_id_auth: creatorAuthId,
           title: "Requisición Rechazada",
-          body: `Tu requisición #${requisicionId} ha sido rechazada por Administración.`,
+          body: `Tu requisición ${requisicionLabel} ha sido rechazada por Administración.`,
           link_path: `/requisiciones/view/${requisicionId}`,
           dedupe_key: `requisicion:${requisicionId}:rechazada:${Date.now()}`,
           priority: 2,
@@ -143,6 +146,7 @@ export async function notifyCreatorOfPartialVerificacion(
   creatorAuthId: string,
   verifiedCount: number,
   totalCount: number,
+  requisicionLabel: string,
 ) {
   try {
     const supabase = await createAdminClient();
@@ -155,7 +159,7 @@ export async function notifyCreatorOfPartialVerificacion(
           event_key: "requisicion_parcial",
           recipient_id_auth: creatorAuthId,
           title: "Avance en Requisición",
-          body: `Tu requisición #${requisicionId} tiene ${verifiedCount} de ${totalCount} items verificados por Administración.`,
+          body: `Tu requisición ${requisicionLabel} tiene ${verifiedCount} de ${totalCount} items verificados por Administración.`,
           link_path: `/requisiciones/view/${requisicionId}`,
           dedupe_key: `requisicion:${requisicionId}:parcial:${Date.now()}`,
           priority: 1,
