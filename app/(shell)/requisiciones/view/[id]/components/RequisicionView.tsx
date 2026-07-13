@@ -26,7 +26,8 @@ export default function RequisicionView({
   const [localFixedItems, setLocalFixedItems] = useState<OSIFixedItem[]>(record.osi_fixed_items || []);
 
   const additionalItems: RequisicionItem[] = localItems;
-  const isCapacitacion = record.gerencia_solicitante?.trim().toLowerCase() === "capacitacion";
+  const isGeneralMode = record.tipo_solicitud === "Interno";
+  const isCapacitacion = !isGeneralMode && record.gerencia_solicitante?.trim().toLowerCase() === "capacitacion";
   const osiFixedItems: OSIFixedItem[] = isCapacitacion ? localFixedItems : [];
   
   const estatus = record.estatus_admin || "pendiente";
@@ -34,8 +35,8 @@ export default function RequisicionView({
   const isRechazada = estatus === "rechazada";
   const isPendiente = estatus === "pendiente";
   const isResolved = isProcesada || isRechazada;
-  const isGeneralMode = record.tipo_solicitud === "Interno";
   const linkedOSIs: { id_osi: number }[] = record.requisiciones_osis || [];
+  const showOSIHeader = !isGeneralMode || linkedOSIs.length > 0;
   
   const totalFixed = osiFixedItems.reduce((sum, fi) =>
     sum + (fi.dias_traslado || 0) * (fi.costo_traslado || 0) +
@@ -269,10 +270,10 @@ export default function RequisicionView({
             <div className="col-span-3 p-3 border-r border-gray-300 bg-gray-50 flex items-center font-bold text-sm">
               Fecha de solicitud:
             </div>
-            <div className={`p-3 border-r border-gray-300 flex items-center ${isGeneralMode ? "col-span-9" : "col-span-4"}`}>
+            <div className={`p-3 border-r border-gray-300 flex items-center ${showOSIHeader ? "col-span-4" : "col-span-9"}`}>
               {record.fecha_solicitud ? new Date(record.fecha_solicitud + "T00:00:00").toLocaleDateString() : "-"}
             </div>
-            {!isGeneralMode && (
+            {showOSIHeader && (
             <>
             <div className="col-span-2 p-3 border-r border-gray-300 bg-gray-50 flex items-center font-bold text-sm">
               N° OSI:
@@ -336,7 +337,7 @@ export default function RequisicionView({
                 {!isGeneralMode && (
                   <th className="p-2 border-r border-gray-300 w-32">PRECIO U.</th>
                 )}
-                {isCapacitacion && osiFixedItems.length > 1 && (
+                {((isCapacitacion && osiFixedItems.length > 1) || (!isCapacitacion && linkedOSIs.length > 1)) && (
                   <th className="p-2 border-r border-gray-300 w-28">OSI</th>
                 )}
                 {isGeneralMode ? (
@@ -678,6 +679,11 @@ export default function RequisicionView({
                       ${item.costo_unitario?.toFixed(2) || "0.00"}
                     </td>
                   )}
+                  {linkedOSIs.length > 1 && (
+                    <td className="p-2 text-center border-r border-gray-300 font-bold text-blue-700 text-[10px]">
+                      {item.id_osi != null ? (osiLookup?.get(item.id_osi) || `#${item.id_osi}`) : "Sin asignar"}
+                    </td>
+                  )}
                   {isGeneralMode ? (
                     <td className="p-2 text-center">
                       <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
@@ -708,7 +714,7 @@ export default function RequisicionView({
 
               {!isGeneralMode && (
               <tr className="bg-gray-100 border-b border-gray-300">
-                <td colSpan={isCapacitacion && osiFixedItems.length > 1 ? (isAdminView ? 6 : 6) : (isAdminView ? 5 : 5)} className="p-2 text-right font-bold uppercase text-sm">Total General:</td>
+                <td colSpan={(isCapacitacion && osiFixedItems.length > 1) || (!isCapacitacion && linkedOSIs.length > 1) ? (isAdminView ? 6 : 6) : (isAdminView ? 5 : 5)} className="p-2 text-right font-bold uppercase text-sm">Total General:</td>
                 <td className="p-2 text-center font-bold text-sm bg-yellow-50">
                   ${totalGeneral.toFixed(2)}
                 </td>
