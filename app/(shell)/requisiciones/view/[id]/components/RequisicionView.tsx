@@ -7,8 +7,6 @@ import { Button } from "@/components/ui/button";
 import { RequisicionItem, OSIFixedItem } from "@/types/requisiciones";
 import { setRequisicionEstatus, updateItemVerificacion, updateFixedItemVerificacion, markAllItemsVerificadas, saveVerificacionProgress, getExchangeRate } from "@/actions/requisiciones";
 import { CheckCircle2, XCircle, Undo2, Clock, AlertTriangle, CalendarClock, Copy, Check, Download, Save } from "lucide-react";
-import { pdf } from "@react-pdf/renderer";
-import RequisicionPdfDocument from "./RequisicionPdfDocument";
 
 export default function RequisicionView({ 
   record, 
@@ -187,6 +185,8 @@ export default function RequisicionView({
   const handleDownloadPdf = async () => {
     setIsGeneratingPdf(true);
     try {
+      const { pdf } = await import("@react-pdf/renderer");
+      const { default: RequisicionPdfDocument } = await import("./RequisicionPdfDocument");
       const blob = await pdf(
         <RequisicionPdfDocument
           record={record}
