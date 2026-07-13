@@ -124,7 +124,6 @@ const styles = StyleSheet.create({
   },
   footerImage: {
     width: "100%",
-    marginTop: 10,
   },
 });
 
@@ -440,6 +439,8 @@ export default function RequisicionPdfDocument({
         <View style={styles.observaciones}>
           <Text>{observacionesText || "SIN OBSERVACIONES"}</Text>
         </View>
+
+        <View style={{ flex: 1 }} />
 
         <Image style={styles.footerImage} src="/pdf/sha-footer.png" />
       </Page>
