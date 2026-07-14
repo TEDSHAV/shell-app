@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { RequisicionItem, OSIFixedItem } from "@/types/requisiciones";
-import { setRequisicionEstatus, updateItemVerificacion, updateFixedItemVerificacion, markAllItemsVerificadas, saveVerificacionProgress, getExchangeRate, updateFacilitadorBankingDetails, refreshRequisicionFromOSI } from "@/actions/requisiciones";
-import { CheckCircle2, XCircle, Undo2, Clock, AlertTriangle, CalendarClock, Copy, Check, Download, Save, RefreshCcw } from "lucide-react";
+import { setRequisicionEstatus, updateItemVerificacion, updateFixedItemVerificacion, markAllItemsVerificadas, saveVerificacionProgress, getExchangeRate, updateFacilitadorBankingDetails } from "@/actions/requisiciones";
+import { CheckCircle2, XCircle, Undo2, Clock, AlertTriangle, CalendarClock, Copy, Check, Download, Save } from "lucide-react";
 
 export default function RequisicionView({ 
   record, 
@@ -37,23 +37,6 @@ export default function RequisicionView({
   const [editRif, setEditRif] = useState<string>(record.rif_facilitador || "");
   const [isSavingBanking, setIsSavingBanking] = useState(false);
   const [bankingSaveMsg, setBankingSaveMsg] = useState<string | null>(null);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-
-  const handleRefreshFromOSI = async () => {
-    if (!confirm("¿Está seguro de sincronizar los datos con la OSI? Se sobrescribirán los montos de honorarios, traslados e impresión con los valores actuales de la OSI.")) return;
-    
-    setIsRefreshing(true);
-    try {
-      await refreshRequisicionFromOSI(record.id);
-      router.refresh();
-      alert("Sincronización completada exitosamente.");
-    } catch (error) {
-      console.error("Error refreshing from OSI:", error);
-      alert(error instanceof Error ? error.message : "Error al sincronizar con la OSI.");
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
 
   const isGeneralMode = record.tipo_solicitud === "Interno";
   const isCapacitacionForRate = !isGeneralMode && record.gerencia_solicitante?.trim().toLowerCase() === "capacitacion";
@@ -350,18 +333,6 @@ export default function RequisicionView({
           <div className="ml-auto flex gap-2">
             {isPendiente && (
               <>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={isUpdating || isRefreshing}
-                  onClick={handleRefreshFromOSI}
-                  className="h-8 px-3 text-xs flex gap-1 border-blue-300 text-blue-700 hover:bg-blue-50 mr-2"
-                  title="Sincronizar con los datos más recientes de la OSI"
-                >
-                  <RefreshCcw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
-                  Sincronizar OSI
-                </Button>
                 {verifiedCount > 0 && verifiedCount < totalCount && (
                   <Button
                     type="button"
@@ -1138,18 +1109,6 @@ export default function RequisicionView({
           <div className="ml-auto flex gap-2">
             {isPendiente && (
               <>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={isUpdating || isRefreshing}
-                  onClick={handleRefreshFromOSI}
-                  className="h-8 px-3 text-xs flex gap-1 border-blue-300 text-blue-700 hover:bg-blue-50 mr-2"
-                  title="Sincronizar con los datos más recientes de la OSI"
-                >
-                  <RefreshCcw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
-                  Sincronizar OSI
-                </Button>
                 {verifiedCount > 0 && verifiedCount < totalCount && (
                   <Button
                     type="button"
