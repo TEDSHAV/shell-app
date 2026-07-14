@@ -753,3 +753,211 @@ export async function getFacilitatorsForDropdown() {
 export async function getExchangeRate(): Promise<number | null> {
   return await getUsdToVesRate();
 }
+
+// Update facilitador banking details from admin requisicion view.
+// Updates both the requisiciones snapshot AND the facilitadores/datos_bancarios master tables.
+export async function updateFacilitadorBankingDetails(
+  requisicionId: number,
+  updates: {
+    banco: string;
+    nro_cuenta: string;
+    telefono_facilitador: string;
+    cedula_facilitador: string;
+    rif_facilitador: string;
+  },
+) {
+  if (!(await isRequisicionesAdmin())) {
+    throw new Error("Solo Administración puede editar los datos del facilitador.");
+  }
+
+  const supabase = await createClient();
+
+  // Fetch the requisicion to get cod_facilitador
+  const { data: requisicion, error: reqError } = await supabase
+    .from("requisiciones")
+    .select("cod_facilitador")
+    .eq("id", requisicionId)
+    .single();
+
+  if (reqError || !requisicion) {
+    throw new Error("No se pudo encontrar la requisición.");
+  }
+
+  const facilitadorId = requisicion.cod_facilitador;
+
+  // 1. Update the requisiciones snapshot
+  const { error: snapshotError } = await supabase
+    .from("requisiciones")
+    .update({
+      banco: updates.banco,
+      nro_cuenta: updates.nro_cuenta,
+      telefono_facilitador: updates.telefono_facilitador,
+      cedula_facilitador: updates.cedula_facilitador,
+      rif_facilitador: updates.rif_facilitador,
+    })
+    .eq("id", requisicionId);
+
+  if (snapshotError) {
+    console.error("Error updating requisicion snapshot:", snapshotError);
+    throw new Error("Error al actualizar el snapshot de la requisición.");
+  }
+
+  // 2. Update facilitadores master table if we have a valid facilitador id
+  if (facilitadorId) {
+    const { error: facError } = await supabase
+      .from("facilitadores")
+      .update({
+        cedula: updates.cedula_facilitador,
+        rif: updates.rif_facilitador,
+        telefono: updates.telefono_facilitador,
+        fecha_actualizacion: new Date().toISOString(),
+      })
+      .eq("id", facilitadorId);
+
+    if (facError) {
+      console.error("Error updating facilitadores table:", facError);
+      throw new Error("Error al actualizar los datos del facilitador.");
+    }
+
+    // 3. Update or insert the principal datos_bancarios record
+    const { data: existingBank } = await supabase
+      .from("datos_bancarios")
+      .select("id")
+      .eq("id_facilitador", facilitadorId)
+      .eq("es_principal", true)
+      .single();
+
+    if (existingBank) {
+      const { error: bankError } = await supabase
+        .from("datos_bancarios")
+        .update({
+          banco: updates.banco,
+          nro_cuenta: updates.nro_cuenta,
+        })
+        .eq("id", existingBank.id);
+
+      if (bankError) {
+        console.error("Error updating datos_bancarios:", bankError);
+        throw new Error("Error al actualizar los datos bancarios.");
+      }
+    } else {
+      // No principal banking record exists — create one
+      const { error: bankInsertError } = await supabase
+        .from("datos_bancarios")
+        .insert({
+          id_facilitador: facilitadorId,
+          banco: updates.banco,
+          nro_cuenta: updates.nro_cuenta,
+          es_principal: true,
+          cedula_titular: updates.cedula_facilitador,
+          nombre_titular: null,
+          tipo_cuenta: null,
+          telefono_pago_movil: updates.telefono_facilitador,
+        });
+
+      if (bankInsertError) {
+        console.error("Error inserting datos_bancarios:", bankInsertError);
+        throw new Error("Error al crear los datos bancarios.");
+      }
+    }
+  }
+
+  revalidatePath(`/requisiciones/view/${requisicionId}`);
+  return { success: true };
+}
+
+// Refresh requisicion data (fixed items snapshot) from the master OSI record.
+// This resolves inconsistencies between the historical snapshot and the current OSI truth.
+export async function refreshRequisicionFromOSI(requisicionId: number) {
+  if (!(await isRequisicionesAdmin())) {
+    throw new Error("Solo Administración puede sincronizar datos con la OSI.");
+  }
+
+  const supabase = await createClient();
+
+  // 1. Get the current requisicion record to find linked OSIs
+  const { data: record, error: fetchError } = await supabase
+    .from("requisiciones")
+    .select(`
+      *,
+      requisiciones_osis (id_osi)
+    `)
+    .eq("id", requisicionId)
+    .single();
+
+  if (fetchError || !record) {
+    throw new Error("No se pudo encontrar la requisición.");
+  }
+
+  // 2. Identify all OSI IDs to refresh
+  const osiIds: number[] = [];
+  if (record.id_osi) osiIds.push(record.id_osi);
+  
+  if (record.requisiciones_osis && record.requisiciones_osis.length > 0) {
+    record.requisiciones_osis.forEach((ro: any) => {
+      if (ro.id_osi && !osiIds.includes(ro.id_osi)) {
+        osiIds.push(ro.id_osi);
+      }
+    });
+  }
+
+  if (osiIds.length === 0) {
+    throw new Error("Esta requisición no tiene OSIs vinculadas para sincronizar.");
+  }
+
+  // 3. Fetch fresh data for these OSIs
+  const { data: freshOsis, error: freshError } = await supabase
+    .from("v_osi_formato_completo")
+    .select("*")
+    .in("id_osi", osiIds);
+
+  if (freshError || !freshOsis || freshOsis.length === 0) {
+    throw new Error("No se pudo obtener información actualizada de las OSIs.");
+  }
+
+  const freshOsiMap = new Map(freshOsis.map((o: any) => [o.id_osi, o]));
+
+  // 4. Update osi_fixed_items array
+  const currentFixedItems: OSIFixedItem[] = record.osi_fixed_items || [];
+  const updatedFixedItems: OSIFixedItem[] = currentFixedItems.map((fi) => {
+    const fresh = freshOsiMap.get(fi.id_osi);
+    if (!fresh) return fi;
+
+    return {
+      ...fi,
+      nro_osi: fresh.nro_osi,
+      costo_traslado: fresh.costo_traslado || 0,
+      impresion_total: fresh.costo_impresion_material || 0,
+      honorarios_horas: fresh.horas_honorarios_instructor || 0,
+      honorarios_costo_hora: fresh.tarifa_hora_honorarios || 0,
+      honorarios_total: fresh.costo_honorarios_instructor || 0,
+    };
+  });
+
+  // 5. Update legacy snapshot fields from the first (primary) OSI
+  const primaryOsi = freshOsiMap.get(record.id_osi || osiIds[0]);
+  const updates: any = {
+    osi_fixed_items: updatedFixedItems,
+  };
+
+  if (primaryOsi) {
+    updates.costo_traslado = (record.dias_traslado || 1) * (primaryOsi.costo_traslado || 0);
+    updates.impresion_total = primaryOsi.costo_impresion_material || 0;
+    updates.honorarios_total = primaryOsi.costo_honorarios_instructor || 0;
+  }
+
+  // 6. Save updates
+  const { error: updateError } = await supabase
+    .from("requisiciones")
+    .update(updates)
+    .eq("id", requisicionId);
+
+  if (updateError) {
+    console.error("Error updating requisicion from OSI:", updateError);
+    throw new Error("Error al guardar los datos actualizados.");
+  }
+
+  revalidatePath(`/requisiciones/view/${requisicionId}`);
+  return { success: true };
+}
+

@@ -249,7 +249,7 @@ function RequisicionFormContent({
           impresion_total: osi.costo_impresion_material || 0,
           honorarios_horas: osi.horas_honorarios_instructor || 0,
           honorarios_costo_hora: osi.tarifa_hora_honorarios || 0,
-          honorarios_total: (osi.horas_honorarios_instructor || 0) * (osi.tarifa_hora_honorarios || 0),
+          honorarios_total: osi.costo_honorarios_instructor || 0,
           informe_final_total: 0,
           verificacion_traslado: "pendiente",
           verificacion_impresion: "pendiente",

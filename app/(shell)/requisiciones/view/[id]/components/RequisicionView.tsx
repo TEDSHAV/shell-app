@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { RequisicionItem, OSIFixedItem } from "@/types/requisiciones";
-import { setRequisicionEstatus, updateItemVerificacion, updateFixedItemVerificacion, markAllItemsVerificadas, saveVerificacionProgress, getExchangeRate } from "@/actions/requisiciones";
-import { CheckCircle2, XCircle, Undo2, Clock, AlertTriangle, CalendarClock, Copy, Check, Download, Save } from "lucide-react";
+import { setRequisicionEstatus, updateItemVerificacion, updateFixedItemVerificacion, markAllItemsVerificadas, saveVerificacionProgress, getExchangeRate, updateFacilitadorBankingDetails, refreshRequisicionFromOSI } from "@/actions/requisiciones";
+import { CheckCircle2, XCircle, Undo2, Clock, AlertTriangle, CalendarClock, Copy, Check, Download, Save, RefreshCcw } from "lucide-react";
 
 export default function RequisicionView({ 
   record, 
@@ -28,6 +28,32 @@ export default function RequisicionView({
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [exchangeRateInput, setExchangeRateInput] = useState<string>("");
   const [isLoadingRate, setIsLoadingRate] = useState(false);
+
+  // Editable facilitador banking fields (admin only)
+  const [editBanco, setEditBanco] = useState<string>(record.banco || "");
+  const [editNroCuenta, setEditNroCuenta] = useState<string>(record.nro_cuenta || "");
+  const [editTelefono, setEditTelefono] = useState<string>(record.telefono_facilitador || "");
+  const [editCedula, setEditCedula] = useState<string>(record.cedula_facilitador || "");
+  const [editRif, setEditRif] = useState<string>(record.rif_facilitador || "");
+  const [isSavingBanking, setIsSavingBanking] = useState(false);
+  const [bankingSaveMsg, setBankingSaveMsg] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefreshFromOSI = async () => {
+    if (!confirm("¿Está seguro de sincronizar los datos con la OSI? Se sobrescribirán los montos de honorarios, traslados e impresión con los valores actuales de la OSI.")) return;
+    
+    setIsRefreshing(true);
+    try {
+      await refreshRequisicionFromOSI(record.id);
+      router.refresh();
+      alert("Sincronización completada exitosamente.");
+    } catch (error) {
+      console.error("Error refreshing from OSI:", error);
+      alert(error instanceof Error ? error.message : "Error al sincronizar con la OSI.");
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   const isGeneralMode = record.tipo_solicitud === "Interno";
   const isCapacitacionForRate = !isGeneralMode && record.gerencia_solicitante?.trim().toLowerCase() === "capacitacion";
@@ -324,6 +350,18 @@ export default function RequisicionView({
           <div className="ml-auto flex gap-2">
             {isPendiente && (
               <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isUpdating || isRefreshing}
+                  onClick={handleRefreshFromOSI}
+                  className="h-8 px-3 text-xs flex gap-1 border-blue-300 text-blue-700 hover:bg-blue-50 mr-2"
+                  title="Sincronizar con los datos más recientes de la OSI"
+                >
+                  <RefreshCcw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+                  Sincronizar OSI
+                </Button>
                 {verifiedCount > 0 && verifiedCount < totalCount && (
                   <Button
                     type="button"
@@ -936,12 +974,34 @@ export default function RequisicionView({
               {record.facilitador && <CopyIcon field="nombre" value={record.facilitador} />}
             </div>
             <div className="col-span-3 p-2 border-r border-gray-300 flex items-center justify-between font-bold">
-              {record.cedula_facilitador || "-"}
-              {record.cedula_facilitador && <CopyIcon field="cedula" value={record.cedula_facilitador} />}
+              {isAdminView ? (
+                <input
+                  type="text"
+                  value={editCedula}
+                  onChange={(e) => setEditCedula(e.target.value)}
+                  className="w-full px-2 py-1 text-xs border border-gray-300 rounded font-medium focus:outline-none focus:ring-1 focus:ring-blue-400"
+                />
+              ) : (
+                <>
+                  {record.cedula_facilitador || "-"}
+                  {record.cedula_facilitador && <CopyIcon field="cedula" value={record.cedula_facilitador} />}
+                </>
+              )}
             </div>
             <div className="col-span-3 p-2 flex items-center justify-between font-bold uppercase">
-              {record.rif_facilitador || "-"}
-              {record.rif_facilitador && <CopyIcon field="rif" value={record.rif_facilitador} />}
+              {isAdminView ? (
+                <input
+                  type="text"
+                  value={editRif}
+                  onChange={(e) => setEditRif(e.target.value)}
+                  className="w-full px-2 py-1 text-xs border border-gray-300 rounded font-medium focus:outline-none focus:ring-1 focus:ring-blue-400"
+                />
+              ) : (
+                <>
+                  {record.rif_facilitador || "-"}
+                  {record.rif_facilitador && <CopyIcon field="rif" value={record.rif_facilitador} />}
+                </>
+              )}
             </div>
           </div>
 
@@ -950,24 +1010,98 @@ export default function RequisicionView({
               Banco
             </div>
             <div className="col-span-4 p-2 border-r border-gray-300 flex items-center justify-between font-bold uppercase">
-              {record.banco || "-"}
-              {record.banco && <CopyIcon field="banco" value={record.banco} />}
+              {isAdminView ? (
+                <input
+                  type="text"
+                  value={editBanco}
+                  onChange={(e) => setEditBanco(e.target.value)}
+                  className="w-full px-2 py-1 text-xs border border-gray-300 rounded font-medium focus:outline-none focus:ring-1 focus:ring-blue-400"
+                />
+              ) : (
+                <>
+                  {record.banco || "-"}
+                  {record.banco && <CopyIcon field="banco" value={record.banco} />}
+                </>
+              )}
             </div>
             <div className="col-span-2 p-2 border-r border-gray-300 bg-gray-50 flex items-center font-bold">
               Nro Cuenta.
             </div>
             <div className="col-span-2 p-2 border-r border-gray-300 flex items-center justify-between font-bold">
-              {record.nro_cuenta || "-"}
-              {record.nro_cuenta && <CopyIcon field="cuenta" value={record.nro_cuenta} />}
+              {isAdminView ? (
+                <input
+                  type="text"
+                  value={editNroCuenta}
+                  onChange={(e) => setEditNroCuenta(e.target.value)}
+                  className="w-full px-2 py-1 text-xs border border-gray-300 rounded font-medium focus:outline-none focus:ring-1 focus:ring-blue-400"
+                />
+              ) : (
+                <>
+                  {record.nro_cuenta || "-"}
+                  {record.nro_cuenta && <CopyIcon field="cuenta" value={record.nro_cuenta} />}
+                </>
+              )}
             </div>
             <div className="col-span-1 p-2 border-r border-gray-300 bg-gray-50 flex items-center font-bold">
               Tel.
             </div>
             <div className="col-span-2 p-2 flex items-center justify-between font-bold">
-              {record.telefono_facilitador || "-"}
-              {record.telefono_facilitador && <CopyIcon field="telefono" value={record.telefono_facilitador} />}
+              {isAdminView ? (
+                <input
+                  type="text"
+                  value={editTelefono}
+                  onChange={(e) => setEditTelefono(e.target.value)}
+                  className="w-full px-2 py-1 text-xs border border-gray-300 rounded font-medium focus:outline-none focus:ring-1 focus:ring-blue-400"
+                />
+              ) : (
+                <>
+                  {record.telefono_facilitador || "-"}
+                  {record.telefono_facilitador && <CopyIcon field="telefono" value={record.telefono_facilitador} />}
+                </>
+              )}
             </div>
           </div>
+
+          {/* Save banking details button (admin only) */}
+          {isAdminView && (
+            <div className="flex items-center gap-3 px-3 py-2 border-b border-gray-300 bg-gray-50">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isSavingBanking}
+                onClick={async () => {
+                  setIsSavingBanking(true);
+                  setBankingSaveMsg(null);
+                  try {
+                    await updateFacilitadorBankingDetails(record.id, {
+                      banco: editBanco,
+                      nro_cuenta: editNroCuenta,
+                      telefono_facilitador: editTelefono,
+                      cedula_facilitador: editCedula,
+                      rif_facilitador: editRif,
+                    });
+                    setBankingSaveMsg("Datos guardados correctamente.");
+                    setTimeout(() => setBankingSaveMsg(null), 3000);
+                  } catch (error) {
+                    console.error("Error saving banking details:", error);
+                    setBankingSaveMsg("Error al guardar los datos.");
+                  } finally {
+                    setIsSavingBanking(false);
+                  }
+                }}
+                className="h-8 px-3 text-xs flex gap-1 border-blue-300 text-blue-700 hover:bg-blue-50"
+              >
+                <Save className="h-3.5 w-3.5" />
+                {isSavingBanking ? "Guardando..." : "Guardar Datos Bancarios"}
+              </Button>
+              {bankingSaveMsg && (
+                <span className={`text-xs font-medium ${bankingSaveMsg.includes("Error") ? "text-red-600" : "text-emerald-600"}`}>
+                  {bankingSaveMsg}
+                </span>
+              )}
+            </div>
+          )}
 
           {/* Exchange rate row */}
           <div className="grid grid-cols-12 text-xs h-12 border-b border-gray-300">
@@ -1004,6 +1138,18 @@ export default function RequisicionView({
           <div className="ml-auto flex gap-2">
             {isPendiente && (
               <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isUpdating || isRefreshing}
+                  onClick={handleRefreshFromOSI}
+                  className="h-8 px-3 text-xs flex gap-1 border-blue-300 text-blue-700 hover:bg-blue-50 mr-2"
+                  title="Sincronizar con los datos más recientes de la OSI"
+                >
+                  <RefreshCcw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+                  Sincronizar OSI
+                </Button>
                 {verifiedCount > 0 && verifiedCount < totalCount && (
                   <Button
                     type="button"
