@@ -2,7 +2,6 @@
 
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
-import { notifyOsiStatusChanged } from "@/actions/osi-notifications";
 import type { BuildOsiPreviewInput } from "@sha/osi-formato";
 import type {
   OSIListFilters,
@@ -481,29 +480,8 @@ export async function updateOSIStatus(
       return { success: false, error: "Error al actualizar el estado" };
     }
 
-    // Fetch OSI info for notification
-    const { data: osiRow } = await supabase
-      .from("v_osi_formato_completo")
-      .select("nro_osi, ejecutivo_negocios")
-      .eq("id_osi", osiId)
-      .single();
-
-    const { data: statusRow } = await supabase
-      .from("conf_estatus")
-      .select("nombre_estado")
-      .eq("id", newStatusId)
-      .single();
-
-    const newStatusName = statusRow?.nombre_estado || `ID ${newStatusId}`;
-    const nroOsi = osiRow?.nro_osi || `ID ${osiId}`;
-
-    await notifyOsiStatusChanged({
-      osiId,
-      newStatusId,
-      nroOsi,
-      newStatusName,
-      ejecutivoNegocios: osiRow?.ejecutivo_negocios,
-    });
+    // Notification is sent by DB trigger notify_shell_osi_status_changed
+    // on ejecucion_osi.id_estatus update (see SGestion migration).
 
     return { success: true };
   } catch (err) {
