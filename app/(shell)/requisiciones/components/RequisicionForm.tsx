@@ -84,10 +84,11 @@ function RequisicionFormContent({
   const deptLower = userDept.trim().toLowerCase();
   const isCapacitacionDept = deptLower === "capacitacion";
   const isServiciosDept = deptLower === "servicios tecnicos" || deptLower === "servicios técnicos";
-  // Capacitación and Servicios Técnicos default to their OSI mode; everyone else defaults to General
+  const isNegociosDept = deptLower === "negocios";
+  // Capacitación, Servicios Técnicos, and Negocios can use Externa mode; everyone else defaults to General
   const defaultIsGeneral = !isCapacitacionDept && !isServiciosDept;
   const editIsGeneral = editRecord ? (editRecord.tipo_solicitud === "Interno" || (!editRecord.tipo_solicitud && !editRecord.id_osi)) : defaultIsGeneral;
-  const canUseExternal = isCapacitacionDept || isServiciosDept || (editRecord && !editIsGeneral);
+  const canUseExternal = isCapacitacionDept || isServiciosDept || isNegociosDept || (editRecord && !editIsGeneral);
   const defaultGerencia = isCapacitacionDept ? "Capacitacion" : isServiciosDept ? "Servicios Tecnicos" : (initialUserData?.departamentos?.nombre || userDept || "");
 
   // For edit mode: reconstruct selectedOSIs from record
@@ -141,9 +142,9 @@ function RequisicionFormContent({
     observaciones: editRecord?.observaciones_compras || "",
   });
 
-  const [mode, setMode] = useState<"general" | "capacitacion" | "servicios tecnicos">(
+  const [mode, setMode] = useState<"general" | "capacitacion" | "servicios tecnicos" | "negocios">(
     editRecord
-      ? (editIsGeneral ? "general" : (editRecord.gerencia_solicitante?.trim().toLowerCase() === "capacitacion" ? "capacitacion" : "servicios tecnicos"))
+      ? (editIsGeneral ? "general" : (editRecord.gerencia_solicitante?.trim().toLowerCase() === "capacitacion" ? "capacitacion" : editRecord.gerencia_solicitante?.trim().toLowerCase() === "negocios" ? "negocios" : "servicios tecnicos"))
       : (defaultIsGeneral ? "general" : (isCapacitacionDept ? "capacitacion" : "servicios tecnicos"))
   );
 
@@ -166,11 +167,12 @@ function RequisicionFormContent({
   const showOSISelector = !isGeneralMode || canUseExternal;
   const internaOsiTipoServicio = isCapacitacionDept ? "capacitacion" : "servicios tecnicos";
 
-  const handleModeSwitch = (newMode: "general" | "capacitacion" | "servicios tecnicos") => {
+  const handleModeSwitch = (newMode: "general" | "capacitacion" | "servicios tecnicos" | "negocios") => {
     const gerenciaMap = {
       general: initialUserData?.departamentos?.nombre || userDept || "",
       capacitacion: "Capacitacion",
       "servicios tecnicos": "Servicios Tecnicos",
+      negocios: "Negocios",
     };
     setMode(newMode);
     setFormData((prev) => ({
@@ -204,13 +206,15 @@ function RequisicionFormContent({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
+  const isNegociosMode = mode === "negocios";
   const osiTipoServicio = isGeneralMode ? internaOsiTipoServicio : (isCapacitacion ? "capacitacion" : "servicios tecnicos");
 
   const isOSIRequired = !isGeneralMode;
 
   const filteredOSIs = osis.filter(
     (osi) =>
-      osi.tipo_servicio?.toLowerCase() === osiTipoServicio &&
+      (isNegociosMode || osi.tipo_servicio?.toLowerCase() === osiTipoServicio) &&
+      !osi.nro_osi?.toUpperCase().startsWith("PEN") &&
       (osi.nro_osi?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         osi.servicio?.toLowerCase().includes(searchTerm.toLowerCase())),
   );
@@ -453,7 +457,7 @@ function RequisicionFormContent({
         {canUseExternal && (
         <button
           type="button"
-          onClick={() => handleModeSwitch(isCapacitacionDept ? "capacitacion" : "servicios tecnicos")}
+          onClick={() => handleModeSwitch(isCapacitacionDept ? "capacitacion" : isServiciosDept ? "servicios tecnicos" : "negocios")}
           className={`px-4 py-2 text-sm font-bold rounded-t-lg border-b-2 transition-colors ${
             !isGeneralMode
               ? "border-blue-600 text-blue-600 bg-blue-50"
