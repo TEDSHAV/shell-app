@@ -1,4 +1,7 @@
-import type { OsiPreviewData } from "./osi-preview-data";
+import type {
+  OsiPreviewData,
+  OsiRecursosSesionPreview,
+} from "./osi-preview-data";
 import {
   resolve_osi_horas_count,
   resolve_osi_participantes_count,
@@ -66,6 +69,60 @@ function format_date_for_doc(value: unknown): string {
     return new Intl.DateTimeFormat("es-VE").format(new Date());
   }
   return new Intl.DateTimeFormat("es-VE").format(parsed);
+}
+
+function map_desglose_recursos_sesiones(
+  value: unknown,
+): OsiRecursosSesionPreview[] {
+  if (!Array.isArray(value)) return [];
+  const result: OsiRecursosSesionPreview[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object") continue;
+    const row = item as Record<string, unknown>;
+    const id_sesion_raw = row.id_sesion;
+    const id_sesion_num = to_num(id_sesion_raw);
+    const has_sesion =
+      (id_sesion_raw != null && id_sesion_num > 0) ||
+      to_num(row.nro_sesion) > 0;
+    if (!has_sesion) continue;
+    const horas = to_num(row.horas_honorarios_instructor);
+    const tarifa = to_num(row.tarifa_hora_honorarios);
+    const honorarios =
+      to_num(row.costo_honorarios_instructor) ||
+      Math.round(horas * tarifa * 100) / 100;
+    result.push({
+      nroSesion: to_num(row.nro_sesion) || null,
+      fecha: to_str(row.fecha),
+      horaInicio: to_str(row.hora_inicio),
+      horaFin: to_str(row.hora_fin),
+      costoImpresionMaterial: to_num(row.costo_impresion_material),
+      costoLogisticaComida: to_num(row.costo_logistica_comida),
+      costoTraslado: to_num(row.costo_traslado),
+      trasladoExterno: to_num(row.traslado_externo),
+      costoPop: to_num(row.costo_pop),
+      costoOtros: to_num(row.costo_otros),
+      horasHonorariosInstructor: horas,
+      tarifaHoraHonorarios: tarifa,
+      costoHonorariosInstructor: honorarios,
+      popIncluido: Boolean(row.pop_incluido),
+      costoCarnetizacion: to_num(row.costo_carnetizacion),
+      costoDiasEspecialista: to_num(row.costo_dias_especialista),
+      costoHospedaje: to_num(row.costo_hospedaje),
+      costoBateria: to_num(row.costo_bateria),
+      diasLogisticaFacilitador: to_num(row.dias_logistica_facilitador),
+      diasHospedajeFacilitador: to_num(row.dias_hospedaje_facilitador),
+      stDiasCampo: to_num(row.st_dias_campo),
+      stDiasInforme: to_num(row.st_dias_informe),
+      stAnalistas: to_num(row.st_analistas),
+      stLogisticaRecursos: to_num(row.st_logistica_recursos),
+      stEnvioFactura: to_num(row.st_envio_factura),
+      stEnvioMateriales: to_num(row.st_envio_materiales),
+      stTraslados: parse_st_traslados_json(row.st_traslados),
+      impresionMaterialIncluida: row.impresion_material_incluida !== false,
+      bateriaIncluida: row.bateria_incluida !== false,
+    });
+  }
+  return result;
 }
 
 function build_detalle_servicio(params: {
@@ -317,6 +374,9 @@ export function build_osi_preview_data(input: BuildOsiPreviewInput): OsiPreviewD
     stTraslados: st_traslados,
     impresionMaterialIncluida: view_row.impresion_material_incluida !== false,
     bateriaIncluida: view_row.bateria_incluida !== false,
+    desgloseRecursosSesiones: map_desglose_recursos_sesiones(
+      view_row.desglose_recursos_sesiones,
+    ),
     publicCostMask: public_cost_mask,
     isPublicView: !can_see_private_costs,
   };

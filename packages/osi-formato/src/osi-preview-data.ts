@@ -51,6 +51,8 @@ export type OsiPreviewData = {
   costoDiasEspecialista: number;
   costoHospedaje: number;
   costoBateria: number;
+  /** Per-session resource blocks (modo por sesión). Empty = bloque global. */
+  desgloseRecursosSesiones?: OsiRecursosSesionPreview[];
   certificadoImpreso: boolean;
   carnetImpreso: boolean;
   audiovisuales: boolean;
@@ -85,6 +87,39 @@ export type OsiPreviewData = {
   };
   publicCostMask?: Record<string, boolean>;
   isPublicView?: boolean;
+};
+
+
+export type OsiRecursosSesionPreview = {
+  nroSesion?: number | null;
+  fecha?: string | null;
+  horaInicio?: string | null;
+  horaFin?: string | null;
+  costoImpresionMaterial: number;
+  costoLogisticaComida: number;
+  costoTraslado: number;
+  trasladoExterno: number;
+  costoPop: number;
+  costoOtros: number;
+  horasHonorariosInstructor: number;
+  tarifaHoraHonorarios: number;
+  costoHonorariosInstructor: number;
+  popIncluido: boolean;
+  costoCarnetizacion: number;
+  costoDiasEspecialista: number;
+  costoHospedaje: number;
+  costoBateria: number;
+  diasLogisticaFacilitador?: number;
+  diasHospedajeFacilitador?: number;
+  stDiasCampo?: number;
+  stDiasInforme?: number;
+  stAnalistas?: number;
+  stLogisticaRecursos?: number;
+  stEnvioFactura?: number;
+  stEnvioMateriales?: number;
+  stTraslados?: OsiPreviewData["stTraslados"];
+  impresionMaterialIncluida?: boolean;
+  bateriaIncluida?: boolean;
 };
 
 export type OsiStServicioLine = {

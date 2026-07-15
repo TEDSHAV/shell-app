@@ -299,6 +299,9 @@ export async function getOSIPreviewBundle(
   if (!Number.isFinite(osiId) || osiId <= 0) return null;
 
   try {
+    const accessFilter = await getUserOSIAccessFilter();
+    if (accessFilter === "none") return null;
+
     const supabase = await createClient();
     const { data: view_row, error } = await supabase
       .from("v_osi_formato_completo")
@@ -311,17 +314,47 @@ export async function getOSIPreviewBundle(
       return null;
     }
 
+    const tipoServicio = String(
+      (view_row as Record<string, unknown>).tipo_servicio ?? "",
+    ).toUpperCase();
+    if (
+      accessFilter === "capacitacion" &&
+      !tipoServicio.includes("CAPACITACION")
+    ) {
+      return null;
+    }
+    if (
+      accessFilter === "servicios_tecnicos" &&
+      !tipoServicio.includes("SERVICIOS TECNICOS") &&
+      !tipoServicio.includes("SERVICIO TECNICO")
+    ) {
+      return null;
+    }
+
     const { data: osi_base_row } = await supabase
       .from("ejecucion_osi")
       .select("id, pretenciones_adicionales_osi, observaciones_adicionales_osi")
       .eq("id", osiId)
       .maybeSingle();
 
-    const { data: recursos_row } = await supabase
+    const { data: recursos_rows, error: recursos_error } = await supabase
       .from("osi_recursos_estimados")
-      .select("public_cost_mask")
+      .select("id_sesion, public_cost_mask")
       .eq("id_osi", osiId)
-      .maybeSingle();
+      .limit(50);
+
+    if (recursos_error) {
+      console.error("Error fetching OSI recursos mask:", recursos_error);
+    }
+
+    // Prefer global mask; else first session row with a non-empty mask object.
+    const public_cost_mask = resolve_public_cost_mask(
+      (recursos_rows ?? []) as Array<{
+        id_sesion?: number | null;
+        public_cost_mask?: unknown;
+      }>,
+      (view_row as Record<string, unknown>).desglose_recursos_sesiones,
+    );
 
     const id_ecc = Number(
       (view_row as Record<string, unknown>).id_ecc_actual ??
@@ -354,24 +387,63 @@ export async function getOSIPreviewBundle(
       }
     }
 
-    const public_cost_mask =
-      recursos_row?.public_cost_mask &&
-      typeof recursos_row.public_cost_mask === "object"
-        ? (recursos_row.public_cost_mask as Record<string, boolean>)
-        : {};
-
     return {
       view_row: view_row as Record<string, unknown>,
       osi_base_row: (osi_base_row ?? null) as Record<string, unknown> | null,
       ecc_children,
       servicio_nombre_by_id,
       public_cost_mask,
+      // Consulta OSI is internal staff: always show private costs.
       can_see_private_costs: true,
     };
   } catch (err) {
     console.error("Unexpected error in getOSIPreviewBundle:", err);
     return null;
   }
+}
+
+function as_mask_record(value: unknown): Record<string, boolean> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const entries = Object.entries(value as Record<string, unknown>);
+  if (entries.length === 0) return null;
+  const out: Record<string, boolean> = {};
+  for (const [key, raw] of entries) {
+    out[key] = Boolean(raw);
+  }
+  return out;
+}
+
+/**
+ * Resolve OSI public cost mask for por_sesion or global recursos rows.
+ * Prefer id_sesion IS NULL; else first non-empty mask from recursos or desglose.
+ */
+function resolve_public_cost_mask(
+  recursos_rows: Array<{
+    id_sesion?: number | null;
+    public_cost_mask?: unknown;
+  }>,
+  desglose: unknown,
+): Record<string, boolean> {
+  const global_row = recursos_rows.find((r) => r.id_sesion == null);
+  const from_global = as_mask_record(global_row?.public_cost_mask);
+  if (from_global) return from_global;
+
+  for (const row of recursos_rows) {
+    const mask = as_mask_record(row.public_cost_mask);
+    if (mask) return mask;
+  }
+
+  if (Array.isArray(desglose)) {
+    for (const item of desglose) {
+      if (!item || typeof item !== "object") continue;
+      const mask = as_mask_record(
+        (item as Record<string, unknown>).public_cost_mask,
+      );
+      if (mask) return mask;
+    }
+  }
+
+  return {};
 }
 
 export type OSIAccessFilter = "all" | "capacitacion" | "servicios_tecnicos" | "other" | "none";

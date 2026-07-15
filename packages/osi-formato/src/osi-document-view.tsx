@@ -1,13 +1,16 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element -- native img for reliable print paint */
-import { Fragment } from "react";
 import { cn } from "./utils/cn";
 import { formatCalendarDayEsVe } from "./utils/calendar-date";
 import { merged_content_to_display_html, RICH_HTML_CONTENT_CLASS } from "./rich-html";
 import type { OsiStServicioLine } from "./osi-preview-data";
 import { type OsiDocumentAssets, type OsiPreviewData } from "./osi-preview-data";
-import { compute_st_recursos_totals, OSI_ST_TRASLADO_LABELS } from "./st-recursos-types";
+import {
+  build_osi_recursos_layout,
+  OsiCapacitacionRecursosBlocks,
+  OsiStRecursosBlocks,
+} from "./osi-recursos-section";
 
 /** Fixed header metadata (CÓDIGO / FECHA / REVISIÓN block). */
 const OSI_FORM_META = {
@@ -48,16 +51,6 @@ function st_lines_with_field(
   return (lines ?? []).filter((line) => String(line[field] ?? "").trim().length > 0);
 }
 
-function OsiRecursosColGroup() {
-  return (
-    <colgroup>
-      <col className="osi-col-dias" />
-      <col className="osi-col-costo" />
-      <col className="osi-col-total" />
-    </colgroup>
-  );
-}
-
 export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets: OsiDocumentAssets }) {
   const section_header_class =
     "py-2 text-center text-[11px] font-bold text-[#002b5c] bg-slate-200";
@@ -83,9 +76,7 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
   const is_public_view = Boolean(data.isPublicView);
   const is_hidden = (key: string) =>
     is_public_view && Boolean(data.publicCostMask?.[key]);
-  const honorarios_hidden = is_hidden("honorarios_unit_cost");
-  const logistica_hidden = is_hidden("logistica_unit_cost");
-  const hospedaje_hidden = is_hidden("hospedaje_unit_cost");
+  const recursos_layout = build_osi_recursos_layout(data);
   const participantesDoc =
     data.participantesDocumento != null && data.participantesDocumento >= 0
       ? data.participantesDocumento
@@ -106,75 +97,6 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
           : null;
   const cellHl = (on: boolean | undefined) =>
     on ? "bg-amber-50 ring-2 ring-amber-300 ring-inset" : "";
-  const costo_impresion_material_view = is_hidden("costo_impresion_material")
-    ? 0
-    : data.costoImpresionMaterial;
-  const costo_logistica_view = logistica_hidden ? 0 : data.costoLogisticaComida;
-  const costo_traslado_view = is_hidden("costo_traslado") ? 0 : data.costoTraslado;
-  const traslado_externo_view = is_hidden("traslado_externo")
-    ? 0
-    : data.trasladoExterno;
-  const costo_otros_view = is_hidden("costo_otros") ? 0 : data.costoOtros;
-  const st_envio_factura_view = is_hidden("st_envio_factura")
-    ? 0
-    : (data.stEnvioFactura ?? 0);
-  const st_envio_materiales_view = is_hidden("st_envio_materiales")
-    ? 0
-    : (data.stEnvioMateriales ?? 0);
-  const costo_dias_especialista_view = is_hidden("costo_dias_especialista")
-    ? 0
-    : data.costoDiasEspecialista;
-  const costo_hospedaje_view = hospedaje_hidden ? 0 : data.costoHospedaje;
-  const costo_bateria_view = is_hidden("costo_bateria") ? 0 : data.costoBateria;
-  const tarifa_honorarios_view = honorarios_hidden ? 0 : data.tarifaHoraHonorarios;
-  const total_honorarios_view = honorarios_hidden
-    ? 0
-    : data.costoHonorariosInstructor;
-
-  const totalCostos =
-    costo_impresion_material_view +
-    costo_logistica_view +
-    costo_traslado_view +
-    traslado_externo_view +
-    data.costoPop +
-    costo_otros_view +
-    total_honorarios_view +
-    data.costoCarnetizacion +
-    costo_dias_especialista_view +
-    costo_hospedaje_view +
-    costo_bateria_view;
-  const dias_logistica = data.isCapacitacion
-    ? (data.diasLogisticaFacilitador ?? 0)
-    : (data.diasLogisticaFacilitador ?? 0);
-  const dias_hospedaje = data.isCapacitacion
-    ? (data.diasHospedajeFacilitador ?? 0)
-    : (data.diasHospedajeFacilitador ?? 0);
-
-  const st_totals = !data.isCapacitacion
-    ? compute_st_recursos_totals({
-        dias_hospedaje_facilitador: dias_hospedaje,
-        costo_hospedaje: costo_hospedaje_view,
-        dias_logistica_facilitador: dias_logistica,
-        costo_logistica_comida: costo_logistica_view,
-        st_logistica_recursos: data.stLogisticaRecursos ?? data.stAnalistas ?? 0,
-        st_envio_factura: st_envio_factura_view,
-        st_envio_materiales: st_envio_materiales_view,
-        st_traslados: data.stTraslados ?? [],
-      })
-    : null;
-
-  const logistica_total = data.isCapacitacion
-    ? dias_logistica * costo_logistica_view
-    : (st_totals?.total_logistica ?? 0);
-  const hospedaje_total = data.isCapacitacion
-    ? dias_hospedaje * costo_hospedaje_view
-    : (st_totals?.total_hospedaje ?? 0);
-  const st_traslado_total = st_totals?.costo_traslado ?? costo_traslado_view;
-  const st_traslado_externo_total =
-    st_totals?.traslado_externo ?? traslado_externo_view;
-  const st_envio_total = st_totals?.total_envio ?? 0;
-  const impresion_si = data.impresionMaterialIncluida !== false;
-  const bateria_si = data.bateriaIncluida !== false;
   const pretensiones_por_servicio = st_lines_with_field(
     data.stServicios,
     "pretensiones",
@@ -183,7 +105,6 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
     data.stServicios,
     "observaciones",
   );
-  const st_traslados_list = data.stTraslados ?? [];
   const content_hidden = (key: string) => Boolean(data.publicCostMask?.[key]);
   const pretensiones_items: Array<{
     servicio?: string;
@@ -555,190 +476,11 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
                       </span>
                   </td>
                 </tr>
-                <tr>
-                  <th colSpan={4} className={section_header_class}>RECURSOS ESTIMADOS PARA EL SERVICIO</th>
-                </tr>
-                <tr>
-                  <td rowSpan={2} className="p-0 align-middle w-[28%]">
-                    <table className="osi-nested-table w-full table-fixed border-collapse [&_td]:border [&_td]:border-black [&_th]:border [&_th]:border-black">
-                      <OsiRecursosColGroup />
-                      <tbody>
-                        <tr>
-                          <th
-                            colSpan={3}
-                            className="bg-slate-100 text-black osi-label-md px-0.5 py-0.5 leading-tight"
-                          >
-                            HONORARIOS FACILITADOR
-                          </th>
-                        </tr>
-                        <tr>
-                          <th className="osi-label-sm px-0.5 py-0.5 leading-tight">HORAS</th>
-                          <th className="osi-label-sm osi-th-nowrap px-0.5 py-0.5 leading-tight">COSTO/H</th>
-                          <th className="osi-label-sm px-0.5 py-0.5 leading-tight">
-                            TOTAL
-                            <br />
-                            HON.
-                          </th>
-                        </tr>
-                        <tr>
-                          <td className="text-center h-8 font-bold text-[10px]">
-                            {data.horasHonorariosInstructor > 0 ? String(data.horasHonorariosInstructor) : "—"}
-                          </td>
-                          <td className="text-center h-8 text-[10px]">
-                            {tarifa_honorarios_view > 0
-                              ? `$${tarifa_honorarios_view.toFixed(2)}`
-                              : "—"}
-                          </td>
-                          <td className="text-center h-8 font-semibold text-[10px]">
-                            {total_honorarios_view > 0
-                              ? `$${total_honorarios_view.toFixed(2)}`
-                              : "—"}
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </td>
-                  <th className="osi-label-md leading-tight">IMPRESIÓN DE MATERIAL</th>
-                  <th className="osi-label-md leading-tight">TRASLADO</th>
-                  <th className="osi-label-md leading-tight">TRASLADO EXTERNO</th>
-                </tr>
-                <tr>
-                  <td className="text-center h-8">
-                    {costo_impresion_material_view > 0
-                      ? `$${costo_impresion_material_view.toFixed(2)}`
-                      : "—"}
-                  </td>
-                  <td className="text-center h-8">
-                    {costo_traslado_view > 0 ? `$${costo_traslado_view.toFixed(2)}` : "—"}
-                  </td>
-                  <td className="text-center h-8">
-                    {traslado_externo_view > 0
-                      ? `$${traslado_externo_view.toFixed(2)}`
-                      : "—"}
-                  </td>
-                </tr>
-                <tr>
-                  <th className="w-[26%] osi-label-md leading-tight">LOGÍSTICA</th>
-                  <th className="w-[26%] osi-label-md leading-tight">HOSPEDAJE</th>
-                  <th className="w-[12%] osi-label-md leading-tight">OTROS</th>
-                  <th className="w-[36%] osi-label-md leading-tight">CERTIFICADO / CARNET / POP</th>
-                </tr>
-                <tr>
-                  <td className="w-[26%] p-0 align-top">
-                    <table className="osi-nested-table w-full table-fixed border-collapse [&_td]:border [&_td]:border-black [&_th]:border [&_th]:border-black">
-                      <OsiRecursosColGroup />
-                      <tbody>
-                        <tr>
-                          <th className="osi-label-sm px-0.5 py-0.5 leading-tight">
-                            DIAS/
-                            <br />
-                            FACILITADOR
-                          </th>
-                          <th className="osi-label-sm osi-th-nowrap px-0.5 py-0.5 leading-tight">
-                            COSTO
-                          </th>
-                          <th className="osi-label-sm px-0.5 py-0.5 leading-tight">
-                            TOTAL
-                            <br />
-                            LOGISTICA
-                          </th>
-                        </tr>
-                        <tr>
-                          <td className="text-center h-8 font-bold text-[10px]">
-                            {dias_logistica > 0
-                              ? String(dias_logistica)
-                              : "—"}
-                          </td>
-                          <td className="text-center h-8 text-[10px]">
-                            {costo_logistica_view > 0
-                              ? `$${costo_logistica_view.toFixed(2)}`
-                              : "—"}
-                          </td>
-                          <td className="text-center h-8 font-semibold text-[10px]">
-                            {logistica_total > 0
-                              ? `$${logistica_total.toFixed(2)}`
-                              : "—"}
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </td>
-                  <td className="w-[26%] p-0 align-top">
-                    <table className="osi-nested-table w-full table-fixed border-collapse [&_td]:border [&_td]:border-black [&_th]:border [&_th]:border-black">
-                      <OsiRecursosColGroup />
-                      <tbody>
-                        <tr>
-                          <th className="osi-label-sm px-0.5 py-0.5 leading-tight">
-                            DIAS/
-                            <br />
-                            FACILITADOR
-                          </th>
-                          <th className="osi-label-sm osi-th-nowrap px-0.5 py-0.5 leading-tight">
-                            COSTO
-                          </th>
-                          <th className="osi-label-sm px-0.5 py-0.5 leading-tight">
-                            TOTAL
-                            <br />
-                            HOSPEDAJE
-                          </th>
-                        </tr>
-                        <tr>
-                          <td className="text-center h-8 font-bold text-[10px]">
-                            {dias_hospedaje > 0
-                              ? String(dias_hospedaje)
-                              : "—"}
-                          </td>
-                          <td className="text-center h-8 text-[10px]">
-                            {costo_hospedaje_view > 0
-                              ? `$${costo_hospedaje_view.toFixed(2)}`
-                              : "—"}
-                          </td>
-                          <td className="text-center h-8 font-semibold text-[10px]">
-                            {hospedaje_total > 0
-                              ? `$${hospedaje_total.toFixed(2)}`
-                              : "—"}
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </td>
-                  <td className="w-[12%] text-center h-8 align-top">
-                    {costo_otros_view > 0 ? `$${costo_otros_view.toFixed(2)}` : "—"}
-                  </td>
-                  <td className="w-[36%] p-0 align-top">
-                    <table className="osi-nested-table osi-cert-table w-full table-fixed border-collapse">
-                      <colgroup>
-                        <col className="w-1/3" />
-                        <col className="w-1/3" />
-                        <col className="w-1/3" />
-                      </colgroup>
-                      <tbody>
-                        <tr>
-                          <th className="osi-cert-label osi-th-nowrap w-1/3 border-b border-black py-1 leading-tight border-r">
-                            CERTIFICADO
-                          </th>
-                          <th className="osi-th-nowrap w-1/3 border-b border-black py-1 leading-tight border-r">
-                            CARNET
-                          </th>
-                          <th className="osi-th-nowrap w-1/3 border-b border-black py-1 leading-tight">
-                            POP
-                          </th>
-                        </tr>
-                        <tr>
-                          <td className="text-center h-8 font-bold border-r border-black">
-                            {data.certificadoImpreso ? "SÍ" : "NO"}
-                          </td>
-                          <td className="text-center h-8 font-bold border-r border-black">
-                            {data.carnetImpreso ? "SÍ" : "NO"}
-                  </td>
-                  <td className="text-center h-8 font-bold">
-                    {data.popIncluido ? "SÍ" : "NO"}
-                  </td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </td>
-                </tr>
+                <OsiCapacitacionRecursosBlocks
+                  layout={recursos_layout}
+                  is_hidden={is_hidden}
+                  section_header_class={section_header_class}
+                />
               </>
             ) : (
               <>
@@ -777,285 +519,11 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
                     )}
                   </td>
                 </tr>
-                 <tr>
-                  <th colSpan={4} className={section_header_class}>
-                    RECURSOS ESTIMADOS PARA EL SERVICIO
-                  </th>
-                </tr>
-                <tr>
-                  <td colSpan={4} className="p-0 align-top">
-                    <table className="w-full border-collapse [&_td]:border [&_td]:border-black [&_th]:border [&_th]:border-black">
-                      <tbody>
-                        <tr>
-                          <td className="w-1/4 align-top p-1">
-                            <table className="w-full border-collapse [&_td]:border [&_td]:border-black [&_th]:border [&_th]:border-black">
-                              <tbody>
-                                <tr>
-                                  <th
-                                    colSpan={3}
-                                    className="bg-slate-100 text-[9px] px-1 py-0.5"
-                                  >
-                                    DÍAS POR SERVICIO / ESPECIALISTAS
-                                  </th>
-                                </tr>
-                                <tr>
-                                  <th className="text-[8px]">DÍAS CAMPO</th>
-                                  <th className="text-[8px]">DÍAS INFORME</th>
-                                  <th className="text-[8px]">ANALISTAS/REC.</th>
-                                </tr>
-                                <tr>
-                                  <td className="text-center text-[9px]">
-                                    {data.stDiasCampo ?? "—"}
-                                  </td>
-                                  <td className="text-center text-[9px]">
-                                    {data.stDiasInforme ?? "—"}
-                                  </td>
-                                  <td className="text-center text-[9px]">
-                                    {data.stAnalistas ?? "—"}
-                                  </td>
-                                </tr>
-                              </tbody>
-                            </table>
-                          </td>
-                          <td className="w-1/4 align-top p-1">
-                            <table className="w-full border-collapse [&_td]:border [&_td]:border-black [&_th]:border [&_th]:border-black">
-                              <tbody>
-                                <tr>
-                                  <th
-                                    colSpan={3}
-                                    className="bg-slate-100 text-[9px] px-1 py-0.5"
-                                  >
-                                    HOSPEDAJE
-                                  </th>
-                                </tr>
-                                <tr>
-                                  <th className="text-[8px]">DÍAS</th>
-                                  <th className="text-[8px]">$/DÍA</th>
-                                  <th className="text-[8px]">TOTAL</th>
-                                </tr>
-                                <tr>
-                                  <td className="text-center text-[9px]">
-                                    {dias_hospedaje > 0 ? String(dias_hospedaje) : "—"}
-                                  </td>
-                                  <td className="text-center text-[9px]">
-                                    {costo_hospedaje_view > 0
-                                      ? `$${costo_hospedaje_view.toFixed(2)}`
-                                      : "—"}
-                                  </td>
-                                  <td className="text-center font-semibold text-[9px]">
-                                    {hospedaje_total > 0
-                                      ? `$${hospedaje_total.toFixed(2)}`
-                                      : "—"}
-                                  </td>
-                                </tr>
-                              </tbody>
-                            </table>
-                          </td>
-                          <td className="w-1/4 align-top p-1">
-                            <table className="w-full border-collapse [&_td]:border [&_td]:border-black [&_th]:border [&_th]:border-black">
-                              <tbody>
-                                <tr>
-                                  <th
-                                    colSpan={4}
-                                    className="bg-slate-100 text-[9px] px-1 py-0.5"
-                                  >
-                                    LOGÍSTICA / COMIDA
-                                  </th>
-                                </tr>
-                                <tr>
-                                  <th className="text-[8px]">DÍAS</th>
-                                  <th className="text-[8px]">REC.</th>
-                                  <th className="text-[8px]">$/DÍA</th>
-                                  <th className="text-[8px]">TOTAL</th>
-                                </tr>
-                                <tr>
-                                  <td className="text-center text-[9px]">
-                                    {dias_logistica > 0 ? String(dias_logistica) : "—"}
-                                  </td>
-                                  <td className="text-center text-[9px]">
-                                    {(data.stLogisticaRecursos ?? data.stAnalistas ?? 0) >
-                                    0
-                                      ? String(
-                                          data.stLogisticaRecursos ?? data.stAnalistas,
-                                        )
-                                      : "—"}
-                                  </td>
-                                  <td className="text-center text-[9px]">
-                                    {costo_logistica_view > 0
-                                      ? `$${costo_logistica_view.toFixed(2)}`
-                                      : "—"}
-                                  </td>
-                                  <td className="text-center font-semibold text-[9px]">
-                                    {logistica_total > 0
-                                      ? `$${logistica_total.toFixed(2)}`
-                                      : "—"}
-                                  </td>
-                                </tr>
-                              </tbody>
-                            </table>
-                          </td>
-                          <td className="w-1/4 align-top p-1">
-                            <table className="w-full border-collapse [&_td]:border [&_td]:border-black [&_th]:border [&_th]:border-black">
-                              <tbody>
-                                <tr>
-                                  <th className="bg-slate-100 text-[9px] px-1 py-0.5">
-                                    IMPRESIÓN DE MATERIAL
-                                  </th>
-                                </tr>
-                                <tr>
-                                  <td className="text-center font-bold text-[9px] py-1">
-                                    {impresion_si ? "SÍ" : "NO"}
-                                  </td>
-                                </tr>
-                              </tbody>
-                            </table>
-                          </td>
-                        </tr>
-                        <tr>
-                          <td className="align-top p-1">
-                            <table className="w-full border-collapse [&_td]:border [&_td]:border-black [&_th]:border [&_th]:border-black">
-                              <tbody>
-                                <tr>
-                                  <th
-                                    colSpan={3}
-                                    className="bg-slate-100 text-[9px] px-1 py-0.5"
-                                  >
-                                    TRASLADOS
-                                  </th>
-                                </tr>
-                                {st_traslados_list.length > 0 ? (
-                                  st_traslados_list.map((traslado, idx) => (
-                                    <Fragment key={`st-traslado-${idx}`}>
-                                      <tr>
-                                        <th
-                                          colSpan={3}
-                                          className="text-[8px] font-normal"
-                                        >
-                                          {OSI_ST_TRASLADO_LABELS[traslado.tipo]}
-                                        </th>
-                                      </tr>
-                                      <tr>
-                                        <th className="text-[8px]">CANT.</th>
-                                        <th className="text-[8px]">$/U</th>
-                                        <th className="text-[8px]">TOTAL</th>
-                                      </tr>
-                                      <tr>
-                                        <td className="text-center text-[9px]">
-                                          {traslado.cantidad > 0
-                                            ? String(traslado.cantidad)
-                                            : "—"}
-                                        </td>
-                                        <td className="text-center text-[9px]">
-                                          {!is_hidden("costo_traslado") &&
-                                          traslado.costo_unidad > 0
-                                            ? `$${traslado.costo_unidad.toFixed(2)}`
-                                            : "—"}
-                                        </td>
-                                        <td className="text-center font-semibold text-[9px]">
-                                          {!is_hidden("costo_traslado") &&
-                                          traslado.cantidad * traslado.costo_unidad > 0
-                                            ? `$${(traslado.cantidad * traslado.costo_unidad).toFixed(2)}`
-                                            : "—"}
-                                        </td>
-                                      </tr>
-                                    </Fragment>
-                                  ))
-                                ) : (
-                                  <>
-                                    <tr>
-                                      <th className="text-[8px]">URBANO</th>
-                                      <th className="text-[8px]" colSpan={2}>
-                                        EXTERNOS
-                                      </th>
-                                    </tr>
-                                    <tr>
-                                      <td className="text-center text-[9px]">
-                                        {st_traslado_total > 0
-                                          ? `$${st_traslado_total.toFixed(2)}`
-                                          : "—"}
-                                      </td>
-                                      <td
-                                        className="text-center text-[9px]"
-                                        colSpan={2}
-                                      >
-                                        {st_traslado_externo_total > 0
-                                          ? `$${st_traslado_externo_total.toFixed(2)}`
-                                          : "—"}
-                                      </td>
-                                    </tr>
-                                  </>
-                                )}
-                              </tbody>
-                            </table>
-                          </td>
-                          <td className="align-top p-1">
-                            <table className="w-full border-collapse [&_td]:border [&_td]:border-black [&_th]:border [&_th]:border-black">
-                              <tbody>
-                                <tr>
-                                  <th colSpan={2} className="bg-slate-100 text-[9px] px-1 py-0.5">
-                                    ENVÍOS
-                                  </th>
-                                </tr>
-                                <tr>
-                                  <th className="text-[8px]">FACTURA</th>
-                                  <th className="text-[8px]">MATERIALES</th>
-                                </tr>
-                                <tr>
-                                  <td className="text-center text-[9px] py-1">
-                                    {st_envio_factura_view > 0
-                                      ? `$${Number(st_envio_factura_view).toFixed(2)}`
-                                      : "—"}
-                                  </td>
-                                  <td className="text-center text-[9px] py-1">
-                                    {st_envio_materiales_view > 0
-                                      ? `$${Number(st_envio_materiales_view).toFixed(2)}`
-                                      : "—"}
-                                  </td>
-                                </tr>
-                              </tbody>
-                            </table>
-                          </td>
-                          <td className="align-top p-1">
-                            <table className="w-full border-collapse [&_td]:border [&_td]:border-black [&_th]:border [&_th]:border-black">
-                              <tbody>
-                                <tr>
-                                  <th className="bg-slate-100 text-[9px] px-1 py-0.5">
-                                    OTROS
-                                  </th>
-                                </tr>
-                                <tr>
-                                  <td className="text-center text-[9px] py-1">
-                                    {costo_otros_view + st_envio_total > 0
-                                      ? `$${(costo_otros_view + st_envio_total).toFixed(2)}`
-                                      : costo_otros_view > 0
-                                        ? `$${costo_otros_view.toFixed(2)}`
-                                        : "—"}
-                                  </td>
-                                </tr>
-                              </tbody>
-                            </table>
-                  </td>
-                          <td className="align-top p-1">
-                            <table className="w-full border-collapse [&_td]:border [&_td]:border-black [&_th]:border [&_th]:border-black">
-                              <tbody>
-                                <tr>
-                                  <th className="bg-slate-100 text-[9px] px-1 py-0.5">
-                                    BATERÍA
-                                  </th>
-                                </tr>
-                                <tr>
-                                  <td className="text-center font-bold text-[9px] py-1">
-                                    {bateria_si ? "SÍ" : "NO"}
-                  </td>
-                                </tr>
-                              </tbody>
-                            </table>
-                  </td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </td>
-                </tr>
+                <OsiStRecursosBlocks
+                  layout={recursos_layout}
+                  is_hidden={is_hidden}
+                  section_header_class={section_header_class}
+                />
               </>
             )}
 
