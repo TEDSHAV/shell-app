@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { RequisicionItem, OSIFixedItem } from "@/types/requisiciones";
 import { setRequisicionEstatus, updateItemVerificacion, updateFixedItemVerificacion, markAllItemsVerificadas, saveVerificacionProgress, getExchangeRate, updateFacilitadorBankingDetails } from "@/actions/requisiciones";
-import { CheckCircle2, XCircle, Undo2, Clock, AlertTriangle, CalendarClock, Copy, Check, Download, Save } from "lucide-react";
+import { CheckCircle2, XCircle, Undo2, Clock, AlertTriangle, CalendarClock, Copy, Check, Download, Save, Printer } from "lucide-react";
 
 export default function RequisicionView({ 
   record, 
@@ -203,6 +203,53 @@ export default function RequisicionView({
     }
   };
 
+  const handlePrintPdf = async () => {
+    setIsGeneratingPdf(true);
+    try {
+      const { pdf } = await import("@react-pdf/renderer");
+      const { default: RequisicionPdfDocument } = await import("./RequisicionPdfDocument");
+      const blob = await pdf(
+        <RequisicionPdfDocument
+          record={record}
+          isCapacitacion={isCapacitacion}
+          isGeneralMode={isGeneralMode}
+          osiFixedItems={osiFixedItems}
+          additionalItems={additionalItems}
+          linkedOSIs={linkedOSIs}
+          osiLookup={osiLookup}
+        />,
+      ).toBlob();
+      const url = URL.createObjectURL(blob);
+      const iframe = document.createElement("iframe");
+      iframe.style.position = "fixed";
+      iframe.style.right = "0";
+      iframe.style.bottom = "0";
+      iframe.style.width = "0";
+      iframe.style.height = "0";
+      iframe.style.border = "none";
+      iframe.src = url;
+      document.body.appendChild(iframe);
+      iframe.onload = () => {
+        try {
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+        } catch (e) {
+          console.error("Error printing PDF:", e);
+          window.open(url, "_blank");
+        }
+        setTimeout(() => {
+          document.body.removeChild(iframe);
+          URL.revokeObjectURL(url);
+        }, 1000);
+      };
+    } catch (error) {
+      console.error("Error generating PDF for print:", error);
+      alert("Error al generar el PDF para impresión");
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
+
   const handleDownloadPdf = async () => {
     setIsGeneratingPdf(true);
     try {
@@ -281,7 +328,18 @@ export default function RequisicionView({
 
   return (
     <div className="max-w-5xl mx-auto pb-10">
-      <div className="mb-4 flex justify-end">
+      <div className="mb-4 flex justify-end gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={isGeneratingPdf}
+          onClick={handlePrintPdf}
+          className="h-8 px-3 text-xs flex gap-1"
+        >
+          <Printer className="h-3.5 w-3.5" />
+          {isGeneratingPdf ? "Generando..." : "Imprimir"}
+        </Button>
         <Button
           type="button"
           variant="outline"
