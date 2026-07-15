@@ -9,6 +9,8 @@ import type {
   OSIListResult,
   OSIListFilterOptions,
   OSIStatusOption,
+  OSISession,
+  OSISessionsFinalCheck,
 } from "@/types/osi";
 
 export async function getOSIList(
@@ -559,5 +561,179 @@ export async function updateOSIStatus(
   } catch (err) {
     console.error("Unexpected error in updateOSIStatus:", err);
     return { success: false, error: "Error inesperado" };
+  }
+}
+
+export async function getOSISessions(osiId: number): Promise<OSISession[]> {
+  if (!Number.isFinite(osiId) || osiId <= 0) return [];
+
+  try {
+    const accessFilter = await getUserOSIAccessFilter();
+    if (accessFilter === "none") return [];
+
+    const supabase = await createClient();
+
+    const { data: sessions, error } = await supabase
+      .from("osi_sesion")
+      .select("id, id_osi, nro_sesion, fecha, hora_inicio, hora_fin")
+      .eq("id_osi", osiId)
+      .order("nro_sesion", { ascending: true });
+
+    if (error || !sessions || sessions.length === 0) {
+      if (error) console.error("Error fetching OSI sessions:", error);
+      return [];
+    }
+
+    const sessionIds = sessions.map((s) => s.id);
+
+    const [statusHistoryResult, statusesResult] = await Promise.all([
+      supabase
+        .from("historial_cambios_estado")
+        .select("id_registro, id_estatus_nuevo, fecha_cambio")
+        .eq("tabla_afectada", "osi_sesion")
+        .in("id_registro", sessionIds)
+        .order("fecha_cambio", { ascending: false }),
+      getOSIStatuses(),
+    ]);
+
+    const statusMap = new Map(statusesResult.map((s) => [s.id, s]));
+
+    const latestStatusBySession = new Map<number, number | null>();
+    for (const row of statusHistoryResult.data || []) {
+      const sid = row.id_registro as number;
+      if (!latestStatusBySession.has(sid)) {
+        latestStatusBySession.set(sid, row.id_estatus_nuevo as number | null);
+      }
+    }
+
+    return sessions.map((s) => {
+      const statusId = latestStatusBySession.get(s.id) ?? null;
+      const status = statusId ? statusMap.get(statusId) : null;
+      return {
+        id: s.id,
+        id_osi: s.id_osi,
+        nro_sesion: s.nro_sesion,
+        fecha: s.fecha,
+        hora_inicio: s.hora_inicio,
+        hora_fin: s.hora_fin,
+        id_estatus: statusId,
+        status_name: status?.nombre_estado || "Sin estado",
+        status_color: status?.color_hex || "#9CA3AF",
+      } as OSISession;
+    });
+  } catch (err) {
+    console.error("Unexpected error in getOSISessions:", err);
+    return [];
+  }
+}
+
+export async function updateSessionStatus(
+  sessionId: number,
+  newStatusId: number,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createClient();
+
+    const { data: session, error: sessionError } = await supabase
+      .from("osi_sesion")
+      .select("id_osi")
+      .eq("id", sessionId)
+      .single();
+
+    if (sessionError || !session) {
+      return { success: false, error: "Sesión no encontrada" };
+    }
+
+    const canChange = await canChangeOSIStatus(session.id_osi);
+    if (!canChange) {
+      return { success: false, error: "No tiene permisos para cambiar el estado de sesiones" };
+    }
+
+    const { data: prevStatusRow } = await supabase
+      .from("historial_cambios_estado")
+      .select("id_estatus_nuevo")
+      .eq("tabla_afectada", "osi_sesion")
+      .eq("id_registro", sessionId)
+      .order("fecha_cambio", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const prevStatusId = prevStatusRow?.id_estatus_nuevo ?? null;
+
+    const { data: { user } } = await supabase.auth.getUser();
+    let userId: number | null = null;
+    if (user) {
+      const { data: usuario } = await supabase
+        .from("usuarios")
+        .select("id")
+        .eq("id_auth", user.id)
+        .maybeSingle();
+      userId = usuario?.id ?? null;
+    }
+
+    const { error: insertError } = await supabase
+      .from("historial_cambios_estado")
+      .insert({
+        tabla_afectada: "osi_sesion",
+        id_registro: sessionId,
+        id_estatus_anterior: prevStatusId,
+        id_estatus_nuevo: newStatusId,
+        fecha_cambio: new Date().toISOString(),
+        id_usuario_cambio: userId,
+      });
+
+    if (insertError) {
+      console.error("Error inserting session status change:", insertError);
+      return { success: false, error: "Error al registrar el cambio de estado" };
+    }
+
+    return { success: true };
+  } catch (err) {
+    console.error("Unexpected error in updateSessionStatus:", err);
+    return { success: false, error: "Error inesperado" };
+  }
+}
+
+export async function checkAllSessionsFinal(
+  osiId: number,
+): Promise<OSISessionsFinalCheck> {
+  try {
+    const sessions = await getOSISessions(osiId);
+    if (sessions.length === 0) {
+      return { allFinal: false, totalSessions: 0, finalCount: 0 };
+    }
+
+    const supabase = await createClient();
+    const statusIds = sessions
+      .map((s) => s.id_estatus)
+      .filter((id): id is number => id !== null);
+
+    if (statusIds.length < sessions.length) {
+      const finalCount = statusIds.length > 0
+        ? (await supabase
+            .from("conf_estatus")
+            .select("id")
+            .in("id", statusIds)
+            .eq("es_estado_final", true)
+          ).data?.length ?? 0
+        : 0;
+      return { allFinal: false, totalSessions: sessions.length, finalCount };
+    }
+
+    const { data: finalStatuses } = await supabase
+      .from("conf_estatus")
+      .select("id")
+      .in("id", statusIds)
+      .eq("es_estado_final", true);
+
+    const finalCount = finalStatuses?.length ?? 0;
+    return {
+      allFinal: finalCount === sessions.length,
+      totalSessions: sessions.length,
+      finalCount,
+    };
+  } catch (err) {
+    console.error("Unexpected error in checkAllSessionsFinal:", err);
+    return { allFinal: false, totalSessions: 0, finalCount: 0 };
   }
 }

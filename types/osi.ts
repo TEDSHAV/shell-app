@@ -43,3 +43,21 @@ export interface OSIListFilterOptions {
   cityOptions: { id: number; nombre_ciudad: string }[];
   statuses: OSIStatusOption[];
 }
+
+export interface OSISession {
+  id: number;
+  id_osi: number;
+  nro_sesion: number;
+  fecha: string;
+  hora_inicio: string | null;
+  hora_fin: string | null;
+  id_estatus: number | null;
+  status_name: string;
+  status_color: string;
+}
+
+export interface OSISessionsFinalCheck {
+  allFinal: boolean;
+  totalSessions: number;
+  finalCount: number;
+}

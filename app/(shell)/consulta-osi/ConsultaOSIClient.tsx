@@ -7,7 +7,7 @@ import type {
   OSIListItem,
   OSIStatusOption,
 } from "@/types/osi";
-import { getOSIList, getOSIListFilterOptions, updateOSIStatus } from "@/actions/osi";
+import { getOSIList, getOSIListFilterOptions, updateOSIStatus, updateSessionStatus } from "@/actions/osi";
 import OSIFilters from "./components/OSIFilters";
 import OSITable from "./components/OSITable";
 import OSIPagination from "./components/OSIPagination";
@@ -143,6 +143,13 @@ export default function ConsultaOSIClient({ canChangeStatus }: ConsultaOSIClient
     [statuses],
   );
 
+  const handleSessionStatusChange = useCallback(
+    async (sessionId: number, newStatusId: number) => {
+      return await updateSessionStatus(sessionId, newStatusId);
+    },
+    [],
+  );
+
   const totalPages = Math.ceil(totalCount / itemsPerPage);
 
   return (
@@ -174,6 +181,7 @@ export default function ConsultaOSIClient({ canChangeStatus }: ConsultaOSIClient
           canChangeStatus={canChangeStatus}
           statuses={statuses}
           onStatusChange={handleStatusChange}
+          onSessionStatusChange={canChangeStatus ? handleSessionStatusChange : undefined}
         />
 
         <div className="mt-4">
