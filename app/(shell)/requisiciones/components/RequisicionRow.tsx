@@ -188,6 +188,11 @@ export default function RequisicionRow({
         }`}>
           {isProcesada ? "Procesada" : isRechazada ? "Rechazada" : "Pendiente"}
         </span>
+        {isProcesada && isAcuseRecibido && (
+          <span className="ml-1 px-2 py-1 rounded-full text-[10px] font-bold uppercase bg-blue-100 text-blue-800">
+            Recibido
+          </span>
+        )}
       </td>
       {isAdminView && (
         <td className="px-4 py-4 whitespace-nowrap text-sm text-center">

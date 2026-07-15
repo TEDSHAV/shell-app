@@ -1242,7 +1242,7 @@ export default function RequisicionView({
           </div>
         </div>
       )}
-      {isProcesada && isAcuseRecibido && !isAdminView && (
+      {isProcesada && isAcuseRecibido && (
         <div className="mt-4 flex items-center gap-2 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-lg shadow-sm">
           <PackageCheck className="h-4 w-4 text-emerald-600" />
           <span className="text-sm font-medium text-emerald-800">

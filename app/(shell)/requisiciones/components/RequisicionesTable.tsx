@@ -15,7 +15,7 @@ import { RequisicionFilters, EstatusAdmin } from "@/types/requisiciones";
 import RequisicionRow from "./RequisicionRow";
 import { Search, X, ChevronLeft, ChevronRight } from "lucide-react";
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE_OPTIONS = [10, 30, 50];
 
 const TABS: { key: RequisicionFilters["tab"]; label: string }[] = [
   { key: "todas", label: "Todas" },
@@ -116,14 +116,15 @@ export default function RequisicionesTable({
     return result;
   }, [records, filters, osiLookup]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const [pageSize, setPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [filters]);
+  }, [filters, pageSize]);
 
-  const paginated = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const counts = useMemo(
     () => ({
@@ -334,11 +335,29 @@ export default function RequisicionesTable({
           </table>
         </div>
 
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200">
+        <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200">
+          <div className="flex items-center gap-3">
             <span className="text-xs text-gray-500">
-              {filtered.length} resultado{filtered.length !== 1 ? "s" : ""} · Página {currentPage} de {totalPages}
+              {filtered.length} resultado{filtered.length !== 1 ? "s" : ""}
+              {totalPages > 1 && ` · Página ${currentPage} de ${totalPages}`}
             </span>
+            <Select
+              value={String(pageSize)}
+              onValueChange={(v: string) => setPageSize(Number(v))}
+            >
+              <SelectTrigger className="h-8 w-[90px] text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PAGE_SIZE_OPTIONS.map((size) => (
+                  <SelectItem key={size} value={String(size)}>
+                    {size} por pág.
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {totalPages > 1 && (
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
@@ -361,8 +380,8 @@ export default function RequisicionesTable({
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );
