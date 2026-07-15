@@ -300,7 +300,7 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
   return (
     <div className="print-document-palette osi-document-root mx-auto mt-4 box-border w-[210mm] max-w-full overflow-hidden bg-white print:mt-3 print:w-full text-[10px] text-black shadow-sm print:shadow-none">
       <style>{`
-        @page { size: A4; margin: 0; }
+        @page { size: letter; margin: 10mm; }
         [data-osi-table] {
           table-layout: fixed;
           width: 100%;
@@ -363,6 +363,10 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
             max-width: 100%;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
+          }
+          .osi-print-footer {
+            break-inside: avoid;
+            page-break-inside: avoid;
           }
           [data-osi-table] td,
           [data-osi-table] th {
@@ -1230,7 +1234,7 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
         </table>
 
         {/* Footer */}
-        <div className="mt-1 w-full">
+        <div className="osi-print-footer mt-1 w-full">
           <img
             src={assets.footerSrc}
             alt="Pie institucional"

@@ -378,7 +378,7 @@ export default function RequisicionView({
             {executionAlert.text}
             {executionDate && (
               <span className="ml-auto text-xs font-normal opacity-70">
-                {new Date(executionDate + "T00:00:00").toLocaleDateString()}
+                {new Date(executionDate + "T00:00:00").toLocaleDateString("es-VE")}
               </span>
             )}
           </div>
@@ -397,7 +397,7 @@ export default function RequisicionView({
           {isResolved && record.procesada_por_nombre && (
             <span className="text-xs text-gray-500">
               {isProcesada ? "Procesada" : "Rechazada"} por <span className="font-medium text-gray-700">{record.procesada_por_nombre}</span>
-              {record.procesada_at && ` el ${new Date(record.procesada_at).toLocaleString()}`}
+              {record.procesada_at && ` el ${new Date(record.procesada_at).toLocaleString("es-VE", { dateStyle: "short", timeStyle: "short" })}`}
             </span>
           )}
           <div className="ml-auto flex gap-2">
@@ -487,7 +487,7 @@ export default function RequisicionView({
               Fecha de solicitud:
             </div>
             <div className={`p-3 border-r border-gray-300 flex items-center ${showOSIHeader ? "col-span-4" : "col-span-9"}`}>
-              {record.fecha_solicitud ? new Date(record.fecha_solicitud + "T00:00:00").toLocaleDateString() : "-"}
+              {record.fecha_solicitud ? new Date(record.fecha_solicitud + "T00:00:00").toLocaleDateString("es-VE") : "-"}
             </div>
             {showOSIHeader && (
             <>

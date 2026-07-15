@@ -149,6 +149,14 @@
     display: none !important;
   }
 
+  body:has(.osi-document-root) .h-screen,
+  body:has(.osi-document-root) .overflow-hidden,
+  body:has(.osi-document-root) .overflow-auto {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
   body:has(.osi-document-root) main {
     overflow: visible !important;
     padding: 0 !important;
