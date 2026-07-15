@@ -2,6 +2,7 @@ import {
   getRequisicionRecord, 
   getOSIForRequisicion,
   getOsisByIds,
+  getBanksForDropdown,
   isRequisicionesAdmin
 } from "@/actions/requisiciones";
 import RequisicionView from "./components/RequisicionView";
@@ -20,9 +21,10 @@ export default async function ViewRequisicionPage({
   params: Promise<{ id: string }> 
 }) {
   const { id } = await params;
-  const [record, isAdminView] = await Promise.all([
+  const [record, isAdminView, banks] = await Promise.all([
     getRequisicionRecord(parseInt(id)),
     isRequisicionesAdmin(),
+    getBanksForDropdown(),
   ]);
 
   if (!record) {
@@ -93,7 +95,7 @@ export default async function ViewRequisicionPage({
         ) : null}
       </div>
 
-      <RequisicionView record={record} osiData={osiData} osiLookup={osiLookup} isAdminView={isAdminView} />
+      <RequisicionView record={record} osiData={osiData} osiLookup={osiLookup} isAdminView={isAdminView} banks={banks} />
     </div>
   );
 }

@@ -32,6 +32,7 @@ export default function RequisicionForm({
   editRecord = null,
   userDept = "",
   isLocked = false,
+  banks = [],
 }: { 
   osis?: OSIFullData[], 
   facilitators?: any[], 
@@ -39,6 +40,7 @@ export default function RequisicionForm({
   editRecord?: any,
   userDept?: string,
   isLocked?: boolean,
+  banks?: { id: number; nombre: string }[],
 }) {
   return (
     <Suspense fallback={<div>Cargando formulario...</div>}>
@@ -49,6 +51,7 @@ export default function RequisicionForm({
         editRecord={editRecord}
         userDept={userDept}
         isLocked={isLocked}
+        banks={banks}
       />
     </Suspense>
   );
@@ -61,6 +64,7 @@ function RequisicionFormContent({
   editRecord,
   userDept,
   isLocked,
+  banks,
 }: { 
   initialOsis: OSIFullData[], 
   initialFacilitators: any[], 
@@ -68,6 +72,7 @@ function RequisicionFormContent({
   editRecord: any,
   userDept: string,
   isLocked: boolean,
+  banks: { id: number; nombre: string }[],
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -1161,8 +1166,17 @@ function RequisicionFormContent({
             <div className="col-span-1 p-2 border-r border-gray-300 bg-gray-50 flex items-center font-bold">
               Banco
             </div>
-            <div className="col-span-3 p-2 border-r border-gray-300 flex items-center font-bold uppercase">
-              {formData.banco || "-"}
+            <div className="col-span-3 p-2 border-r border-gray-300 flex items-center">
+              <select
+                value={formData.banco || ""}
+                onChange={(e) => setFormData((prev) => ({ ...prev, banco: e.target.value }))}
+                className="w-full px-1 py-0.5 text-xs border border-gray-300 rounded font-bold uppercase focus:outline-none focus:ring-1 focus:ring-blue-400"
+              >
+                <option value="">Seleccionar...</option>
+                {banks.map((bank) => (
+                  <option key={bank.id} value={bank.nombre}>{bank.nombre}</option>
+                ))}
+              </select>
             </div>
             <div className="col-span-2 p-2 border-r border-gray-300 bg-gray-50 flex items-center font-bold">
               Nro Cuenta.

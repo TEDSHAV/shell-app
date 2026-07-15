@@ -2,6 +2,7 @@ import {
   getAllOSIsForRequisiciones, 
   getFacilitatorsForDropdown, 
   getCurrentUser,
+  getBanksForDropdown,
   getRequisicionRecord,
   isRequisicionesAdmin
 } from "@/actions/requisiciones";
@@ -24,11 +25,12 @@ export default async function EditRequisicionPage({
     redirect(`/requisiciones/view/${id}`);
   }
 
-  const [osis, facilitators, userData, editRecord] = await Promise.all([
+  const [osis, facilitators, userData, editRecord, banks] = await Promise.all([
     getAllOSIsForRequisiciones(),
     getFacilitatorsForDropdown(),
     getCurrentUser(),
     getRequisicionRecord(parseInt(id)),
+    getBanksForDropdown(),
   ]);
 
   const userDept = userData?.departamentos?.nombre || "";
@@ -51,6 +53,7 @@ export default async function EditRequisicionPage({
         editRecord={editRecord}
         userDept={userDept}
         isLocked={isLocked}
+        banks={banks}
       />
     </div>
   );

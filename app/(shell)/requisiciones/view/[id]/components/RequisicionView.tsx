@@ -13,11 +13,13 @@ export default function RequisicionView({
   osiData,
   osiLookup,
   isAdminView = false,
+  banks = [],
 }: { 
   record: any, 
   osiData: any,
   osiLookup?: Map<number, string>,
   isAdminView?: boolean,
+  banks?: { id: number; nombre: string }[],
 }) {
   const router = useRouter();
   const [isUpdating, setIsUpdating] = useState(false);
@@ -1052,12 +1054,16 @@ export default function RequisicionView({
             </div>
             <div className="col-span-3 p-2 border-r border-gray-300 flex items-center justify-between font-bold uppercase">
               {isAdminView ? (
-                <input
-                  type="text"
+                <select
                   value={editBanco}
                   onChange={(e) => setEditBanco(e.target.value)}
                   className="w-full px-2 py-1 text-xs border border-gray-300 rounded font-medium focus:outline-none focus:ring-1 focus:ring-blue-400"
-                />
+                >
+                  <option value="">Seleccionar banco...</option>
+                  {banks.map((bank) => (
+                    <option key={bank.id} value={bank.nombre}>{bank.nombre}</option>
+                  ))}
+                </select>
               ) : (
                 <>
                   {record.banco || "-"}

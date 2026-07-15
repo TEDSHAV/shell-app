@@ -2,6 +2,7 @@ import {
   getAllOSIsForRequisiciones, 
   getFacilitatorsForDropdown, 
   getCurrentUser,
+  getBanksForDropdown,
   isRequisicionesAdmin,
 } from "@/actions/requisiciones";
 import RequisicionForm from "../components/RequisicionForm";
@@ -17,10 +18,11 @@ export default async function CreateRequisicionPage() {
     redirect("/requisiciones");
   }
 
-  const [osis, facilitators, userData] = await Promise.all([
+  const [osis, facilitators, userData, banks] = await Promise.all([
     getAllOSIsForRequisiciones(),
     getFacilitatorsForDropdown(),
     getCurrentUser(),
+    getBanksForDropdown(),
   ]);
 
   const userDept = userData?.departamentos?.nombre || "";
@@ -36,6 +38,7 @@ export default async function CreateRequisicionPage() {
         facilitators={facilitators} 
         userData={userData} 
         userDept={userDept}
+        banks={banks}
       />
     </div>
   );

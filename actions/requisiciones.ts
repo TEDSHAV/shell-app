@@ -60,6 +60,21 @@ export async function getAllOSIsForRequisiciones() {
   return data as OSIFullData[];
 }
 
+// Get all banks for the dropdown
+export async function getBanksForDropdown() {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("cat_bancos")
+    .select("id, nombre")
+    .order("nombre");
+
+  if (error) {
+    console.error("Error fetching banks:", error);
+    return [];
+  }
+  return data as { id: number; nombre: string }[];
+}
+
 // Get current logged in user details
 export async function getCurrentUser() {
   const supabase = await createClient();
