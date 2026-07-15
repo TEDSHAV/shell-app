@@ -2,6 +2,7 @@
 
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
+import { notifySessionStatusChange } from "@/actions/osi-session-notifications";
 import type { BuildOsiPreviewInput } from "@sha/osi-formato";
 import type {
   OSIListFilters,
@@ -685,6 +686,45 @@ export async function updateSessionStatus(
     if (insertError) {
       console.error("Error inserting session status change:", insertError);
       return { success: false, error: "Error al registrar el cambio de estado" };
+    }
+
+    // Fire-and-forget notification (errors logged, don't block the status change)
+    try {
+      const [osiData, newStatusData, prevStatusData] = await Promise.all([
+        supabase
+          .from("v_osi_formato_completo")
+          .select("nro_osi")
+          .eq("id_osi", session.id_osi)
+          .maybeSingle(),
+        supabase
+          .from("conf_estatus")
+          .select("nombre_estado")
+          .eq("id", newStatusId)
+          .maybeSingle(),
+        prevStatusId
+          ? supabase
+              .from("conf_estatus")
+              .select("nombre_estado")
+              .eq("id", prevStatusId)
+              .maybeSingle()
+          : Promise.resolve({ data: null, error: null }),
+      ]);
+
+      const sessionData = await supabase
+        .from("osi_sesion")
+        .select("nro_sesion")
+        .eq("id", sessionId)
+        .maybeSingle();
+
+      await notifySessionStatusChange({
+        osiId: session.id_osi,
+        nroOsi: osiData.data?.nro_osi ?? `ID ${session.id_osi}`,
+        sessionNumber: sessionData.data?.nro_sesion ?? 0,
+        newStatusName: newStatusData.data?.nombre_estado ?? "Desconocido",
+        prevStatusName: prevStatusData?.data?.nombre_estado ?? null,
+      });
+    } catch (notifErr) {
+      console.error("Error sending session status notification:", notifErr);
     }
 
     return { success: true };
