@@ -175,3 +175,37 @@ export async function notifyCreatorOfPartialVerificacion(
     console.error("[notifyCreatorOfPartialVerificacion] Unexpected error:", err);
   }
 }
+
+export async function notifyAdminOfAcuseRecibo(
+  requisicionId: number,
+  adminAuthId: string,
+  solicitanteName: string,
+  requisicionLabel: string,
+) {
+  try {
+    const supabase = await createAdminClient();
+
+    const { error: insertError } = await supabase
+      .schema("notify")
+      .from("inbox")
+      .insert({
+          app_slug: "administracion",
+          event_key: "requisicion_acuse",
+          recipient_id_auth: adminAuthId,
+          title: "Acuse de Recibo Confirmado",
+          body: `${solicitanteName} ha confirmado la recepción de la requisición ${requisicionLabel}.`,
+          link_path: `/requisiciones/view/${requisicionId}`,
+          dedupe_key: `requisicion:${requisicionId}:acuse:${Date.now()}`,
+          priority: 2,
+        });
+
+    if (insertError) {
+      console.error(
+        "[notifyAdminOfAcuseRecibo] Error inserting notification:",
+        insertError,
+      );
+    }
+  } catch (err) {
+    console.error("[notifyAdminOfAcuseRecibo] Unexpected error:", err);
+  }
+}

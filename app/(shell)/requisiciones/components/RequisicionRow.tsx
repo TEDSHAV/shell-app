@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { deleteRequisicionRecord, setRequisicionEstatus, markAllItemsVerificadas } from "@/actions/requisiciones";
-import { Eye, Edit, Trash2, Lock, CheckCircle2, Undo2, XCircle, CalendarClock, AlertTriangle } from "lucide-react";
+import { deleteRequisicionRecord, setRequisicionEstatus, markAllItemsVerificadas, acknowledgeRequisicionReceipt } from "@/actions/requisiciones";
+import { Eye, Edit, Trash2, Lock, CheckCircle2, Undo2, XCircle, CalendarClock, AlertTriangle, PackageCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function RequisicionRow({
@@ -26,6 +26,8 @@ export default function RequisicionRow({
   const isRechazada = estatus === "rechazada";
   const isPendiente = estatus === "pendiente";
   const isResolved = isProcesada || isRechazada;
+  const isAcuseRecibido = record.acuse_recibido === true;
+  const canAcknowledge = isProcesada && !isAcuseRecibido && !isAdminView;
   const isInterna =
     record.tipo_solicitud === "Interno" ||
     (!record.tipo_solicitud && !record.id_osi);
@@ -110,6 +112,21 @@ export default function RequisicionRow({
       // Rollback
       setLocalEstatus(prevEstatus);
       alert("Error al actualizar el estatus");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleAcknowledge = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm("¿Confirmar la recepción de esta requisición procesada?")) return;
+    setIsUpdating(true);
+    try {
+      await acknowledgeRequisicionReceipt(record.id);
+      router.refresh();
+    } catch (error) {
+      console.error("Error acknowledging receipt:", error);
+      alert(error instanceof Error ? error.message : "Error al confirmar la recepción");
     } finally {
       setIsUpdating(false);
     }
@@ -264,6 +281,27 @@ export default function RequisicionRow({
             >
               <Undo2 className="h-4 w-4" />
             </Button>
+          )}
+          {canAcknowledge && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              disabled={isUpdating}
+              onClick={handleAcknowledge}
+              className="h-8 w-8 text-blue-600 hover:text-blue-800 hover:bg-blue-50"
+              title="Confirmar Recepción"
+            >
+              <PackageCheck className="h-4 w-4" />
+            </Button>
+          )}
+          {isProcesada && isAcuseRecibido && !isAdminView && (
+            <span
+              className="h-8 w-8 flex items-center justify-center text-emerald-600"
+              title="Recepción confirmada"
+            >
+              <PackageCheck className="h-4 w-4" />
+            </span>
           )}
         </div>
       </td>

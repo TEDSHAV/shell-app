@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { RequisicionItem, OSIFixedItem } from "@/types/requisiciones";
-import { setRequisicionEstatus, updateItemVerificacion, updateFixedItemVerificacion, markAllItemsVerificadas, saveVerificacionProgress, getExchangeRate, updateFacilitadorBankingDetails } from "@/actions/requisiciones";
-import { CheckCircle2, XCircle, Undo2, Clock, AlertTriangle, CalendarClock, Copy, Check, Download, Save, Printer } from "lucide-react";
+import { setRequisicionEstatus, updateItemVerificacion, updateFixedItemVerificacion, markAllItemsVerificadas, saveVerificacionProgress, getExchangeRate, updateFacilitadorBankingDetails, acknowledgeRequisicionReceipt } from "@/actions/requisiciones";
+import { CheckCircle2, XCircle, Undo2, Clock, AlertTriangle, CalendarClock, Copy, Check, Download, Save, Printer, PackageCheck } from "lucide-react";
 
 export default function RequisicionView({ 
   record, 
@@ -91,6 +91,8 @@ export default function RequisicionView({
   const isRechazada = estatus === "rechazada";
   const isPendiente = estatus === "pendiente";
   const isResolved = isProcesada || isRechazada;
+  const isAcuseRecibido = record.acuse_recibido === true;
+  const canAcknowledge = isProcesada && !isAcuseRecibido && !isAdminView;
   const linkedOSIs: { id_osi: number }[] = record.requisiciones_osis || [];
   const showOSIHeader = !isGeneralMode || linkedOSIs.length > 0;
   
@@ -212,6 +214,20 @@ export default function RequisicionView({
     } catch (error) {
       console.error("Error saving verification progress:", error);
       alert("Error al guardar el avance");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleAcknowledgeReceipt = async () => {
+    if (!confirm("¿Confirmar la recepción de esta requisición procesada?")) return;
+    setIsUpdating(true);
+    try {
+      await acknowledgeRequisicionReceipt(record.id);
+      router.refresh();
+    } catch (error) {
+      console.error("Error acknowledging receipt:", error);
+      alert(error instanceof Error ? error.message : "Error al confirmar la recepción");
     } finally {
       setIsUpdating(false);
     }
@@ -400,6 +416,13 @@ export default function RequisicionView({
             <span className="text-xs text-gray-500">
               {isProcesada ? "Procesada" : "Rechazada"} por <span className="font-medium text-gray-700">{record.procesada_por_nombre}</span>
               {record.procesada_at && ` el ${new Date(record.procesada_at).toLocaleString("es-VE", { dateStyle: "short", timeStyle: "short" })}`}
+            </span>
+          )}
+          {isProcesada && (
+            <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
+              isAcuseRecibido ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-500'
+            }`}>
+              {isAcuseRecibido ? "Recibido" : "Pendiente recepción"}
             </span>
           )}
           <div className="ml-auto flex gap-2">
@@ -1195,6 +1218,36 @@ export default function RequisicionView({
               </Button>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Creator acknowledge receipt bar */}
+      {canAcknowledge && (
+        <div className="mt-4 flex items-center gap-3 px-4 py-3 bg-blue-50 border border-blue-200 rounded-lg shadow-sm">
+          <PackageCheck className="h-5 w-5 text-blue-600" />
+          <span className="text-sm font-medium text-blue-800">
+            Esta requisición ha sido procesada por Administración.
+          </span>
+          <div className="ml-auto">
+            <Button
+              type="button"
+              size="sm"
+              disabled={isUpdating}
+              onClick={handleAcknowledgeReceipt}
+              className="h-8 px-3 text-xs flex gap-1 bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              <PackageCheck className="h-3.5 w-3.5" />
+              Confirmar Recepción
+            </Button>
+          </div>
+        </div>
+      )}
+      {isProcesada && isAcuseRecibido && !isAdminView && (
+        <div className="mt-4 flex items-center gap-2 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-lg shadow-sm">
+          <PackageCheck className="h-4 w-4 text-emerald-600" />
+          <span className="text-sm font-medium text-emerald-800">
+            Recepción confirmada{record.acuse_recibido_at ? ` el ${new Date(record.acuse_recibido_at).toLocaleString("es-VE", { dateStyle: "short", timeStyle: "short" })}` : ""}
+          </span>
         </div>
       )}
     </div>

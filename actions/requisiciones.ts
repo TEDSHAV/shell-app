@@ -16,6 +16,7 @@ import {
   notifyCreatorOfProcesada,
   notifyCreatorOfRechazada,
   notifyCreatorOfPartialVerificacion,
+  notifyAdminOfAcuseRecibo,
 } from "@/actions/requisicion-notifications";
 import { getUsdToVesRate } from "@/lib/exchange-rate";
 
@@ -976,3 +977,71 @@ export async function refreshRequisicionFromOSI(requisicionId: number) {
   return { success: true };
 }
 
+// Acknowledge receipt of a processed requisicion (creator only)
+export async function acknowledgeRequisicionReceipt(id: number) {
+  const supabase = await createClient();
+  const userResponse = await supabase.auth.getUser();
+  const userId = userResponse.data.user?.id;
+
+  if (!userId) {
+    throw new Error("Debe iniciar sesión para confirmar la recepción.");
+  }
+
+  // Fetch the requisicion to verify ownership and status
+  const { data: req, error: fetchError } = await supabase
+    .from("requisiciones")
+    .select("created_by, estatus_admin, acuse_recibido, procesada_por, tipo_solicitud, v_osi_formato_completo (nro_osi)")
+    .eq("id", id)
+    .single();
+
+  if (fetchError || !req) {
+    throw new Error("No se encontró la requisición.");
+  }
+
+  // Only the creator can acknowledge
+  if (req.created_by !== userId) {
+    throw new Error("Solo el solicitante puede confirmar la recepción.");
+  }
+
+  // Only when procesada
+  if (req.estatus_admin !== "procesada") {
+    throw new Error("Solo se puede confirmar la recepción de requisiciones procesadas.");
+  }
+
+  // Prevent double acknowledge
+  if (req.acuse_recibido) {
+    throw new Error("Ya se ha confirmado la recepción de esta requisición.");
+  }
+
+  // Update the record
+  const { error: updateError } = await supabase
+    .from("requisiciones")
+    .update({
+      acuse_recibido: true,
+      acuse_recibido_at: new Date().toISOString(),
+      acuse_recibido_por: userId,
+    })
+    .eq("id", id);
+
+  if (updateError) throw updateError;
+
+  // Notify the admin who processed it
+  if (req.procesada_por) {
+    const adminClient = await createAdminClient();
+    const { data: creator } = await adminClient
+      .from("usuarios")
+      .select("nombre_apellido")
+      .eq("id_auth", userId)
+      .single();
+
+    const solicitanteName = creator?.nombre_apellido || "El solicitante";
+    const requisicionLabel = req.tipo_solicitud === "Interno"
+      ? "interna"
+      : `de la OSI N° ${(req.v_osi_formato_completo as any)?.nro_osi || ""}`;
+
+    await notifyAdminOfAcuseRecibo(id, req.procesada_por, solicitanteName, requisicionLabel);
+  }
+
+  revalidatePath("/requisiciones");
+  revalidatePath(`/requisiciones/view/${id}`);
+}
