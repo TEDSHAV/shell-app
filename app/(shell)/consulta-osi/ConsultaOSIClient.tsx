@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import type {
   OSIListFilters,
   OSIListItem,
@@ -17,6 +18,7 @@ interface ConsultaOSIClientProps {
 }
 
 export default function ConsultaOSIClient({ canChangeStatus }: ConsultaOSIClientProps) {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [osis, setOsis] = useState<OSIListItem[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -38,36 +40,51 @@ export default function ConsultaOSIClient({ canChangeStatus }: ConsultaOSIClient
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
-    const loadFilterOptions = async () => {
-      try {
-        const options = await getOSIListFilterOptions();
-        setCompanies(options.companies);
-        setEjecutivos(options.ejecutivos);
-        setCityOptions(options.cityOptions);
-        setStatuses(options.statuses);
-      } catch (error) {
-        console.error("Error loading filter options:", error);
-      } finally {
-        setLoadingFilters(false);
-      }
-    };
-    loadFilterOptions();
-  }, []);
+    let cancelled = false;
 
-  useEffect(() => {
-    const loadData = async () => {
+    const loadAll = async () => {
+      const isInitialLoad = !statuses.length;
+
+      setLoading(true);
+      if (isInitialLoad) setLoadingFilters(true);
+
       try {
-        setLoading(true);
-        const result = await getOSIList(filters, currentPage, itemsPerPage);
-        setOsis(result.osis);
-        setTotalCount(result.totalCount);
+        const promises: Promise<any>[] = [
+          getOSIList(filters, currentPage, itemsPerPage),
+        ];
+
+        if (isInitialLoad) {
+          promises.push(getOSIListFilterOptions());
+        }
+
+        const results = await Promise.all(promises);
+
+        if (cancelled) return;
+
+        const dataResult = results[0];
+        setOsis(dataResult.osis);
+        setTotalCount(dataResult.totalCount);
+
+        if (isInitialLoad && results[1]) {
+          const options = results[1];
+          setCompanies(options.companies);
+          setEjecutivos(options.ejecutivos);
+          setCityOptions(options.cityOptions);
+          setStatuses(options.statuses);
+        }
       } catch (error) {
-        console.error("Error loading OSIs:", error);
+        console.error("Error loading OSI data:", error);
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+          setLoadingFilters(false);
+        }
       }
     };
-    loadData();
+
+    loadAll();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters, currentPage, itemsPerPage]);
 
   const handleFiltersChange = useCallback((newFilters: OSIListFilters) => {
@@ -85,6 +102,12 @@ export default function ConsultaOSIClient({ canChangeStatus }: ConsultaOSIClient
   }, []);
 
   const handleRowClick = useCallback((osi: OSIListItem) => {
+    if (osi.id_osi) {
+      router.push(`/consulta-osi/preview/${osi.id_osi}`);
+    }
+  }, [router]);
+
+  const handleCommentsClick = useCallback((osi: OSIListItem) => {
     setSelectedOSI(osi);
     setSidebarOpen(true);
   }, []);
@@ -146,6 +169,7 @@ export default function ConsultaOSIClient({ canChangeStatus }: ConsultaOSIClient
           osis={osis}
           loading={loading}
           onRowClick={handleRowClick}
+          onCommentsClick={handleCommentsClick}
           selectedOSI={selectedOSI}
           canChangeStatus={canChangeStatus}
           statuses={statuses}

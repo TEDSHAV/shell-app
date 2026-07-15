@@ -1,5 +1,6 @@
 "use server";
 
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { notifyOsiStatusChanged } from "@/actions/osi-notifications";
 import type { BuildOsiPreviewInput } from "@sha/osi-formato";
@@ -24,7 +25,10 @@ export async function getOSIList(
 
     let query = supabase
       .from("v_osi_formato_completo")
-      .select("*", { count: "exact" });
+      .select(
+        "id_osi, nro_osi, nombre_empresa, servicio, tipo_servicio, id_ciudad_direccion_ejecucion_efectiva, ejecutivo_negocios, fecha_inicio_real, fecha_fin_real, participantes_ejecucion, participantes_max_solped, id_estatus",
+        { count: "exact" },
+      );
 
     // Exclude pending OSIs (nro_osi starting with PEN-)
     query = query.not("nro_osi", "like", "PEN-%");
@@ -80,23 +84,24 @@ export async function getOSIList(
       return { osis: [], totalCount: 0 };
     }
 
-    // Fetch statuses for enrichment
-    const statuses = await getOSIStatuses();
-    const statusMap = new Map(statuses.map((s) => [s.id, s]));
-
-    // Fetch city names for enrichment
+    // Fetch statuses and city names in parallel for enrichment
     const cityIds = (data || [])
       .map((osi: any) => osi.id_ciudad_direccion_ejecucion_efectiva)
       .filter((id: number | null) => id !== null);
     const uniqueCityIds = [...new Set(cityIds)] as number[];
-    let cityMap = new Map<number, string>();
-    if (uniqueCityIds.length > 0) {
-      const { data: cityData } = await supabase
-        .from("cat_ciudades")
-        .select("id, nombre_ciudad")
-        .in("id", uniqueCityIds);
-      cityMap = new Map((cityData || []).map((c: any) => [c.id, c.nombre_ciudad]));
-    }
+
+    const [statuses, cityResult] = await Promise.all([
+      getOSIStatuses(),
+      uniqueCityIds.length > 0
+        ? supabase
+            .from("cat_ciudades")
+            .select("id, nombre_ciudad")
+            .in("id", uniqueCityIds)
+        : Promise.resolve({ data: null }),
+    ]);
+
+    const statusMap = new Map(statuses.map((s) => [s.id, s]));
+    const cityMap = new Map((cityResult.data || []).map((c: any) => [c.id, c.nombre_ciudad]));
 
     const enrichedOSIs: OSIListItem[] = (data || []).map((osi: any) => {
       const status = osi.id_estatus ? statusMap.get(osi.id_estatus) : null;
@@ -263,7 +268,7 @@ export async function getOSIListFilterOptions(): Promise<OSIListFilterOptions> {
   }
 }
 
-async function getOSIStatuses(): Promise<OSIStatusOption[]> {
+const getOSIStatuses = cache(async (): Promise<OSIStatusOption[]> => {
   try {
     const supabase = await createClient();
     const { data, error } = await supabase
@@ -287,7 +292,7 @@ async function getOSIStatuses(): Promise<OSIStatusOption[]> {
   } catch {
     return [];
   }
-}
+});
 
 export async function getOSIPreviewBundle(
   osiId: number,
@@ -372,7 +377,7 @@ export async function getOSIPreviewBundle(
 
 export type OSIAccessFilter = "all" | "capacitacion" | "servicios_tecnicos" | "other" | "none";
 
-export async function getUserOSIAccessFilter(): Promise<OSIAccessFilter> {
+const getCachedUserOSIAccessFilter = cache(async (): Promise<OSIAccessFilter> => {
   try {
     const supabase = await createClient();
 
@@ -413,6 +418,10 @@ export async function getUserOSIAccessFilter(): Promise<OSIAccessFilter> {
     console.error("Error getting OSI access filter:", err);
     return "none";
   }
+});
+
+export async function getUserOSIAccessFilter(): Promise<OSIAccessFilter> {
+  return getCachedUserOSIAccessFilter();
 }
 
 export async function canAccessConsultaOSI(): Promise<boolean> {

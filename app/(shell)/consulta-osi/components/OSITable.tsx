@@ -3,12 +3,13 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { OSIListItem, OSIStatusOption } from "@/types/osi";
-import { Eye, FileText, Loader2, ChevronDown } from "lucide-react";
+import { Eye, FileText, Loader2, ChevronDown, MessageSquare } from "lucide-react";
 
 interface OSITableProps {
   osis: OSIListItem[];
   loading: boolean;
   onRowClick: (osi: OSIListItem) => void;
+  onCommentsClick: (osi: OSIListItem) => void;
   selectedOSI: OSIListItem | null;
   canChangeStatus: boolean;
   statuses: OSIStatusOption[];
@@ -19,6 +20,7 @@ export default function OSITable({
   osis,
   loading,
   onRowClick,
+  onCommentsClick,
   selectedOSI,
   canChangeStatus,
   statuses,
@@ -237,14 +239,26 @@ export default function OSITable({
                 )}
               </td>
               <td className="px-3 py-2 text-center">
-                <Link
-                  href={`/consulta-osi/preview/${osi.id_osi}`}
-                  onClick={(event) => event.stopPropagation()}
-                  className="inline-flex items-center justify-center rounded-md border border-gray-200 p-1.5 text-blue-700 hover:bg-blue-50 transition-colors"
-                  title="Ver formato OSI"
-                >
-                  <Eye className="h-3.5 w-3.5" />
-                </Link>
+                <div className="inline-flex items-center gap-1.5">
+                  <Link
+                    href={`/consulta-osi/preview/${osi.id_osi}`}
+                    onClick={(event) => event.stopPropagation()}
+                    className="inline-flex items-center justify-center rounded-md border border-gray-200 p-1.5 text-blue-700 hover:bg-blue-50 transition-colors"
+                    title="Ver formato OSI"
+                  >
+                    <Eye className="h-3.5 w-3.5" />
+                  </Link>
+                  <button
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onCommentsClick(osi);
+                    }}
+                    className="inline-flex items-center justify-center rounded-md border border-gray-200 p-1.5 text-green-700 hover:bg-green-50 transition-colors"
+                    title="Comentarios"
+                  >
+                    <MessageSquare className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               </td>
             </tr>
             );

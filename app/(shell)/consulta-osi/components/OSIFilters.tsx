@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { OSIListFilters, OSIStatusOption } from "@/types/osi";
 import { Search, X, Filter, ChevronDown } from "lucide-react";
 
@@ -24,6 +24,24 @@ export default function OSIFilters({
   loading = false,
 }: OSIFiltersProps) {
   const [expanded, setExpanded] = useState(true);
+  const [localNroOsi, setLocalNroOsi] = useState(filters.nroOsi || "");
+
+  useEffect(() => {
+    setLocalNroOsi(filters.nroOsi || "");
+  }, [filters.nroOsi]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if ((filters.nroOsi || "") !== localNroOsi) {
+        onFiltersChange({
+          ...filters,
+          nroOsi: localNroOsi || undefined,
+        });
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [localNroOsi]);
 
   const handleFilterChange = (key: keyof OSIListFilters, value: any) => {
     onFiltersChange({ ...filters, [key]: value });
@@ -77,8 +95,8 @@ export default function OSIFilters({
                 <input
                   type="text"
                   placeholder="Buscar..."
-                  value={filters.nroOsi || ""}
-                  onChange={(e) => handleFilterChange("nroOsi", e.target.value)}
+                  value={localNroOsi}
+                  onChange={(e) => setLocalNroOsi(e.target.value)}
                   className="w-full pl-8 pr-3 py-1.5 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   disabled={loading}
                 />
