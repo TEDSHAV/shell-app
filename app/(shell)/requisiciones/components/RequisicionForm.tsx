@@ -1161,13 +1161,13 @@ function RequisicionFormContent({
             <div className="col-span-1 p-2 border-r border-gray-300 bg-gray-50 flex items-center font-bold">
               Banco
             </div>
-            <div className="col-span-4 p-2 border-r border-gray-300 flex items-center font-bold uppercase">
+            <div className="col-span-3 p-2 border-r border-gray-300 flex items-center font-bold uppercase">
               {formData.banco || "-"}
             </div>
             <div className="col-span-2 p-2 border-r border-gray-300 bg-gray-50 flex items-center font-bold">
               Nro Cuenta.
             </div>
-            <div className="col-span-3 p-2 border-r border-gray-300 flex items-center font-bold">
+            <div className="col-span-4 p-2 border-r border-gray-300 flex items-center font-bold break-all">
               {formData.nro_cuenta || "-"}
             </div>
             <div className="col-span-1 p-2 border-r border-gray-300 bg-gray-50 flex items-center font-bold">

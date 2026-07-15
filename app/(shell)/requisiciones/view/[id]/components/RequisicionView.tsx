@@ -1050,7 +1050,7 @@ export default function RequisicionView({
             <div className="col-span-1 p-2 border-r border-gray-300 bg-gray-50 flex items-center font-bold">
               Banco
             </div>
-            <div className="col-span-4 p-2 border-r border-gray-300 flex items-center justify-between font-bold uppercase">
+            <div className="col-span-3 p-2 border-r border-gray-300 flex items-center justify-between font-bold uppercase">
               {isAdminView ? (
                 <input
                   type="text"
@@ -1068,7 +1068,7 @@ export default function RequisicionView({
             <div className="col-span-2 p-2 border-r border-gray-300 bg-gray-50 flex items-center font-bold">
               Nro Cuenta.
             </div>
-            <div className="col-span-2 p-2 border-r border-gray-300 flex items-center justify-between font-bold">
+            <div className="col-span-3 p-2 border-r border-gray-300 flex items-center justify-between font-bold break-all">
               {isAdminView ? (
                 <input
                   type="text"
