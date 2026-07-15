@@ -35,9 +35,6 @@ export default function RequisicionView({
   const [editTelefono, setEditTelefono] = useState<string>(record.telefono_facilitador || "");
   const [editCedula, setEditCedula] = useState<string>(record.cedula_facilitador || "");
   const [editRif, setEditRif] = useState<string>(record.rif_facilitador || "");
-  const [isSavingBanking, setIsSavingBanking] = useState(false);
-  const [bankingSaveMsg, setBankingSaveMsg] = useState<string | null>(null);
-
   const isGeneralMode = record.tipo_solicitud === "Interno";
   const isCapacitacionForRate = !isGeneralMode && record.gerencia_solicitante?.trim().toLowerCase() === "capacitacion";
 
@@ -148,11 +145,22 @@ export default function RequisicionView({
     }
   }
 
+  const saveBankingDetails = async () => {
+    await updateFacilitadorBankingDetails(record.id, {
+      banco: editBanco,
+      nro_cuenta: editNroCuenta,
+      telefono_facilitador: editTelefono,
+      cedula_facilitador: editCedula,
+      rif_facilitador: editRif,
+    });
+  };
+
   const handleSetEstatus = async (target: "pendiente" | "procesada" | "rechazada") => {
     if (target === "procesada" && totalCount > 0 && verifiedCount < totalCount) {
       if (!confirm(`Hay ${verifiedCount} de ${totalCount} items verificados. ¿Marcar todos como Listo y procesar?`)) return;
       setIsUpdating(true);
       try {
+        await saveBankingDetails();
         await markAllItemsVerificadas(record.id);
         setLocalItems(prev => prev.map(item => ({ ...item, verificacion: "listo" as const })));
         setLocalFixedItems(prev => prev.map(fi => ({
@@ -180,6 +188,9 @@ export default function RequisicionView({
     if (!confirm(messages[target])) return;
     setIsUpdating(true);
     try {
+      if (target === "procesada") {
+        await saveBankingDetails();
+      }
       await setRequisicionEstatus(record.id, target);
       router.refresh();
     } catch (error) {
@@ -193,6 +204,7 @@ export default function RequisicionView({
   const handleSaveProgress = async () => {
     setIsUpdating(true);
     try {
+      await saveBankingDetails();
       const result = await saveVerificacionProgress(record.id);
       alert(`Notificación enviada al solicitante: ${result.verifiedCount} de ${result.totalCount} items verificados.`);
     } catch (error) {
@@ -1090,47 +1102,6 @@ export default function RequisicionView({
               )}
             </div>
           </div>
-
-          {/* Save banking details button (admin only) */}
-          {isAdminView && (
-            <div className="flex items-center gap-3 px-3 py-2 border-b border-gray-300 bg-gray-50">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={isSavingBanking}
-                onClick={async () => {
-                  setIsSavingBanking(true);
-                  setBankingSaveMsg(null);
-                  try {
-                    await updateFacilitadorBankingDetails(record.id, {
-                      banco: editBanco,
-                      nro_cuenta: editNroCuenta,
-                      telefono_facilitador: editTelefono,
-                      cedula_facilitador: editCedula,
-                      rif_facilitador: editRif,
-                    });
-                    setBankingSaveMsg("Datos guardados correctamente.");
-                    setTimeout(() => setBankingSaveMsg(null), 3000);
-                  } catch (error) {
-                    console.error("Error saving banking details:", error);
-                    setBankingSaveMsg("Error al guardar los datos.");
-                  } finally {
-                    setIsSavingBanking(false);
-                  }
-                }}
-                className="h-8 px-3 text-xs flex gap-1 border-blue-300 text-blue-700 hover:bg-blue-50"
-              >
-                <Save className="h-3.5 w-3.5" />
-                {isSavingBanking ? "Guardando..." : "Guardar Datos Bancarios"}
-              </Button>
-              {bankingSaveMsg && (
-                <span className={`text-xs font-medium ${bankingSaveMsg.includes("Error") ? "text-red-600" : "text-emerald-600"}`}>
-                  {bankingSaveMsg}
-                </span>
-              )}
-            </div>
-          )}
 
           {/* Exchange rate row */}
           <div className="grid grid-cols-12 text-xs h-12 border-b border-gray-300">

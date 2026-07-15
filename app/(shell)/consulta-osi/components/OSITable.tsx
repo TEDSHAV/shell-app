@@ -27,7 +27,7 @@ export default function OSITable({
   const [statusLoadingId, setStatusLoadingId] = useState<number | null>(null);
   const formatDate = (dateString: string | null) => {
     if (!dateString) return "-";
-    return new Date(dateString).toLocaleDateString("es-ES", {
+    return new Date(dateString + "T00:00:00").toLocaleDateString("es-ES", {
       day: "2-digit",
       month: "short",
       year: "numeric",
