@@ -211,14 +211,13 @@ function RequisicionFormContent({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
-  const isNegociosMode = mode === "negocios";
   const osiTipoServicio = isGeneralMode ? internaOsiTipoServicio : (isCapacitacion ? "capacitacion" : "servicios tecnicos");
 
   const isOSIRequired = !isGeneralMode;
 
   const filteredOSIs = osis.filter(
     (osi) =>
-      (isNegociosMode || osi.tipo_servicio?.toLowerCase() === osiTipoServicio) &&
+      (isNegociosDept || osi.tipo_servicio?.toLowerCase() === osiTipoServicio) &&
       !osi.nro_osi?.toUpperCase().startsWith("PEN") &&
       (osi.nro_osi?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         osi.servicio?.toLowerCase().includes(searchTerm.toLowerCase())),
