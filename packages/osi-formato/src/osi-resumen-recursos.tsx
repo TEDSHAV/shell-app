@@ -3,7 +3,7 @@
 import type { OsiRecursosLayout } from "./osi-recursos-layout";
 
 function money_cell(value: number, hidden?: boolean): string {
-  if (hidden || !(value > 0)) return "—";
+  if (hidden || !(value > 0)) return "N/A";
   return `$${value.toFixed(2)}`;
 }
 

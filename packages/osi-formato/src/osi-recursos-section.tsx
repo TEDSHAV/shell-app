@@ -152,17 +152,17 @@ export function OsiCapacitacionRecursosBlocks({
               </tr>
               <tr>
                 <td className="text-center h-8 font-bold text-[10px]">
-                  {horas_view > 0 ? String(horas_view) : "—"}
+                  {horas_view > 0 ? String(horas_view) : "N/A"}
                 </td>
                 <td className="text-center h-8 text-[10px]">
                   {tarifa_honorarios_view > 0
                     ? `$${tarifa_honorarios_view.toFixed(2)}`
-                    : "—"}
+                    : "N/A"}
                 </td>
                 <td className="text-center h-8 font-semibold text-[10px]">
                   {total_honorarios_view > 0
                     ? `$${total_honorarios_view.toFixed(2)}`
-                    : "—"}
+                    : "N/A"}
                 </td>
               </tr>
             </tbody>
@@ -219,15 +219,15 @@ export function OsiCapacitacionRecursosBlocks({
               </tr>
               <tr>
                 <td className="text-center h-8 font-bold text-[10px]">
-                  {dias_logistica > 0 ? String(dias_logistica) : "—"}
+                  {dias_logistica > 0 ? String(dias_logistica) : "N/A"}
                 </td>
                 <td className="text-center h-8 text-[10px]">
                   {costo_logistica_view > 0
                     ? `$${costo_logistica_view.toFixed(2)}`
-                    : "—"}
+                    : "N/A"}
                 </td>
                 <td className="text-center h-8 font-semibold text-[10px]">
-                  {logistica_total > 0 ? `$${logistica_total.toFixed(2)}` : "—"}
+                  {logistica_total > 0 ? `$${logistica_total.toFixed(2)}` : "N/A"}
                 </td>
               </tr>
             </tbody>
@@ -254,15 +254,15 @@ export function OsiCapacitacionRecursosBlocks({
               </tr>
               <tr>
                 <td className="text-center h-8 font-bold text-[10px]">
-                  {dias_hospedaje > 0 ? String(dias_hospedaje) : "—"}
+                  {dias_hospedaje > 0 ? String(dias_hospedaje) : "N/A"}
                 </td>
                 <td className="text-center h-8 text-[10px]">
                   {costo_hospedaje_view > 0
                     ? `$${costo_hospedaje_view.toFixed(2)}`
-                    : "—"}
+                    : "N/A"}
                 </td>
                 <td className="text-center h-8 font-semibold text-[10px]">
-                  {hospedaje_total > 0 ? `$${hospedaje_total.toFixed(2)}` : "—"}
+                  {hospedaje_total > 0 ? `$${hospedaje_total.toFixed(2)}` : "N/A"}
                 </td>
               </tr>
             </tbody>
@@ -399,13 +399,13 @@ export function OsiStRecursosBlocks({
                       </tr>
                       <tr>
                         <td className="text-center text-[9px]">
-                          {slice.stDiasCampo || "—"}
+                          {slice.stDiasCampo || "N/A"}
                         </td>
                         <td className="text-center text-[9px]">
-                          {slice.stDiasInforme || "—"}
+                          {slice.stDiasInforme || "N/A"}
                         </td>
                         <td className="text-center text-[9px]">
-                          {slice.stAnalistas || "—"}
+                          {slice.stAnalistas || "N/A"}
                         </td>
                       </tr>
                     </tbody>
@@ -429,17 +429,17 @@ export function OsiStRecursosBlocks({
                       </tr>
                       <tr>
                         <td className="text-center text-[9px]">
-                          {dias_hospedaje > 0 ? String(dias_hospedaje) : "—"}
+                          {dias_hospedaje > 0 ? String(dias_hospedaje) : "N/A"}
                         </td>
                         <td className="text-center text-[9px]">
                           {costo_hospedaje_view > 0
                             ? `$${costo_hospedaje_view.toFixed(2)}`
-                            : "—"}
+                            : "N/A"}
                         </td>
                         <td className="text-center text-[9px]">
                           {st_totals.total_hospedaje > 0
                             ? `$${st_totals.total_hospedaje.toFixed(2)}`
-                            : "—"}
+                            : "N/A"}
                         </td>
                       </tr>
                     </tbody>
@@ -464,7 +464,7 @@ export function OsiStRecursosBlocks({
                       </tr>
                       <tr>
                         <td className="text-center text-[9px]">
-                          {dias_logistica > 0 ? String(dias_logistica) : "—"}
+                          {dias_logistica > 0 ? String(dias_logistica) : "N/A"}
                         </td>
                         <td className="text-center text-[9px]">
                           {(slice.stLogisticaRecursos ?? slice.stAnalistas ?? 0) >
@@ -472,17 +472,17 @@ export function OsiStRecursosBlocks({
                             ? String(
                                 slice.stLogisticaRecursos ?? slice.stAnalistas,
                               )
-                            : "—"}
+                            : "N/A"}
                         </td>
                         <td className="text-center text-[9px]">
                           {costo_logistica_view > 0
                             ? `$${costo_logistica_view.toFixed(2)}`
-                            : "—"}
+                            : "N/A"}
                         </td>
                         <td className="text-center font-semibold text-[9px]">
                           {st_totals.total_logistica > 0
                             ? `$${st_totals.total_logistica.toFixed(2)}`
-                            : "—"}
+                            : "N/A"}
                         </td>
                       </tr>
                     </tbody>
@@ -545,12 +545,12 @@ export function OsiStRecursosBlocks({
                               <td className="text-center text-[9px]">
                                 {traslado.cantidad > 0
                                   ? String(traslado.cantidad)
-                                  : "—"}
+                                  : "N/A"}
                               </td>
                               <td className="text-center text-[9px]">
                                 {!traslado_mask && traslado.costo_unidad > 0
                                   ? `$${traslado.costo_unidad.toFixed(2)}`
-                                  : "—"}
+                                  : "N/A"}
                               </td>
                               <td className="text-center font-semibold text-[9px]">
                                 {!traslado_mask &&
@@ -558,7 +558,7 @@ export function OsiStRecursosBlocks({
                                   ? `$${(
                                       traslado.cantidad * traslado.costo_unidad
                                     ).toFixed(2)}`
-                                  : "—"}
+                                  : "N/A"}
                               </td>
                             </tr>
                           </Fragment>
@@ -575,12 +575,12 @@ export function OsiStRecursosBlocks({
                             <td className="text-center text-[9px]">
                               {st_traslado_total > 0
                                 ? `$${st_traslado_total.toFixed(2)}`
-                                : "—"}
+                                : "N/A"}
                             </td>
                             <td className="text-center text-[9px]" colSpan={2}>
                               {st_traslado_externo_total > 0
                                 ? `$${st_traslado_externo_total.toFixed(2)}`
-                                : "—"}
+                                : "N/A"}
                             </td>
                           </tr>
                         </>
@@ -607,12 +607,12 @@ export function OsiStRecursosBlocks({
                         <td className="text-center text-[9px] py-1">
                           {st_envio_factura_view > 0
                             ? `$${Number(st_envio_factura_view).toFixed(2)}`
-                            : "—"}
+                            : "N/A"}
                         </td>
                         <td className="text-center text-[9px] py-1">
                           {st_envio_materiales_view > 0
                             ? `$${Number(st_envio_materiales_view).toFixed(2)}`
-                            : "—"}
+                            : "N/A"}
                         </td>
                       </tr>
                     </tbody>

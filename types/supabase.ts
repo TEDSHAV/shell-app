@@ -6380,6 +6380,7 @@ export type Database = {
           impresion_material_incluida: boolean | null
           nombre_empresa: string | null
           nro_osi: string | null
+          nro_orden_compra: string | null
           nro_presupuesto: number | null
           numero_areas: number | null
           numero_puntos_evaluar: number | null

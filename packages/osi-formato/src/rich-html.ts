@@ -49,7 +49,7 @@ function plain_text_to_html(text: string): string {
 
 function to_display_html(value: string | null | undefined): string {
   const raw = String(value ?? "").trim();
-  if (!raw || raw === "—") return "";
+  if (!raw || raw === "N/A") return "";
   if (is_likely_html(raw)) return sanitize_rich_html(raw);
   if (/^\s*[-•]/m.test(raw)) return sanitize_rich_html(bullet_text_to_html(raw));
   return sanitize_rich_html(plain_text_to_html(raw));
@@ -57,12 +57,12 @@ function to_display_html(value: string | null | undefined): string {
 
 export function merged_content_to_display_html(value: string): string {
   const raw = value.trim();
-  if (!raw || raw === "—") return "—";
+  if (!raw || raw === "N/A") return "N/A";
   const sections = raw.split(/\n\n+/).map((s) => s.trim()).filter(Boolean);
-  if (sections.length === 0) return "—";
+  if (sections.length === 0) return "N/A";
   const parts = sections
     .map((section) => to_display_html(section))
     .filter((html) => html.length > 0);
-  if (parts.length === 0) return "—";
+  if (parts.length === 0) return "N/A";
   return parts.join('<div class="solped-rich-sep" aria-hidden="true"></div>');
 }

@@ -34,7 +34,7 @@ export function parseCalendarDayLocal(value: unknown): Date | null {
 export function formatCalendarDayEsVe(value: unknown): string {
   const date = parseCalendarDayLocal(value);
   if (!date) {
-    return "—";
+    return "N/A";
   }
   return date.toLocaleDateString("es-VE");
 }

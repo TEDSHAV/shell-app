@@ -299,7 +299,10 @@ export function build_osi_preview_data(input: BuildOsiPreviewInput): OsiPreviewD
     nroOsi: formatOsiSecuencialNro(view_row.nro_osi),
     fechaEmisionPresupuesto: to_str(view_row.fecha_emision_presupuesto),
     nroPresupuesto: to_text(view_row.nro_presupuesto),
-    nroOrdenCompra: to_str(view_row.nro_orden_compra ?? ""),
+    nroOrdenCompra: (() => {
+      const raw = String(view_row.nro_orden_compra ?? "").trim();
+      return raw && raw !== "—" && raw !== "-" ? raw : "N/A";
+    })(),
     codigoCliente: to_text(view_row.id_empresa) ?? to_text(view_row.codigo_cliente),
     fechaDocumento: fecha_documento,
     revisionDocumento: "1",

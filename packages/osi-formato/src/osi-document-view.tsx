@@ -27,8 +27,8 @@ function OsiRichHtmlContent({
   className?: string;
 }) {
   const html = merged_content_to_display_html(String(content ?? ""));
-  if (html === "—") {
-    return <span>—</span>;
+  if (html === "N/A") {
+    return <span>N/A</span>;
   }
   return (
     <div
@@ -59,7 +59,7 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
     : [];
   const sesiones_detalle = sesiones.map((s) => ({
     fecha: s.fecha,
-    hora: s.hora_inicio || s.hora_fin || "—",
+    hora: s.hora_inicio || s.hora_fin || "N/A",
   }));
   const fechaServicioTexto =
     sesiones.length > 0
@@ -70,8 +70,8 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
           })
           .join(", ")
       : data.fechaInicioReal
-        ? `${data.fechaInicioReal} al ${data.fechaFinReal || "—"}`
-        : "—";
+        ? `${data.fechaInicioReal} al ${data.fechaFinReal || "N/A"}`
+        : "N/A";
   const hl = data.previewHighlights ?? {};
   const is_public_view = Boolean(data.isPublicView);
   const is_hidden = (key: string) =>
@@ -340,11 +340,11 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
             </tr>
             <tr>
               <td className="text-center">
-                {data.fechaDocumento || data.fechaEmisionPresupuesto || "—"}
+                {data.fechaDocumento || data.fechaEmisionPresupuesto || "N/A"}
               </td>
-              <td className="text-center">{data.nroPresupuesto || "—"}</td>
-              <td className="text-center">{data.nroOrdenCompra || "—"}</td>
-              <td className="text-center font-bold text-red-600">{data.nroOsi || "—"}</td>
+              <td className="text-center">{data.nroPresupuesto || "N/A"}</td>
+              <td className="text-center">{data.nroOrdenCompra || "N/A"}</td>
+              <td className="text-center font-bold text-red-600">{data.nroOsi || "N/A"}</td>
             </tr>
 
             <tr>
@@ -357,14 +357,14 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
               <th className="text-left">CÓDIGO DEL CLIENTE</th>
             </tr>
             <tr>
-              <td colSpan={2}>{data.nombreEmpresa || "—"}</td>
-              <td>{data.clienteRif || "—"}</td>
-              <td>{data.codigoCliente || "—"}</td>
+              <td colSpan={2}>{data.nombreEmpresa || "N/A"}</td>
+              <td>{data.clienteRif || "N/A"}</td>
+              <td>{data.codigoCliente || "N/A"}</td>
             </tr>
             <tr>
               <th className="text-left">DIRECCIÓN FISCAL DEL CLIENTE</th>
               <td colSpan={3} className="!text-left">
-                {data.direccionFiscal || "—"}
+                {data.direccionFiscal || "N/A"}
               </td>
             </tr>
             <tr>
@@ -373,12 +373,12 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
                 colSpan={3}
                 className={cn("!text-left", cellHl(hl.direccionEjecucion))}
               >
-                {data.direccionEjecucion || "—"}
+                {data.direccionEjecucion || "N/A"}
               </td>
             </tr>
             <tr>
               <th className="text-left">DIRECCIÓN DE ENVÍO DEL SERVICIO</th>
-              <td colSpan={3} className="!text-left">{data.direccionEnvio || "—"}</td>
+              <td colSpan={3} className="!text-left">{data.direccionEnvio || "N/A"}</td>
             </tr>
 
             <tr>
@@ -387,10 +387,10 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
               <th className="text-center">CORREO ELECTRÓNICO</th>
             </tr>
             <tr>
-              <td className="text-center" colSpan={2}>{data.personaContacto || "—"}</td>
-              <td className="text-center">{data.contactoTelefono || "—"}</td>
+              <td className="text-center" colSpan={2}>{data.personaContacto || "N/A"}</td>
+              <td className="text-center">{data.contactoTelefono || "N/A"}</td>
               <td className="break-all text-center text-[9px]">
-                {data.contactoEmail || "—"}
+                {data.contactoEmail || "N/A"}
               </td>
             </tr>
 
@@ -408,10 +408,10 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
                   <th className="text-left" colSpan={2}>SERVICIO</th>
                 </tr>
                 <tr>
-                  <td>{data.ejecutivoNegocios || "—"}</td>
-                  <td>{data.tipoServicio || "—"}</td>
+                  <td>{data.ejecutivoNegocios || "N/A"}</td>
+                  <td>{data.tipoServicio || "N/A"}</td>
                   <td colSpan={2} className="!text-left text-[9px] leading-tight">
-                    {data.servicio || "—"}
+                    {data.servicio || "N/A"}
                   </td>
                 </tr>
                 <tr>
@@ -422,12 +422,12 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
                 </tr>
                 <tr>
                   <td className={cn("text-center font-bold text-[10px]", cellHl(hl.participantes))}>
-                    {participantesDoc != null ? String(participantesDoc) : "—"}
+                    {participantesDoc != null ? String(participantesDoc) : "N/A"}
                   </td>
                   <td className={cn("text-center", cellHl(hl.fechaServicio))}>
-                    {sesionesDoc != null ? String(sesionesDoc) : "—"}
+                    {sesionesDoc != null ? String(sesionesDoc) : "N/A"}
                   </td>
-                  <td className="text-center">{data.horasAcademicasSolped ?? "—"}</td>
+                  <td className="text-center">{data.horasAcademicasSolped ?? "N/A"}</td>
                   <td className={cn("align-top", cellHl(hl.fechaServicio))}>
                     <table className="w-full table-fixed border-collapse">
                       <tbody>
@@ -472,7 +472,7 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
                           />
                       </div>
                       <span className="relative z-10">
-                        {data.detalleServicio || data.servicio || "—"}
+                        {data.detalleServicio || data.servicio || "N/A"}
                       </span>
                   </td>
                 </tr>
@@ -492,7 +492,7 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
                   </th>
                 </tr>
                 <tr>
-                  <td>{data.ejecutivoNegocios || "—"}</td>
+                  <td>{data.ejecutivoNegocios || "N/A"}</td>
                   <td>{data.tipoServicio || "Servicios Tecnicos"}</td>
                   <td
                     colSpan={2}
@@ -515,7 +515,7 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
                         ))}
                       </div>
                     ) : (
-                      data.servicio || "—"
+                      data.servicio || "N/A"
                     )}
                   </td>
                 </tr>
@@ -551,7 +551,7 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
                     ))}
                   </div>
                 ) : (
-                  <span>—</span>
+                  <span>N/A</span>
                 )}
               </td>
             </tr>
@@ -580,7 +580,7 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
                     ))}
                   </div>
                 ) : (
-                  <span>—</span>
+                  <span>N/A</span>
                 )}
               </td>
             </tr>

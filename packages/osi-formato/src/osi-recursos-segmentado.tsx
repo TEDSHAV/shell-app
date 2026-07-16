@@ -38,7 +38,7 @@ export function SegmentadoPorSesionTable({
         </tr>
         <tr>
           <td className="text-center h-8 font-semibold text-[10px]">
-            {show_total ? `$${total.toFixed(2)}` : "—"}
+            {show_total ? `$${total.toFixed(2)}` : "N/A"}
           </td>
           <td className="text-center h-8 text-[8px] leading-tight px-0.5">
             Ver costo por
@@ -66,7 +66,7 @@ export function SegmentadoPorSesionInline({
         Total
       </div>
       <div className="font-semibold text-[10px] leading-tight">
-        {show_total ? `$${total.toFixed(2)}` : "—"}
+        {show_total ? `$${total.toFixed(2)}` : "N/A"}
       </div>
       <div className="text-[7px] leading-tight text-slate-600">
         Segmentado por sesión · ver abajo
@@ -79,6 +79,6 @@ export function format_money_or_dash(
   value: number,
   hidden?: boolean,
 ): string {
-  if (hidden || !(value > 0)) return "—";
+  if (hidden || !(value > 0)) return "N/A";
   return `$${value.toFixed(2)}`;
 }

@@ -557,7 +557,7 @@ function session_group_texto(
       const tarifa = slice.tarifaHoraHonorarios;
       const total = slice.costoHonorariosInstructor;
       if (!(horas > 0 || tarifa > 0 || total > 0)) {
-        return "—";
+        return "N/A";
       }
       return `${horas}h × ${format_money(tarifa)}/h = ${format_money(total)}`;
     }
@@ -566,20 +566,20 @@ function session_group_texto(
     case "traslado_externo":
     case "otros": {
       const amount = session_group_amount(slice, key, is_capacitacion);
-      return amount > 0 ? format_money(amount) : "—";
+      return amount > 0 ? format_money(amount) : "N/A";
     }
     case "logistica": {
       const dias = slice.diasLogisticaFacilitador;
       const unit = slice.costoLogisticaComida;
       const total = session_group_amount(slice, key, is_capacitacion);
-      if (!(dias > 0 || unit > 0 || total > 0)) return "—";
+      if (!(dias > 0 || unit > 0 || total > 0)) return "N/A";
       return `${dias}d · ${format_money(unit)}/d = ${format_money(total)}`;
     }
     case "hospedaje": {
       const dias = slice.diasHospedajeFacilitador;
       const unit = slice.costoHospedaje;
       const total = session_group_amount(slice, key, is_capacitacion);
-      if (!(dias > 0 || unit > 0 || total > 0)) return "—";
+      if (!(dias > 0 || unit > 0 || total > 0)) return "N/A";
       return `${dias}d · ${format_money(unit)}/d = ${format_money(total)}`;
     }
     case "pop":
@@ -588,18 +588,18 @@ function session_group_texto(
       return `C${slice.stDiasCampo} · I${slice.stDiasInforme} · A${slice.stAnalistas}`;
     case "st_envios": {
       const total = session_group_amount(slice, key, is_capacitacion);
-      return total > 0 ? format_money(total) : "—";
+      return total > 0 ? format_money(total) : "N/A";
     }
     case "st_traslados": {
       const total = session_group_amount(slice, key, is_capacitacion);
-      return total > 0 ? format_money(total) : "—";
+      return total > 0 ? format_money(total) : "N/A";
     }
     case "st_impresion_flag":
       return slice.impresionMaterialIncluida ? "SÍ" : "NO";
     case "st_bateria_flag":
       return slice.bateriaIncluida ? "SÍ" : "NO";
     default:
-      return "—";
+      return "N/A";
   }
 }
 
@@ -762,7 +762,7 @@ function build_variaciones(
         const tone =
           !omitidos.has(key) ||
           compare == null ||
-          texto === "—"
+          texto === "N/A"
             ? "base"
             : tone_vs_base(compare, base);
         celdas[key] = {
@@ -773,7 +773,7 @@ function build_variaciones(
       }
       const total = totales_sesion[index] ?? 0;
       celdas.total_sesion = {
-        texto: total > 0 ? format_money(total) : "—",
+        texto: total > 0 ? format_money(total) : "N/A",
         valorComparacion: total,
         tone: "base",
       };

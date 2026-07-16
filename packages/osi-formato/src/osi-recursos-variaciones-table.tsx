@@ -23,8 +23,8 @@ function CellValue({
   celda: OsiVariacionCelda;
   allow_badge: boolean;
 }) {
-  if (celda.texto === "—") {
-    return <span className="text-[10px] text-slate-500">—</span>;
+  if (celda.texto === "N/A") {
+    return <span className="text-[10px] text-slate-500">N/A</span>;
   }
   // TOTAL SESIÓN y tonos base: siempre texto plano.
   if (!allow_badge || celda.tone === "base") {
@@ -44,7 +44,7 @@ function CellValue({
 }
 
 function format_footer_money(value: number | undefined): string {
-  if (value == null || !(value > 0)) return "—";
+  if (value == null || !(value > 0)) return "N/A";
   return `$${value.toFixed(2)}`;
 }
 
@@ -103,7 +103,7 @@ export function OsiRecursosVariacionesTable({
                         allow_badge={col.key !== "total_sesion"}
                       />
                     ) : (
-                      "—"
+                      "N/A"
                     )}
                   </td>
                 );
