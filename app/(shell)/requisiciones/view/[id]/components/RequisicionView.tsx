@@ -619,11 +619,11 @@ export default function RequisicionView({
                 <td className="p-2 border-r border-gray-300">
                   <div className="flex items-center gap-2">
                     <span className="font-bold">{fi.dias_traslado || 0}</span>
-                    <span className="uppercase text-[10px] font-medium">DÍAS DE TRASL. COSTO TOTAL $</span>
+                    <span className="uppercase text-[10px] font-medium">DÍAS DE TRASL. COSTO $</span>
                   </div>
                 </td>
                 <td className="p-2 text-center font-bold border-r border-gray-300 bg-gray-50/50">
-                  ${((fi.dias_traslado || 0) * (fi.costo_traslado || 0)).toFixed(2)}
+                  ${(fi.costo_traslado || 0).toFixed(2)}
                 </td>
                 {osiFixedItems.length > 1 && (
                   <td className="p-2 text-center border-r border-gray-300 font-bold text-blue-700 text-[10px]">
@@ -687,14 +687,14 @@ export default function RequisicionView({
                 <td className="p-2 border-r border-gray-300"></td>
                 <td className="p-2 border-r border-gray-300">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium uppercase">HONORARIOS TOTAL $</span>
-                    <span className="mx-2 font-bold">${(fi.honorarios_total || 0).toFixed(2)}</span>
+                    <span className="font-medium uppercase">HONORARIOS $</span>
+                    <span className="mx-2 font-bold">${(fi.honorarios_costo_hora || 0).toFixed(2)}</span>
                     <span className="font-medium uppercase">, POR HORAS</span>
                     <span className="font-bold">{fi.honorarios_horas || 0}</span>
                   </div>
                 </td>
                 <td className="p-2 text-center font-bold border-r border-gray-300 bg-gray-50/50">
-                  ${(fi.honorarios_total || 0).toFixed(2)}
+                  ${(fi.honorarios_costo_hora || 0).toFixed(2)}
                 </td>
                 {osiFixedItems.length > 1 && (
                   <td className="p-2 text-center border-r border-gray-300 font-bold text-blue-700 text-[10px]">
