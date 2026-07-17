@@ -1,5 +1,6 @@
 "use server";
 
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { buildFrameUrl } from "@/lib/frame-url";
 
@@ -62,6 +63,14 @@ export async function canManageClientesCuentas(): Promise<boolean> {
   return (perms.sgestion ?? []).includes("clientes:cuentas:manage");
 }
 
+export async function getUserRoleFromRoles(appRoles: Record<string, string>): Promise<string> {
+  const roles = Object.values(appRoles).map(r => r.toLowerCase());
+  if (roles.includes("superadmin")) return "superadmin";
+  if (roles.includes("admin")) return "admin";
+  if (roles.includes("lider")) return "lider";
+  return "user";
+}
+
 export async function getUserRole(): Promise<string> {
   const supabase = await createClient();
   const { data } = await supabase.auth.getClaims();
@@ -78,17 +87,16 @@ export async function getUserRole(): Promise<string> {
 
   // Fallback: Check app-specific roles to see if user is an admin anywhere
   const appRoles = await getUserRolesByApp();
-  const roles = Object.values(appRoles).map(r => r.toLowerCase());
-  
-  if (roles.includes("superadmin")) return "superadmin";
-  if (roles.includes("admin")) return "admin";
-  if (roles.includes("lider")) return "lider";
-
-  console.log("[getUserRole] No administrative role found, defaulting to user");
-  return "user";
+  const role = await getUserRoleFromRoles(appRoles);
+  if (role !== "user") {
+    console.log("[getUserRole] Derived role from app roles:", role);
+  } else {
+    console.log("[getUserRole] No administrative role found, defaulting to user");
+  }
+  return role;
 }
 
-export async function getUserPermissionsByApp(): Promise<Record<string, string[]>> {
+export const getUserPermissionsByApp = cache(async (): Promise<Record<string, string[]>> => {
   try {
     const supabase = await createClient();
 
@@ -118,9 +126,9 @@ export async function getUserPermissionsByApp(): Promise<Record<string, string[]
   } catch {
     return {};
   }
-}
+});
 
-export async function getUserRolesByApp(): Promise<Record<string, string>> {
+export const getUserRolesByApp = cache(async (): Promise<Record<string, string>> => {
   try {
     const supabase = await createClient();
 
@@ -182,7 +190,7 @@ export async function getUserRolesByApp(): Promise<Record<string, string>> {
     console.error("[getUserRolesByApp] Unexpected error:", error);
     return {};
   }
-}
+});
 
 export async function getAppRoles(appSlug: string): Promise<string[]> {
   try {

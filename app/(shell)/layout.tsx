@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ShellProvider } from "@/components/shell/ShellProvider";
 import { hasEnvVars } from "@/lib/utils";
-import { getUserRolesByApp, getUserRole } from "@/actions/apps";
+import { getUserRolesByApp, getUserRoleFromRoles } from "@/actions/apps";
 
 export default async function ShellLayout({
   children,
@@ -27,13 +27,19 @@ export default async function ShellLayout({
 
     userEmail = data.claims.email as string | undefined;
 
-    // Fetch roles in parallel
-    const [roles, gRole] = await Promise.all([
-      getUserRolesByApp(),
-      getUserRole(),
-    ]);
-    userRolesByApp = roles;
-    globalRole = gRole;
+    // Check claims for user_role first (avoids DB call when present)
+    const claimsRole = (data.claims.user_role as string) ??
+      (data.claims.app_metadata as Record<string, string> | undefined)?.role;
+
+    if (claimsRole) {
+      globalRole = claimsRole;
+      // Still need app-specific roles for sidebar/navigation
+      userRolesByApp = await getUserRolesByApp();
+    } else {
+      // No role in claims — fetch app roles and derive both
+      userRolesByApp = await getUserRolesByApp();
+      globalRole = await getUserRoleFromRoles(userRolesByApp);
+    }
   }
 
   return (

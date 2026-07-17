@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { getAllRequisiciones, isRequisicionesAdmin, getAllOSIsForRequisiciones } from "@/actions/requisiciones";
+import { getAllRequisiciones, isRequisicionesAdmin, getOsiNumbersForLookup } from "@/actions/requisiciones";
 import RequisicionesTable from "./components/RequisicionesTable";
 import { FilePlus2 } from "lucide-react";
 
@@ -9,16 +9,16 @@ export const metadata = {
 };
 
 export default async function RequisicionesPage() {
-  const [records, isAdminView, allOsis] = await Promise.all([
-    getAllRequisiciones(),
-    isRequisicionesAdmin(),
-    getAllOSIsForRequisiciones(),
+  const isAdminView = await isRequisicionesAdmin();
+  const [records, osiPairs] = await Promise.all([
+    getAllRequisiciones(isAdminView),
+    getOsiNumbersForLookup(),
   ]);
 
   const osiLookup = new Map<number, string>();
-  (allOsis || []).forEach((osi: any) => {
-    if (osi.id_osi && osi.nro_osi) {
-      osiLookup.set(osi.id_osi, osi.nro_osi);
+  (osiPairs || []).forEach(({ id_osi, nro_osi }) => {
+    if (id_osi && nro_osi) {
+      osiLookup.set(id_osi, nro_osi);
     }
   });
 

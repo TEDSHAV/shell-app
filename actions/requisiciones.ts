@@ -1,6 +1,7 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag, unstable_cache } from "next/cache";
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getUserRole } from "@/actions/apps";
@@ -23,7 +24,8 @@ import { getUsdToVesRate } from "@/lib/exchange-rate";
 const ADMIN_ROLES = ["admin", "superadmin"];
 
 // Check if the current user can manage all requisiciones (Administración)
-export async function isRequisicionesAdmin(): Promise<boolean> {
+// Wrapped in cache() to deduplicate across multiple calls in the same request
+export const isRequisicionesAdmin = cache(async (): Promise<boolean> => {
   const role = (await getUserRole())?.toLowerCase() || "";
   if (ADMIN_ROLES.includes(role)) return true;
 
@@ -44,37 +46,64 @@ export async function isRequisicionesAdmin(): Promise<boolean> {
   } catch {
     return false;
   }
-}
+});
 
-// Get all OSIs for the dropdown
-export async function getAllOSIsForRequisiciones() {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("v_osi_formato_completo")
-    .select("*")
-    .order("id_osi", { ascending: false });
+// Get all OSIs for the dropdown (cached 5 minutes)
+export const getAllOSIsForRequisiciones = unstable_cache(
+  async () => {
+    const supabase = await createAdminClient();
+    const { data, error } = await supabase
+      .from("v_osi_formato_completo")
+      .select("*")
+      .order("id_osi", { ascending: false });
 
-  if (error) {
-    console.error("Error fetching OSIs:", error);
-    return [];
-  }
-  return data as OSIFullData[];
-}
+    if (error) {
+      console.error("Error fetching OSIs:", error);
+      return [];
+    }
+    return data as OSIFullData[];
+  },
+  ["osis-for-requisiciones"],
+  { tags: ["osis"], revalidate: 300 }
+);
 
-// Get all banks for the dropdown
-export async function getBanksForDropdown() {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("cat_bancos")
-    .select("id, nombre")
-    .order("nombre");
+// Get lightweight OSI id→nro_osi pairs for lookup maps (cached 5 minutes)
+export const getOsiNumbersForLookup = unstable_cache(
+  async () => {
+    const supabase = await createAdminClient();
+    const { data, error } = await supabase
+      .from("v_osi_formato_completo")
+      .select("id_osi, nro_osi")
+      .order("id_osi", { ascending: false });
 
-  if (error) {
-    console.error("Error fetching banks:", error);
-    return [];
-  }
-  return data as { id: number; nombre: string }[];
-}
+    if (error) {
+      console.error("Error fetching OSI numbers for lookup:", error);
+      return [];
+    }
+    return data as { id_osi: number; nro_osi: string | null }[];
+  },
+  ["osi-numbers-for-lookup"],
+  { tags: ["osi-numbers"], revalidate: 300 }
+);
+
+// Get all banks for the dropdown (cached 1 hour)
+export const getBanksForDropdown = unstable_cache(
+  async () => {
+    const supabase = await createAdminClient();
+    const { data, error } = await supabase
+      .from("cat_bancos")
+      .select("id, nombre")
+      .order("nombre");
+
+    if (error) {
+      console.error("Error fetching banks:", error);
+      return [];
+    }
+    return data as { id: number; nombre: string }[];
+  },
+  ["banks-for-dropdown"],
+  { tags: ["banks"], revalidate: 3600 }
+);
 
 // Get current logged in user details
 export async function getCurrentUser() {
@@ -197,6 +226,8 @@ export async function createRequisicionRecord(
 
   // Revalidate both the shell and potentially the capacitacion app list if needed
   revalidatePath("/requisiciones");
+  revalidateTag("osis", "default");
+  revalidateTag("osi-numbers", "default");
   return data;
 }
 
@@ -254,16 +285,7 @@ export async function getRequisicionRecord(id: number) {
     return null;
   }
 
-  if (data?.procesada_por) {
-    const { data: procesadaPorUser } = await supabase
-      .from("usuarios")
-      .select("nombre_apellido")
-      .eq("id_auth", data.procesada_por)
-      .single();
-    (data as Record<string, unknown>).procesada_por_nombre = procesadaPorUser?.nombre_apellido || null;
-  }
-
-  // Resolve distinct item-level verificador ids (additional_items + osi_fixed_items) to names
+  // Collect verificador ids from additional_items and osi_fixed_items
   const verificadorIds = new Set<string>();
   for (const item of (data?.additional_items || []) as RequisicionItem[]) {
     if (item.verificado_por) verificadorIds.add(item.verificado_por);
@@ -274,17 +296,39 @@ export async function getRequisicionRecord(id: number) {
       if (v) verificadorIds.add(v);
     }
   }
-  if (verificadorIds.size > 0) {
-    const { data: verificadores } = await supabase
-      .from("usuarios")
-      .select("id_auth, nombre_apellido")
-      .in("id_auth", Array.from(verificadorIds));
-    const map: Record<string, string> = {};
-    (verificadores || []).forEach((u: { id_auth: string | null; nombre_apellido: string }) => {
-      if (u.id_auth) map[u.id_auth] = u.nombre_apellido;
-    });
-    (data as Record<string, unknown>).verificado_por_map = map;
+
+  const promises: Promise<void>[] = [];
+
+  if (data?.procesada_por) {
+    promises.push(
+      (async () => {
+        const { data: procesadaPorUser } = await supabase
+          .from("usuarios")
+          .select("nombre_apellido")
+          .eq("id_auth", data.procesada_por!)
+          .single();
+        (data as Record<string, unknown>).procesada_por_nombre = procesadaPorUser?.nombre_apellido || null;
+      })(),
+    );
   }
+
+  if (verificadorIds.size > 0) {
+    promises.push(
+      (async () => {
+        const { data: verificadores } = await supabase
+          .from("usuarios")
+          .select("id_auth, nombre_apellido")
+          .in("id_auth", Array.from(verificadorIds));
+        const map: Record<string, string> = {};
+        (verificadores || []).forEach((u: { id_auth: string | null; nombre_apellido: string }) => {
+          if (u.id_auth) map[u.id_auth] = u.nombre_apellido;
+        });
+        (data as Record<string, unknown>).verificado_por_map = map;
+      })(),
+    );
+  }
+
+  await Promise.all(promises);
 
   return data;
 }
@@ -392,19 +436,23 @@ export async function updateRequisicionRecord(
   await syncRequisicionOsis(id, formData);
 
   revalidatePath("/requisiciones");
+  revalidateTag("osis", "default");
+  revalidateTag("osi-numbers", "default");
   return data;
 }
 
 // Get requisitions for list view.
 // Administración (admin/superadmin) sees all records; regular users only their own.
-export async function getAllRequisiciones() {
+export async function getAllRequisiciones(isAdmin?: boolean) {
   const supabase = await createClient();
   const userResponse = await supabase.auth.getUser();
   const userId = userResponse.data.user?.id;
 
   if (!userId) return [];
 
-  const isAdmin = await isRequisicionesAdmin();
+  if (isAdmin === undefined) {
+    isAdmin = await isRequisicionesAdmin();
+  }
 
   let query = supabase
     .from("requisiciones")
@@ -740,30 +788,34 @@ export async function saveVerificacionProgress(requisicionId: number) {
   return { verifiedCount, totalCount };
 }
 
-// Get facilitators for dropdown with banking details
-export async function getFacilitatorsForDropdown() {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("facilitadores")
-    .select(`
-      id, 
-      nombre_apellido, 
-      cedula, 
-      rif,
-      telefono,
-      datos_bancarios (
-        banco,
-        nro_cuenta,
-        tipo_cuenta,
-        es_principal
-      )
-    `)
-    .eq("is_active", true)
-    .order("nombre_apellido");
+// Get facilitators for dropdown with banking details (cached 5 minutes)
+export const getFacilitatorsForDropdown = unstable_cache(
+  async () => {
+    const supabase = await createAdminClient();
+    const { data, error } = await supabase
+      .from("facilitadores")
+      .select(`
+        id, 
+        nombre_apellido, 
+        cedula, 
+        rif,
+        telefono,
+        datos_bancarios (
+          banco,
+          nro_cuenta,
+          tipo_cuenta,
+          es_principal
+        )
+      `)
+      .eq("is_active", true)
+      .order("nombre_apellido");
 
-  if (error) throw error;
-  return data;
-}
+    if (error) throw error;
+    return data;
+  },
+  ["facilitators-for-dropdown"],
+  { tags: ["facilitators"], revalidate: 300 }
+);
 
 // Get USD→VES exchange rate for display in requisicion view
 export async function getExchangeRate(): Promise<number | null> {

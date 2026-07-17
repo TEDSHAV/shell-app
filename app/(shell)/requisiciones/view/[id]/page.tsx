@@ -32,35 +32,44 @@ export default async function ViewRequisicionPage({
   }
 
   let osiData = null;
-  let osiLookup = new Map<number, string>();
+  const osiLookup = new Map<number, string>();
   const isLocked = record?.estatus_admin === "procesada" || record?.estatus_admin === "rechazada";
-  if (record.id_osi) {
-    try {
-      osiData = await getOSIForRequisicion(record.id_osi);
-      if (osiData && osiData.nro_osi) {
-        osiLookup.set(osiData.id_osi, osiData.nro_osi);
-      }
-    } catch (e) {
-      console.error("Error fetching OSI data for view:", e);
-    }
-  }
-
-  // Fetch nro_osi for all linked OSIs via junction table
   const linkedOsiIds: number[] = (record.requisiciones_osis || []).map(
     (ro: any) => ro.id_osi
   );
-  if (linkedOsiIds.length > 0) {
-    try {
-      const linkedOsis = await getOsisByIds(linkedOsiIds);
-      (linkedOsis || []).forEach((osi: any) => {
-        if (osi.id_osi && osi.nro_osi) {
-          osiLookup.set(osi.id_osi, osi.nro_osi);
+
+  const osiPromises: Promise<void>[] = [];
+  if (record.id_osi) {
+    osiPromises.push(
+      (async () => {
+        try {
+          osiData = await getOSIForRequisicion(record.id_osi);
+          if (osiData && osiData.nro_osi) {
+            osiLookup.set(osiData.id_osi, osiData.nro_osi);
+          }
+        } catch (e) {
+          console.error("Error fetching OSI data for view:", e);
         }
-      });
-    } catch (e) {
-      console.error("Error fetching linked OSI data:", e);
-    }
+      })(),
+    );
   }
+  if (linkedOsiIds.length > 0) {
+    osiPromises.push(
+      (async () => {
+        try {
+          const linkedOsis = await getOsisByIds(linkedOsiIds);
+          (linkedOsis || []).forEach((osi: any) => {
+            if (osi.id_osi && osi.nro_osi) {
+              osiLookup.set(osi.id_osi, osi.nro_osi);
+            }
+          });
+        } catch (e) {
+          console.error("Error fetching linked OSI data:", e);
+        }
+      })(),
+    );
+  }
+  await Promise.all(osiPromises);
 
   return (
     <div className="p-4 sm:p-8">
