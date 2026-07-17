@@ -690,6 +690,8 @@ export async function updateSessionStatus(
 
     // Fire-and-forget notification (errors logged, don't block the status change)
     try {
+      console.log("[updateSessionStatus] Gathering data for notification, sessionId=" + sessionId + ", osiId=" + session.id_osi);
+
       const [osiData, newStatusData, prevStatusData] = await Promise.all([
         supabase
           .from("v_osi_formato_completo")
@@ -716,6 +718,16 @@ export async function updateSessionStatus(
         .eq("id", sessionId)
         .maybeSingle();
 
+      console.log("[updateSessionStatus] Notification data:", {
+        nroOsi: osiData.data?.nro_osi,
+        nroSesion: sessionData.data?.nro_sesion,
+        newStatusName: newStatusData.data?.nombre_estado,
+        prevStatusName: prevStatusData?.data?.nombre_estado ?? null,
+        osiError: osiData.error,
+        newStatusError: newStatusData.error,
+        sessionError: sessionData.error,
+      });
+
       await notifySessionStatusChange({
         osiId: session.id_osi,
         nroOsi: osiData.data?.nro_osi ?? `ID ${session.id_osi}`,
@@ -723,6 +735,8 @@ export async function updateSessionStatus(
         newStatusName: newStatusData.data?.nombre_estado ?? "Desconocido",
         prevStatusName: prevStatusData?.data?.nombre_estado ?? null,
       });
+
+      console.log("[updateSessionStatus] notifySessionStatusChange completed");
     } catch (notifErr) {
       console.error("Error sending session status notification:", notifErr);
     }
