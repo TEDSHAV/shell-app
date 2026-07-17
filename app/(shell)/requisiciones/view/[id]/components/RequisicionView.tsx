@@ -623,7 +623,7 @@ export default function RequisicionView({
                   </div>
                 </td>
                 <td className="p-2 text-center font-bold border-r border-gray-300 bg-gray-50/50">
-                  ${(fi.costo_traslado || 0).toFixed(2)}
+                  ${((fi.dias_traslado || 0) * (fi.costo_traslado || 0)).toFixed(2)}
                 </td>
                 {osiFixedItems.length > 1 && (
                   <td className="p-2 text-center border-r border-gray-300 font-bold text-blue-700 text-[10px]">
@@ -694,7 +694,7 @@ export default function RequisicionView({
                   </div>
                 </td>
                 <td className="p-2 text-center font-bold border-r border-gray-300 bg-gray-50/50">
-                  ${(fi.honorarios_costo_hora || 0).toFixed(2)}
+                  ${(fi.honorarios_total || 0).toFixed(2)}
                 </td>
                 {osiFixedItems.length > 1 && (
                   <td className="p-2 text-center border-r border-gray-300 font-bold text-blue-700 text-[10px]">
