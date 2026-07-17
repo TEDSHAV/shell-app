@@ -786,7 +786,7 @@ export async function updateFacilitadorBankingDetails(
     throw new Error("Solo Administración puede editar los datos del facilitador.");
   }
 
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   // Fetch the requisicion to get cod_facilitador
   const { data: requisicion, error: reqError } = await supabase

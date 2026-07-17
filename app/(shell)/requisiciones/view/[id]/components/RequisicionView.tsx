@@ -211,6 +211,7 @@ export default function RequisicionView({
       await saveBankingDetails();
       const result = await saveVerificacionProgress(record.id);
       alert(`Notificación enviada al solicitante: ${result.verifiedCount} de ${result.totalCount} items verificados.`);
+      router.refresh();
     } catch (error) {
       console.error("Error saving verification progress:", error);
       alert("Error al guardar el avance");
