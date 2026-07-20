@@ -52,8 +52,8 @@ export interface OSISession {
   hora_inicio: string | null;
   hora_fin: string | null;
   id_estatus: number | null;
-  status_name: string;
-  status_color: string;
+  status_name?: string;
+  status_color?: string;
 }
 
 export interface OSISessionsFinalCheck {

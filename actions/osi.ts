@@ -569,9 +569,6 @@ export async function getOSISessions(osiId: number): Promise<OSISession[]> {
   if (!Number.isFinite(osiId) || osiId <= 0) return [];
 
   try {
-    const accessFilter = await getUserOSIAccessFilter();
-    if (accessFilter === "none") return [];
-
     const supabase = await createClient();
 
     const { data: sessions, error } = await supabase
@@ -587,20 +584,19 @@ export async function getOSISessions(osiId: number): Promise<OSISession[]> {
 
     const sessionIds = sessions.map((s) => s.id);
 
-    const [statusHistoryResult, statusesResult] = await Promise.all([
-      supabase
-        .from("historial_cambios_estado")
-        .select("id_registro, id_estatus_nuevo, fecha_cambio")
-        .eq("tabla_afectada", "osi_sesion")
-        .in("id_registro", sessionIds)
-        .order("fecha_cambio", { ascending: false }),
-      getOSIStatuses(),
-    ]);
+    const { data: statusHistory, error: historyError } = await supabase
+      .from("historial_cambios_estado")
+      .select("id_registro, id_estatus_nuevo, fecha_cambio")
+      .eq("tabla_afectada", "osi_sesion")
+      .in("id_registro", sessionIds)
+      .order("fecha_cambio", { ascending: false });
 
-    const statusMap = new Map(statusesResult.map((s) => [s.id, s]));
+    if (historyError) {
+      console.error("Error fetching session status history:", historyError);
+    }
 
     const latestStatusBySession = new Map<number, number | null>();
-    for (const row of statusHistoryResult.data || []) {
+    for (const row of statusHistory || []) {
       const sid = row.id_registro as number;
       if (!latestStatusBySession.has(sid)) {
         latestStatusBySession.set(sid, row.id_estatus_nuevo as number | null);
@@ -609,7 +605,6 @@ export async function getOSISessions(osiId: number): Promise<OSISession[]> {
 
     return sessions.map((s) => {
       const statusId = latestStatusBySession.get(s.id) ?? null;
-      const status = statusId ? statusMap.get(statusId) : null;
       return {
         id: s.id,
         id_osi: s.id_osi,
@@ -618,8 +613,6 @@ export async function getOSISessions(osiId: number): Promise<OSISession[]> {
         hora_inicio: s.hora_inicio,
         hora_fin: s.hora_fin,
         id_estatus: statusId,
-        status_name: status?.nombre_estado || "Sin estado",
-        status_color: status?.color_hex || "#9CA3AF",
       } as OSISession;
     });
   } catch (err) {
@@ -749,20 +742,16 @@ export async function updateSessionStatus(
 }
 
 export async function checkAllSessionsFinal(
-  osiId: number,
+  totalSessions: number,
+  statusIds: number[],
 ): Promise<OSISessionsFinalCheck> {
   try {
-    const sessions = await getOSISessions(osiId);
-    if (sessions.length === 0) {
+    if (totalSessions === 0) {
       return { allFinal: false, totalSessions: 0, finalCount: 0 };
     }
 
-    const supabase = await createClient();
-    const statusIds = sessions
-      .map((s) => s.id_estatus)
-      .filter((id): id is number => id !== null);
-
-    if (statusIds.length < sessions.length) {
+    if (statusIds.length < totalSessions) {
+      const supabase = await createClient();
       const finalCount = statusIds.length > 0
         ? (await supabase
             .from("conf_estatus")
@@ -771,9 +760,10 @@ export async function checkAllSessionsFinal(
             .eq("es_estado_final", true)
           ).data?.length ?? 0
         : 0;
-      return { allFinal: false, totalSessions: sessions.length, finalCount };
+      return { allFinal: false, totalSessions, finalCount };
     }
 
+    const supabase = await createClient();
     const { data: finalStatuses } = await supabase
       .from("conf_estatus")
       .select("id")
@@ -782,8 +772,8 @@ export async function checkAllSessionsFinal(
 
     const finalCount = finalStatuses?.length ?? 0;
     return {
-      allFinal: finalCount === sessions.length,
-      totalSessions: sessions.length,
+      allFinal: finalCount === totalSessions,
+      totalSessions,
       finalCount,
     };
   } catch (err) {

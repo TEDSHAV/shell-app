@@ -43,6 +43,11 @@ export default function OSITable({
       year: "numeric",
     });
   };
+  const getStatusInfo = (statusId: number | null) => {
+    if (!statusId) return { name: "Sin estado", color: "#9CA3AF" };
+    const s = statuses.find((st) => st.id === statusId);
+    return { name: s?.nombre_estado || "Desconocido", color: s?.color_hex || "#9CA3AF" };
+  };
 
   const handleToggleExpand = async (osiId: number) => {
     if (expandedOSIId === osiId) {
@@ -67,12 +72,11 @@ export default function OSITable({
   const handleSessionStatusSelect = async (session: OSISession, newStatusId: number) => {
     if (session.id_estatus === newStatusId) return;
     setSessionStatusLoading(session.id);
-    const status = statuses.find((s) => s.id === newStatusId);
     setSessionsByOSI((prev) => ({
       ...prev,
       [session.id_osi]: (prev[session.id_osi] || []).map((s) =>
         s.id === session.id
-          ? { ...s, id_estatus: newStatusId, status_name: status?.nombre_estado || "Desconocido", status_color: status?.color_hex || "#9CA3AF" }
+          ? { ...s, id_estatus: newStatusId }
           : s
       ),
     }));
@@ -80,7 +84,14 @@ export default function OSITable({
       if (onSessionStatusChange) {
         const result = await onSessionStatusChange(session.id, newStatusId);
         if (result.success) {
-          const check = await checkAllSessionsFinal(session.id_osi);
+          const updatedSessions = sessionsByOSI[session.id_osi]?.map((s) =>
+            s.id === session.id ? { ...s, id_estatus: newStatusId } : s
+          ) || [];
+          const totalSessions = updatedSessions.length;
+          const statusIds = updatedSessions
+            .map((s) => s.id_estatus)
+            .filter((id): id is number => id !== null);
+          const check = await checkAllSessionsFinal(totalSessions, statusIds);
           setAllFinalBanner((prev) => ({ ...prev, [session.id_osi]: check.allFinal }));
         } else {
           setSessionsByOSI((prev) => ({
@@ -392,8 +403,8 @@ export default function OSITable({
                                         <div
                                           className="relative inline-flex items-center rounded-full transition-opacity hover:opacity-80"
                                           style={{
-                                            backgroundColor: `${session.status_color}20`,
-                                            border: `1px solid ${session.status_color}60`,
+                                            backgroundColor: `${getStatusInfo(session.id_estatus).color}20`,
+                                            border: `1px solid ${getStatusInfo(session.id_estatus).color}60`,
                                           }}
                                         >
                                           <select
@@ -403,8 +414,8 @@ export default function OSITable({
                                               if (val) handleSessionStatusSelect(session, parseInt(val));
                                             }}
                                             className="text-[10px] font-bold uppercase rounded-full pl-2 pr-5 py-0.5 text-center border-0 cursor-pointer focus:ring-2 focus:ring-blue-400 focus:outline-none appearance-none bg-transparent min-w-[55px]"
-                                            style={{ color: session.status_color }}
-                                            title={`${session.status_name} — Click para cambiar`}
+                                            style={{ color: getStatusInfo(session.id_estatus).color }}
+                                            title={`${getStatusInfo(session.id_estatus).name} — Click para cambiar`}
                                           >
                                             <option value="" style={{ backgroundColor: "white", color: "#374151", textTransform: "none", fontWeight: "normal", fontSize: "12px" }}>
                                               Sin estado
@@ -421,7 +432,7 @@ export default function OSITable({
                                           </select>
                                           <ChevronDown
                                             className="pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 h-3 w-3"
-                                            style={{ color: session.status_color }}
+                                            style={{ color: getStatusInfo(session.id_estatus).color }}
                                           />
                                         </div>
                                       )}
@@ -430,11 +441,11 @@ export default function OSITable({
                                     <span
                                       className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase whitespace-nowrap"
                                       style={{
-                                        backgroundColor: `${session.status_color}20`,
-                                        color: session.status_color,
+                                        backgroundColor: `${getStatusInfo(session.id_estatus).color}20`,
+                                        color: getStatusInfo(session.id_estatus).color,
                                       }}
                                     >
-                                      {session.status_name}
+                                      {getStatusInfo(session.id_estatus).name}
                                     </span>
                                   )}
                                 </td>
