@@ -147,39 +147,39 @@ export default function OSITable({
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-x-auto">
       <table className="w-full">
         <thead className="bg-gray-50 border-b border-gray-200">
           <tr>
             <th className="px-2 py-2 w-8"></th>
-            <th className="px-3 py-2 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
+            <th className="px-2 py-2 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
               OSI
             </th>
-            <th className="px-3 py-2 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider min-w-0">
+            <th className="px-2 py-2 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider min-w-0">
               Empresa
             </th>
-            <th className="px-3 py-2 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider min-w-0">
+            <th className="px-2 py-2 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider min-w-0">
               Servicio
             </th>
-            <th className="px-3 py-2 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
+            <th className="px-2 py-2 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
               Ciudad
             </th>
-            <th className="px-3 py-2 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider min-w-0">
+            <th className="px-2 py-2 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider min-w-0">
               Ejecutivo
             </th>
-            <th className="px-3 py-2 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
+            <th className="px-2 py-2 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
               F. Inicio
             </th>
-            <th className="px-3 py-2 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
+            <th className="px-2 py-2 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
               F. Fin
             </th>
-            <th className="px-3 py-2 text-center text-[11px] font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
+            <th className="px-2 py-2 text-center text-[11px] font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
               Part.
             </th>
-            <th className="px-3 py-2 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
+            <th className="px-2 py-2 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
               Estado
             </th>
-            <th className="px-3 py-2 text-center text-[11px] font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
+            <th className="px-2 py-2 text-center text-[11px] font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
               Acción
             </th>
           </tr>
@@ -216,54 +216,54 @@ export default function OSITable({
                   </button>
                 )}
               </td>
-              <td className="px-3 py-2">
+              <td className="px-2 py-2">
                 <span className="text-sm font-semibold text-gray-900">
                   {osi.nro_osi || "-"}
                 </span>
               </td>
-              <td className="px-3 py-2 min-w-0">
-                <span className="text-sm text-gray-700 truncate block max-w-[120px]">
+              <td className="px-2 py-2 min-w-0">
+                <span className="text-sm text-gray-700 truncate block max-w-[100px]">
                   {osi.nombre_empresa || "-"}
                 </span>
               </td>
-              <td className="px-3 py-2 min-w-0">
+              <td className="px-2 py-2 min-w-0">
                 <div className="flex flex-col min-w-0">
-                  <span className="text-sm text-gray-900 truncate max-w-[140px]">
+                  <span className="text-sm text-gray-900 truncate max-w-[120px]">
                     {osi.servicio || "-"}
                   </span>
                   {osi.tipo_servicio && (
-                    <span className="text-[10px] text-gray-500 truncate max-w-[140px]">
+                    <span className="text-[10px] text-gray-500 truncate max-w-[120px]">
                       {osi.tipo_servicio}
                     </span>
                   )}
                 </div>
               </td>
-              <td className="px-3 py-2">
-                <span className="text-sm text-gray-700 truncate block max-w-[100px]">
+              <td className="px-2 py-2">
+                <span className="text-sm text-gray-700 truncate block max-w-[80px]">
                   {osi.ciudad_ejecucion || "-"}
                 </span>
               </td>
-              <td className="px-3 py-2 min-w-0">
-                <span className="text-sm text-gray-700 truncate block max-w-[100px]">
+              <td className="px-2 py-2 min-w-0">
+                <span className="text-sm text-gray-700 truncate block max-w-[80px]">
                   {osi.ejecutivo_negocios || "-"}
                 </span>
               </td>
-              <td className="px-3 py-2 whitespace-nowrap">
+              <td className="px-2 py-2 whitespace-nowrap">
                 <span className="text-xs text-gray-700">
                   {formatDate(osi.fecha_inicio_real)}
                 </span>
               </td>
-              <td className="px-3 py-2 whitespace-nowrap">
+              <td className="px-2 py-2 whitespace-nowrap">
                 <span className="text-xs text-gray-700">
                   {formatDate(osi.fecha_fin_real)}
                 </span>
               </td>
-              <td className="px-3 py-2 text-center">
+              <td className="px-2 py-2 text-center">
                 <span className="text-sm text-gray-700">
                   {osi.participantes ?? "-"}
                 </span>
               </td>
-              <td className="px-3 py-2">
+              <td className="px-2 py-2">
                 {canChangeStatus && osi.id_osi ? (
                   <div className="relative inline-block">
                     {statusLoadingId === osi.id_osi ? (
@@ -286,7 +286,7 @@ export default function OSITable({
                             handleStatusSelect(osi, parseInt(e.target.value));
                           }}
                           onClick={(e) => e.stopPropagation()}
-                          className="text-[10px] font-bold uppercase rounded-full pl-2 pr-5 py-0.5 text-center border-0 cursor-pointer focus:ring-2 focus:ring-blue-400 focus:outline-none appearance-none bg-transparent min-w-[70px]"
+                          className="text-[10px] font-bold uppercase rounded-full pl-2 pr-5 py-0.5 text-center border-0 cursor-pointer focus:ring-2 focus:ring-blue-400 focus:outline-none appearance-none bg-transparent min-w-[55px]"
                           style={{
                             color: osi.status_color,
                           }}
@@ -327,7 +327,7 @@ export default function OSITable({
                   </span>
                 )}
               </td>
-              <td className="px-3 py-2 text-center">
+              <td className="px-2 py-2 text-center">
                 <div className="inline-flex items-center gap-1.5">
                   <Link
                     href={`/consulta-osi/preview/${osi.id_osi}`}
@@ -402,7 +402,7 @@ export default function OSITable({
                                               const val = e.target.value;
                                               if (val) handleSessionStatusSelect(session, parseInt(val));
                                             }}
-                                            className="text-[10px] font-bold uppercase rounded-full pl-2 pr-5 py-0.5 text-center border-0 cursor-pointer focus:ring-2 focus:ring-blue-400 focus:outline-none appearance-none bg-transparent min-w-[70px]"
+                                            className="text-[10px] font-bold uppercase rounded-full pl-2 pr-5 py-0.5 text-center border-0 cursor-pointer focus:ring-2 focus:ring-blue-400 focus:outline-none appearance-none bg-transparent min-w-[55px]"
                                             style={{ color: session.status_color }}
                                             title={`${session.status_name} — Click para cambiar`}
                                           >
