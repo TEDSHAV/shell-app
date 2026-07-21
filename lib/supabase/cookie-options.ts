@@ -7,8 +7,8 @@ export function getSupabaseCookieOptions(): CookieOptions & { name?: string } {
 
   return {
     name: "sb-shade-auth-token",
-    domain: ".shadevenezuela.com.ve",
+    domain: process.env.NEXT_PUBLIC_COOKIE_DOMAIN || ".shadevenezuela.com.ve",
     sameSite: "lax",
-    secure: true,
+    secure: process.env.NEXT_PUBLIC_COOKIE_SECURE !== "false",
   };
 }
