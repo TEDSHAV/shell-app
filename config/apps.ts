@@ -592,7 +592,7 @@ export const apps: AppConfig[] = [
     basePath: "/drive",
     upstreamUrl:
       process.env.NEXT_PUBLIC_DRIVE_URL ||
-      "https://drive.shadevenezuela.com.ve",
+      "https://filebrowser.95.111.237.109.sslip.io",
     icon: Cloud,
     brandColor: "#19DEFF",
     embedMode: "shell",
