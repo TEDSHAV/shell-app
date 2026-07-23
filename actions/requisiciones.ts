@@ -4,7 +4,6 @@ import { revalidatePath, revalidateTag, unstable_cache } from "next/cache";
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/server";
-import { getUserRole } from "@/actions/apps";
 import {
   RequisicionFormData,
   OSIFullData,
@@ -21,15 +20,10 @@ import {
 } from "@/actions/requisicion-notifications";
 import { getUsdToVesRate } from "@/lib/exchange-rate";
 
-const ADMIN_ROLES = ["admin", "superadmin"];
-
-// Check if the current user can manage all requisiciones (Administración)
+// Check if the current user belongs to the Administración department.
+// Department-based only — role (admin/superadmin) is NOT considered.
 // Wrapped in cache() to deduplicate across multiple calls in the same request
 export const isRequisicionesAdmin = cache(async (): Promise<boolean> => {
-  const role = (await getUserRole())?.toLowerCase() || "";
-  if (ADMIN_ROLES.includes(role)) return true;
-
-  // Fallback: check if user belongs to the Administración department
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();

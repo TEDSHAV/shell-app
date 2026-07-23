@@ -87,9 +87,9 @@ function RequisicionFormContent({
 
   // Determine department-based default mode
   const deptLower = userDept.trim().toLowerCase();
-  const isCapacitacionDept = deptLower === "capacitacion";
-  const isServiciosDept = deptLower === "servicios tecnicos" || deptLower === "servicios técnicos";
-  const isNegociosDept = deptLower === "negocios";
+  const isCapacitacionDept = deptLower.includes("capacitacion");
+  const isServiciosDept = deptLower.includes("servicios") && deptLower.includes("tecnic");
+  const isNegociosDept = deptLower.includes("negocios");
   // Capacitación, Servicios Técnicos, and Negocios can use Externa mode; everyone else defaults to General
   const defaultIsGeneral = !isCapacitacionDept && !isServiciosDept;
   const editIsGeneral = editRecord ? (editRecord.tipo_solicitud === "Interno" || (!editRecord.tipo_solicitud && !editRecord.id_osi)) : defaultIsGeneral;
@@ -215,13 +215,20 @@ function RequisicionFormContent({
 
   const isOSIRequired = !isGeneralMode;
 
-  const filteredOSIs = osis.filter(
-    (osi) =>
-      (isNegociosDept || osi.tipo_servicio?.toLowerCase() === osiTipoServicio) &&
-      !osi.nro_osi?.toUpperCase().startsWith("PEN") &&
-      (osi.nro_osi?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        osi.servicio?.toLowerCase().includes(searchTerm.toLowerCase())),
-  );
+  const filteredOSIs = osis.filter((osi) => {
+    if (!isNegociosDept) {
+      const tipo = (osi.tipo_servicio || "").toLowerCase();
+      if (osiTipoServicio === "servicios tecnicos") {
+        if (!tipo.includes("servicios tecnicos") && !tipo.includes("servicio tecnico")) return false;
+      } else if (!tipo.includes(osiTipoServicio)) {
+        return false;
+      }
+    }
+    if (osi.nro_osi?.toUpperCase().startsWith("PEN")) return false;
+    const q = searchTerm.toLowerCase();
+    if (q && !(osi.nro_osi?.toLowerCase().includes(q) || osi.servicio?.toLowerCase().includes(q))) return false;
+    return true;
+  });
 
   const isOSISelected = (osi: OSIFullData) =>
     formData.selectedOSIs.some((s) => s.id_osi === osi.id_osi);

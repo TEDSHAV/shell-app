@@ -1,23 +1,16 @@
-import { 
-  getAllOSIsForRequisiciones, 
-  getFacilitatorsForDropdown, 
+import {
+  getAllOSIsForRequisiciones,
+  getFacilitatorsForDropdown,
   getCurrentUser,
   getBanksForDropdown,
-  isRequisicionesAdmin,
 } from "@/actions/requisiciones";
 import RequisicionForm from "../components/RequisicionForm";
-import { redirect } from "next/navigation";
 
 export const metadata = {
   title: "Nueva Requisición | PRISMA",
 };
 
 export default async function CreateRequisicionPage() {
-  const isAdmin = await isRequisicionesAdmin();
-  if (isAdmin) {
-    redirect("/requisiciones");
-  }
-
   const [osis, facilitators, userData, banks] = await Promise.all([
     getAllOSIsForRequisiciones(),
     getFacilitatorsForDropdown(),

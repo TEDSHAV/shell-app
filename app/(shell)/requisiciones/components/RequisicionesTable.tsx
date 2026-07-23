@@ -144,29 +144,29 @@ export default function RequisicionesTable({
 
   return (
     <div className="space-y-4">
+      {/* Internas / Externas tabs — visible to all users */}
+      <div className="flex gap-1 border-b border-gray-200">
+        {TABS.map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            onClick={() => setFilters((f) => ({ ...f, tab: tab.key }))}
+            className={`px-4 py-2 text-sm font-bold rounded-t-lg border-b-2 transition-colors -mb-px ${
+              filters.tab === tab.key
+                ? "border-blue-600 text-blue-600 bg-blue-50"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+            }`}
+          >
+            {tab.label}
+            <span className="ml-2 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600">
+              {counts[tab.key]}
+            </span>
+          </button>
+        ))}
+      </div>
+
       {isAdminView && (
         <>
-          {/* Internas / Externas tabs */}
-          <div className="flex gap-1 border-b border-gray-200">
-            {TABS.map((tab) => (
-              <button
-                key={tab.key}
-                type="button"
-                onClick={() => setFilters((f) => ({ ...f, tab: tab.key }))}
-                className={`px-4 py-2 text-sm font-bold rounded-t-lg border-b-2 transition-colors -mb-px ${
-                  filters.tab === tab.key
-                    ? "border-blue-600 text-blue-600 bg-blue-50"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
-                }`}
-              >
-                {tab.label}
-                <span className="ml-2 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600">
-                  {counts[tab.key]}
-                </span>
-              </button>
-            ))}
-          </div>
-
           {/* Filters bar */}
           <div className="bg-white border border-gray-200 rounded-lg p-3 flex flex-wrap items-end gap-3">
             <div className="flex flex-col gap-1">
