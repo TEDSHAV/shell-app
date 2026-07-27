@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ChevronRight, Home } from "lucide-react";
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { getAppByPath, apps } from "@/config/apps";
+import { getAppByPath } from "@/config/apps";
 import { NavLink, NavGroup } from "@/types";
 
 const SEGMENT_LABELS: Record<string, string> = {
@@ -49,6 +49,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   "control-calibracion": "Control de Calibración",
   "entrada-salida-equipos": "Entrada y Salida de Equipos",
   "formulario-novedades": "Formulario de Novedades",
+  "nuevo-servicio": "Diseño de Servicio",
 };
 
 function isNavGroup(item: NavLink | NavGroup): item is NavGroup {
@@ -122,6 +123,11 @@ export const AppBreadcrumb = () => {
       }
     }
 
+    if (!label && /^\d+$/.test(segment)) {
+      // Numeric ID segment — show generic label instead of raw number
+      label = "Solicitud";
+    }
+
     if (!label) {
       // Fallback: format string
       label = segment
@@ -145,7 +151,7 @@ export const AppBreadcrumb = () => {
           </Link>
         </li>
 
-        {crumbs.map((crumb, index) => (
+        {crumbs.map((crumb) => (
           <li key={crumb.href} className="flex items-center gap-2">
             <ChevronRight className="h-3.5 w-3.5 text-slate-300 shrink-0" />
             {crumb.isLast ? (

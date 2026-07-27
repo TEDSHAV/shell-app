@@ -451,6 +451,13 @@ export const apps: AppConfig[] = [
             requiredPermissions: ["scapacitacion:all:access"],
           },
           {
+            label: "Diseño de Servicio",
+            path: "/nuevo-servicio",
+            href: "/nuevo-servicio",
+            icon: ClipboardList,
+            requiredPermissions: ["scapacitacion:all:access"],
+          },
+          {
             label: "Control de secuencia",
             path: "/dashboard/capacitacion/configuracion/secuencias-control",
             icon: ListOrdered,
@@ -632,6 +639,12 @@ export const apps: AppConfig[] = [
       { label: "Control de Calibración", path: "/dashboard/control-calibracion", icon: Gauge },
       { label: "Entrada y Salida de Equipos", path: "/dashboard/entrada-salida-equipos", icon: ArrowLeftRight },
       { label: "Formulario de Novedades", path: "/dashboard/formulario-novedades", icon: FileText },
+      {
+        label: "Diseño de Servicio",
+        path: "/nuevo-servicio",
+        href: "/nuevo-servicio",
+        icon: ClipboardList,
+      },
       ...[requisicionesNavGroup],
     ],
   }),
