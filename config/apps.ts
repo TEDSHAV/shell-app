@@ -451,7 +451,7 @@ export const apps: AppConfig[] = [
             requiredPermissions: ["scapacitacion:all:access"],
           },
           {
-            label: "Diseño de Servicio",
+            label: "Nuevos Servicios",
             path: "/nuevo-servicio",
             href: "/nuevo-servicio",
             icon: ClipboardList,
@@ -640,7 +640,7 @@ export const apps: AppConfig[] = [
       { label: "Entrada y Salida de Equipos", path: "/dashboard/entrada-salida-equipos", icon: ArrowLeftRight },
       { label: "Formulario de Novedades", path: "/dashboard/formulario-novedades", icon: FileText },
       {
-        label: "Diseño de Servicio",
+        label: "Nuevos Servicios",
         path: "/nuevo-servicio",
         href: "/nuevo-servicio",
         icon: ClipboardList,

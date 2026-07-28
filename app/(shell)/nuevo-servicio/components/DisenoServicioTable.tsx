@@ -21,7 +21,7 @@ export default function DisenoServicioTable({
     return (
       <div className="text-center py-16 bg-gray-50 rounded-lg border border-gray-200">
         <p className="text-gray-500 text-sm">
-          No hay solicitudes de diseño de servicio disponibles.
+          No hay solicitudes de nuevos servicios disponibles.
         </p>
       </div>
     );

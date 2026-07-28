@@ -1,4 +1,4 @@
-// Types for Diseño de Servicio form (solicitudes_diseno_servicio)
+// Types for Nuevos Servicios form (solicitudes_diseno_servicio)
 
 export interface DisenoServicioHeader {
   id: number;

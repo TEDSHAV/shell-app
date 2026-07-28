@@ -49,7 +49,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   "control-calibracion": "Control de Calibración",
   "entrada-salida-equipos": "Entrada y Salida de Equipos",
   "formulario-novedades": "Formulario de Novedades",
-  "nuevo-servicio": "Diseño de Servicio",
+  "nuevo-servicio": "Nuevos Servicios",
 };
 
 function isNavGroup(item: NavLink | NavGroup): item is NavGroup {

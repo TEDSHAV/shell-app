@@ -3,7 +3,7 @@ import DisenoServicioTable from "./components/DisenoServicioTable";
 import { FileText } from "lucide-react";
 
 export const metadata = {
-  title: "Diseño de Servicio | PRISMA",
+  title: "Nuevos Servicios | PRISMA",
 };
 
 export const dynamic = "force-dynamic";
@@ -16,7 +16,7 @@ export default async function DisenoServicioPage() {
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
           <FileText className="h-7 w-7 text-indigo-600" />
-          Diseño de Servicio
+          Nuevos Servicios
         </h1>
         <p className="mt-1 text-sm text-gray-600">
           Listado de solicitudes de diseño y desarrollo de servicios. Continúe el llenado de los formularios asignados a su departamento.

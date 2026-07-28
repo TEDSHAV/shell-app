@@ -19,8 +19,8 @@ export async function generateMetadata({
   const solicitud = await getDisenoServicioById(parseInt(id));
   return {
     title: solicitud
-      ? `${solicitud.nombre_sugerido} | Diseño de Servicio | PRISMA`
-      : "Diseño de Servicio | PRISMA",
+      ? `${solicitud.nombre_sugerido} | Nuevos Servicios | PRISMA`
+      : "Nuevos Servicios | PRISMA",
   };
 }
 
@@ -52,7 +52,7 @@ export default async function DisenoServicioWizardPage({
             {solicitud.nombre_sugerido}
           </h1>
           <p className="text-sm text-gray-600">
-            Diseño de Servicio · {solicitud.estatus_nombre || "Pendiente"}
+            Nuevos Servicios · {solicitud.estatus_nombre || "Pendiente"}
           </p>
         </div>
       </div>
