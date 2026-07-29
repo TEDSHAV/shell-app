@@ -66,6 +66,7 @@ export default function CredencialesClient() {
   const [newPassword, setNewPassword] = useState("");
   const [newDisplayName, setNewDisplayName] = useState("");
   const [newSedeIds, setNewSedeIds] = useState<number[]>([]);
+  const [newCityId, setNewCityId] = useState<number | null>(null);
   const [sedes, setSedes] = useState<Sede[]>([]);
   const [isLoadingSedes, setIsLoadingSedes] = useState(false);
   const [cities, setCities] = useState<City[]>([]);
@@ -80,6 +81,7 @@ export default function CredencialesClient() {
   const [editPassword, setEditPassword] = useState("");
   const [editDisplayName, setEditDisplayName] = useState("");
   const [editSedeIds, setEditSedeIds] = useState<number[]>([]);
+  const [editCityId, setEditCityId] = useState<number | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
 
   useEffect(() => {
@@ -128,6 +130,7 @@ export default function CredencialesClient() {
         setSedes([]);
       }
       setNewSedeIds([]);
+      setNewCityId(null);
     };
     fetchSedes();
   }, [selectedCompanyId]);
@@ -205,7 +208,7 @@ export default function CredencialesClient() {
       newUsername,
       newPassword,
       newDisplayName || undefined,
-      undefined,
+      newCityId || undefined,
       newSedeIds.length > 0 ? newSedeIds : undefined,
     );
 
@@ -219,6 +222,7 @@ export default function CredencialesClient() {
       setNewPassword("");
       setNewDisplayName("");
       setNewSedeIds([]);
+      setNewCityId(null);
       setCopied(false);
       loadCredentials(selectedCompanyId);
     }
@@ -244,6 +248,7 @@ export default function CredencialesClient() {
     setEditPassword("");
     setEditDisplayName(cred.display_name || "");
     setEditSedeIds(cred.id_sede || []);
+    setEditCityId(cred.id_ciudad ?? null);
     setError(null);
     setSuccess(null);
     setSavedPassword("");
@@ -255,6 +260,7 @@ export default function CredencialesClient() {
     setEditPassword("");
     setEditDisplayName("");
     setEditSedeIds([]);
+    setEditCityId(null);
   };
 
   const handleSaveEdit = async (credId: number) => {
@@ -271,6 +277,7 @@ export default function CredencialesClient() {
       username: editUsername,
       display_name: editDisplayName || undefined,
       sedeIds: editSedeIds.length > 0 ? editSedeIds : null,
+      cityId: editCityId || null,
     };
 
     if (editPassword) {
@@ -585,6 +592,21 @@ export default function CredencialesClient() {
                                 />
                               </div>
                               <div className="space-y-1">
+                                <Label className="text-xs">Ciudad</Label>
+                                <select
+                                  value={editCityId ?? ""}
+                                  onChange={(e) => setEditCityId(e.target.value ? Number(e.target.value) : null)}
+                                  className="w-full h-9 px-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white"
+                                >
+                                  <option value="">Todas las ciudades</option>
+                                  {cities.map((city) => (
+                                    <option key={city.id} value={city.id}>
+                                      {city.nombre_ciudad}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div className="space-y-1">
                                 <Label className="text-xs">Sedes</Label>
                                 <MultiSelect
                                   options={sedes.map((sede) => ({ id: sede.id, label: sede.nombre_sede }))}
@@ -766,6 +788,28 @@ export default function CredencialesClient() {
                   </div>
 
                   <div className="space-y-1">
+                    <Label htmlFor="new-city" className="text-xs">
+                      Ciudad (opcional)
+                    </Label>
+                    <select
+                      id="new-city"
+                      value={newCityId ?? ""}
+                      onChange={(e) => setNewCityId(e.target.value ? Number(e.target.value) : null)}
+                      className="w-full h-9 px-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white"
+                    >
+                      <option value="">Todas las ciudades</option>
+                      {cities.map((city) => (
+                        <option key={city.id} value={city.id}>
+                          {city.nombre_ciudad}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-gray-400">
+                      Si seleccionas una ciudad, esta credencial solo verá certificados de esa ciudad. Se usa cuando la empresa no tiene sedes registradas.
+                    </p>
+                  </div>
+
+                  <div className="space-y-1">
                     <Label htmlFor="new-sede" className="text-xs">
                       Sedes (opcional)
                     </Label>
@@ -778,7 +822,7 @@ export default function CredencialesClient() {
                       isLoading={isLoadingSedes}
                     />
                     <p className="text-xs text-gray-400">
-                      Si seleccionas sedes, esta credencial solo verá certificados de esas sedes. Deja vacío para ver todas las sedes.
+                      Si seleccionas sedes, esta credencial solo verá certificados de esas sedes (incluye distinción Planta/Distribuidora). Deja vacío para ver todas las sedes.
                     </p>
                     {selectedCompanyId && !isLoadingSedes && sedes.length === 0 && (
                       <p className="text-xs text-gray-400">Esta empresa no tiene sedes registradas</p>
