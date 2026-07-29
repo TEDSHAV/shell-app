@@ -583,7 +583,7 @@ export const apps: AppConfig[] = [
     basePath: "/comentarios",
     upstreamUrl:
       process.env.NEXT_PUBLIC_NEGOCIOS_URL ||
-      "https://gestion.shadevenezuela.com.ve",
+      "https://negocios.shadevenezuela.com.ve",
     icon: MessageSquare,
     brandColor: "#14B8A6",
     embedMode: "shell",
@@ -599,7 +599,7 @@ export const apps: AppConfig[] = [
     basePath: "/drive",
     upstreamUrl:
       process.env.NEXT_PUBLIC_DRIVE_URL ||
-      "https://filebrowser.95.111.237.109.sslip.io",
+      "https://drive.shadevenezuela.com.ve",
     icon: Cloud,
     brandColor: "#19DEFF",
     embedMode: "shell",
