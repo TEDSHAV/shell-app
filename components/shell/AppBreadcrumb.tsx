@@ -102,6 +102,13 @@ export const AppBreadcrumb = () => {
     // Try to find label
     let label = SEGMENT_LABELS[segment];
 
+    if (
+      currentApp?.id === "reportes" &&
+      segment === "marketing"
+    ) {
+      label = "Leads";
+    }
+
     if (!label && currentApp) {
       // Search in app navLinks
       const allLinks: NavLink[] = [];

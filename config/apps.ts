@@ -313,24 +313,13 @@ export const apps: AppConfig[] = [
     dashboardOrder: 6,
     navLinks: [
       {
-        groupLabel: "Reportes",
+        groupLabel: "Indicador",
+        department: "negocios",
         links: [
           {
-            label: "Indicador Presupuesto",
+            label: "Presupuestos",
             path: "/presupuestos",
             icon: BarChart2,
-            requiredPermissions: ["reportes:access"],
-          },
-          {
-            label: "Administración de cierres",
-            path: "/cierres",
-            icon: Calendar,
-            requiredPermissions: ["reportes:cierres:manage"],
-          },
-          {
-            label: "Manual",
-            path: "/cierres/manual",
-            icon: BookOpen,
             requiredPermissions: ["reportes:access"],
           },
           {
@@ -346,6 +335,36 @@ export const apps: AppConfig[] = [
             icon: Target,
             requiredPermissions: ["reportes:mi-avance:admin-access"],
             requiredRoles: ["admin", "superadmin"],
+          },
+        ],
+      },
+      {
+        groupLabel: "Configuración",
+        department: "negocios",
+        links: [
+          {
+            label: "Administración de cierres",
+            path: "/cierres",
+            icon: Calendar,
+            requiredPermissions: ["reportes:cierres:manage"],
+          },
+          {
+            label: "Manual",
+            path: "/cierres/manual",
+            icon: BookOpen,
+            requiredPermissions: ["reportes:access"],
+          },
+        ],
+      },
+      {
+        groupLabel: "Indicador",
+        department: "marketing",
+        links: [
+          {
+            label: "Leads",
+            path: "/marketing",
+            icon: Target,
+            requiredPermissions: ["reportes:access"],
           },
         ],
       },
@@ -392,6 +411,18 @@ export const apps: AppConfig[] = [
             path: "/pipeline/contactos",
             icon: Phone,
             requiredPermissions: ["mkt:contactos:read"],
+          },
+        ],
+      },
+      {
+        groupLabel: "Reporte",
+        links: [
+          {
+            label: "Leads",
+            path: "/reportes/marketing",
+            href: "/reportes/marketing",
+            icon: BarChart2,
+            requiredPermissions: ["reportes:access"],
           },
         ],
       },

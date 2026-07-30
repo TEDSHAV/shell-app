@@ -34,12 +34,7 @@ export async function canAccessSgestionReportes(): Promise<boolean> {
 }
 
 export async function getReportesHomePath(): Promise<string | null> {
-  if (await isSgestionAdmin()) return "/reportes/presupuestos";
-  if (await isSgestionGestorClientes()) return "/reportes/presupuestos/mi-avance";
-  const perms = await getUserPermissionsByApp();
-  if ((perms.sgestion ?? []).includes("reportes:access")) {
-    return "/reportes/presupuestos";
-  }
+  if (await canAccessSgestionReportes()) return "/reportes";
   return null;
 }
 

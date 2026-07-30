@@ -22,6 +22,20 @@ function isNavGroup(item: NavLink | NavGroup): item is NavGroup {
   return "groupLabel" in item;
 }
 
+function resolve_reportes_department(
+  pathname: string,
+): "negocios" | "marketing" | null {
+  if (pathname === "/reportes" || pathname === "/reportes/") return null;
+  if (pathname.startsWith("/reportes/marketing")) return "marketing";
+  if (
+    pathname.startsWith("/reportes/presupuestos") ||
+    pathname.startsWith("/reportes/cierres")
+  ) {
+    return "negocios";
+  }
+  return null;
+}
+
 interface SidebarNavClientProps {
   userPermsByApp: Record<string, string[]>;
   userRolesByApp: Record<string, string>;
@@ -259,9 +273,21 @@ export function SidebarNavClient({
     return link.requiredPermissions.some((p) => userPerms.includes(p));
   };
 
+  const reportes_department =
+    currentApp.id === "reportes"
+      ? resolve_reportes_department(pathname)
+      : null;
+
   const filteredItems = currentApp.navLinks
     .map((item) => {
       if (isNavGroup(item)) {
+        if (
+          currentApp.id === "reportes" &&
+          item.department &&
+          item.department !== reportes_department
+        ) {
+          return { ...item, links: [] as NavLink[] };
+        }
         const filteredGroupLinks = item.links.filter(canAccess);
         return { ...item, links: filteredGroupLinks };
       }
@@ -287,14 +313,20 @@ export function SidebarNavClient({
             style={{ color: currentApp.brandColor }}
           >
             {currentApp.name}
+            {reportes_department === "negocios"
+              ? " · Negocios"
+              : reportes_department === "marketing"
+                ? " · Marketing"
+                : ""}
           </span>
         </div>
       )}
       {filteredItems.map((item, index) => {
         if (isNavGroup(item)) {
           const isFirstGroup = index === 0;
+          const group_key = `${item.department ?? "all"}-${item.groupLabel}-${index}`;
           return (
-            <div key={item.groupLabel}>
+            <div key={group_key}>
               {isCollapsed ? (
                 !isFirstGroup && (
                   <div className="my-2 border-t border-slate-200" />

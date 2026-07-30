@@ -14,6 +14,8 @@ export interface NavLink {
 export interface NavGroup {
   groupLabel: string;
   links: NavLink[];
+  /** When set, sidebar shows this group only for that reportes department. */
+  department?: "negocios" | "marketing";
 }
 
 /** CSS color values derived from brandColor (not Tailwind class names). */

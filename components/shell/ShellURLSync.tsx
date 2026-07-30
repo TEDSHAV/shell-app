@@ -10,6 +10,14 @@ export function ShellURLSync() {
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === "SHELL_NAVIGATE") {
+        const href = String(event.data.href ?? "");
+        if (href.startsWith("/") && window.location.pathname !== href) {
+          router.push(href);
+        }
+        return;
+      }
+
       if (event.data?.type === "IFRAME_NAVIGATION") {
         const { path, appId } = event.data;
         const app = apps.find(a => a.id === appId);
