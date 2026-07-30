@@ -29,8 +29,14 @@ export async function isSgestionGestorClientes(): Promise<boolean> {
 export async function canAccessSgestionReportes(): Promise<boolean> {
   if (await isSgestionAdmin()) return true;
   if (await isSgestionGestorClientes()) return true;
+  if (await isSgestionGestorMarketing()) return true;
   const perms = await getUserPermissionsByApp();
-  return (perms.sgestion ?? []).includes("reportes:access");
+  const sgestion = perms.sgestion ?? [];
+  return (
+    sgestion.includes("reportes:access:presupuestos") ||
+    sgestion.includes("reportes:access:leads") ||
+    sgestion.includes("reportes:access")
+  );
 }
 
 export async function getReportesHomePath(): Promise<string | null> {
