@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { deleteRequisicionRecord, setRequisicionEstatus, markAllItemsVerificadas, acknowledgeRequisicionReceipt } from "@/actions/requisiciones";
 import { Eye, Edit, Trash2, Lock, CheckCircle2, Undo2, XCircle, CalendarClock, AlertTriangle, PackageCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import MotivoModal from "./MotivoModal";
 
 export default function RequisicionRow({
   record,
@@ -20,6 +22,7 @@ export default function RequisicionRow({
   const [isUpdating, setIsUpdating] = useState(false);
   const [localEstatus, setLocalEstatus] = useState<string>(record.estatus_admin || "pendiente");
   const [localItems, setLocalItems] = useState<any[]>(record.additional_items || []);
+  const [rejectModalOpen, setRejectModalOpen] = useState(false);
 
   const estatus = localEstatus;
   const isProcesada = estatus === "procesada";
@@ -46,8 +49,11 @@ export default function RequisicionRow({
   const verifiedCount = fixedVerifiedCount + additionalVerifiedCount;
   const totalCount = fixedTotalCount + additionalItems.length;
 
-  // Execution date badge
-  const executionDate = record.v_osi_formato_completo?.fecha_inicio_real;
+  // Execution date badge. For capacitacion externas with a selected session,
+  // prefer the session fecha over the OSI's fecha_inicio_real.
+  const sesiones = (record.v_osi_formato_completo?.desglose_recursos_sesiones as any[] | null | undefined) || [];
+  const selectedSesion = record.id_sesion ? sesiones.find((s) => s.id_sesion === record.id_sesion) : null;
+  const executionDate = selectedSesion?.fecha || record.v_osi_formato_completo?.fecha_inicio_real;
   let executionBadge: { text: string; color: string } | null = null;
   if (executionDate) {
     const today = new Date();
@@ -73,6 +79,11 @@ export default function RequisicionRow({
 
   const handleSetEstatus = async (e: React.MouseEvent, target: "pendiente" | "procesada" | "rechazada") => {
     e.stopPropagation();
+    // Rejection opens the MotivoModal (requires a reason).
+    if (target === "rechazada") {
+      setRejectModalOpen(true);
+      return;
+    }
     if (target === "procesada" && totalCount > 0 && verifiedCount < totalCount) {
       if (!confirm(`Hay ${verifiedCount} de ${totalCount} items verificados. ¿Marcar todos como Listo y procesar?`)) return;
       const prevEstatus = localEstatus;
@@ -97,7 +108,6 @@ export default function RequisicionRow({
     }
     const messages: Record<string, string> = {
       procesada: "¿Marcar esta requisición como Procesada? El solicitante ya no podrá editarla.",
-      rechazada: "¿Rechazar esta requisición? El solicitante será notificado y no podrá editarla.",
       pendiente: "¿Revertir esta requisición a Pendiente?",
     };
     if (!confirm(messages[target])) return;
@@ -132,8 +142,26 @@ export default function RequisicionRow({
     }
   };
 
+  // Admin reject with a required reason (captured by MotivoModal).
+  const handleRejectWithMotivo = async (motivo: string) => {
+    const prevEstatus = localEstatus;
+    setLocalEstatus("rechazada");
+    setIsUpdating(true);
+    try {
+      await setRequisicionEstatus(record.id, "rechazada", motivo);
+      router.refresh();
+    } catch (error) {
+      console.error("Error rejecting requisicion:", error);
+      setLocalEstatus(prevEstatus);
+      alert(error instanceof Error ? error.message : "Error al rechazar la requisición");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   return (
-    <tr 
+    <>
+    <tr
       onClick={handleRowClick}
       className="hover:bg-gray-50 cursor-pointer transition-colors"
     >
@@ -192,6 +220,21 @@ export default function RequisicionRow({
           <span className="ml-1 px-2 py-1 rounded-full text-[10px] font-bold uppercase bg-blue-100 text-blue-800">
             Recibido
           </span>
+        )}
+      </td>
+      <td className="px-4 py-4 whitespace-nowrap text-sm">
+        {isInterna && record.coordinador_estatus ? (
+          <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
+            record.coordinador_estatus === "aprobada" ? 'bg-blue-100 text-blue-800'
+            : record.coordinador_estatus === "rechazada" ? 'bg-red-100 text-red-800'
+            : 'bg-amber-100 text-amber-800'
+          }`}>
+            {record.coordinador_estatus === "aprobada" ? "Aprobada"
+              : record.coordinador_estatus === "rechazada" ? "Rechazada"
+              : "Pendiente"}
+          </span>
+        ) : (
+          <span className="text-gray-300">—</span>
         )}
       </td>
       {isAdminView && (
@@ -311,5 +354,17 @@ export default function RequisicionRow({
         </div>
       </td>
     </tr>
+    {typeof document !== "undefined" && createPortal(
+      <MotivoModal
+        open={rejectModalOpen}
+        title="Rechazar Requisición"
+        description="El solicitante será notificado con el motivo del rechazo."
+        confirmLabel="Rechazar"
+        onConfirm={handleRejectWithMotivo}
+        onClose={() => setRejectModalOpen(false)}
+      />,
+      document.body,
+    )}
+    </>
   );
 }

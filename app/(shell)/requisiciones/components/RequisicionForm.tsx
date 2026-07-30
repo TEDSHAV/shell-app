@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense, useRef, Fragment } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Plus, Trash2, CheckCircle2, Lock } from "lucide-react";
-import { RequisicionFormData, OSIFullData, RequisicionItem, OSIFixedItem } from "@/types/requisiciones";
+import { RequisicionFormData, OSIFullData, RequisicionItem, OSIFixedItem, OSISesion } from "@/types/requisiciones";
 import { Button } from "@/components/ui/button";
 import {
   getOSIForRequisicion,
@@ -12,6 +12,7 @@ import {
   getRequisicionRecord,
   getFacilitatorsForDropdown,
 } from "@/actions/requisiciones";
+import { mapGerenciaSolicitante } from "@/lib/requisiciones-gerencia";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -86,6 +87,7 @@ function RequisicionFormContent({
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Determine department-based default mode
+  const userDepartment = initialUserData?.departamentos?.nombre || userDept || "";
   const deptLower = userDept.trim().toLowerCase();
   const isCapacitacionDept = deptLower.includes("capacitacion");
   const isServiciosDept = deptLower.includes("servicios") && deptLower.includes("tecnic");
@@ -94,7 +96,8 @@ function RequisicionFormContent({
   const defaultIsGeneral = !isCapacitacionDept && !isServiciosDept;
   const editIsGeneral = editRecord ? (editRecord.tipo_solicitud === "Interno" || (!editRecord.tipo_solicitud && !editRecord.id_osi)) : defaultIsGeneral;
   const canUseExternal = isCapacitacionDept || isServiciosDept || isNegociosDept || (editRecord && !editIsGeneral);
-  const defaultGerencia = isCapacitacionDept ? "Capacitacion" : isServiciosDept ? "Servicios Tecnicos" : (initialUserData?.departamentos?.nombre || userDept || "");
+  // Gerencia Solicitante is always the mapped organizational grouping (never the literal department).
+  const defaultGerencia = mapGerenciaSolicitante(userDepartment);
 
   // For edit mode: reconstruct selectedOSIs from record
   const editSelectedOSIs: OSIFullData[] = editRecord ? 
@@ -111,8 +114,17 @@ function RequisicionFormContent({
     nro_correlativo: editRecord?.nro_correlativo || "",
     tipo_servicio: editRecord?.tipo_servicio || "",
     gerencia_solicitante: editRecord?.gerencia_solicitante || defaultGerencia,
+    departamento: editRecord?.departamento || userDepartment,
     solicitante: editRecord?.solicitante || initialUserData?.nombre_apellido || "",
     prioridad: editRecord?.prioridad || "Alta",
+    id_sesion: editRecord?.id_sesion ?? null,
+    selectedSesion: (() => {
+      const sesId = editRecord?.id_sesion;
+      if (!sesId) return null;
+      const host = editSelectedOSIs[0] || initialOsis.find((o: any) => o.id_osi === editRecord?.id_osi);
+      const sesiones = (host as OSIFullData | undefined)?.desglose_recursos_sesiones as OSISesion[] | null | undefined;
+      return (sesiones || []).find((s) => s.id_sesion === sesId) || null;
+    })(),
 
     // Details - Fixed Items Quantities (Removed from UI, defaulting to 1 in actions)
     cant_traslado: editRecord?.cant_traslado ?? 1,
@@ -165,7 +177,9 @@ function RequisicionFormContent({
   }, []);
 
   const isGeneralMode = mode === "general";
-  const isCapacitacion = !isGeneralMode && formData.gerencia_solicitante.trim().toLowerCase() === "capacitacion";
+  // Capacitacion-specific behavior is now driven by the user's department (not gerencia_solicitante,
+  // which is always the mapped grouping e.g. "Servicios").
+  const isCapacitacion = !isGeneralMode && isCapacitacionDept;
   // Capacitación Externa is restricted to a single OSI selection; Servicios Técnicos Externa remains multi-OSI.
   const isSingleOSIMode = !isGeneralMode && isCapacitacion;
   // Interna gets an (optional) OSI selector too, but only for Capacitación/Servicios Técnicos users.
@@ -173,19 +187,17 @@ function RequisicionFormContent({
   const internaOsiTipoServicio = isCapacitacionDept ? "capacitacion" : "servicios tecnicos";
 
   const handleModeSwitch = (newMode: "general" | "capacitacion" | "servicios tecnicos" | "negocios") => {
-    const gerenciaMap = {
-      general: initialUserData?.departamentos?.nombre || userDept || "",
-      capacitacion: "Capacitacion",
-      "servicios tecnicos": "Servicios Tecnicos",
-      negocios: "Negocios",
-    };
+    // Gerencia Solicitante is always the mapped grouping for the user's department, regardless of mode.
+    const gerencia = mapGerenciaSolicitante(userDepartment);
     setMode(newMode);
     setFormData((prev) => ({
       ...prev,
       is_general: newMode === "general",
-      gerencia_solicitante: gerenciaMap[newMode],
+      gerencia_solicitante: gerencia,
       selectedOSIs: [],
       osi_fixed_items: [],
+      id_sesion: null,
+      selectedSesion: null,
       tipo_solicitud: newMode === "general" ? "Interno" : "Externo",
     }));
     setSearchTerm("");
@@ -233,6 +245,24 @@ function RequisicionFormContent({
   const isOSISelected = (osi: OSIFullData) =>
     formData.selectedOSIs.some((s) => s.id_osi === osi.id_osi);
 
+  // Build a per-OSI fixed items block. When a session is provided, costs come from
+  // that session; otherwise they come from the OSI aggregate.
+  const buildFixedItem = (osi: OSIFullData, sesion?: OSISesion | null): OSIFixedItem => ({
+    id_osi: osi.id_osi,
+    nro_osi: osi.nro_osi,
+    dias_traslado: 1,
+    costo_traslado: sesion?.costo_traslado ?? osi.costo_traslado ?? 0,
+    impresion_total: sesion?.costo_impresion_material ?? osi.costo_impresion_material ?? 0,
+    honorarios_horas: sesion?.horas_honorarios_instructor ?? osi.horas_honorarios_instructor ?? 0,
+    honorarios_costo_hora: sesion?.tarifa_hora_honorarios ?? osi.tarifa_hora_honorarios ?? 0,
+    honorarios_total: sesion?.costo_honorarios_instructor ?? osi.costo_honorarios_instructor ?? 0,
+    informe_final_total: 0,
+    verificacion_traslado: "pendiente",
+    verificacion_impresion: "pendiente",
+    verificacion_honorarios: "pendiente",
+    verificacion_informe_final: "pendiente",
+  });
+
   const handleOSIToggle = (osi: OSIFullData) => {
     setFormData((prev) => {
       const already = prev.selectedOSIs.some((s) => s.id_osi === osi.id_osi);
@@ -246,33 +276,38 @@ function RequisicionFormContent({
         return {
           ...prev,
           selectedOSIs: newSelection,
+          id_sesion: null,
+          selectedSesion: null,
         };
       }
 
       // Manage per-OSI fixed items
       let newFixedItems: OSIFixedItem[];
+      let newSesion: OSISesion | null = null;
+      let newSesionId: number | null = null;
       if (already) {
         // Removing this OSI - remove its fixed items block
         newFixedItems = prev.osi_fixed_items.filter((fi) => fi.id_osi !== osi.id_osi);
       } else {
-        // Adding this OSI - create a new fixed items block with auto-filled values
-        const newFixedItem: OSIFixedItem = {
-          id_osi: osi.id_osi,
-          nro_osi: osi.nro_osi,
-          dias_traslado: 1,
-          costo_traslado: osi.costo_traslado || 0,
-          impresion_total: osi.costo_impresion_material || 0,
-          honorarios_horas: osi.horas_honorarios_instructor || 0,
-          honorarios_costo_hora: osi.tarifa_hora_honorarios || 0,
-          honorarios_total: osi.costo_honorarios_instructor || 0,
-          informe_final_total: 0,
-          verificacion_traslado: "pendiente",
-          verificacion_impresion: "pendiente",
-          verificacion_honorarios: "pendiente",
-          verificacion_informe_final: "pendiente",
-        };
-        // Single-OSI mode (Capacitación Externa) replaces the fixed-items block entirely.
-        newFixedItems = isSingleOSIMode ? [newFixedItem] : [...prev.osi_fixed_items, newFixedItem];
+        const sesiones = (osi.desglose_recursos_sesiones as OSISesion[] | null | undefined) || [];
+        if (sesiones.length > 1) {
+          // Multi-session OSI: defer auto-populate until the user picks a session.
+          newSesion = null;
+          newSesionId = null;
+          newFixedItems = isSingleOSIMode ? [] : prev.osi_fixed_items;
+        } else if (sesiones.length === 1) {
+          // Single session: auto-select it and populate from that session.
+          newSesion = sesiones[0];
+          newSesionId = sesiones[0].id_sesion;
+          newFixedItems = isSingleOSIMode
+            ? [buildFixedItem(osi, newSesion)]
+            : [...prev.osi_fixed_items, buildFixedItem(osi, newSesion)];
+        } else {
+          // No sessions: populate from the OSI aggregate (legacy behavior).
+          newFixedItems = isSingleOSIMode
+            ? [buildFixedItem(osi, null)]
+            : [...prev.osi_fixed_items, buildFixedItem(osi, null)];
+        }
       }
 
       // Keep legacy single-value fields in sync with first OSI for backward compat
@@ -280,6 +315,37 @@ function RequisicionFormContent({
       return {
         ...prev,
         selectedOSIs: newSelection,
+        osi_fixed_items: newFixedItems,
+        id_sesion: newSesionId,
+        selectedSesion: newSesion,
+        costo_traslado: firstFixed?.costo_traslado || 0,
+        impresion_total: firstFixed?.impresion_total || 0,
+        honorarios_horas: firstFixed?.honorarios_horas || 0,
+        honorarios_costo_hora: firstFixed?.honorarios_costo_hora || 0,
+        honorarios_total: firstFixed?.honorarios_total || 0,
+        dias_traslado: firstFixed?.dias_traslado ?? 1,
+        informe_final_total: firstFixed?.informe_final_total || 0,
+      };
+    });
+  };
+
+  // When a capacitacion user picks a session for a multi-session OSI, recompute
+  // the fixed-items block from that session's costs.
+  const handleSesionChange = (idSesion: number) => {
+    setFormData((prev) => {
+      const osi = prev.selectedOSIs[0];
+      if (!osi) return prev;
+      const sesiones = (osi.desglose_recursos_sesiones as OSISesion[] | null | undefined) || [];
+      const sesion = sesiones.find((s) => s.id_sesion === idSesion) || null;
+      if (!sesion) return prev;
+      const newFixedItems = isSingleOSIMode
+        ? [buildFixedItem(osi, sesion)]
+        : prev.osi_fixed_items.map((fi) => (fi.id_osi === osi.id_osi ? buildFixedItem(osi, sesion) : fi));
+      const firstFixed = newFixedItems[0];
+      return {
+        ...prev,
+        id_sesion: idSesion,
+        selectedSesion: sesion,
         osi_fixed_items: newFixedItems,
         costo_traslado: firstFixed?.costo_traslado || 0,
         impresion_total: firstFixed?.impresion_total || 0,
@@ -555,22 +621,66 @@ function RequisicionFormContent({
             </div>
           )}
 
+          {/* Session selector — Capacitación Externa with a multi-session OSI */}
+          {isCapacitacion && !isGeneralMode && formData.selectedOSIs.length > 0 && (() => {
+            const osi = formData.selectedOSIs[0];
+            const sesiones = (osi?.desglose_recursos_sesiones as OSISesion[] | null | undefined) || [];
+            if (sesiones.length <= 1) return null;
+            return (
+              <div className="grid grid-cols-12 border-b border-gray-300 bg-amber-50/40">
+                <div className="col-span-3 p-3 border-r border-gray-300 bg-gray-50 flex items-center font-bold text-sm">
+                  Sesión:
+                </div>
+                <div className="col-span-9 p-3">
+                  <Select
+                    value={formData.id_sesion?.toString() || ""}
+                    onValueChange={(v: string) => handleSesionChange(parseInt(v))}
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="Seleccione la sesión..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {sesiones.map((s) => (
+                        <SelectItem key={s.id_sesion} value={s.id_sesion.toString()}>
+                          {`Sesión #${s.nro_sesion ?? s.id_sesion}${s.fecha ? ` — ${s.fecha}` : ""}`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            );
+          })()}
+
           <div className="grid grid-cols-12 border-b border-gray-300">
             <div className="col-span-3 p-3 border-r border-gray-300 bg-gray-50 flex flex-col justify-center">
               <span className="font-bold text-sm">Gerencia solicitante:</span>
             </div>
-            <div className="col-span-4 p-3 border-r border-gray-300">
-              <Input 
+            <div className="col-span-3 p-3 border-r border-gray-300">
+              <Input
                 value={formData.gerencia_solicitante}
                 readOnly
                 className="h-8 border-none focus-visible:ring-0 px-0 text-sm font-medium uppercase bg-gray-50/50 cursor-not-allowed"
               />
             </div>
-            <div className="col-span-2 p-3 border-r border-gray-300 bg-gray-50 flex flex-col justify-center">
-              <span className="font-bold text-sm leading-tight text-center">Nombre del solicitante:</span>
+            <div className="col-span-3 p-3 border-r border-gray-300 bg-gray-50 flex flex-col justify-center">
+              <span className="font-bold text-sm">Departamento:</span>
             </div>
-            <div className="col-span-3 p-3 flex items-center">
-              <Input 
+            <div className="col-span-3 p-3">
+              <Input
+                value={formData.departamento}
+                readOnly
+                className="h-8 border-none focus-visible:ring-0 px-0 text-sm font-medium uppercase bg-gray-50/50 cursor-not-allowed"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-12 border-b border-gray-300">
+            <div className="col-span-3 p-3 border-r border-gray-300 bg-gray-50 flex flex-col justify-center">
+              <span className="font-bold text-sm">Nombre del solicitante:</span>
+            </div>
+            <div className="col-span-9 p-3 flex items-center">
+              <Input
                 value={formData.solicitante}
                 onChange={(e) => setFormData(p => ({...p, solicitante: e.target.value}))}
                 className="h-8 border-none focus-visible:ring-0 px-0 text-sm font-bold uppercase"

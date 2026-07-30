@@ -107,11 +107,16 @@ export async function notifyCreatorOfRechazada(
   requisicionId: number,
   creatorAuthId: string,
   requisicionLabel: string,
+  motivoRechazo?: string,
 ) {
   try {
     const supabase = await createAdminClient();
 
     console.log(`[notifyCreatorOfRechazada] Inserting notification for creator ${creatorAuthId}, req #${requisicionId}`);
+
+    const body = motivoRechazo?.trim()
+      ? `Tu requisición ${requisicionLabel} ha sido rechazada por Administración. Motivo: ${motivoRechazo.trim()}`
+      : `Tu requisición ${requisicionLabel} ha sido rechazada por Administración.`;
 
     const { data: insertData, error: insertError } = await supabase
       .schema("notify")
@@ -121,7 +126,7 @@ export async function notifyCreatorOfRechazada(
           event_key: "requisicion_rechazada",
           recipient_id_auth: creatorAuthId,
           title: "Requisición Rechazada",
-          body: `Tu requisición ${requisicionLabel} ha sido rechazada por Administración.`,
+          body,
           link_path: `/requisiciones/view/${requisicionId}`,
           dedupe_key: `requisicion:${requisicionId}:rechazada:${Date.now()}`,
           priority: 2,
@@ -138,6 +143,43 @@ export async function notifyCreatorOfRechazada(
     }
   } catch (err) {
     console.error("[notifyCreatorOfRechazada] Unexpected error:", err);
+  }
+}
+
+// Notify the creator that a coordinador rejected their interna with a reason.
+export async function notifyCreatorOfCoordinadorRechazada(
+  requisicionId: number,
+  creatorAuthId: string,
+  requisicionLabel: string,
+  motivo: string,
+) {
+  try {
+    const supabase = await createAdminClient();
+
+    const body = `Tu requisición ${requisicionLabel} fue rechazada por el Coordinador. Motivo: ${motivo}`;
+
+    const { error: insertError } = await supabase
+      .schema("notify")
+      .from("inbox")
+      .insert({
+          app_slug: "administracion",
+          event_key: "requisicion_rechazada",
+          recipient_id_auth: creatorAuthId,
+          title: "Requisición Rechazada por Coordinador",
+          body,
+          link_path: `/requisiciones/view/${requisicionId}`,
+          dedupe_key: `requisicion:${requisicionId}:coordinador_rechazada:${Date.now()}`,
+          priority: 2,
+        });
+
+    if (insertError) {
+      console.error(
+        "[notifyCreatorOfCoordinadorRechazada] Error inserting notification:",
+        insertError,
+      );
+    }
+  } catch (err) {
+    console.error("[notifyCreatorOfCoordinadorRechazada] Unexpected error:", err);
   }
 }
 

@@ -34,7 +34,9 @@ export default async function EditRequisicionPage({
   ]);
 
   const userDept = userData?.departamentos?.nombre || "";
-  const isLocked = editRecord?.estatus_admin === "procesada";
+  const adminResolved = editRecord?.estatus_admin === "procesada" || editRecord?.estatus_admin === "rechazada";
+  const coordinadorResolved = editRecord?.coordinador_estatus === "rechazada" || editRecord?.coordinador_estatus === "aprobada";
+  const isLocked = adminResolved || coordinadorResolved;
 
   if (!editRecord) {
     notFound();

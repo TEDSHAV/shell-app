@@ -5,20 +5,23 @@ import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { RequisicionItem, OSIFixedItem } from "@/types/requisiciones";
-import { setRequisicionEstatus, updateItemVerificacion, updateFixedItemVerificacion, markAllItemsVerificadas, saveVerificacionProgress, getExchangeRate, updateFacilitadorBankingDetails, acknowledgeRequisicionReceipt } from "@/actions/requisiciones";
+import { setRequisicionEstatus, updateItemVerificacion, updateFixedItemVerificacion, markAllItemsVerificadas, saveVerificacionProgress, getExchangeRate, updateFacilitadorBankingDetails, acknowledgeRequisicionReceipt, approveRequisicionByCoordinador, rejectRequisicionByCoordinador } from "@/actions/requisiciones";
 import { CheckCircle2, XCircle, Undo2, Clock, AlertTriangle, CalendarClock, Copy, Check, Download, Save, Printer, PackageCheck } from "lucide-react";
+import MotivoModal from "../../../components/MotivoModal";
 
-export default function RequisicionView({ 
-  record, 
+export default function RequisicionView({
+  record,
   osiData,
   osiLookup,
   isAdminView = false,
+  isCoordinador = false,
   banks = [],
-}: { 
-  record: any, 
+}: {
+  record: any,
   osiData: any,
   osiLookup?: Map<number, string>,
   isAdminView?: boolean,
+  isCoordinador?: boolean,
   banks?: { id: number; nombre: string }[],
 }) {
   const router = useRouter();
@@ -38,7 +41,19 @@ export default function RequisicionView({
   const [editCedula, setEditCedula] = useState<string>(record.cedula_facilitador || "");
   const [editRif, setEditRif] = useState<string>(record.rif_facilitador || "");
   const isGeneralMode = record.tipo_solicitud === "Interno";
-  const isCapacitacionForRate = !isGeneralMode && record.gerencia_solicitante?.trim().toLowerCase() === "capacitacion";
+  // Capacitacion-specific behavior is driven by the stored department (preferred)
+  // and falls back to gerencia_solicitante for legacy records.
+  const isCapacitacionForRate = !isGeneralMode && (
+    (record.departamento || "").trim().toLowerCase().includes("capacitacion") ||
+    (!(record.departamento) && (record.gerencia_solicitante || "").trim().toLowerCase() === "capacitacion")
+  );
+  // Coordinador approval state (internas only).
+  const coordinadorEstatus = record.coordinador_estatus as "pendiente" | "aprobada" | "rechazada" | null | undefined;
+  const isCoordinadorPendiente = isGeneralMode && coordinadorEstatus === "pendiente";
+  const isCoordinadorAprobada = isGeneralMode && coordinadorEstatus === "aprobada";
+  const isCoordinadorRechazada = isGeneralMode && coordinadorEstatus === "rechazada";
+  const [rejectModalOpen, setRejectModalOpen] = useState(false);
+  const [coordinadorRejectOpen, setCoordinadorRejectOpen] = useState(false);
 
   useEffect(() => {
     if (!isCapacitacionForRate) return;
@@ -160,6 +175,11 @@ export default function RequisicionView({
   };
 
   const handleSetEstatus = async (target: "pendiente" | "procesada" | "rechazada") => {
+    // Rejection is handled via the MotivoModal (which captures a reason).
+    if (target === "rechazada") {
+      setRejectModalOpen(true);
+      return;
+    }
     if (target === "procesada" && totalCount > 0 && verifiedCount < totalCount) {
       if (!confirm(`Hay ${verifiedCount} de ${totalCount} items verificados. ¿Marcar todos como Listo y procesar?`)) return;
       setIsUpdating(true);
@@ -186,7 +206,6 @@ export default function RequisicionView({
     }
     const messages: Record<string, string> = {
       procesada: "¿Marcar esta requisición como Procesada? El solicitante ya no podrá editarla.",
-      rechazada: "¿Rechazar esta requisición? El solicitante será notificado y no podrá editarla.",
       pendiente: "¿Revertir esta requisición a Pendiente?",
     };
     if (!confirm(messages[target])) return;
@@ -200,6 +219,48 @@ export default function RequisicionView({
     } catch (error) {
       console.error("Error updating estatus:", error);
       alert("Error al actualizar el estatus");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  // Admin reject with a required reason (captured by MotivoModal).
+  const handleRejectWithMotivo = async (motivo: string) => {
+    setIsUpdating(true);
+    try {
+      await setRequisicionEstatus(record.id, "rechazada", motivo);
+      router.refresh();
+    } catch (error) {
+      console.error("Error rejecting requisicion:", error);
+      alert(error instanceof Error ? error.message : "Error al rechazar la requisición");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  // Coordinador approve/reject for pending internas.
+  const handleCoordinadorApprove = async () => {
+    if (!confirm("¿Aprobar esta requisición interna? Se notificará a Administración.")) return;
+    setIsUpdating(true);
+    try {
+      await approveRequisicionByCoordinador(record.id);
+      router.refresh();
+    } catch (error) {
+      console.error("Error approving requisicion:", error);
+      alert(error instanceof Error ? error.message : "Error al aprobar la requisición");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleCoordinadorReject = async (motivo: string) => {
+    setIsUpdating(true);
+    try {
+      await rejectRequisicionByCoordinador(record.id, motivo);
+      router.refresh();
+    } catch (error) {
+      console.error("Error rejecting requisicion:", error);
+      alert(error instanceof Error ? error.message : "Error al rechazar la requisición");
     } finally {
       setIsUpdating(false);
     }
@@ -248,6 +309,7 @@ export default function RequisicionView({
           additionalItems={additionalItems}
           linkedOSIs={linkedOSIs}
           osiLookup={osiLookup}
+          osiData={osiData}
         />,
       ).toBlob();
       const url = URL.createObjectURL(blob);
@@ -295,6 +357,7 @@ export default function RequisicionView({
           additionalItems={additionalItems}
           linkedOSIs={linkedOSIs}
           osiLookup={osiLookup}
+          osiData={osiData}
         />,
       ).toBlob();
       const url = URL.createObjectURL(blob);
@@ -403,6 +466,59 @@ export default function RequisicionView({
           </div>
         );
       })()}
+
+      {/* Coordinador status bar (internas only) */}
+      {isGeneralMode && coordinadorEstatus && (
+        <div className="mb-4 flex flex-wrap items-center gap-3 px-4 py-3 bg-white border border-gray-200 rounded-lg shadow-sm">
+          <span className="text-sm font-medium text-gray-600">Coordinador:</span>
+          <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
+            isCoordinadorAprobada ? 'bg-blue-100 text-blue-800'
+            : isCoordinadorRechazada ? 'bg-red-100 text-red-800'
+            : 'bg-amber-100 text-amber-800'
+          }`}>
+            {isCoordinadorAprobada ? "Aprobada" : isCoordinadorRechazada ? "Rechazada" : "Pendiente"}
+          </span>
+          {isCoordinadorRechazada && record.motivo_rechazo_coordinador && (
+            <span className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1">
+              Motivo: {record.motivo_rechazo_coordinador}
+            </span>
+          )}
+          {isCoordinadorPendiente && isCoordinador && (
+            <div className="ml-auto flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isUpdating}
+                onClick={handleCoordinadorApprove}
+                className="h-8 px-3 text-xs flex gap-1 border-blue-300 text-blue-700 hover:bg-blue-50"
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                Aprobar (Coordinador)
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isUpdating}
+                onClick={() => setCoordinadorRejectOpen(true)}
+                className="h-8 px-3 text-xs flex gap-1 border-red-300 text-red-700 hover:bg-red-50"
+              >
+                <XCircle className="h-3.5 w-3.5" />
+                Rechazar (Coordinador)
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Admin rejection reason display */}
+      {isRechazada && record.motivo_rechazo && (
+        <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
+          <span className="font-bold">Motivo del rechazo: </span>
+          {record.motivo_rechazo}
+        </div>
+      )}
 
       {/* Admin action bar */}
       {isAdminView && (
@@ -538,16 +654,42 @@ export default function RequisicionView({
             <div className="col-span-3 p-3 border-r border-gray-300 bg-gray-50 flex flex-col justify-center">
               <span className="font-bold text-sm">Gerencia solicitante:</span>
             </div>
-            <div className="col-span-4 p-3 border-r border-gray-300 flex items-center uppercase font-medium">
+            <div className="col-span-3 p-3 border-r border-gray-300 flex items-center uppercase font-medium">
               {record.gerencia_solicitante || "-"}
             </div>
-            <div className="col-span-2 p-3 border-r border-gray-300 bg-gray-50 flex flex-col justify-center text-center">
-              <span className="font-bold text-xs leading-tight">Nombre del solicitante:</span>
+            <div className="col-span-3 p-3 border-r border-gray-300 bg-gray-50 flex flex-col justify-center">
+              <span className="font-bold text-sm">Departamento:</span>
             </div>
-            <div className="col-span-3 p-3 flex items-center font-bold uppercase">
+            <div className="col-span-3 p-3 flex items-center uppercase font-medium">
+              {record.departamento || "-"}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-12 border-b border-gray-300">
+            <div className="col-span-3 p-3 border-r border-gray-300 bg-gray-50 flex flex-col justify-center">
+              <span className="font-bold text-sm">Nombre del solicitante:</span>
+            </div>
+            <div className="col-span-9 p-3 flex items-center font-bold uppercase">
               {record.solicitante || "-"}
             </div>
           </div>
+
+          {/* Selected session (Capacitación Externa with a multi-session OSI) */}
+          {!isGeneralMode && record.id_sesion && (() => {
+            const sesiones = (osiData?.desglose_recursos_sesiones as any[] | null | undefined) || [];
+            const sesion = sesiones.find((s) => s.id_sesion === record.id_sesion);
+            if (!sesion) return null;
+            return (
+              <div className="grid grid-cols-12 border-b border-gray-300">
+                <div className="col-span-3 p-3 border-r border-gray-300 bg-gray-50 flex items-center font-bold text-sm">
+                  Sesión:
+                </div>
+                <div className="col-span-9 p-3 flex items-center font-medium text-sm">
+                  {`Sesión #${sesion.nro_sesion ?? sesion.id_sesion}${sesion.fecha ? ` — ${sesion.fecha}` : ""}`}
+                </div>
+              </div>
+            );
+          })()}
 
           <div className="grid grid-cols-12 border-b border-gray-300">
             <div className="col-span-3 p-3 border-r border-gray-300 bg-gray-50 flex items-center font-bold text-sm">
@@ -1251,6 +1393,26 @@ export default function RequisicionView({
           </span>
         </div>
       )}
+
+      {/* Admin reject modal (requires a reason) */}
+      <MotivoModal
+        open={rejectModalOpen}
+        title="Rechazar Requisición"
+        description="El solicitante será notificado con el motivo del rechazo."
+        confirmLabel="Rechazar"
+        onConfirm={handleRejectWithMotivo}
+        onClose={() => setRejectModalOpen(false)}
+      />
+
+      {/* Coordinador reject modal (requires a reason) */}
+      <MotivoModal
+        open={coordinadorRejectOpen}
+        title="Rechazar Requisión Interna"
+        description="El solicitante será notificado y la requisición quedará bloqueada."
+        confirmLabel="Rechazar"
+        onConfirm={handleCoordinadorReject}
+        onClose={() => setCoordinadorRejectOpen(false)}
+      />
     </div>
   );
 }

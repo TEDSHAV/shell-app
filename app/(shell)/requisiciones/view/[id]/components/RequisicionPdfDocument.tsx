@@ -179,6 +179,7 @@ export interface RequisicionPdfDocumentProps {
   additionalItems: RequisicionItem[];
   linkedOSIs: { id_osi: number }[];
   osiLookup?: Map<number, string>;
+  osiData?: any;
 }
 
 export default function RequisicionPdfDocument({
@@ -189,6 +190,7 @@ export default function RequisicionPdfDocument({
   additionalItems,
   linkedOSIs,
   osiLookup,
+  osiData,
 }: RequisicionPdfDocumentProps) {
   const showOsiColumn = linkedOSIs.length > 1;
   const departamentoMatch = matchDepartamento(record.gerencia_solicitante);
@@ -355,16 +357,41 @@ export default function RequisicionPdfDocument({
             <View style={[styles.cellLabel, { width: "25%" }]}>
               <Text>Gerencia solicitante:</Text>
             </View>
-            <View style={[styles.cellValue, { width: "35%" }]}>
+            <View style={[styles.cellValue, { width: "25%" }]}>
               <Text>{record.gerencia_solicitante || "-"}</Text>
             </View>
-            <View style={[styles.cellLabel, { width: "15%" }]}>
-              <Text>Nombre del solicitante:</Text>
+            <View style={[styles.cellLabel, { width: "25%" }]}>
+              <Text>Departamento:</Text>
             </View>
             <View style={[styles.cellValue, { width: "25%", borderRightWidth: 0 }]}>
+              <Text>{record.departamento || "-"}</Text>
+            </View>
+          </View>
+
+          <View style={styles.row}>
+            <View style={[styles.cellLabel, { width: "25%" }]}>
+              <Text>Nombre del solicitante:</Text>
+            </View>
+            <View style={[styles.cellValue, { width: "75%", borderRightWidth: 0 }]}>
               <Text>{record.solicitante || "-"}</Text>
             </View>
           </View>
+
+          {record.id_sesion && (() => {
+            const sesiones = (osiData?.desglose_recursos_sesiones as any[] | null | undefined) || [];
+            const sesion = sesiones.find((s) => s.id_sesion === record.id_sesion);
+            if (!sesion) return null;
+            return (
+              <View style={styles.row}>
+                <View style={[styles.cellLabel, { width: "20%" }]}>
+                  <Text>Sesión:</Text>
+                </View>
+                <View style={[styles.cellValue, { width: "80%", borderRightWidth: 0 }]}>
+                  <Text>{`Sesión #${sesion.nro_sesion ?? sesion.id_sesion}${sesion.fecha ? ` — ${sesion.fecha}` : ""}`}</Text>
+                </View>
+              </View>
+            );
+          })()}
 
           <View style={[styles.row, { borderBottomWidth: 0 }]}>
             <View style={[styles.cellLabel, { width: "25%" }]}>

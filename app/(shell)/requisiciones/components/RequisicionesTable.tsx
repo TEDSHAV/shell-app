@@ -30,6 +30,9 @@ const EMPTY_FILTERS: RequisicionFilters = {
   fechaDesde: "",
   fechaHasta: "",
   search: "",
+  osi: "",
+  empresa: "",
+  curso: "",
 };
 
 function isInterna(record: any): boolean {
@@ -81,6 +84,33 @@ export default function RequisicionesTable({
       }
       if (filters.fechaHasta && (!r.fecha_solicitud || r.fecha_solicitud > filters.fechaHasta)) {
         return false;
+      }
+
+      // OSI filter: match primary OSI number or any linked OSI number.
+      if (filters.osi) {
+        const q = filters.osi.toLowerCase();
+        const linkedOsiNumbers = (r.requisiciones_osis || [])
+          .map((ro: any) => osiLookup?.get(ro.id_osi))
+          .filter(Boolean) as string[];
+        const osiNumbers = [
+          r.v_osi_formato_completo?.nro_osi,
+          ...linkedOsiNumbers,
+        ].filter(Boolean).map((s) => (s as string).toLowerCase());
+        if (!osiNumbers.some((n) => n.includes(q))) return false;
+      }
+
+      // Empresa/Cliente filter: match the OSI's nombre_empresa.
+      if (filters.empresa) {
+        const q = filters.empresa.toLowerCase();
+        const empresa = (r.v_osi_formato_completo?.nombre_empresa || "").toLowerCase();
+        if (!empresa.includes(q)) return false;
+      }
+
+      // Course name filter: match the OSI's servicio.
+      if (filters.curso) {
+        const q = filters.curso.toLowerCase();
+        const servicio = (r.v_osi_formato_completo?.servicio || "").toLowerCase();
+        if (!servicio.includes(q)) return false;
       }
 
       if (filters.search) {
@@ -165,102 +195,142 @@ export default function RequisicionesTable({
         ))}
       </div>
 
-      {isAdminView && (
-        <>
-          {/* Filters bar */}
-          <div className="bg-white border border-gray-200 rounded-lg p-3 flex flex-wrap items-end gap-3">
-            <div className="flex flex-col gap-1">
-              <span className="text-[11px] font-medium text-gray-500 uppercase">Buscar</span>
-              <div className="relative">
-                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  value={filters.search}
-                  onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
-                  placeholder="Solicitante, OSI..."
-                  className="h-9 pl-8 w-56"
-                />
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <span className="text-[11px] font-medium text-gray-500 uppercase">Gerencia</span>
-              <Select
-                value={filters.gerencia || "todas"}
-                onValueChange={(v: string) =>
-                  setFilters((f) => ({ ...f, gerencia: v === "todas" ? "" : v }))
-                }
-              >
-                <SelectTrigger className="h-9 w-44">
-                  <SelectValue placeholder="Todas" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todas">Todas</SelectItem>
-                  {gerencias.map((g) => (
-                    <SelectItem key={g} value={g}>
-                      {g}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <span className="text-[11px] font-medium text-gray-500 uppercase">Estatus</span>
-              <Select
-                value={filters.estatus || "todos"}
-                onValueChange={(v: string) =>
-                  setFilters((f) => ({
-                    ...f,
-                    estatus: v === "todos" ? "" : (v as EstatusAdmin),
-                  }))
-                }
-              >
-                <SelectTrigger className="h-9 w-36">
-                  <SelectValue placeholder="Todos" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todos">Todos</SelectItem>
-                  <SelectItem value="pendiente">Pendiente</SelectItem>
-                  <SelectItem value="procesada">Procesada</SelectItem>
-                  <SelectItem value="rechazada">Rechazada</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <span className="text-[11px] font-medium text-gray-500 uppercase">Desde</span>
-              <Input
-                type="date"
-                value={filters.fechaDesde}
-                onChange={(e) => setFilters((f) => ({ ...f, fechaDesde: e.target.value }))}
-                className="h-9 w-38"
-              />
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <span className="text-[11px] font-medium text-gray-500 uppercase">Hasta</span>
-              <Input
-                type="date"
-                value={filters.fechaHasta}
-                onChange={(e) => setFilters((f) => ({ ...f, fechaHasta: e.target.value }))}
-                className="h-9 w-38"
-              />
-            </div>
-
-            {hasActiveFilters && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-9 text-gray-500 flex gap-1"
-                onClick={() => setFilters((f) => ({ ...EMPTY_FILTERS, tab: f.tab }))}
-              >
-                <X className="h-4 w-4" />
-                Limpiar
-              </Button>
-            )}
+      {/* Filters bar (available to all users) */}
+      <div className="bg-white border border-gray-200 rounded-lg p-3 flex flex-wrap items-end gap-3">
+        <div className="flex flex-col gap-1">
+          <span className="text-[11px] font-medium text-gray-500 uppercase">Buscar</span>
+          <div className="relative">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input
+              value={filters.search}
+              onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
+              placeholder="Solicitante, OSI..."
+              className="h-9 pl-8 w-56"
+            />
           </div>
-        </>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <span className="text-[11px] font-medium text-gray-500 uppercase">OSI</span>
+          <Input
+            value={filters.osi}
+            onChange={(e) => setFilters((f) => ({ ...f, osi: e.target.value }))}
+            placeholder="Nro OSI..."
+            className="h-9 w-32"
+          />
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <span className="text-[11px] font-medium text-gray-500 uppercase">Empresa/Cliente</span>
+          <Input
+            value={filters.empresa}
+            onChange={(e) => setFilters((f) => ({ ...f, empresa: e.target.value }))}
+            placeholder="Empresa..."
+            className="h-9 w-40"
+          />
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <span className="text-[11px] font-medium text-gray-500 uppercase">Curso</span>
+          <Input
+            value={filters.curso}
+            onChange={(e) => setFilters((f) => ({ ...f, curso: e.target.value }))}
+            placeholder="Nombre del curso..."
+            className="h-9 w-44"
+          />
+        </div>
+
+        {isAdminView && (
+          <div className="flex flex-col gap-1">
+            <span className="text-[11px] font-medium text-gray-500 uppercase">Gerencia</span>
+            <Select
+              value={filters.gerencia || "todas"}
+              onValueChange={(v: string) =>
+                setFilters((f) => ({ ...f, gerencia: v === "todas" ? "" : v }))
+              }
+            >
+              <SelectTrigger className="h-9 w-44">
+                <SelectValue placeholder="Todas" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Todas</SelectItem>
+                {gerencias.map((g) => (
+                  <SelectItem key={g} value={g}>
+                    {g}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        <div className="flex flex-col gap-1">
+          <span className="text-[11px] font-medium text-gray-500 uppercase">Estatus</span>
+          <Select
+            value={filters.estatus || "todos"}
+            onValueChange={(v: string) =>
+              setFilters((f) => ({
+                ...f,
+                estatus: v === "todos" ? "" : (v as EstatusAdmin),
+              }))
+            }
+          >
+            <SelectTrigger className="h-9 w-36">
+              <SelectValue placeholder="Todos" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos</SelectItem>
+              <SelectItem value="pendiente">Pendiente</SelectItem>
+              <SelectItem value="procesada">Procesada</SelectItem>
+              <SelectItem value="rechazada">Rechazada</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <span className="text-[11px] font-medium text-gray-500 uppercase">Desde</span>
+          <Input
+            type="date"
+            value={filters.fechaDesde}
+            onChange={(e) => setFilters((f) => ({ ...f, fechaDesde: e.target.value }))}
+            className="h-9 w-38"
+          />
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <span className="text-[11px] font-medium text-gray-500 uppercase">Hasta</span>
+          <Input
+            type="date"
+            value={filters.fechaHasta}
+            onChange={(e) => setFilters((f) => ({ ...f, fechaHasta: e.target.value }))}
+            className="h-9 w-38"
+          />
+        </div>
+
+        {hasActiveFilters && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-9 text-gray-500 flex gap-1"
+            onClick={() => setFilters((f) => ({ ...EMPTY_FILTERS, tab: f.tab }))}
+          >
+            <X className="h-4 w-4" />
+            Limpiar
+          </Button>
+        )}
+      </div>
+
+      {/* Admin summary counter */}
+      {isAdminView && (
+        <div className="flex gap-3 text-xs">
+          <span className="px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium">
+            Aprobadas: {records.filter((r) => r.estatus_admin === "procesada").length}
+          </span>
+          <span className="px-2 py-1 rounded-full bg-red-50 text-red-700 border border-red-200 font-medium">
+            Rechazadas: {records.filter((r) => r.estatus_admin === "rechazada").length}
+          </span>
+        </div>
       )}
 
       <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
@@ -285,6 +355,9 @@ export default function RequisicionesTable({
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Estatus
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Coordinador
                 </th>
                 {isAdminView && (
                   <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">

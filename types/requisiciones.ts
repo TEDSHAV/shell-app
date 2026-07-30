@@ -5,6 +5,23 @@ export type VerificacionStatus = "listo" | "pendiente";
 
 export type EstatusAdmin = "pendiente" | "procesada" | "rechazada";
 
+export type CoordinadorEstatus = "pendiente" | "aprobada" | "rechazada" | null;
+
+// Per-session cost breakdown from v_osi_formato_completo.desglose_recursos_sesiones
+export interface OSISesion {
+  id: number;
+  id_sesion: number;
+  nro_sesion: number | null;
+  fecha: string | null;
+  hora_inicio: string | null;
+  hora_fin: string | null;
+  costo_traslado: number | null;
+  costo_impresion_material: number | null;
+  horas_honorarios_instructor: number | null;
+  tarifa_hora_honorarios: number | null;
+  costo_honorarios_instructor: number | null;
+}
+
 export interface RequisicionItem {
   id: string;
   cant: number;
@@ -25,6 +42,9 @@ export interface RequisicionFilters {
   fechaDesde: string;
   fechaHasta: string;
   search: string;
+  osi: string;
+  empresa: string;
+  curso: string;
 }
 
 export interface OSIFixedItem {
@@ -60,8 +80,11 @@ export interface RequisicionFormData {
   nro_correlativo: string;
   tipo_servicio: "Servicio Técnico" | "Capacitación" | "";
   gerencia_solicitante: string;
+  departamento: string;
   solicitante: string;
   prioridad: "Alta" | "Media" | "Baja" | "";
+  id_sesion: number | null;
+  selectedSesion?: OSISesion | null;
 
   // Details - Fixed Items Quantities
   cant_traslado: number;
@@ -111,4 +134,6 @@ export interface OSIFullData {
   costo_honorarios_instructor: number | null;
   costo_impresion_material: number | null;
   tipo_servicio?: string | null;
+  nombre_empresa?: string | null;
+  desglose_recursos_sesiones?: OSISesion[] | null;
 }

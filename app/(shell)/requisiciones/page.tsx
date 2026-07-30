@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { getAllRequisiciones, isRequisicionesAdmin, getOsiNumbersForLookup } from "@/actions/requisiciones";
+import { getAllRequisiciones, isRequisicionesAdmin, isCurrentUserCapacitacion, getOsiNumbersForLookup } from "@/actions/requisiciones";
 import RequisicionesTable from "./components/RequisicionesTable";
 import { FilePlus2 } from "lucide-react";
 
@@ -10,6 +10,7 @@ export const metadata = {
 
 export default async function RequisicionesPage() {
   const isAdminView = await isRequisicionesAdmin();
+  const isCapacitacionView = !isAdminView && await isCurrentUserCapacitacion();
   const [records, osiPairs] = await Promise.all([
     getAllRequisiciones(isAdminView),
     getOsiNumbersForLookup(),
@@ -32,7 +33,9 @@ export default async function RequisicionesPage() {
           <p className="mt-1 text-sm text-gray-600">
             {isAdminView
               ? "Listado de todas las requisiciones recibidas por Administración."
-              : "Listado de todas las solicitudes de requisición que has creado."}
+              : isCapacitacionView
+                ? "Listado de las requisiciones creadas por el departamento de Capacitación."
+                : "Listado de todas las solicitudes de requisición que has creado."}
           </p>
         </div>
         <Link href="/requisiciones/create">

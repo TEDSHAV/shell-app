@@ -17,8 +17,10 @@ import {
   notifyCreatorOfRechazada,
   notifyCreatorOfPartialVerificacion,
   notifyAdminOfAcuseRecibo,
+  notifyCreatorOfCoordinadorRechazada,
 } from "@/actions/requisicion-notifications";
 import { getUsdToVesRate } from "@/lib/exchange-rate";
+import { isCapacitacionDept } from "@/lib/requisiciones-gerencia";
 
 // Check if the current user belongs to the Administración department.
 // Department-based only — role (admin/superadmin) is NOT considered.
@@ -41,6 +43,71 @@ export const isRequisicionesAdmin = cache(async (): Promise<boolean> => {
     return false;
   }
 });
+
+// True when the current user belongs to the Capacitación department.
+export const isCurrentUserCapacitacion = cache(async (): Promise<boolean> => {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
+
+    const { data: usuario } = await supabase
+      .from("usuarios")
+      .select("departamentos(nombre)")
+      .eq("id_auth", user.id)
+      .single();
+
+    const deptName = (usuario?.departamentos as any)?.nombre || "";
+    return isCapacitacionDept(deptName);
+  } catch {
+    return false;
+  }
+});
+
+// True when the current user has the "coordinador" role (app-agnostic).
+// Coordinadors approve internas before they are surfaced to Administración.
+export const isRequisicionesCoordinador = cache(async (): Promise<boolean> => {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
+
+    const { data: usuario } = await supabase
+      .from("usuarios")
+      .select("id")
+      .eq("id_auth", user.id)
+      .single();
+    if (!usuario) return false;
+
+    // Find the coordinador role id (across any app).
+    const { data: role } = await supabase
+      .schema("authprisma")
+      .from("roles")
+      .select("id")
+      .eq("slug", "coordinador")
+      .maybeSingle();
+    if (!role) return false;
+
+    const { data: uar } = await supabase
+      .schema("authprisma")
+      .from("user_app_roles")
+      .select("id")
+      .eq("usuario_id", usuario.id)
+      .eq("role_id", role.id)
+      .maybeSingle();
+
+    return !!uar;
+  } catch {
+    return false;
+  }
+});
+
+// Derive whether a requisicion record is a "Capacitacion" record based on the
+// stored department (preferred) or, for legacy records, gerencia_solicitante.
+function recordIsCapacitacion(record: { departamento?: string | null; gerencia_solicitante?: string | null }): boolean {
+  if (record.departamento) return isCapacitacionDept(record.departamento);
+  return (record.gerencia_solicitante || "").trim().toLowerCase() === "capacitacion";
+}
 
 // Get all OSIs for the dropdown (cached 5 minutes)
 export const getAllOSIsForRequisiciones = unstable_cache(
@@ -143,8 +210,9 @@ export async function createRequisicionRecord(
   const userResponse = await supabase.auth.getUser();
   const userId = userResponse.data.user?.id || null;
 
-  const isCapacitacion = !formData.is_general && formData.gerencia_solicitante?.trim().toLowerCase() === "capacitacion";
+  const isCapacitacion = !formData.is_general && isCapacitacionDept(formData.departamento);
   const primaryOSI = formData.selectedOSIs[0] || null;
+  const isInterna = formData.is_general;
 
   // Calculate totals for fixed items as requested (Cant is removed from UI, so we use 1)
   const totalTraslado = (formData.dias_traslado || 0) * (formData.costo_traslado || 0);
@@ -156,9 +224,11 @@ export async function createRequisicionRecord(
     id_osi: primaryOSI?.id_osi || null,
     solicitante: formData.solicitante,
     gerencia_solicitante: formData.gerencia_solicitante,
+    departamento: formData.departamento || null,
+    id_sesion: formData.id_sesion || null,
     fecha_solicitud: formData.fecha_solicitud,
     // Auto-derived: Internas = General (no OSI), Externas = OSI-based
-    tipo_solicitud: formData.is_general ? "Interno" : "Externo",
+    tipo_solicitud: isInterna ? "Interno" : "Externo",
     nro_correlativo: formData.nro_correlativo || null,
     tipo_servicio: formData.tipo_servicio || null,
     prioridad: formData.prioridad || null,
@@ -195,12 +265,15 @@ export async function createRequisicionRecord(
     observaciones_compras: formData.observaciones,
     created_by: userId,
     updated_by: userId,
-    
+
     // Schema fields
     item_solicitado: primaryOSI?.servicio || null,
     cantidad: 1,
     id_estatus: 1, // Default status
     estatus_admin: "pendiente",
+    // Internas require coordinador approval before being surfaced to Administración.
+    // Externas go straight to admin (coordinador_estatus stays null).
+    coordinador_estatus: isInterna ? "pendiente" : null,
   };
 
   const { data, error } = await supabase
@@ -213,10 +286,12 @@ export async function createRequisicionRecord(
 
   await syncRequisicionOsis(data.id, formData);
 
-  const requisicionLabel = formData.is_general
-    ? "interna"
-    : `de la OSI N° ${primaryOSI?.nro_osi || formData.selectedOSIs[0]?.nro_osi || ""}`;
-  await notifyAdminsOfNewRequisicion(data.id, formData.solicitante, requisicionLabel);
+  // Only notify Administración immediately for Externas. Internas wait for
+  // coordinador approval (see approveRequisicionByCoordinador).
+  if (!isInterna) {
+    const requisicionLabel = `de la OSI N° ${primaryOSI?.nro_osi || formData.selectedOSIs[0]?.nro_osi || ""}`;
+    await notifyAdminsOfNewRequisicion(data.id, formData.solicitante, requisicionLabel);
+  }
 
   // Revalidate both the shell and potentially the capacitacion app list if needed
   revalidatePath("/requisiciones");
@@ -364,8 +439,9 @@ export async function updateRequisicionRecord(
     throw new Error("Esta requisición ya fue procesada por Administración y no puede editarse.");
   }
 
-  const isCapacitacion = !formData.is_general && formData.gerencia_solicitante?.trim().toLowerCase() === "capacitacion";
+  const isCapacitacion = !formData.is_general && isCapacitacionDept(formData.departamento);
   const primaryOSI = formData.selectedOSIs[0] || null;
+  const isInterna = formData.is_general;
 
   // Calculate totals for fixed items
   const totalTraslado = (formData.dias_traslado || 0) * (formData.costo_traslado || 0);
@@ -377,9 +453,11 @@ export async function updateRequisicionRecord(
     id_osi: primaryOSI?.id_osi || null,
     solicitante: formData.solicitante,
     gerencia_solicitante: formData.gerencia_solicitante,
+    departamento: formData.departamento || null,
+    id_sesion: formData.id_sesion || null,
     fecha_solicitud: formData.fecha_solicitud,
     // Auto-derived: Internas = General (no OSI), Externas = OSI-based
-    tipo_solicitud: formData.is_general ? "Interno" : "Externo",
+    tipo_solicitud: isInterna ? "Interno" : "Externo",
     nro_correlativo: formData.nro_correlativo || null,
     tipo_servicio: formData.tipo_servicio || null,
     prioridad: formData.prioridad || null,
@@ -456,7 +534,9 @@ export async function getAllRequisiciones(isAdmin?: boolean) {
         id_osi,
         nro_osi,
         servicio,
-        fecha_inicio_real
+        nombre_empresa,
+        fecha_inicio_real,
+        desglose_recursos_sesiones
       ),
       facilitadores!left (
         nombre_apellido,
@@ -469,8 +549,37 @@ export async function getAllRequisiciones(isAdmin?: boolean) {
     .order("id", { ascending: false })
     .is("deleted_at", null);
 
-  if (!isAdmin) {
-    query = query.eq("created_by", userId);
+  if (isAdmin) {
+    // Administración should not see internas that are still pending coordinador
+    // approval. Externas (coordinador_estatus IS NULL) and approved internas are shown.
+    query = query.or("coordinador_estatus.is.null,coordinador_estatus.eq.aprobada");
+  } else {
+    // Capacitación users see all requisiciones created by anyone in their department;
+    // everyone else sees only their own.
+    const isCapDept = await isCurrentUserCapacitacion();
+    if (isCapDept) {
+      const { data: dept } = await supabase
+        .from("departamentos")
+        .select("id")
+        .ilike("nombre", "%capacitacion%")
+        .maybeSingle();
+      let creatorIds: string[] = [userId];
+      if (dept?.id) {
+        const { data: deptUsers } = await supabase
+          .from("usuarios")
+          .select("id_auth")
+          .eq("departamento", dept.id)
+          .not("id_auth", "is", null)
+          .eq("esta_activo", true);
+        creatorIds = (deptUsers || [])
+          .map((u: any) => u.id_auth)
+          .filter((id: string | null): id is string => Boolean(id));
+        if (!creatorIds.includes(userId)) creatorIds.push(userId);
+      }
+      query = query.in("created_by", creatorIds);
+    } else {
+      query = query.eq("created_by", userId);
+    }
   }
 
   const { data, error } = await query;
@@ -519,13 +628,20 @@ export async function deleteRequisicionRecord(id: number) {
   revalidatePath("/requisiciones");
 }
 
-// Mark a requisition as procesada / pendiente (Administración only)
+// Mark a requisition as procesada / pendiente / rechazada (Administración only).
+// When rejecting, a motivo (reason) is required and persisted + included in the
+// creator notification.
 export async function setRequisicionEstatus(
   id: number,
   estatus: "pendiente" | "procesada" | "rechazada",
+  motivoRechazo?: string,
 ) {
   if (!(await isRequisicionesAdmin())) {
     throw new Error("No tiene permisos para cambiar el estatus de requisiciones.");
+  }
+
+  if (estatus === "rechazada" && !motivoRechazo?.trim()) {
+    throw new Error("Debe indicar el motivo del rechazo.");
   }
 
   const supabase = await createClient();
@@ -534,13 +650,21 @@ export async function setRequisicionEstatus(
 
   const isResolved = estatus === "procesada" || estatus === "rechazada";
 
+  const update: Record<string, unknown> = {
+    estatus_admin: estatus,
+    procesada_por: isResolved ? userId : null,
+    procesada_at: isResolved ? new Date().toISOString() : null,
+  };
+  if (estatus === "rechazada") {
+    update.motivo_rechazo = motivoRechazo!.trim();
+  } else if (estatus === "procesada") {
+    // Clear any prior rejection reason if reverting to procesada
+    update.motivo_rechazo = null;
+  }
+
   const { error } = await supabase
     .from("requisiciones")
-    .update({
-      estatus_admin: estatus,
-      procesada_por: isResolved ? userId : null,
-      procesada_at: isResolved ? new Date().toISOString() : null,
-    })
+    .update(update)
     .eq("id", id);
 
   if (error) throw error;
@@ -568,7 +692,7 @@ export async function setRequisicionEstatus(
         await notifyCreatorOfProcesada(id, req.created_by, requisicionLabel);
       } else if (estatus === "rechazada") {
         console.log(`[setRequisicionEstatus] Calling notifyCreatorOfRechazada for creator ${req.created_by}`);
-        await notifyCreatorOfRechazada(id, req.created_by, requisicionLabel);
+        await notifyCreatorOfRechazada(id, req.created_by, requisicionLabel, motivoRechazo!.trim());
       }
     } else {
       console.warn(`[setRequisicionEstatus] No created_by found for requisicion ${id}, skipping creator notification`);
@@ -576,6 +700,100 @@ export async function setRequisicionEstatus(
   }
 
   revalidatePath("/requisiciones");
+}
+
+// Coordinador approves a pending interna. After approval, Administración is
+// notified (the requisicion becomes visible to them).
+export async function approveRequisicionByCoordinador(id: number) {
+  if (!(await isRequisicionesCoordinador())) {
+    throw new Error("No tiene permisos de coordinador para aprobar requisiciones.");
+  }
+
+  const supabase = await createClient();
+  const userResponse = await supabase.auth.getUser();
+  const userId = userResponse.data.user?.id || null;
+
+  const { data: existing } = await supabase
+    .from("requisiciones")
+    .select("tipo_solicitud, coordinador_estatus, solicitante, created_by, v_osi_formato_completo (nro_osi)")
+    .eq("id", id)
+    .single();
+
+  if (!existing) throw new Error("Requisición no encontrada.");
+  if (existing.tipo_solicitud !== "Interno") {
+    throw new Error("Solo las requisiciones internas requieren aprobación del coordinador.");
+  }
+  if (existing.coordinador_estatus !== "pendiente") {
+    throw new Error("Esta requisición interna ya fue procesada por el coordinador.");
+  }
+
+  const { error } = await supabase
+    .from("requisiciones")
+    .update({
+      coordinador_estatus: "aprobada",
+      coordinador_por: userId,
+      coordinador_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+
+  if (error) throw error;
+
+  // Now that the coordinador approved, surface the requisicion to Administración.
+  const nroOsi = (existing.v_osi_formato_completo as any)?.nro_osi || "";
+  const requisicionLabel = "interna";
+  await notifyAdminsOfNewRequisicion(id, existing.solicitante || "", requisicionLabel);
+
+  revalidatePath("/requisiciones");
+  revalidatePath(`/requisiciones/view/${id}`);
+}
+
+// Coordinador rejects a pending interna with a reason. The creator is notified
+// and the requisicion is locked for further editing.
+export async function rejectRequisicionByCoordinador(id: number, motivo: string) {
+  if (!(await isRequisicionesCoordinador())) {
+    throw new Error("No tiene permisos de coordinador para rechazar requisiciones.");
+  }
+  if (!motivo?.trim()) {
+    throw new Error("Debe indicar el motivo del rechazo.");
+  }
+
+  const supabase = await createClient();
+  const userResponse = await supabase.auth.getUser();
+  const userId = userResponse.data.user?.id || null;
+
+  const { data: existing } = await supabase
+    .from("requisiciones")
+    .select("tipo_solicitud, coordinador_estatus, solicitante, created_by, v_osi_formato_completo (nro_osi)")
+    .eq("id", id)
+    .single();
+
+  if (!existing) throw new Error("Requisición no encontrada.");
+  if (existing.tipo_solicitud !== "Interno") {
+    throw new Error("Solo las requisiciones internas requieren aprobación del coordinador.");
+  }
+  if (existing.coordinador_estatus !== "pendiente") {
+    throw new Error("Esta requisición interna ya fue procesada por el coordinador.");
+  }
+
+  const { error } = await supabase
+    .from("requisiciones")
+    .update({
+      coordinador_estatus: "rechazada",
+      coordinador_por: userId,
+      coordinador_at: new Date().toISOString(),
+      motivo_rechazo_coordinador: motivo.trim(),
+    })
+    .eq("id", id);
+
+  if (error) throw error;
+
+  if (existing.created_by) {
+    const requisicionLabel = "interna";
+    await notifyCreatorOfCoordinadorRechazada(id, existing.created_by, requisicionLabel, motivo.trim());
+  }
+
+  revalidatePath("/requisiciones");
+  revalidatePath(`/requisiciones/view/${id}`);
 }
 
 // Toggle LISTO/PENDIENTE for an item of a General requisition (Administración only)
