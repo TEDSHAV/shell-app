@@ -420,7 +420,6 @@ export const apps: AppConfig[] = [
           {
             label: "Leads",
             path: "/reportes/marketing",
-            href: "/reportes/marketing",
             icon: BarChart2,
             requiredPermissions: ["reportes:access"],
           },
