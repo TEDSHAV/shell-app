@@ -99,7 +99,7 @@ export async function getOSIList(
       .map((osi: any) => osi.id_osi)
       .filter((id: number | null) => id !== null) as number[];
 
-    const [statuses, cityResult, visibleOsiIds] = await Promise.all([
+    const [statuses, cityResult, visibleOsiIds, sesionesProgramadasResult] = await Promise.all([
       getOSIStatuses(),
       uniqueCityIds.length > 0
         ? supabase
@@ -108,10 +108,29 @@ export async function getOSIList(
             .in("id", uniqueCityIds)
         : Promise.resolve({ data: null }),
       getVisibleOsiIdsForList(pageOsiIds),
+      // sesiones_programadas is the authoritative JSONB array of scheduled
+      // sessions on ejecucion_osi (populated at creation, kept in sync by the
+      // trg_osi_sesion_after_change trigger). sesiones_ejecucion (numeric) and
+      // osi_sesion rows can both diverge from it, so we count this array's
+      // length to drive the expandable check in OSITable. Primary-key lookup
+      // for ~20 ids, runs in parallel — no extra round-trip on the critical path.
+      pageOsiIds.length > 0
+        ? supabase
+            .from("ejecucion_osi")
+            .select("id, sesiones_programadas")
+            .in("id", pageOsiIds)
+        : Promise.resolve({ data: null }),
     ]);
 
     const statusMap = new Map(statuses.map((s) => [s.id, s]));
     const cityMap = new Map((cityResult.data || []).map((c: any) => [c.id, c.nombre_ciudad]));
+
+    const sessionCountMap = new Map<number, number>();
+    for (const row of (sesionesProgramadasResult as any)?.data || []) {
+      const osiId = row.id as number;
+      const sesiones = row.sesiones_programadas;
+      sessionCountMap.set(osiId, Array.isArray(sesiones) ? sesiones.length : 0);
+    }
 
     const enrichedOSIs: OSIListItem[] = (data || []).map((osi: any) => {
       const status = osi.id_estatus ? statusMap.get(osi.id_estatus) : null;
@@ -133,6 +152,7 @@ export async function getOSIList(
         status_color: status?.color_hex || "#9CA3AF",
         oculto_para_cliente: osi.id_osi ? !visibleOsiIds.has(osi.id_osi) : true,
         sesiones_ejecucion: osi.sesiones_ejecucion ?? null,
+        total_sesiones: osi.id_osi ? (sessionCountMap.get(osi.id_osi) ?? 0) : null,
       };
     });
 

@@ -32,6 +32,7 @@ export interface OSIListItem {
   status_color: string;
   oculto_para_cliente: boolean;
   sesiones_ejecucion: number | null;
+  total_sesiones: number | null;
 }
 
 export interface OSIListResult {

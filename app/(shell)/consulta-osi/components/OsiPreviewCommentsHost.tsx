@@ -35,6 +35,7 @@ export function OsiPreviewCommentsHost({
     status_color: "#008069",
     oculto_para_cliente: false,
     sesiones_ejecucion: null,
+    total_sesiones: null,
   };
 
   return (

@@ -233,7 +233,7 @@ export default function OSITable({
               }`}
             >
               <td className="px-2 py-2 w-8">
-                {osi.id_osi && osi.sesiones_ejecucion !== null && osi.sesiones_ejecucion > 1 && (
+                {osi.id_osi && osi.total_sesiones !== null && osi.total_sesiones > 1 && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
