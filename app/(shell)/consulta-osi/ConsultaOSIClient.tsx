@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useLayoutEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import type {
   OSIListFilters,
   OSIListItem,
   OSIStatusOption,
 } from "@/types/osi";
-import { getOSIList, getOSIListFilterOptions, updateOSIStatus, updateSessionStatus } from "@/actions/osi";
+import { getOSIList, getOSIListFilterOptions, updateOSIStatus, updateSessionStatus, setOSIHiddenForClient } from "@/actions/osi";
 import OSIFilters from "./components/OSIFilters";
 import OSITable from "./components/OSITable";
 import OSIPagination from "./components/OSIPagination";
@@ -15,11 +15,31 @@ import OSICommentsSheet from "./components/OSICommentsSheet";
 
 interface ConsultaOSIClientProps {
   canChangeStatus: boolean;
+  canHideForClient: boolean;
 }
 
-export default function ConsultaOSIClient({ canChangeStatus }: ConsultaOSIClientProps) {
+// Cache key for a (filters, page, itemsPerPage) combination.
+type CacheKey = string;
+
+interface CacheEntry {
+  osis: OSIListItem[];
+  totalCount: number;
+  timestamp: number;
+}
+
+// Stale-while-revalidate: entries are fresh for 60s, then stale but still
+// usable instantly while a refetch runs in the background.
+const FRESH_MS = 60_000;
+const MAX_CACHE = 20;
+
+function cacheKey(filters: OSIListFilters, page: number, itemsPerPage: number): CacheKey {
+  return JSON.stringify({ ...filters, page, itemsPerPage });
+}
+
+export default function ConsultaOSIClient({ canChangeStatus, canHideForClient }: ConsultaOSIClientProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [fetching, setFetching] = useState(false);
   const [osis, setOsis] = useState<OSIListItem[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [filters, setFilters] = useState<OSIListFilters>({});
@@ -39,15 +59,75 @@ export default function ConsultaOSIClient({ canChangeStatus }: ConsultaOSIClient
   const [selectedOSI, setSelectedOSI] = useState<OSIListItem | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  // --- Client-side page cache (stale-while-revalidate) ---
+  const cacheRef = useRef<Map<CacheKey, CacheEntry>>(new Map());
+  const filtersLoadedRef = useRef(false);
+
+  const getCached = useCallback((key: CacheKey): CacheEntry | null => {
+    const entry = cacheRef.current.get(key);
+    if (!entry) return null;
+    return entry;
+  }, []);
+
+  const setCached = useCallback((key: CacheKey, entry: CacheEntry) => {
+    cacheRef.current.set(key, entry);
+    // Evict oldest entries if cache grows too large.
+    if (cacheRef.current.size > MAX_CACHE) {
+      const firstKey = cacheRef.current.keys().next().value;
+      if (firstKey) cacheRef.current.delete(firstKey);
+    }
+  }, []);
+
+  // --- Sync cache swap: runs before paint so cached data appears instantly ---
+  useLayoutEffect(() => {
+    const key = cacheKey(filters, currentPage, itemsPerPage);
+    const cached = getCached(key);
+    if (cached) {
+      setOsis(cached.osis);
+      setTotalCount(cached.totalCount);
+      // If fresh, we can skip the fetch entirely — clear all loading states.
+      if (Date.now() - cached.timestamp < FRESH_MS) {
+        setLoading(false);
+        setFetching(false);
+        if (!filtersLoadedRef.current) setLoadingFilters(false);
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters, currentPage, itemsPerPage]);
+
+  // --- Async fetch: runs after paint, only if data is stale or missing ---
   useEffect(() => {
     let cancelled = false;
 
-    const loadAll = async () => {
-      const isInitialLoad = !statuses.length;
+    const key = cacheKey(filters, currentPage, itemsPerPage);
+    const cached = getCached(key);
 
+    // If we have fresh cached data, skip the fetch entirely.
+    if (cached && Date.now() - cached.timestamp < FRESH_MS) {
+      return;
+    }
+
+    const isInitialLoad = !filtersLoadedRef.current;
+    const hasExistingData = osis.length > 0;
+
+    // Determine loading state.
+    if (cached) {
+      // Stale cache — data already shown by layout effect, just fetch in background.
+      setLoading(false);
+      setFetching(true);
+    } else if (hasExistingData || !isInitialLoad) {
+      // Filter/page change with no cache: keep old data visible, show thin bar.
+      setLoading(false);
+      setFetching(true);
+    } else {
+      // Very first load — full spinner.
       setLoading(true);
-      if (isInitialLoad) setLoadingFilters(true);
+      setFetching(false);
+    }
 
+    if (isInitialLoad) setLoadingFilters(true);
+
+    const loadAll = async () => {
       try {
         const promises: Promise<any>[] = [
           getOSIList(filters, currentPage, itemsPerPage),
@@ -64,6 +144,11 @@ export default function ConsultaOSIClient({ canChangeStatus }: ConsultaOSIClient
         const dataResult = results[0];
         setOsis(dataResult.osis);
         setTotalCount(dataResult.totalCount);
+        setCached(key, {
+          osis: dataResult.osis,
+          totalCount: dataResult.totalCount,
+          timestamp: Date.now(),
+        });
 
         if (isInitialLoad && results[1]) {
           const options = results[1];
@@ -71,12 +156,14 @@ export default function ConsultaOSIClient({ canChangeStatus }: ConsultaOSIClient
           setEjecutivos(options.ejecutivos);
           setCityOptions(options.cityOptions);
           setStatuses(options.statuses);
+          filtersLoadedRef.current = true;
         }
       } catch (error) {
         console.error("Error loading OSI data:", error);
       } finally {
         if (!cancelled) {
           setLoading(false);
+          setFetching(false);
           setLoadingFilters(false);
         }
       }
@@ -86,6 +173,35 @@ export default function ConsultaOSIClient({ canChangeStatus }: ConsultaOSIClient
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters, currentPage, itemsPerPage]);
+
+  // --- Prefetch next page in the background (only when not on last page) ---
+  useEffect(() => {
+    const totalPages = Math.ceil(totalCount / itemsPerPage);
+    if (currentPage >= totalPages) return;
+    const nextPage = currentPage + 1;
+    const nextKey = cacheKey(filters, nextPage, itemsPerPage);
+    if (getCached(nextKey)) return; // already cached
+
+    let cancelled = false;
+    // Small delay so the prefetch doesn't compete with the main fetch.
+    const timer = setTimeout(async () => {
+      if (cancelled) return;
+      try {
+        const result = await getOSIList(filters, nextPage, itemsPerPage);
+        if (cancelled) return;
+        setCached(nextKey, {
+          osis: result.osis,
+          totalCount: result.totalCount,
+          timestamp: Date.now(),
+        });
+      } catch {
+        // Prefetch failure is non-fatal.
+      }
+    }, 300);
+
+    return () => { cancelled = true; clearTimeout(timer); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, totalCount, itemsPerPage, filters]);
 
   const handleFiltersChange = useCallback((newFilters: OSIListFilters) => {
     setFilters(newFilters);
@@ -135,12 +251,15 @@ export default function ConsultaOSIClient({ canChangeStatus }: ConsultaOSIClient
             return o;
           }),
         );
+        // Invalidate cache for current view since data changed.
+        const key = cacheKey(filters, currentPage, itemsPerPage);
+        cacheRef.current.delete(key);
       } else {
         console.error("Error changing OSI status:", result.error);
       }
       return result;
     },
-    [statuses],
+    [statuses, filters, currentPage, itemsPerPage],
   );
 
   const handleSessionStatusChange = useCallback(
@@ -148,6 +267,29 @@ export default function ConsultaOSIClient({ canChangeStatus }: ConsultaOSIClient
       return await updateSessionStatus(sessionId, newStatusId);
     },
     [],
+  );
+
+  const handleToggleHidden = useCallback(
+    async (osi: OSIListItem, hidden: boolean) => {
+      if (!osi.id_osi) return { success: false, error: "OSI inválido" };
+      const result = await setOSIHiddenForClient(osi.id_osi, hidden);
+      if (result.success) {
+        setOsis((prev) =>
+          prev.map((o) =>
+            o.id_osi === osi.id_osi
+              ? { ...o, oculto_para_cliente: hidden }
+              : o,
+          ),
+        );
+        // Invalidate cache for current view since data changed.
+        const key = cacheKey(filters, currentPage, itemsPerPage);
+        cacheRef.current.delete(key);
+      } else {
+        console.error("Error toggling OSI hidden state:", result.error);
+      }
+      return result;
+    },
+    [filters, currentPage, itemsPerPage],
   );
 
   const totalPages = Math.ceil(totalCount / itemsPerPage);
@@ -175,6 +317,7 @@ export default function ConsultaOSIClient({ canChangeStatus }: ConsultaOSIClient
         <OSITable
           osis={osis}
           loading={loading}
+          fetching={fetching}
           onRowClick={handleRowClick}
           onCommentsClick={handleCommentsClick}
           selectedOSI={selectedOSI}
@@ -182,6 +325,8 @@ export default function ConsultaOSIClient({ canChangeStatus }: ConsultaOSIClient
           statuses={statuses}
           onStatusChange={handleStatusChange}
           onSessionStatusChange={canChangeStatus ? handleSessionStatusChange : undefined}
+          canHideForClient={canHideForClient}
+          onToggleHidden={canHideForClient ? handleToggleHidden : undefined}
         />
 
         <div className="mt-4">

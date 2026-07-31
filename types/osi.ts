@@ -30,6 +30,8 @@ export interface OSIListItem {
   id_estatus: number | null;
   status_name: string;
   status_color: string;
+  oculto_para_cliente: boolean;
+  sesiones_ejecucion: number | null;
 }
 
 export interface OSIListResult {

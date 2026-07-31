@@ -133,7 +133,7 @@ export const getOsiNumbersForLookup = unstable_cache(
   async () => {
     const supabase = await createAdminClient();
     const { data, error } = await supabase
-      .from("v_osi_formato_completo")
+      .from("v_osi_lista")
       .select("id_osi, nro_osi")
       .order("id_osi", { ascending: false });
 

@@ -115,9 +115,9 @@ export default async function DashboardPage() {
                 <div className="flex gap-2 flex-wrap">
                   {flattenNavLinks(app.navLinks)
                     .slice(0, 3)
-                    .map((link) => (
+                    .map((link, idx) => (
                       <span
-                        key={link.path}
+                        key={`${link.path}-${idx}`}
                         className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground"
                       >
                         <link.icon className="h-2.5 w-2.5" />

@@ -4,11 +4,12 @@ import { useState, Fragment } from "react";
 import Link from "next/link";
 import type { OSIListItem, OSIStatusOption, OSISession } from "@/types/osi";
 import { getOSISessions, checkAllSessionsFinal } from "@/actions/osi";
-import { Eye, FileText, Loader2, ChevronDown, ChevronRight, MessageSquare, CheckCircle2 } from "lucide-react";
+import { Eye, FileText, Loader2, ChevronDown, ChevronRight, MessageSquare, CheckCircle2, EyeOff, Eye as EyeShow } from "lucide-react";
 
 interface OSITableProps {
   osis: OSIListItem[];
   loading: boolean;
+  fetching?: boolean;
   onRowClick: (osi: OSIListItem) => void;
   onCommentsClick: (osi: OSIListItem) => void;
   selectedOSI: OSIListItem | null;
@@ -16,11 +17,14 @@ interface OSITableProps {
   statuses: OSIStatusOption[];
   onStatusChange: (osi: OSIListItem, newStatusId: number) => Promise<{ success: boolean; error?: string }>;
   onSessionStatusChange?: (sessionId: number, newStatusId: number) => Promise<{ success: boolean; error?: string }>;
+  canHideForClient?: boolean;
+  onToggleHidden?: (osi: OSIListItem, hidden: boolean) => Promise<{ success: boolean; error?: string }>;
 }
 
 export default function OSITable({
   osis,
   loading,
+  fetching = false,
   onRowClick,
   onCommentsClick,
   selectedOSI,
@@ -28,6 +32,8 @@ export default function OSITable({
   statuses,
   onStatusChange,
   onSessionStatusChange,
+  canHideForClient,
+  onToggleHidden,
 }: OSITableProps) {
   const [statusLoadingId, setStatusLoadingId] = useState<number | null>(null);
   const [expandedOSIId, setExpandedOSIId] = useState<number | null>(null);
@@ -35,6 +41,7 @@ export default function OSITable({
   const [sessionsLoading, setSessionsLoading] = useState<number | null>(null);
   const [sessionStatusLoading, setSessionStatusLoading] = useState<number | null>(null);
   const [allFinalBanner, setAllFinalBanner] = useState<Record<number, boolean>>({});
+  const [hideLoadingId, setHideLoadingId] = useState<number | null>(null);
   const formatDate = (dateString: string | null) => {
     if (!dateString) return "-";
     return new Date(dateString + "T00:00:00").toLocaleDateString("es-ES", {
@@ -116,7 +123,7 @@ export default function OSITable({
     }
   };
 
-  if (loading) {
+  if (loading && (!osis || osis.length === 0)) {
     return (
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
         <div className="flex items-center justify-center">
@@ -157,8 +164,23 @@ export default function OSITable({
     }
   };
 
+  const handleToggleHidden = async (osi: OSIListItem) => {
+    if (!osi.id_osi || !onToggleHidden) return;
+    setHideLoadingId(osi.id_osi);
+    try {
+      await onToggleHidden(osi, !osi.oculto_para_cliente);
+    } finally {
+      setHideLoadingId(null);
+    }
+  };
+
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-x-auto">
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-x-auto relative">
+      {fetching && (
+        <div className="absolute top-0 left-0 right-0 h-0.5 bg-blue-100 overflow-hidden z-10">
+          <div className="h-full bg-blue-600 animate-pulse" style={{ width: "40%" }} />
+        </div>
+      )}
       <table className="w-full">
         <thead className="bg-gray-50 border-b border-gray-200">
           <tr>
@@ -199,6 +221,7 @@ export default function OSITable({
           {osis.map((osi, index) => {
             const isSelected = selectedOSI?.id_osi === osi.id_osi && selectedOSI?.nro_osi === osi.nro_osi;
             const isExpanded = expandedOSIId === osi.id_osi;
+            const isHidden = osi.oculto_para_cliente;
             return (
             <Fragment key={`${osi.id_osi}-${osi.nro_osi}-${index}`}>
             <tr
@@ -210,7 +233,7 @@ export default function OSITable({
               }`}
             >
               <td className="px-2 py-2 w-8">
-                {osi.id_osi && (
+                {osi.id_osi && osi.sesiones_ejecucion !== null && osi.sesiones_ejecucion > 1 && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -228,9 +251,17 @@ export default function OSITable({
                 )}
               </td>
               <td className="px-2 py-2">
-                <span className="text-sm font-semibold text-gray-900">
-                  {osi.nro_osi || "-"}
-                </span>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-sm font-semibold text-gray-900">
+                    {osi.nro_osi || "-"}
+                  </span>
+                  {isHidden && (
+                    <span className="inline-flex items-center gap-1 self-start px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-red-100 text-red-700">
+                      <EyeOff className="h-2.5 w-2.5" />
+                      Oculto para cliente
+                    </span>
+                  )}
+                </div>
               </td>
               <td className="px-2 py-2 min-w-0">
                 <span className="text-sm text-gray-700 truncate block max-w-[100px]">
@@ -358,6 +389,29 @@ export default function OSITable({
                   >
                     <MessageSquare className="h-3.5 w-3.5" />
                   </button>
+                  {canHideForClient && osi.id_osi && onToggleHidden && (
+                    <button
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        handleToggleHidden(osi);
+                      }}
+                      disabled={hideLoadingId === osi.id_osi}
+                      className={`inline-flex items-center justify-center rounded-md border p-1.5 transition-colors disabled:opacity-50 ${
+                        isHidden
+                          ? "border-amber-300 text-amber-700 hover:bg-amber-50"
+                          : "border-red-200 text-red-700 hover:bg-red-50"
+                      }`}
+                      title={isHidden ? "Mostrar para cliente" : "Ocultar para cliente"}
+                    >
+                      {hideLoadingId === osi.id_osi ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : isHidden ? (
+                        <EyeShow className="h-3.5 w-3.5" />
+                      ) : (
+                        <EyeOff className="h-3.5 w-3.5" />
+                      )}
+                    </button>
+                  )}
                 </div>
               </td>
             </tr>

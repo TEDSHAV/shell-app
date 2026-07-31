@@ -56,9 +56,9 @@ export async function notifySessionStatusChange(params: {
       }
     }
 
-    // 2. Look up ejecutivo_negocios from v_osi_formato_completo
+    // 2. Look up ejecutivo_negocios from v_osi_lista (lightweight view)
     const { data: osiData, error: osiError } = await supabase
-      .from("v_osi_formato_completo")
+      .from("v_osi_lista")
       .select("ejecutivo_negocios")
       .eq("id_osi", osiId)
       .maybeSingle();

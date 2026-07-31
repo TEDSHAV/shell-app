@@ -1,8 +1,10 @@
 "use server";
 
 import { cache } from "react";
-import { createClient } from "@/lib/supabase/server";
+import { unstable_cache } from "next/cache";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { notifySessionStatusChange } from "@/actions/osi-session-notifications";
+import { getUserRole, getUserRolesByApp } from "@/actions/apps";
 import type { BuildOsiPreviewInput } from "@sha/osi-formato";
 import type {
   OSIListFilters,
@@ -26,9 +28,9 @@ export async function getOSIList(
     const supabase = await createClient();
 
     let query = supabase
-      .from("v_osi_formato_completo")
+      .from("v_osi_lista")
       .select(
-        "id_osi, nro_osi, nombre_empresa, servicio, tipo_servicio, id_ciudad_direccion_ejecucion_efectiva, ejecutivo_negocios, fecha_inicio_real, fecha_fin_real, participantes_ejecucion, participantes_max_solped, id_estatus",
+        "id_osi, nro_osi, nombre_empresa, servicio, tipo_servicio, id_ciudad_direccion_ejecucion_efectiva, ejecutivo_negocios, fecha_inicio_real, fecha_fin_real, participantes_ejecucion, participantes_max_solped, id_estatus, sesiones_ejecucion",
         { count: "exact" },
       );
 
@@ -86,13 +88,18 @@ export async function getOSIList(
       return { osis: [], totalCount: 0 };
     }
 
-    // Fetch statuses and city names in parallel for enrichment
+    // Fetch statuses, city names, and visibility flags in parallel.
+    // Statuses are cached per-request; cities and visibility depend on the
+    // page data but can run concurrently with each other.
     const cityIds = (data || [])
       .map((osi: any) => osi.id_ciudad_direccion_ejecucion_efectiva)
       .filter((id: number | null) => id !== null);
     const uniqueCityIds = [...new Set(cityIds)] as number[];
+    const pageOsiIds = (data || [])
+      .map((osi: any) => osi.id_osi)
+      .filter((id: number | null) => id !== null) as number[];
 
-    const [statuses, cityResult] = await Promise.all([
+    const [statuses, cityResult, visibleOsiIds] = await Promise.all([
       getOSIStatuses(),
       uniqueCityIds.length > 0
         ? supabase
@@ -100,6 +107,7 @@ export async function getOSIList(
             .select("id, nombre_ciudad")
             .in("id", uniqueCityIds)
         : Promise.resolve({ data: null }),
+      getVisibleOsiIdsForList(pageOsiIds),
     ]);
 
     const statusMap = new Map(statuses.map((s) => [s.id, s]));
@@ -123,6 +131,8 @@ export async function getOSIList(
         id_estatus: osi.id_estatus,
         status_name: status?.nombre_estado || "Desconocido",
         status_color: status?.color_hex || "#9CA3AF",
+        oculto_para_cliente: osi.id_osi ? !visibleOsiIds.has(osi.id_osi) : true,
+        sesiones_ejecucion: osi.sesiones_ejecucion ?? null,
       };
     });
 
@@ -136,110 +146,65 @@ export async function getOSIList(
   }
 }
 
-export async function getOSIListFilterOptions(): Promise<OSIListFilterOptions> {
-  try {
-    const accessFilter = await getUserOSIAccessFilter();
+// Inner cached implementation — keyed by the user's access filter so that
+// different departments get different filter options. Revalidated every 5
+// minutes via the "osi-filters" tag.
+const getOSIListFilterOptionsCached = unstable_cache(
+  async (accessFilter: OSIAccessFilter): Promise<OSIListFilterOptions> => {
     if (accessFilter === "none") {
       return { companies: [], ejecutivos: [], cityOptions: [], statuses: [] };
     }
 
-    const supabase = await createClient();
+    const supabase = await createAdminClient();
 
     const tipoServicioOr = accessFilter === "servicios_tecnicos"
       ? "tipo_servicio.ilike.%servicios tecnicos%,tipo_servicio.ilike.%servicio tecnico%"
       : null;
 
-    const [companiesResult, ejecutivosResult, cityIdsResult, statusesResult] =
-      await Promise.all([
-        (accessFilter === "capacitacion"
-          ? supabase
-              .from("v_osi_formato_completo")
-              .select("id_empresa, nombre_empresa")
-              .not("nombre_empresa", "is", null)
-              .not("nro_osi", "like", "PEN-%")
-              .ilike("tipo_servicio", "%capacitacion%")
-          : tipoServicioOr
-            ? supabase
-                .from("v_osi_formato_completo")
-                .select("id_empresa, nombre_empresa")
-                .not("nombre_empresa", "is", null)
-                .not("nro_osi", "like", "PEN-%")
-                .or(tipoServicioOr)
-            : supabase
-                .from("v_osi_formato_completo")
-                .select("id_empresa, nombre_empresa")
-                .not("nombre_empresa", "is", null)
-                .not("nro_osi", "like", "PEN-%")
-        ).order("nombre_empresa"),
+    // Single view scan for companies, ejecutivos, and city IDs (was 3 separate
+    // scans of the 8-join view — consolidating into 1 cuts ~66% of the time).
+    let viewQuery = supabase
+      .from("v_osi_lista")
+      .select("id_empresa, nombre_empresa, ejecutivo_negocios, id_ciudad_direccion_ejecucion_efectiva")
+      .not("nro_osi", "like", "PEN-%");
 
-        (accessFilter === "capacitacion"
-          ? supabase
-              .from("v_osi_formato_completo")
-              .select("ejecutivo_negocios")
-              .not("ejecutivo_negocios", "is", null)
-              .not("nro_osi", "like", "PEN-%")
-              .ilike("tipo_servicio", "%capacitacion%")
-          : tipoServicioOr
-            ? supabase
-                .from("v_osi_formato_completo")
-                .select("ejecutivo_negocios")
-                .not("ejecutivo_negocios", "is", null)
-                .not("nro_osi", "like", "PEN-%")
-                .or(tipoServicioOr)
-            : supabase
-                .from("v_osi_formato_completo")
-                .select("ejecutivo_negocios")
-                .not("ejecutivo_negocios", "is", null)
-                .not("nro_osi", "like", "PEN-%")
-        ).order("ejecutivo_negocios"),
+    if (accessFilter === "capacitacion") {
+      viewQuery = viewQuery.ilike("tipo_servicio", "%capacitacion%");
+    } else if (tipoServicioOr) {
+      viewQuery = viewQuery.or(tipoServicioOr);
+    }
 
-        accessFilter === "capacitacion"
-          ? supabase
-              .from("v_osi_formato_completo")
-              .select("id_ciudad_direccion_ejecucion_efectiva")
-              .not("id_ciudad_direccion_ejecucion_efectiva", "is", null)
-              .not("nro_osi", "like", "PEN-%")
-              .ilike("tipo_servicio", "%capacitacion%")
-          : tipoServicioOr
-            ? supabase
-                .from("v_osi_formato_completo")
-                .select("id_ciudad_direccion_ejecucion_efectiva")
-                .not("id_ciudad_direccion_ejecucion_efectiva", "is", null)
-                .not("nro_osi", "like", "PEN-%")
-                .or(tipoServicioOr)
-            : supabase
-                .from("v_osi_formato_completo")
-                .select("id_ciudad_direccion_ejecucion_efectiva")
-                .not("id_ciudad_direccion_ejecucion_efectiva", "is", null)
-                .not("nro_osi", "like", "PEN-%"),
+    const [viewResult, statuses] = await Promise.all([
+      viewQuery,
+      getOSIStatuses(),
+    ]);
 
-        supabase
-          .from("conf_estatus")
-          .select("id, nombre_estado, color_hex, orden, es_estado_final")
-          .eq("tabla_referencia", "ejecucion_osi")
-          .order("orden"),
-      ]);
+    const viewRows = viewResult.data || [];
 
-    const companies = Array.from(
-      new Map(
-        (companiesResult.data || []).map((c: any) => [c.id_empresa, c]),
-      ).values(),
-    ) as { id_empresa: number; nombre_empresa: string }[];
+    // Dedupe companies from the single result set
+    const companyMap = new Map<number, { id_empresa: number; nombre_empresa: string }>();
+    for (const r of viewRows) {
+      if (r.nombre_empresa && r.id_empresa != null && !companyMap.has(r.id_empresa)) {
+        companyMap.set(r.id_empresa, { id_empresa: r.id_empresa, nombre_empresa: r.nombre_empresa });
+      }
+    }
+    const companies = [...companyMap.values()].sort((a, b) =>
+      a.nombre_empresa.localeCompare(b.nombre_empresa),
+    );
 
-    const ejecutivos = Array.from(
-      new Set(
-        (ejecutivosResult.data || []).map((e: any) => e.ejecutivo_negocios),
-      ),
-    )
-      .filter(Boolean)
-      .sort() as string[];
+    // Dedupe ejecutivos from the single result set
+    const ejecutivos = [...new Set(
+      viewRows.map((r: any) => r.ejecutivo_negocios).filter(Boolean),
+    )].sort() as string[];
 
-    // Fetch city names for the city IDs found in the view
+    // Dedupe city IDs from the single result set
     const uniqueCityIds = [...new Set(
-      (cityIdsResult.data || [])
-        .map((c: any) => c.id_ciudad_direccion_ejecucion_efectiva)
+      viewRows
+        .map((r: any) => r.id_ciudad_direccion_ejecucion_efectiva)
         .filter(Boolean),
     )] as number[];
+
+    // Fetch city names for the city IDs (separate small query on cat_ciudades)
     let cityOptions: { id: number; nombre_ciudad: string }[] = [];
     if (uniqueCityIds.length > 0) {
       const { data: cityData } = await supabase
@@ -253,48 +218,51 @@ export async function getOSIListFilterOptions(): Promise<OSIListFilterOptions> {
       }));
     }
 
-    const statuses: OSIStatusOption[] = (statusesResult.data || []).map(
-      (s: any) => ({
-        id: s.id,
-        nombre_estado: s.nombre_estado,
-        color_hex: s.color_hex,
-        orden: s.orden,
-        es_estado_final: s.es_estado_final,
-      }),
-    );
-
     return { companies, ejecutivos, cityOptions, statuses };
+  },
+  ["osi-filter-options"],
+  { tags: ["osi-filters"], revalidate: 300 }
+);
+
+export async function getOSIListFilterOptions(): Promise<OSIListFilterOptions> {
+  try {
+    const accessFilter = await getUserOSIAccessFilter();
+    return getOSIListFilterOptionsCached(accessFilter);
   } catch (err) {
     console.error("Error fetching OSI filter options:", err);
     return { companies: [], ejecutivos: [], cityOptions: [], statuses: [] };
   }
 }
 
-const getOSIStatuses = cache(async (): Promise<OSIStatusOption[]> => {
-  try {
-    const supabase = await createClient();
-    const { data, error } = await supabase
-      .from("conf_estatus")
-      .select("id, nombre_estado, color_hex, orden, es_estado_final")
-      .eq("tabla_referencia", "ejecucion_osi")
-      .order("orden");
+const getOSIStatuses = unstable_cache(
+  async (): Promise<OSIStatusOption[]> => {
+    try {
+      const supabase = await createAdminClient();
+      const { data, error } = await supabase
+        .from("conf_estatus")
+        .select("id, nombre_estado, color_hex, orden, es_estado_final")
+        .eq("tabla_referencia", "ejecucion_osi")
+        .order("orden");
 
-    if (error) {
-      console.error("Error fetching OSI statuses:", error);
+      if (error) {
+        console.error("Error fetching OSI statuses:", error);
+        return [];
+      }
+
+      return (data || []).map((s: any) => ({
+        id: s.id,
+        nombre_estado: s.nombre_estado,
+        color_hex: s.color_hex,
+        orden: s.orden,
+        es_estado_final: s.es_estado_final,
+      }));
+    } catch {
       return [];
     }
-
-    return (data || []).map((s: any) => ({
-      id: s.id,
-      nombre_estado: s.nombre_estado,
-      color_hex: s.color_hex,
-      orden: s.orden,
-      es_estado_final: s.es_estado_final,
-    }));
-  } catch {
-    return [];
-  }
-});
+  },
+  ["osi-statuses"],
+  { tags: ["osi-statuses"], revalidate: 300 }
+);
 
 export async function getOSIPreviewBundle(
   osiId: number,
@@ -513,7 +481,7 @@ export async function canChangeOSIStatus(osiId?: number): Promise<boolean> {
     if (osiId !== undefined) {
       const supabase = await createClient();
       const { data: osi } = await supabase
-        .from("v_osi_formato_completo")
+        .from("v_osi_lista")
         .select("tipo_servicio")
         .eq("id_osi", osiId)
         .single();
@@ -530,6 +498,119 @@ export async function canChangeOSIStatus(osiId?: number): Promise<boolean> {
   } catch (err) {
     console.error("Error checking OSI status change permission:", err);
     return false;
+  }
+}
+
+// ─── Cliente visibility ("Ocultar para cliente") ───
+
+// Returns the set of osi_ids (from the given list) that are explicitly marked
+// VISIBLE for the cliente portal. With inverted logic, OSIs are hidden by
+// default (no row = hidden); staff must explicitly toggle them to visible.
+// Used by getOSIList to flag rows that are NOT visible as "oculto_para_cliente".
+async function getVisibleOsiIdsForList(osiIds: number[]): Promise<Set<number>> {
+  if (!osiIds.length) return new Set();
+  try {
+    const supabase = await createAdminClient();
+    const { data, error } = await supabase
+      .from("osi_visibilidad_cliente")
+      .select("osi_id")
+      .in("osi_id", osiIds)
+      .eq("oculto", false);
+    if (error) {
+      console.error("Error fetching visible osi ids:", error);
+      return new Set();
+    }
+    return new Set((data || []).map((r: any) => r.osi_id as number));
+  } catch (err) {
+    console.error("Unexpected error in getVisibleOsiIdsForList:", err);
+    return new Set();
+  }
+}
+
+// True when the current user may toggle "Ocultar para cliente":
+//   - global JWT role claim is admin/superadmin, OR
+//   - has the "coordinador" role in the scapacitacion app (via authprisma).
+const getCachedCanHideOSIFromClient = cache(async (): Promise<boolean> => {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
+
+    // Reuse the shared role resolver — it checks the JWT claim first, then
+    // falls back to deriving the role from app roles (which is what actually
+    // resolves for most users in this codebase).
+    const globalRole = (await getUserRole()).toLowerCase();
+    if (globalRole === "admin" || globalRole === "superadmin") return true;
+
+    // Check for coordinador role in the scapacitacion app.
+    const appRoles = await getUserRolesByApp();
+    return appRoles?.scapacitacion?.toLowerCase() === "coordinador";
+  } catch (err) {
+    console.error("Error checking canHideOSIFromClient:", err);
+    return false;
+  }
+});
+
+export async function canHideOSIFromClient(): Promise<boolean> {
+  return getCachedCanHideOSIFromClient();
+}
+
+export async function setOSIHiddenForClient(
+  osiId: number,
+  hidden: boolean,
+): Promise<{ success: boolean; error?: string }> {
+  if (!Number.isFinite(osiId) || osiId <= 0) {
+    return { success: false, error: "OSI inválido" };
+  }
+  try {
+    const canHide = await canHideOSIFromClient();
+    if (!canHide) {
+      return {
+        success: false,
+        error: "No tiene permisos para ocultar OSIs para el cliente",
+      };
+    }
+
+    const supabase = await createClient();
+
+    // Resolve current usuarios.id for the audit column.
+    const { data: { user } } = await supabase.auth.getUser();
+    let updatedBy: number | null = null;
+    if (user) {
+      const { data: usuario } = await supabase
+        .from("usuarios")
+        .select("id")
+        .eq("id_auth", user.id)
+        .maybeSingle();
+      updatedBy = usuario?.id ?? null;
+    }
+
+    // Use the admin (service-role) client for the upsert so RLS on the
+    // control table doesn't block the write. The permission check above
+    // already gated who can call this; the admin client just ensures the
+    // write actually lands.
+    const admin = await createAdminClient();
+    const { error } = await admin
+      .from("osi_visibilidad_cliente")
+      .upsert(
+        {
+          osi_id: osiId,
+          oculto: hidden,
+          updated_by: updatedBy,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "osi_id" },
+      );
+
+    if (error) {
+      console.error("Error upserting osi_visibilidad_cliente:", error);
+      return { success: false, error: "Error al actualizar la visibilidad" };
+    }
+
+    return { success: true };
+  } catch (err) {
+    console.error("Unexpected error in setOSIHiddenForClient:", err);
+    return { success: false, error: "Error inesperado" };
   }
 }
 
@@ -687,7 +768,7 @@ export async function updateSessionStatus(
 
       const [osiData, newStatusData, prevStatusData] = await Promise.all([
         supabase
-          .from("v_osi_formato_completo")
+          .from("v_osi_lista")
           .select("nro_osi")
           .eq("id_osi", session.id_osi)
           .maybeSingle(),

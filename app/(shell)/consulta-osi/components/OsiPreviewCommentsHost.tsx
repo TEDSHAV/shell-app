@@ -33,6 +33,8 @@ export function OsiPreviewCommentsHost({
     id_estatus: null,
     status_name: "OSI",
     status_color: "#008069",
+    oculto_para_cliente: false,
+    sesiones_ejecucion: null,
   };
 
   return (
