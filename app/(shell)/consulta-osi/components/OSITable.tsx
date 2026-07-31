@@ -251,14 +251,14 @@ export default function OSITable({
                 )}
               </td>
               <td className="px-2 py-2">
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-sm font-semibold text-gray-900">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-sm font-semibold text-gray-900 whitespace-nowrap">
                     {osi.nro_osi || "-"}
                   </span>
                   {isHidden && (
-                    <span className="inline-flex items-center gap-1 self-start px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-red-100 text-red-700">
-                      <EyeOff className="h-2.5 w-2.5" />
-                      Oculto para cliente
+                    <span className="inline-flex items-center gap-0.5 px-1 py-px rounded text-[8px] font-bold uppercase tracking-wide bg-red-100 text-red-700 whitespace-nowrap leading-none">
+                      <EyeOff className="h-2 w-2 shrink-0" />
+                      Oculto
                     </span>
                   )}
                 </div>
