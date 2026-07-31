@@ -15,6 +15,7 @@ export default function RequisicionView({
   osiLookup,
   isAdminView = false,
   isCoordinador = false,
+  coordinadorDept = null,
   banks = [],
 }: {
   record: any,
@@ -22,6 +23,7 @@ export default function RequisicionView({
   osiLookup?: Map<number, string>,
   isAdminView?: boolean,
   isCoordinador?: boolean,
+  coordinadorDept?: string | null,
   banks?: { id: number; nombre: string }[],
 }) {
   const router = useRouter();
@@ -52,6 +54,10 @@ export default function RequisicionView({
   const isCoordinadorPendiente = isGeneralMode && coordinadorEstatus === "pendiente";
   const isCoordinadorAprobada = isGeneralMode && coordinadorEstatus === "aprobada";
   const isCoordinadorRechazada = isGeneralMode && coordinadorEstatus === "rechazada";
+  // A coordinador can only approve/reject internas from their own department.
+  const coordinadorDeptMatches = isCoordinador && !!coordinadorDept && !!record.departamento &&
+    coordinadorDept.trim().toLowerCase().includes(record.departamento.trim().toLowerCase());
+  const canCoordinadorAct = isCoordinadorPendiente && coordinadorDeptMatches;
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [coordinadorRejectOpen, setCoordinadorRejectOpen] = useState(false);
 
@@ -485,7 +491,7 @@ export default function RequisicionView({
               Motivo: {record.motivo_rechazo_coordinador}
             </span>
           )}
-          {isCoordinadorPendiente && isCoordinador && (
+          {canCoordinadorAct && (
             <div className="ml-auto flex gap-2">
               <Button
                 type="button"

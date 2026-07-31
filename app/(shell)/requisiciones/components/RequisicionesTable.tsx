@@ -53,11 +53,45 @@ export default function RequisicionesTable({
 }) {
   const [filters, setFilters] = useState<RequisicionFilters>(EMPTY_FILTERS);
 
-  const gerencias = useMemo(() => {
+  // Normalize a department name: trim, replace underscores/hyphens with spaces,
+  // collapse whitespace, and title-case. This deduplicates variants like
+  // "servicios tecnicos" vs "servicios_tecnicos".
+  function normalizeDept(raw: string): string {
+    return raw
+      .trim()
+      .replace(/[_-]+/g, " ")
+      .replace(/\s+/g, " ")
+      .toLowerCase()
+      .replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+
+  // Use the departamento field (preferred), falling back to gerencia_solicitante
+  // for legacy records. Normalized to deduplicate variant spellings.
+  const departamentos = useMemo(() => {
     const set = new Set<string>();
     for (const r of records) {
-      const g = r.gerencia_solicitante?.trim();
-      if (g) set.add(g.toUpperCase());
+      const raw = r.departamento?.trim() || r.gerencia_solicitante?.trim();
+      if (raw) set.add(normalizeDept(raw));
+    }
+    return [...set].sort();
+  }, [records]);
+
+  // Unique empresa/cliente names for the dropdown.
+  const empresas = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of records) {
+      const e = r.v_osi_formato_completo?.nombre_empresa?.trim();
+      if (e) set.add(e);
+    }
+    return [...set].sort();
+  }, [records]);
+
+  // Unique curso/servicio names for the dropdown.
+  const cursos = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of records) {
+      const s = r.v_osi_formato_completo?.servicio?.trim();
+      if (s) set.add(s);
     }
     return [...set].sort();
   }, [records]);
@@ -69,7 +103,7 @@ export default function RequisicionesTable({
 
       if (
         filters.gerencia &&
-        r.gerencia_solicitante?.trim().toUpperCase() !== filters.gerencia
+        normalizeDept(r.departamento?.trim() || r.gerencia_solicitante?.trim() || "") !== filters.gerencia
       ) {
         return false;
       }
@@ -86,31 +120,16 @@ export default function RequisicionesTable({
         return false;
       }
 
-      // OSI filter: match primary OSI number or any linked OSI number.
-      if (filters.osi) {
-        const q = filters.osi.toLowerCase();
-        const linkedOsiNumbers = (r.requisiciones_osis || [])
-          .map((ro: any) => osiLookup?.get(ro.id_osi))
-          .filter(Boolean) as string[];
-        const osiNumbers = [
-          r.v_osi_formato_completo?.nro_osi,
-          ...linkedOsiNumbers,
-        ].filter(Boolean).map((s) => (s as string).toLowerCase());
-        if (!osiNumbers.some((n) => n.includes(q))) return false;
-      }
-
-      // Empresa/Cliente filter: match the OSI's nombre_empresa.
+      // Empresa/Cliente filter: exact match on the OSI's nombre_empresa.
       if (filters.empresa) {
-        const q = filters.empresa.toLowerCase();
-        const empresa = (r.v_osi_formato_completo?.nombre_empresa || "").toLowerCase();
-        if (!empresa.includes(q)) return false;
+        const empresa = r.v_osi_formato_completo?.nombre_empresa || "";
+        if (empresa !== filters.empresa) return false;
       }
 
-      // Course name filter: match the OSI's servicio.
+      // Course name filter: exact match on the OSI's servicio.
       if (filters.curso) {
-        const q = filters.curso.toLowerCase();
-        const servicio = (r.v_osi_formato_completo?.servicio || "").toLowerCase();
-        if (!servicio.includes(q)) return false;
+        const servicio = r.v_osi_formato_completo?.servicio || "";
+        if (servicio !== filters.curso) return false;
       }
 
       if (filters.search) {
@@ -170,7 +189,9 @@ export default function RequisicionesTable({
     filters.estatus ||
     filters.fechaDesde ||
     filters.fechaHasta ||
-    filters.search;
+    filters.search ||
+    filters.empresa ||
+    filters.curso;
 
   return (
     <div className="space-y-4">
@@ -211,38 +232,52 @@ export default function RequisicionesTable({
         </div>
 
         <div className="flex flex-col gap-1">
-          <span className="text-[11px] font-medium text-gray-500 uppercase">OSI</span>
-          <Input
-            value={filters.osi}
-            onChange={(e) => setFilters((f) => ({ ...f, osi: e.target.value }))}
-            placeholder="Nro OSI..."
-            className="h-9 w-32"
-          />
-        </div>
-
-        <div className="flex flex-col gap-1">
           <span className="text-[11px] font-medium text-gray-500 uppercase">Empresa/Cliente</span>
-          <Input
-            value={filters.empresa}
-            onChange={(e) => setFilters((f) => ({ ...f, empresa: e.target.value }))}
-            placeholder="Empresa..."
-            className="h-9 w-40"
-          />
+          <Select
+            value={filters.empresa || "todas"}
+            onValueChange={(v: string) =>
+              setFilters((f) => ({ ...f, empresa: v === "todas" ? "" : v }))
+            }
+          >
+            <SelectTrigger className="h-9 w-44">
+              <SelectValue placeholder="Todas" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todas">Todas</SelectItem>
+              {empresas.map((e) => (
+                <SelectItem key={e} value={e}>
+                  {e}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="flex flex-col gap-1">
           <span className="text-[11px] font-medium text-gray-500 uppercase">Curso</span>
-          <Input
-            value={filters.curso}
-            onChange={(e) => setFilters((f) => ({ ...f, curso: e.target.value }))}
-            placeholder="Nombre del curso..."
-            className="h-9 w-44"
-          />
+          <Select
+            value={filters.curso || "todas"}
+            onValueChange={(v: string) =>
+              setFilters((f) => ({ ...f, curso: v === "todas" ? "" : v }))
+            }
+          >
+            <SelectTrigger className="h-9 w-48">
+              <SelectValue placeholder="Todos" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todas">Todos</SelectItem>
+              {cursos.map((c) => (
+                <SelectItem key={c} value={c}>
+                  {c}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         {isAdminView && (
           <div className="flex flex-col gap-1">
-            <span className="text-[11px] font-medium text-gray-500 uppercase">Gerencia</span>
+            <span className="text-[11px] font-medium text-gray-500 uppercase">Departamento</span>
             <Select
               value={filters.gerencia || "todas"}
               onValueChange={(v: string) =>
@@ -250,13 +285,13 @@ export default function RequisicionesTable({
               }
             >
               <SelectTrigger className="h-9 w-44">
-                <SelectValue placeholder="Todas" />
+                <SelectValue placeholder="Todos" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="todas">Todas</SelectItem>
-                {gerencias.map((g) => (
-                  <SelectItem key={g} value={g}>
-                    {g}
+                <SelectItem value="todas">Todos</SelectItem>
+                {departamentos.map((d) => (
+                  <SelectItem key={d} value={d}>
+                    {d}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -345,7 +380,7 @@ export default function RequisicionesTable({
                   Solicitante
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Gerencia
+                  Departamento
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Tipo

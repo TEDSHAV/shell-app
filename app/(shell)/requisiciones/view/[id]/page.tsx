@@ -5,6 +5,7 @@ import {
   getBanksForDropdown,
   isRequisicionesAdmin,
   isRequisicionesCoordinador,
+  getCurrentUserDepartment,
 } from "@/actions/requisiciones";
 import RequisicionView from "./components/RequisicionView";
 import { notFound } from "next/navigation";
@@ -32,6 +33,10 @@ export default async function ViewRequisicionPage({
   if (!record) {
     notFound();
   }
+
+  // Only fetch the coordinador's department if they are a coordinador (avoids an
+  // unnecessary query for regular users / admins).
+  const coordinadorDept = isCoordinador ? await getCurrentUserDepartment() : null;
 
   let osiData = null;
   const osiLookup = new Map<number, string>();
@@ -106,7 +111,7 @@ export default async function ViewRequisicionPage({
         ) : null}
       </div>
 
-      <RequisicionView record={record} osiData={osiData} osiLookup={osiLookup} isAdminView={isAdminView} isCoordinador={isCoordinador} banks={banks} />
+      <RequisicionView record={record} osiData={osiData} osiLookup={osiLookup} isAdminView={isAdminView} isCoordinador={isCoordinador} coordinadorDept={coordinadorDept} banks={banks} />
     </div>
   );
 }

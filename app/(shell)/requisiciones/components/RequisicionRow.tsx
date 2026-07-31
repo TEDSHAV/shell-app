@@ -182,7 +182,7 @@ export default function RequisicionRow({
         {record.solicitante || "-"}
       </td>
       <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 uppercase">
-        {record.gerencia_solicitante || "-"}
+        {record.departamento || record.gerencia_solicitante || "-"}
       </td>
       <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
         <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
