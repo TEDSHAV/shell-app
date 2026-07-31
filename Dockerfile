@@ -6,7 +6,7 @@ WORKDIR /app
 # Install dependencies based on the preferred package manager
 COPY package.json package-lock.json* ./
 COPY packages/osi-formato ./packages/osi-formato
-RUN npm ci
+RUN npm ci --fetch-retries=5 --fetch-retry-mintimeout=20000 --fetch-retry-maxtimeout=120000 --fetch-timeout=300000
 
 # Stage 2: Builder
 FROM node:22-alpine AS builder
@@ -25,7 +25,7 @@ RUN npm run build
 FROM node:22-alpine AS runner
 WORKDIR /app
 
-ENV NODE_ENV production
+ENV NODE_ENV=production
 # Uncomment the following line in case you want to disable telemetry during runtime.
 # ENV NEXT_TELEMETRY_DISABLED 1
 
@@ -42,9 +42,9 @@ USER nextjs
 
 EXPOSE 3000
 
-ENV PORT 3000
+ENV PORT=3000
 # set hostname to localhost
-ENV HOSTNAME "0.0.0.0"
+ENV HOSTNAME=0.0.0.0
 
 # server.js is created by next build from the standalone output
 # https://nextjs.org/docs/pages/api-reference/next-config-js/output
