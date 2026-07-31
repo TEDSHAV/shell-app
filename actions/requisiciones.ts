@@ -65,7 +65,7 @@ export const isCurrentUserCapacitacion = cache(async (): Promise<boolean> => {
   }
 });
 
-// True when the current user has the "coordinador" role (app-agnostic).
+// True when the current user has the "coordinador" role in any app.
 // Coordinadors approve internas before they are surfaced to Administración.
 export const isRequisicionesCoordinador = cache(async (): Promise<boolean> => {
   try {
@@ -80,24 +80,20 @@ export const isRequisicionesCoordinador = cache(async (): Promise<boolean> => {
       .single();
     if (!usuario) return false;
 
-    // Find the coordinador role id (across any app).
-    const { data: role } = await supabase
-      .schema("authprisma")
-      .from("roles")
-      .select("id")
-      .eq("slug", "coordinador")
-      .maybeSingle();
-    if (!role) return false;
-
+    // Join user_app_roles → roles to check if the user has ANY role with
+    // slug = 'coordinador' across all apps. This avoids the ambiguity of
+    // multiple apps each having their own 'coordinador' role.
     const { data: uar } = await supabase
       .schema("authprisma")
       .from("user_app_roles")
-      .select("id")
-      .eq("usuario_id", usuario.id)
-      .eq("role_id", role.id)
-      .maybeSingle();
+      .select(`
+        id,
+        roles!inner (slug)
+      `)
+      .eq("usuario_id", usuario.id);
 
-    return !!uar;
+    if (!uar) return false;
+    return uar.some((r: any) => r.roles?.slug === "coordinador");
   } catch {
     return false;
   }
@@ -184,6 +180,36 @@ export const getOsiNumbersForLookup = unstable_cache(
     return data as { id_osi: number; nro_osi: string | null }[];
   },
   ["osi-numbers-for-lookup"],
+  { tags: ["osi-numbers"], revalidate: 300 }
+);
+
+// Get all OSI sessions from the osi_sesion table (cached 5 minutes).
+// Returns a flat list; the form groups by id_osi.
+// Used as a fallback when v_osi_formato_completo.desglose_recursos_sesiones
+// is empty (which happens when no recursos are assigned per session).
+export const getAllOsiSessions = unstable_cache(
+  async () => {
+    const supabase = await createAdminClient();
+    const { data, error } = await supabase
+      .from("osi_sesion")
+      .select("id, id_osi, nro_sesion, fecha, hora_inicio, hora_fin")
+      .order("id_osi", { ascending: true })
+      .order("nro_sesion", { ascending: true });
+
+    if (error) {
+      console.error("Error fetching OSI sessions:", error);
+      return [];
+    }
+    return data as {
+      id: number;
+      id_osi: number;
+      nro_sesion: number;
+      fecha: string | null;
+      hora_inicio: string | null;
+      hora_fin: string | null;
+    }[];
+  },
+  ["osi-sessions-all"],
   { tags: ["osi-numbers"], revalidate: 300 }
 );
 
@@ -644,7 +670,36 @@ export async function getAllRequisiciones(isAdmin?: boolean) {
     // Administración should not see internas that are still pending coordinador
     // approval. Externas (coordinador_estatus IS NULL) and approved internas are shown.
     query = query.or("coordinador_estatus.is.null,coordinador_estatus.eq.aprobada");
-    const { data, error } = await query;
+    let { data, error } = await query;
+    // If the coordinador_estatus column doesn't exist yet, retry without the filter
+    // (admin sees all records, which is correct since no gate is active).
+    if (error && (error.message || "").includes("column") && (error.message || "").includes("does not exist")) {
+      console.warn("[getAllRequisiciones] coordinador_estatus column not found, admin sees all");
+      const fallback = await supabase
+        .from("requisiciones")
+        .select(`
+          *,
+          v_osi_formato_completo!left (
+            id_osi,
+            nro_osi,
+            servicio,
+            nombre_empresa,
+            fecha_inicio_real,
+            desglose_recursos_sesiones
+          ),
+          facilitadores!left (
+            nombre_apellido,
+            cedula
+          ),
+          requisiciones_osis (
+            id_osi
+          )
+        `)
+        .order("id", { ascending: false })
+        .is("deleted_at", null);
+      data = fallback.data;
+      error = fallback.error;
+    }
     if (error) {
       console.error("Error fetching requisiciones:", error);
       return [];
@@ -691,7 +746,11 @@ export async function getAllRequisiciones(isAdmin?: boolean) {
     const coordDept = await getCurrentUserDepartment();
     if (coordDept) {
       const coordDeptNorm = coordDept.trim().toLowerCase();
-      const { data: pendingInternas, error: pendingError } = await supabase
+
+      // Build the pending-internas query. Try filtering by departamento first;
+      // if that column doesn't exist yet (migration not applied), retry without it
+      // and filter in-memory by gerencia_solicitante as a fallback.
+      const pendingQuery = () => supabase
         .from("requisiciones")
         .select(`
           *,
@@ -713,10 +772,57 @@ export async function getAllRequisiciones(isAdmin?: boolean) {
         `)
         .eq("tipo_solicitud", "Interno")
         .eq("coordinador_estatus", "pendiente")
-        .ilike("departamento", `%${coordDeptNorm}%`)
         .neq("created_by", userId)
         .is("deleted_at", null)
         .order("id", { ascending: false });
+
+      let { data: pendingInternas, error: pendingError } = await pendingQuery()
+        .ilike("departamento", `%${coordDeptNorm}%`);
+
+      // If a column doesn't exist yet (migration not applied), retry without the
+      // new-column filters and apply them in-memory.
+      if (pendingError && (pendingError.message || "").includes("column") && (pendingError.message || "").includes("does not exist")) {
+        console.warn("[getAllRequisiciones] New column not found, falling back to base query:", pendingError.message);
+        // Retry with just the base filters (no departamento, no coordinador_estatus).
+        const fallback = await supabase
+          .from("requisiciones")
+          .select(`
+            *,
+            v_osi_formato_completo!left (
+              id_osi,
+              nro_osi,
+              servicio,
+              nombre_empresa,
+              fecha_inicio_real,
+              desglose_recursos_sesiones
+            ),
+            facilitadores!left (
+              nombre_apellido,
+              cedula
+            ),
+            requisiciones_osis (
+              id_osi
+            )
+          `)
+          .eq("tipo_solicitud", "Interno")
+          .neq("created_by", userId)
+          .is("deleted_at", null)
+          .order("id", { ascending: false });
+
+        pendingInternas = fallback.data;
+        pendingError = fallback.error;
+        // In-memory filter: coordinador_estatus === "pendiente" (null/undefined = no gate = not pending).
+        pendingInternas = (pendingInternas || []).filter((r: any) => r.coordinador_estatus === "pendiente");
+        // In-memory filter: match by gerencia_solicitante as a fallback for departamento.
+        const mappedGerencia = coordDeptNorm.includes("capacitacion") ? "servicios"
+          : coordDeptNorm.includes("negocios") ? "negocios"
+          : coordDeptNorm.includes("admin") ? "administracion"
+          : coordDeptNorm;
+        pendingInternas = pendingInternas.filter((r: any) => {
+          const g = (r.gerencia_solicitante || "").trim().toLowerCase();
+          return g === mappedGerencia || g.includes(coordDeptNorm) || coordDeptNorm.includes(g);
+        });
+      }
 
       if (pendingError) {
         console.error("Error fetching pending internas for coordinador:", pendingError);
@@ -859,25 +965,42 @@ export async function approveRequisicionByCoordinador(id: number) {
   const userResponse = await supabase.auth.getUser();
   const userId = userResponse.data.user?.id || null;
 
-  const { data: existing } = await supabase
+  // Try selecting with new columns; fall back to base columns if they don't exist.
+  let existing: any;
+  let fetchError: any;
+  ({ data: existing, error: fetchError } = await supabase
     .from("requisiciones")
     .select("tipo_solicitud, coordinador_estatus, solicitante, created_by, departamento, v_osi_formato_completo (nro_osi)")
     .eq("id", id)
-    .single();
+    .single());
 
-  if (!existing) throw new Error("Requisición no encontrada.");
+  if (fetchError && (fetchError.message || "").includes("column") && (fetchError.message || "").includes("does not exist")) {
+    const fallback = await supabase
+      .from("requisiciones")
+      .select("tipo_solicitud, solicitante, created_by, v_osi_formato_completo (nro_osi)")
+      .eq("id", id)
+      .single();
+    existing = fallback.data;
+    fetchError = fallback.error;
+  }
+
+  if (fetchError || !existing) throw new Error("Requisición no encontrada.");
   if (existing.tipo_solicitud !== "Interno") {
     throw new Error("Solo las requisiciones internas requieren aprobación del coordinador.");
   }
-  if (existing.coordinador_estatus !== "pendiente") {
+  if (existing.coordinador_estatus !== undefined && existing.coordinador_estatus !== "pendiente") {
     throw new Error("Esta requisición interna ya fue procesada por el coordinador.");
   }
   // Verify the coordinador's department matches the requisicion's department.
-  const deptOk = await isCoordinadorForDepartment(existing.departamento);
-  if (!deptOk) {
-    throw new Error("Solo puede aprobar requisiciones internas de su departamento.");
+  // Fallback: if departamento is null (column doesn't exist), allow the coordinador.
+  if (existing.departamento) {
+    const deptOk = await isCoordinadorForDepartment(existing.departamento);
+    if (!deptOk) {
+      throw new Error("Solo puede aprobar requisiciones internas de su departamento.");
+    }
   }
 
+  // Try updating with new columns; fall back to just notifying admin if they don't exist.
   const { error } = await supabase
     .from("requisiciones")
     .update({
@@ -887,10 +1010,13 @@ export async function approveRequisicionByCoordinador(id: number) {
     })
     .eq("id", id);
 
-  if (error) throw error;
+  if (error && (error.message || "").includes("column") && (error.message || "").includes("does not exist")) {
+    console.warn("[approveRequisicionByCoordinador] coordinador columns not found, notifying admin only");
+  } else if (error) {
+    throw error;
+  }
 
   // Now that the coordinador approved, surface the requisicion to Administración.
-  const nroOsi = (existing.v_osi_formato_completo as any)?.nro_osi || "";
   const requisicionLabel = "interna";
   await notifyAdminsOfNewRequisicion(id, existing.solicitante || "", requisicionLabel);
 
@@ -912,25 +1038,42 @@ export async function rejectRequisicionByCoordinador(id: number, motivo: string)
   const userResponse = await supabase.auth.getUser();
   const userId = userResponse.data.user?.id || null;
 
-  const { data: existing } = await supabase
+  // Try selecting with new columns; fall back to base columns if they don't exist.
+  let existing: any;
+  let fetchError: any;
+  ({ data: existing, error: fetchError } = await supabase
     .from("requisiciones")
     .select("tipo_solicitud, coordinador_estatus, solicitante, created_by, departamento, v_osi_formato_completo (nro_osi)")
     .eq("id", id)
-    .single();
+    .single());
 
-  if (!existing) throw new Error("Requisición no encontrada.");
+  if (fetchError && (fetchError.message || "").includes("column") && (fetchError.message || "").includes("does not exist")) {
+    const fallback = await supabase
+      .from("requisiciones")
+      .select("tipo_solicitud, solicitante, created_by, v_osi_formato_completo (nro_osi)")
+      .eq("id", id)
+      .single();
+    existing = fallback.data;
+    fetchError = fallback.error;
+  }
+
+  if (fetchError || !existing) throw new Error("Requisición no encontrada.");
   if (existing.tipo_solicitud !== "Interno") {
     throw new Error("Solo las requisiciones internas requieren aprobación del coordinador.");
   }
-  if (existing.coordinador_estatus !== "pendiente") {
+  if (existing.coordinador_estatus !== undefined && existing.coordinador_estatus !== "pendiente") {
     throw new Error("Esta requisición interna ya fue procesada por el coordinador.");
   }
   // Verify the coordinador's department matches the requisicion's department.
-  const deptOk = await isCoordinadorForDepartment(existing.departamento);
-  if (!deptOk) {
-    throw new Error("Solo puede rechazar requisiciones internas de su departamento.");
+  // Fallback: if departamento is null (column doesn't exist), allow the coordinador.
+  if (existing.departamento) {
+    const deptOk = await isCoordinadorForDepartment(existing.departamento);
+    if (!deptOk) {
+      throw new Error("Solo puede rechazar requisiciones internas de su departamento.");
+    }
   }
 
+  // Try updating with new columns; fall back to just notifying creator if they don't exist.
   const { error } = await supabase
     .from("requisiciones")
     .update({
@@ -941,7 +1084,11 @@ export async function rejectRequisicionByCoordinador(id: number, motivo: string)
     })
     .eq("id", id);
 
-  if (error) throw error;
+  if (error && (error.message || "").includes("column") && (error.message || "").includes("does not exist")) {
+    console.warn("[rejectRequisicionByCoordinador] coordinador columns not found, notifying creator only");
+  } else if (error) {
+    throw error;
+  }
 
   if (existing.created_by) {
     const requisicionLabel = "interna";

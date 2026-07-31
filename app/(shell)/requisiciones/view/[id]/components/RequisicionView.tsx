@@ -55,8 +55,12 @@ export default function RequisicionView({
   const isCoordinadorAprobada = isGeneralMode && coordinadorEstatus === "aprobada";
   const isCoordinadorRechazada = isGeneralMode && coordinadorEstatus === "rechazada";
   // A coordinador can only approve/reject internas from their own department.
-  const coordinadorDeptMatches = isCoordinador && !!coordinadorDept && !!record.departamento &&
-    coordinadorDept.trim().toLowerCase().includes(record.departamento.trim().toLowerCase());
+  // Fallback: if record.departamento is null (legacy record), allow any coordinador.
+  const coordinadorDeptMatches = isCoordinador && !!coordinadorDept && (
+    !!record.departamento
+      ? coordinadorDept.trim().toLowerCase().includes(record.departamento.trim().toLowerCase())
+      : true
+  );
   const canCoordinadorAct = isCoordinadorPendiente && coordinadorDeptMatches;
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [coordinadorRejectOpen, setCoordinadorRejectOpen] = useState(false);

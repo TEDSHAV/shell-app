@@ -4,7 +4,7 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { deleteRequisicionRecord, setRequisicionEstatus, markAllItemsVerificadas, acknowledgeRequisicionReceipt } from "@/actions/requisiciones";
+import { deleteRequisicionRecord, setRequisicionEstatus, markAllItemsVerificadas, acknowledgeRequisicionReceipt, approveRequisicionByCoordinador, rejectRequisicionByCoordinador } from "@/actions/requisiciones";
 import { Eye, Edit, Trash2, Lock, CheckCircle2, Undo2, XCircle, CalendarClock, AlertTriangle, PackageCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import MotivoModal from "./MotivoModal";
@@ -13,16 +13,21 @@ export default function RequisicionRow({
   record,
   isAdminView = false,
   osiLookup,
+  isCoordinador = false,
+  coordinadorDept = null,
 }: {
   record: any;
   isAdminView?: boolean;
   osiLookup?: Map<number, string>;
+  isCoordinador?: boolean;
+  coordinadorDept?: string | null;
 }) {
   const router = useRouter();
   const [isUpdating, setIsUpdating] = useState(false);
   const [localEstatus, setLocalEstatus] = useState<string>(record.estatus_admin || "pendiente");
   const [localItems, setLocalItems] = useState<any[]>(record.additional_items || []);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
+  const [coordinadorRejectOpen, setCoordinadorRejectOpen] = useState(false);
 
   const estatus = localEstatus;
   const isProcesada = estatus === "procesada";
@@ -35,6 +40,40 @@ export default function RequisicionRow({
     record.tipo_solicitud === "Interno" ||
     (!record.tipo_solicitud && !record.id_osi);
   const locked = isResolved && !isAdminView;
+
+  // Coordinador approval: can act on pending internas from their department.
+  const coordinadorEstatus = record.coordinador_estatus as string | null | undefined;
+  const isCoordinadorPendiente = isInterna && coordinadorEstatus === "pendiente";
+  const coordinadorDeptMatches = isCoordinador && !!coordinadorDept && (
+    !!record.departamento
+      ? coordinadorDept.trim().toLowerCase().includes(record.departamento.trim().toLowerCase())
+      : true // fallback: if departamento is null (legacy), allow any coordinador
+  );
+  const canCoordinadorAct = isCoordinadorPendiente && coordinadorDeptMatches && !isAdminView;
+
+  const handleCoordinadorApprove = async () => {
+    setIsUpdating(true);
+    try {
+      await approveRequisicionByCoordinador(record.id);
+      router.refresh();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Error al aprobar");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleCoordinadorRejectConfirm = async (motivo: string) => {
+    setIsUpdating(true);
+    try {
+      await rejectRequisicionByCoordinador(record.id, motivo);
+      router.refresh();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Error al rechazar");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
 
   const additionalItems = localItems;
   const osiFixedItems: any[] = record.osi_fixed_items || [];
@@ -291,6 +330,32 @@ export default function RequisicionRow({
               </form>
             </>
           ) : null}
+          {canCoordinadorAct && (
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                disabled={isUpdating}
+                onClick={handleCoordinadorApprove}
+                className="h-8 w-8 text-blue-600 hover:text-blue-800 hover:bg-blue-50"
+                title="Aprobar (Coordinador)"
+              >
+                <CheckCircle2 className="h-4 w-4" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                disabled={isUpdating}
+                onClick={() => setCoordinadorRejectOpen(true)}
+                className="h-8 w-8 text-red-600 hover:text-red-800 hover:bg-red-50"
+                title="Rechazar (Coordinador)"
+              >
+                <XCircle className="h-4 w-4" />
+              </Button>
+            </>
+          )}
           {isAdminView && isPendiente && (
             <>
               <Button
@@ -362,6 +427,17 @@ export default function RequisicionRow({
         confirmLabel="Rechazar"
         onConfirm={handleRejectWithMotivo}
         onClose={() => setRejectModalOpen(false)}
+      />,
+      document.body,
+    )}
+    {typeof document !== "undefined" && createPortal(
+      <MotivoModal
+        open={coordinadorRejectOpen}
+        title="Rechazar Requisición (Coordinador)"
+        description="El solicitante será notificado con el motivo del rechazo del coordinador."
+        confirmLabel="Rechazar"
+        onConfirm={handleCoordinadorRejectConfirm}
+        onClose={() => setCoordinadorRejectOpen(false)}
       />,
       document.body,
     )}

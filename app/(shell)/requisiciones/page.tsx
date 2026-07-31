@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { getAllRequisiciones, isRequisicionesAdmin, isCurrentUserCapacitacion, getOsiNumbersForLookup } from "@/actions/requisiciones";
+import { getAllRequisiciones, isRequisicionesAdmin, isCurrentUserCapacitacion, getOsiNumbersForLookup, isRequisicionesCoordinador, getCurrentUserDepartment } from "@/actions/requisiciones";
 import RequisicionesTable from "./components/RequisicionesTable";
 import { FilePlus2 } from "lucide-react";
 
@@ -11,6 +11,8 @@ export const metadata = {
 export default async function RequisicionesPage() {
   const isAdminView = await isRequisicionesAdmin();
   const isCapacitacionView = !isAdminView && await isCurrentUserCapacitacion();
+  const isCoordinador = !isAdminView && await isRequisicionesCoordinador();
+  const coordinadorDept = isCoordinador ? await getCurrentUserDepartment() : null;
   const [records, osiPairs] = await Promise.all([
     getAllRequisiciones(isAdminView),
     getOsiNumbersForLookup(),
@@ -23,6 +25,10 @@ export default async function RequisicionesPage() {
     }
   });
 
+  const pendingCoordinadorCount = (records || []).filter(
+    (r: any) => r.tipo_solicitud === "Interno" && r.coordinador_estatus === "pendiente"
+  ).length;
+
   return (
     <div className="p-4 sm:p-8">
       <div className="mb-8 flex justify-between items-center">
@@ -33,9 +39,11 @@ export default async function RequisicionesPage() {
           <p className="mt-1 text-sm text-gray-600">
             {isAdminView
               ? "Listado de todas las requisiciones recibidas por Administración."
-              : isCapacitacionView
-                ? "Listado de las requisiciones creadas por el departamento de Capacitación."
-                : "Listado de todas las solicitudes de requisición que has creado."}
+              : isCoordinador && pendingCoordinadorCount > 0
+                ? `Tienes ${pendingCoordinadorCount} requisición${pendingCoordinadorCount !== 1 ? "es" : ""} interna${pendingCoordinadorCount !== 1 ? "s" : ""} pendiente${pendingCoordinadorCount !== 1 ? "s" : ""} por aprobar.`
+                : isCapacitacionView
+                  ? "Listado de las requisiciones creadas por el departamento de Capacitación."
+                  : "Listado de todas las solicitudes de requisición que has creado."}
           </p>
         </div>
         <Link href="/requisiciones/create">
@@ -46,7 +54,13 @@ export default async function RequisicionesPage() {
         </Link>
       </div>
 
-      <RequisicionesTable records={records || []} isAdminView={isAdminView} osiLookup={osiLookup} />
+      <RequisicionesTable
+        records={records || []}
+        isAdminView={isAdminView}
+        osiLookup={osiLookup}
+        isCoordinador={isCoordinador}
+        coordinadorDept={coordinadorDept}
+      />
     </div>
   );
 }

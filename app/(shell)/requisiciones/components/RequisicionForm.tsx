@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense, useRef, Fragment } from "react";
+import { useState, useEffect, useMemo, Suspense, useRef, Fragment } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Plus, Trash2, CheckCircle2, Lock } from "lucide-react";
 import { RequisicionFormData, OSIFullData, RequisicionItem, OSIFixedItem, OSISesion } from "@/types/requisiciones";
@@ -26,54 +26,59 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
-export default function RequisicionForm({ 
-  osis = [], 
-  facilitators = [], 
+export default function RequisicionForm({
+  osis = [],
+  facilitators = [],
   userData = null,
   editRecord = null,
   userDept = "",
   isLocked = false,
   banks = [],
-}: { 
-  osis?: OSIFullData[], 
-  facilitators?: any[], 
+  osiSessions = [],
+}: {
+  osis?: OSIFullData[],
+  facilitators?: any[],
   userData?: any,
   editRecord?: any,
   userDept?: string,
   isLocked?: boolean,
   banks?: { id: number; nombre: string }[],
+  osiSessions?: { id: number; id_osi: number; nro_sesion: number; fecha: string | null; hora_inicio: string | null; hora_fin: string | null }[],
 }) {
   return (
     <Suspense fallback={<div>Cargando formulario...</div>}>
-      <RequisicionFormContent 
-        initialOsis={osis} 
-        initialFacilitators={facilitators} 
+      <RequisicionFormContent
+        initialOsis={osis}
+        initialFacilitators={facilitators}
         initialUserData={userData}
         editRecord={editRecord}
         userDept={userDept}
         isLocked={isLocked}
         banks={banks}
+        osiSessions={osiSessions}
       />
     </Suspense>
   );
 }
 
-function RequisicionFormContent({ 
-  initialOsis, 
-  initialFacilitators, 
+function RequisicionFormContent({
+  initialOsis,
+  initialFacilitators,
   initialUserData,
   editRecord,
   userDept,
   isLocked,
   banks,
-}: { 
-  initialOsis: OSIFullData[], 
-  initialFacilitators: any[], 
+  osiSessions,
+}: {
+  initialOsis: OSIFullData[],
+  initialFacilitators: any[],
   initialUserData: any,
   editRecord: any,
   userDept: string,
   isLocked: boolean,
   banks: { id: number; nombre: string }[],
+  osiSessions: { id: number; id_osi: number; nro_sesion: number; fecha: string | null; hora_inicio: string | null; hora_fin: string | null }[],
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -85,6 +90,39 @@ function RequisicionFormContent({
   const [searchTerm, setSearchTerm] = useState("");
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Build a map of id_osi → OSISesion[] from the osi_sesion table.
+  // Used as a fallback when v_osi_formato_completo.desglose_recursos_sesiones
+  // is empty (which happens when no recursos are assigned per session).
+  const osiSessionsMap = useMemo(() => {
+    const map = new Map<number, OSISesion[]>();
+    for (const s of osiSessions) {
+      const list = map.get(s.id_osi) || [];
+      list.push({
+        id: s.id,
+        id_sesion: s.id,
+        nro_sesion: s.nro_sesion,
+        fecha: s.fecha,
+        hora_inicio: s.hora_inicio,
+        hora_fin: s.hora_fin,
+        costo_traslado: null,
+        costo_impresion_material: null,
+        horas_honorarios_instructor: null,
+        tarifa_hora_honorarios: null,
+        costo_honorarios_instructor: null,
+      });
+      map.set(s.id_osi, list);
+    }
+    return map;
+  }, [osiSessions]);
+
+  // Get sessions for an OSI: prefer desglose_recursos_sesiones (has costs),
+  // fall back to osiSessionsMap (from osi_sesion table, no costs).
+  const getSessionsForOsi = (osi: OSIFullData): OSISesion[] => {
+    const desglose = (osi.desglose_recursos_sesiones as OSISesion[] | null | undefined) || [];
+    if (desglose.length > 0) return desglose;
+    return osiSessionsMap.get(osi.id_osi) || [];
+  };
 
   // Determine department-based default mode
   const userDepartment = initialUserData?.departamentos?.nombre || userDept || "";
@@ -121,9 +159,9 @@ function RequisicionFormContent({
     selectedSesion: (() => {
       const sesId = editRecord?.id_sesion;
       if (!sesId) return null;
-      const host = editSelectedOSIs[0] || initialOsis.find((o: any) => o.id_osi === editRecord?.id_osi);
-      const sesiones = (host as OSIFullData | undefined)?.desglose_recursos_sesiones as OSISesion[] | null | undefined;
-      return (sesiones || []).find((s) => s.id_sesion === sesId) || null;
+      const host = (editSelectedOSIs[0] || initialOsis.find((o: any) => o.id_osi === editRecord?.id_osi)) as OSIFullData | undefined;
+      const sesiones = host ? getSessionsForOsi(host) : [];
+      return sesiones.find((s) => s.id_sesion === sesId) || null;
     })(),
 
     // Details - Fixed Items Quantities (Removed from UI, defaulting to 1 in actions)
@@ -180,10 +218,11 @@ function RequisicionFormContent({
   // Capacitacion-specific behavior is now driven by the user's department (not gerencia_solicitante,
   // which is always the mapped grouping e.g. "Servicios").
   const isCapacitacion = !isGeneralMode && isCapacitacionDept;
-  // Capacitación Externa is restricted to a single OSI selection; Servicios Técnicos Externa remains multi-OSI.
-  const isSingleOSIMode = !isGeneralMode && isCapacitacion;
-  // Interna gets an (optional) OSI selector too, but only for Capacitación/Servicios Técnicos users.
-  const showOSISelector = !isGeneralMode || canUseExternal;
+  // Only Servicios Técnicos can select multiple OSIs; everyone else (Capacitación,
+  // Negocios) is restricted to a single OSI selection. Internas have no OSI at all.
+  const isSingleOSIMode = !isGeneralMode && !isServiciosDept;
+  // OSI selector is only shown for externas (not internas).
+  const showOSISelector = !isGeneralMode;
   const internaOsiTipoServicio = isCapacitacionDept ? "capacitacion" : "servicios tecnicos";
 
   const handleModeSwitch = (newMode: "general" | "capacitacion" | "servicios tecnicos" | "negocios") => {
@@ -289,7 +328,7 @@ function RequisicionFormContent({
         // Removing this OSI - remove its fixed items block
         newFixedItems = prev.osi_fixed_items.filter((fi) => fi.id_osi !== osi.id_osi);
       } else {
-        const sesiones = (osi.desglose_recursos_sesiones as OSISesion[] | null | undefined) || [];
+        const sesiones = getSessionsForOsi(osi);
         if (sesiones.length > 1) {
           // Multi-session OSI: defer auto-populate until the user picks a session.
           newSesion = null;
@@ -335,7 +374,7 @@ function RequisicionFormContent({
     setFormData((prev) => {
       const osi = prev.selectedOSIs[0];
       if (!osi) return prev;
-      const sesiones = (osi.desglose_recursos_sesiones as OSISesion[] | null | undefined) || [];
+      const sesiones = getSessionsForOsi(osi);
       const sesion = sesiones.find((s) => s.id_sesion === idSesion) || null;
       if (!sesion) return prev;
       const newFixedItems = isSingleOSIMode
@@ -621,11 +660,11 @@ function RequisicionFormContent({
             </div>
           )}
 
-          {/* Session selector — Capacitación Externa with a multi-session OSI */}
+          {/* Session selector — Capacitación Externa (always visible when sessions exist) */}
           {isCapacitacion && !isGeneralMode && formData.selectedOSIs.length > 0 && (() => {
             const osi = formData.selectedOSIs[0];
-            const sesiones = (osi?.desglose_recursos_sesiones as OSISesion[] | null | undefined) || [];
-            if (sesiones.length <= 1) return null;
+            const sesiones = osi ? getSessionsForOsi(osi) : [];
+            if (sesiones.length === 0) return null;
             return (
               <div className="grid grid-cols-12 border-b border-gray-300 bg-amber-50/40">
                 <div className="col-span-3 p-3 border-r border-gray-300 bg-gray-50 flex items-center font-bold text-sm">

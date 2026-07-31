@@ -46,10 +46,14 @@ export default function RequisicionesTable({
   records,
   isAdminView,
   osiLookup,
+  isCoordinador = false,
+  coordinadorDept = null,
 }: {
   records: any[];
   isAdminView: boolean;
   osiLookup?: Map<number, string>;
+  isCoordinador?: boolean;
+  coordinadorDept?: string | null;
 }) {
   const [filters, setFilters] = useState<RequisicionFilters>(EMPTY_FILTERS);
 
@@ -412,6 +416,8 @@ export default function RequisicionesTable({
                     record={record}
                     isAdminView={isAdminView}
                     osiLookup={osiLookup}
+                    isCoordinador={isCoordinador}
+                    coordinadorDept={coordinadorDept}
                   />
                 ))
               ) : (
