@@ -644,8 +644,8 @@ export async function setRequisicionEstatus(
     throw new Error("Debe indicar el motivo del rechazo.");
   }
 
-  const supabase = await createClient();
-  const userResponse = await supabase.auth.getUser();
+  const userClient = await createClient();
+  const userResponse = await userClient.auth.getUser();
   const userId = userResponse.data.user?.id || null;
 
   const isResolved = estatus === "procesada" || estatus === "rechazada";
@@ -662,15 +662,18 @@ export async function setRequisicionEstatus(
     update.motivo_rechazo = null;
   }
 
-  const { error } = await supabase
+  const adminClient = await createAdminClient();
+  const { error } = await adminClient
     .from("requisiciones")
     .update(update)
     .eq("id", id);
 
-  if (error) throw error;
+  if (error) {
+    console.error("[setRequisicionEstatus] Supabase update error:", JSON.stringify(error));
+    throw error;
+  }
 
   if (isResolved) {
-    const adminClient = await createAdminClient();
     const { data: req, error: fetchError } = await adminClient
       .from("requisiciones")
       .select(`
@@ -806,17 +809,21 @@ export async function updateItemVerificacion(
     throw new Error("No tiene permisos para verificar items de requisiciones.");
   }
 
-  const supabase = await createClient();
-  const userResponse = await supabase.auth.getUser();
+  const userClient = await createClient();
+  const userResponse = await userClient.auth.getUser();
   const userId = userResponse.data.user?.id || null;
 
-  const { data: record, error: fetchError } = await supabase
+  const adminClient = await createAdminClient();
+  const { data: record, error: fetchError } = await adminClient
     .from("requisiciones")
     .select("additional_items")
     .eq("id", requisicionId)
     .single();
 
-  if (fetchError) throw fetchError;
+  if (fetchError) {
+    console.error("[updateItemVerificacion] Fetch error:", JSON.stringify(fetchError));
+    throw fetchError;
+  }
 
   const isListo = verificacion === "listo";
   const items: RequisicionItem[] = (record?.additional_items || []).map(
@@ -831,12 +838,15 @@ export async function updateItemVerificacion(
         : item,
   );
 
-  const { error } = await supabase
+  const { error } = await adminClient
     .from("requisiciones")
     .update({ additional_items: items })
     .eq("id", requisicionId);
 
-  if (error) throw error;
+  if (error) {
+    console.error("[updateItemVerificacion] Update error:", JSON.stringify(error));
+    throw error;
+  }
   revalidatePath("/requisiciones");
 }
 
@@ -851,17 +861,21 @@ export async function updateFixedItemVerificacion(
     throw new Error("No tiene permisos para verificar items de requisiciones.");
   }
 
-  const supabase = await createClient();
-  const userResponse = await supabase.auth.getUser();
+  const userClient = await createClient();
+  const userResponse = await userClient.auth.getUser();
   const userId = userResponse.data.user?.id || null;
 
-  const { data: record, error: fetchError } = await supabase
+  const adminClient = await createAdminClient();
+  const { data: record, error: fetchError } = await adminClient
     .from("requisiciones")
     .select("osi_fixed_items")
     .eq("id", requisicionId)
     .single();
 
-  if (fetchError) throw fetchError;
+  if (fetchError) {
+    console.error("[updateFixedItemVerificacion] Fetch error:", JSON.stringify(fetchError));
+    throw fetchError;
+  }
 
   const isListo = verificacion === "listo";
   const suffixMap: Record<string, string> = {
@@ -883,12 +897,15 @@ export async function updateFixedItemVerificacion(
         : fi,
   );
 
-  const { error } = await supabase
+  const { error } = await adminClient
     .from("requisiciones")
     .update({ osi_fixed_items: fixedItems })
     .eq("id", requisicionId);
 
-  if (error) throw error;
+  if (error) {
+    console.error("[updateFixedItemVerificacion] Update error:", JSON.stringify(error));
+    throw error;
+  }
   revalidatePath("/requisiciones");
 }
 
@@ -898,17 +915,21 @@ export async function markAllItemsVerificadas(requisicionId: number) {
     throw new Error("No tiene permisos para verificar items de requisiciones.");
   }
 
-  const supabase = await createClient();
-  const userResponse = await supabase.auth.getUser();
+  const userClient = await createClient();
+  const userResponse = await userClient.auth.getUser();
   const userId = userResponse.data.user?.id || null;
 
-  const { data: record, error: fetchError } = await supabase
+  const adminClient = await createAdminClient();
+  const { data: record, error: fetchError } = await adminClient
     .from("requisiciones")
     .select("additional_items, osi_fixed_items")
     .eq("id", requisicionId)
     .single();
 
-  if (fetchError) throw fetchError;
+  if (fetchError) {
+    console.error("[markAllItemsVerificadas] Fetch error:", JSON.stringify(fetchError));
+    throw fetchError;
+  }
 
   const items: RequisicionItem[] = (record?.additional_items || []).map(
     (item: RequisicionItem) => ({ ...item, verificacion: "listo", verificado_por: userId, verificado_en: new Date().toISOString() }),
@@ -933,12 +954,15 @@ export async function markAllItemsVerificadas(requisicionId: number) {
     }),
   );
 
-  const { error } = await supabase
+  const { error } = await adminClient
     .from("requisiciones")
     .update({ additional_items: items, osi_fixed_items: fixedItems })
     .eq("id", requisicionId);
 
-  if (error) throw error;
+  if (error) {
+    console.error("[markAllItemsVerificadas] Update error:", JSON.stringify(error));
+    throw error;
+  }
   revalidatePath("/requisiciones");
 }
 
@@ -1078,7 +1102,7 @@ export async function updateFacilitadorBankingDetails(
     .eq("id", requisicionId);
 
   if (snapshotError) {
-    console.error("Error updating requisicion snapshot:", snapshotError);
+    console.error("[updateFacilitadorBankingDetails] Snapshot update error:", JSON.stringify(snapshotError));
     throw new Error("Error al actualizar el snapshot de la requisición.");
   }
 

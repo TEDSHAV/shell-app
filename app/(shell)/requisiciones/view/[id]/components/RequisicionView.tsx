@@ -164,7 +164,9 @@ export default function RequisicionView({
     }
   }
 
+  const hasFacilitador = Boolean(record.cod_facilitador || record.facilitador);
   const saveBankingDetails = async () => {
+    if (!hasFacilitador) return;
     await updateFacilitadorBankingDetails(record.id, {
       banco: editBanco,
       nro_cuenta: editNroCuenta,
