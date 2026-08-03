@@ -295,6 +295,31 @@ export const apps: AppConfig[] = [
           },
         ],
       },
+      {
+        groupLabel: "Reporte Leads",
+        links: [
+          {
+            label: "Leads",
+            path: "/reportes/crm-ejecutivos",
+            icon: Users,
+            requiredPermissions: ["reportes:access:leads"],
+          },
+          {
+            label: "Mi avance Leads",
+            path: "/reportes/crm-ejecutivos/mi-avance",
+            icon: Target,
+            requiredRoles: ["gestor_clientes"],
+            excludeRoles: ["admin", "superadmin"],
+          },
+          {
+            label: "Mi avance Leads",
+            path: "/reportes/crm-ejecutivos/mi-avance",
+            icon: Target,
+            requiredPermissions: ["reportes:mi-avance:admin-access"],
+            requiredRoles: ["admin", "superadmin"],
+          },
+        ],
+      },
       ...[requisicionesNavGroup],
     ],
   }),
