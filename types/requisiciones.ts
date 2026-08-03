@@ -7,6 +7,8 @@ export type EstatusAdmin = "pendiente" | "procesada" | "rechazada";
 
 export type CoordinadorEstatus = "pendiente" | "aprobada" | "rechazada" | null;
 
+export type LiderEstatus = "pendiente" | "aprobada" | "rechazada" | null;
+
 // Per-session cost breakdown from v_osi_formato_completo.desglose_recursos_sesiones
 export interface OSISesion {
   id: number;

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { RequisicionItem, OSIFixedItem } from "@/types/requisiciones";
-import { setRequisicionEstatus, updateItemVerificacion, updateFixedItemVerificacion, markAllItemsVerificadas, saveVerificacionProgress, getExchangeRate, updateFacilitadorBankingDetails, acknowledgeRequisicionReceipt, approveRequisicionByCoordinador, rejectRequisicionByCoordinador } from "@/actions/requisiciones";
+import { setRequisicionEstatus, updateItemVerificacion, updateFixedItemVerificacion, markAllItemsVerificadas, saveVerificacionProgress, getExchangeRate, updateFacilitadorBankingDetails, acknowledgeRequisicionReceipt, approveRequisicionByCoordinador, rejectRequisicionByCoordinador, approveRequisicionByLider, rejectRequisicionByLider } from "@/actions/requisiciones";
 import { CheckCircle2, XCircle, Undo2, Clock, AlertTriangle, CalendarClock, Copy, Check, Download, Save, Printer, PackageCheck } from "lucide-react";
 import MotivoModal from "../../../components/MotivoModal";
 
@@ -16,6 +16,8 @@ export default function RequisicionView({
   isAdminView = false,
   isCoordinador = false,
   coordinadorDept = null,
+  isLider = false,
+  liderGerencia = null,
   banks = [],
 }: {
   record: any,
@@ -24,6 +26,8 @@ export default function RequisicionView({
   isAdminView?: boolean,
   isCoordinador?: boolean,
   coordinadorDept?: string | null,
+  isLider?: boolean,
+  liderGerencia?: string | null,
   banks?: { id: number; nombre: string }[],
 }) {
   const router = useRouter();
@@ -49,21 +53,33 @@ export default function RequisicionView({
     (record.departamento || "").trim().toLowerCase().includes("capacitacion") ||
     (!(record.departamento) && (record.gerencia_solicitante || "").trim().toLowerCase() === "capacitacion")
   );
-  // Coordinador approval state (internas only).
+  // --- Lider approval state (internas only) ---
+  const liderEstatus = record.lider_estatus as "pendiente" | "aprobada" | "rechazada" | null | undefined;
+  const isLiderPendiente = isGeneralMode && liderEstatus === "pendiente";
+  const isLiderAprobada = isGeneralMode && liderEstatus === "aprobada";
+  const isLiderRechazada = isGeneralMode && liderEstatus === "rechazada";
+  // The lider of the requisicion's gerencia can approve/reject internas.
+  const canLiderAct = isLiderPendiente && isLider && !!liderGerencia;
+
+  // --- Coordinador approval state (externas only) ---
   const coordinadorEstatus = record.coordinador_estatus as "pendiente" | "aprobada" | "rechazada" | null | undefined;
-  const isCoordinadorPendiente = isGeneralMode && coordinadorEstatus === "pendiente";
-  const isCoordinadorAprobada = isGeneralMode && coordinadorEstatus === "aprobada";
-  const isCoordinadorRechazada = isGeneralMode && coordinadorEstatus === "rechazada";
-  // A coordinador can only approve/reject internas from their own department.
+  const isCoordinadorPendiente = !isGeneralMode && coordinadorEstatus === "pendiente";
+  const isCoordinadorAprobada = !isGeneralMode && coordinadorEstatus === "aprobada";
+  const isCoordinadorRechazada = !isGeneralMode && coordinadorEstatus === "rechazada";
+  // A coordinador can only approve/reject externas from their own department.
   // Fallback: if record.departamento is null (legacy record), allow any coordinador.
   const coordinadorDeptMatches = isCoordinador && !!coordinadorDept && (
     !!record.departamento
       ? coordinadorDept.trim().toLowerCase().includes(record.departamento.trim().toLowerCase())
       : true
   );
+  // Lider fallback for externas when the department has no coordinador.
+  const canLiderFallbackAct = isCoordinadorPendiente && isLider && !!liderGerencia && !coordinadorDeptMatches;
   const canCoordinadorAct = isCoordinadorPendiente && coordinadorDeptMatches;
+  const canExternasApproverAct = canCoordinadorAct || canLiderFallbackAct;
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [coordinadorRejectOpen, setCoordinadorRejectOpen] = useState(false);
+  const [liderRejectOpen, setLiderRejectOpen] = useState(false);
 
   useEffect(() => {
     if (!isCapacitacionForRate) return;
@@ -250,9 +266,9 @@ export default function RequisicionView({
     }
   };
 
-  // Coordinador approve/reject for pending internas.
+  // Coordinador (or lider fallback) approve/reject for pending EXTERNAS.
   const handleCoordinadorApprove = async () => {
-    if (!confirm("¿Aprobar esta requisición interna? Se notificará a Administración.")) return;
+    if (!confirm("¿Aprobar esta requisición externa? Se notificará a Administración.")) return;
     setIsUpdating(true);
     try {
       await approveRequisicionByCoordinador(record.id);
@@ -272,6 +288,34 @@ export default function RequisicionView({
       router.refresh();
     } catch (error) {
       console.error("Error rejecting requisicion:", error);
+      alert(error instanceof Error ? error.message : "Error al rechazar la requisición");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  // Lider approve/reject for pending INTERNAS.
+  const handleLiderApprove = async () => {
+    if (!confirm("¿Aprobar esta requisición interna? Se notificará a Administración.")) return;
+    setIsUpdating(true);
+    try {
+      await approveRequisicionByLider(record.id);
+      router.refresh();
+    } catch (error) {
+      console.error("Error approving requisicion (lider):", error);
+      alert(error instanceof Error ? error.message : "Error al aprobar la requisición");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleLiderReject = async (motivo: string) => {
+    setIsUpdating(true);
+    try {
+      await rejectRequisicionByLider(record.id, motivo);
+      router.refresh();
+    } catch (error) {
+      console.error("Error rejecting requisicion (lider):", error);
       alert(error instanceof Error ? error.message : "Error al rechazar la requisición");
     } finally {
       setIsUpdating(false);
@@ -479,8 +523,53 @@ export default function RequisicionView({
         );
       })()}
 
-      {/* Coordinador status bar (internas only) */}
-      {isGeneralMode && coordinadorEstatus && (
+      {/* Lider status bar (internas only) */}
+      {isGeneralMode && liderEstatus && (
+        <div className="mb-4 flex flex-wrap items-center gap-3 px-4 py-3 bg-white border border-gray-200 rounded-lg shadow-sm">
+          <span className="text-sm font-medium text-gray-600">Lider:</span>
+          <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
+            isLiderAprobada ? 'bg-blue-100 text-blue-800'
+            : isLiderRechazada ? 'bg-red-100 text-red-800'
+            : 'bg-amber-100 text-amber-800'
+          }`}>
+            {isLiderAprobada ? "Aprobada" : isLiderRechazada ? "Rechazada" : "Pendiente"}
+          </span>
+          {isLiderRechazada && record.motivo_rechazo_lider && (
+            <span className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1">
+              Motivo: {record.motivo_rechazo_lider}
+            </span>
+          )}
+          {canLiderAct && (
+            <div className="ml-auto flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isUpdating}
+                onClick={handleLiderApprove}
+                className="h-8 px-3 text-xs flex gap-1 border-blue-300 text-blue-700 hover:bg-blue-50"
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                Aprobar (Lider)
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isUpdating}
+                onClick={() => setLiderRejectOpen(true)}
+                className="h-8 px-3 text-xs flex gap-1 border-red-300 text-red-700 hover:bg-red-50"
+              >
+                <XCircle className="h-3.5 w-3.5" />
+                Rechazar (Lider)
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Coordinador status bar (externas only) */}
+      {!isGeneralMode && coordinadorEstatus && (
         <div className="mb-4 flex flex-wrap items-center gap-3 px-4 py-3 bg-white border border-gray-200 rounded-lg shadow-sm">
           <span className="text-sm font-medium text-gray-600">Coordinador:</span>
           <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
@@ -495,7 +584,7 @@ export default function RequisicionView({
               Motivo: {record.motivo_rechazo_coordinador}
             </span>
           )}
-          {canCoordinadorAct && (
+          {canExternasApproverAct && (
             <div className="ml-auto flex gap-2">
               <Button
                 type="button"
@@ -506,7 +595,7 @@ export default function RequisicionView({
                 className="h-8 px-3 text-xs flex gap-1 border-blue-300 text-blue-700 hover:bg-blue-50"
               >
                 <CheckCircle2 className="h-3.5 w-3.5" />
-                Aprobar (Coordinador)
+                {canLiderFallbackAct ? "Aprobar (Lider - sin coordinador)" : "Aprobar (Coordinador)"}
               </Button>
               <Button
                 type="button"
@@ -517,7 +606,7 @@ export default function RequisicionView({
                 className="h-8 px-3 text-xs flex gap-1 border-red-300 text-red-700 hover:bg-red-50"
               >
                 <XCircle className="h-3.5 w-3.5" />
-                Rechazar (Coordinador)
+                {canLiderFallbackAct ? "Rechazar (Lider - sin coordinador)" : "Rechazar (Coordinador)"}
               </Button>
             </div>
           )}
@@ -1230,7 +1319,7 @@ export default function RequisicionView({
             <div className="col-span-1 p-2 border-r border-gray-300 bg-gray-50 flex items-center font-bold">
               Banco
             </div>
-            <div className="col-span-3 p-2 border-r border-gray-300 flex items-center justify-between font-bold uppercase">
+            <div className="col-span-2 p-2 border-r border-gray-300 flex items-center justify-between font-bold uppercase">
               {isAdminView ? (
                 <select
                   value={editBanco}
@@ -1252,7 +1341,7 @@ export default function RequisicionView({
             <div className="col-span-2 p-2 border-r border-gray-300 bg-gray-50 flex items-center font-bold">
               Nro Cuenta.
             </div>
-            <div className="col-span-3 p-2 border-r border-gray-300 flex items-center justify-between font-bold break-all">
+            <div className="col-span-4 p-2 border-r border-gray-300 flex items-center justify-between font-bold break-all">
               {isAdminView ? (
                 <input
                   type="text"
@@ -1416,14 +1505,24 @@ export default function RequisicionView({
         onClose={() => setRejectModalOpen(false)}
       />
 
-      {/* Coordinador reject modal (requires a reason) */}
+      {/* Coordinador reject modal (externas, requires a reason) */}
       <MotivoModal
         open={coordinadorRejectOpen}
-        title="Rechazar Requisión Interna"
+        title="Rechazar Requisición Externa"
         description="El solicitante será notificado y la requisición quedará bloqueada."
         confirmLabel="Rechazar"
         onConfirm={handleCoordinadorReject}
         onClose={() => setCoordinadorRejectOpen(false)}
+      />
+
+      {/* Lider reject modal (internas, requires a reason) */}
+      <MotivoModal
+        open={liderRejectOpen}
+        title="Rechazar Requisición Interna"
+        description="El solicitante será notificado y la requisición quedará bloqueada."
+        confirmLabel="Rechazar"
+        onConfirm={handleLiderReject}
+        onClose={() => setLiderRejectOpen(false)}
       />
     </div>
   );

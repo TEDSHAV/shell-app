@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, Suspense, useRef, Fragment } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Plus, Trash2, CheckCircle2, Lock } from "lucide-react";
+import { Plus, Trash2, CheckCircle2, Lock, AlertCircle } from "lucide-react";
 import { RequisicionFormData, OSIFullData, RequisicionItem, OSIFixedItem, OSISesion } from "@/types/requisiciones";
 import { Button } from "@/components/ui/button";
 import {
@@ -35,6 +35,8 @@ export default function RequisicionForm({
   isLocked = false,
   banks = [],
   osiSessions = [],
+  canPlaceInterna = true,
+  isLider = false,
 }: {
   osis?: OSIFullData[],
   facilitators?: any[],
@@ -44,6 +46,8 @@ export default function RequisicionForm({
   isLocked?: boolean,
   banks?: { id: number; nombre: string }[],
   osiSessions?: { id: number; id_osi: number; nro_sesion: number; fecha: string | null; hora_inicio: string | null; hora_fin: string | null }[],
+  canPlaceInterna?: boolean,
+  isLider?: boolean,
 }) {
   return (
     <Suspense fallback={<div>Cargando formulario...</div>}>
@@ -56,6 +60,8 @@ export default function RequisicionForm({
         isLocked={isLocked}
         banks={banks}
         osiSessions={osiSessions}
+        canPlaceInterna={canPlaceInterna}
+        isLider={isLider}
       />
     </Suspense>
   );
@@ -70,6 +76,8 @@ function RequisicionFormContent({
   isLocked,
   banks,
   osiSessions,
+  canPlaceInterna,
+  isLider,
 }: {
   initialOsis: OSIFullData[],
   initialFacilitators: any[],
@@ -79,6 +87,8 @@ function RequisicionFormContent({
   isLocked: boolean,
   banks: { id: number; nombre: string }[],
   osiSessions: { id: number; id_osi: number; nro_sesion: number; fecha: string | null; hora_inicio: string | null; hora_fin: string | null }[],
+  canPlaceInterna: boolean,
+  isLider: boolean,
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -130,10 +140,11 @@ function RequisicionFormContent({
   const isCapacitacionDept = deptLower.includes("capacitacion");
   const isServiciosDept = deptLower.includes("servicios") && deptLower.includes("tecnic");
   const isNegociosDept = deptLower.includes("negocios");
-  // Capacitación, Servicios Técnicos, and Negocios can use Externa mode; everyone else defaults to General
+  // All users can place externas. Default mode is Interna for non-capacitacion/non-servicios
+  // departments, but users can switch to Externa via the tab.
   const defaultIsGeneral = !isCapacitacionDept && !isServiciosDept;
   const editIsGeneral = editRecord ? (editRecord.tipo_solicitud === "Interno" || (!editRecord.tipo_solicitud && !editRecord.id_osi)) : defaultIsGeneral;
-  const canUseExternal = isCapacitacionDept || isServiciosDept || isNegociosDept || (editRecord && !editIsGeneral);
+  const canUseExternal = true;
   // Gerencia Solicitante is always the mapped organizational grouping (never the literal department).
   const defaultGerencia = mapGerenciaSolicitante(userDepartment);
 
@@ -509,6 +520,10 @@ function RequisicionFormContent({
       alert("Esta requisición ya fue procesada por Administración y no puede editarse.");
       return;
     }
+    if (isGeneralMode && !canPlaceInterna) {
+      alert("Las requisiciones internas deben ser colocadas por el coordinador de su departamento.");
+      return;
+    }
 
     setIsLoading(true);
     try {
@@ -554,6 +569,21 @@ function RequisicionFormContent({
         <div className="mb-4 p-3 bg-amber-50 border border-amber-300 rounded-lg flex items-center gap-2 text-amber-800 text-sm font-medium">
           <Lock className="h-4 w-4" />
           Esta requisición fue procesada por Administración y está bloqueada para edición.
+        </div>
+      )}
+
+      {/* Blocking notice: analistas cannot place internas. Only the department's
+          coordinador (or, if the dept has no coordinador, the gerencia lider) can. */}
+      {isGeneralMode && !canPlaceInterna && !isLocked && (
+        <div className="mb-4 p-4 bg-blue-50 border border-blue-300 rounded-lg flex items-start gap-3 text-blue-900 text-sm">
+          <AlertCircle className="h-5 w-5 mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="font-bold mb-1">Requisiciones internas restringidas</p>
+            <p>
+              Las requisiciones internas deben ser colocadas por el coordinador de su
+              departamento. Solicite a su coordinador que la coloque por usted.
+            </p>
+          </div>
         </div>
       )}
 
@@ -1336,13 +1366,13 @@ function RequisicionFormContent({
             <div className="col-span-2 p-2 border-r border-gray-300 bg-gray-50 flex items-center font-bold">
               Nro Cuenta.
             </div>
-            <div className="col-span-4 p-2 border-r border-gray-300 flex items-center font-bold break-all">
+            <div className="col-span-3 p-2 border-r border-gray-300 flex items-center font-bold break-all">
               {formData.nro_cuenta || "-"}
             </div>
             <div className="col-span-1 p-2 border-r border-gray-300 bg-gray-50 flex items-center font-bold">
               Tel.
             </div>
-            <div className="col-span-1 p-2 flex items-center font-bold">
+            <div className="col-span-2 p-2 flex items-center font-bold">
               {formData.telefono_facilitador || "-"}
             </div>
           </div>
@@ -1360,7 +1390,7 @@ function RequisicionFormContent({
             </Button>
             <Button
               type="submit"
-              disabled={isLoading || isLocked}
+              disabled={isLoading || isLocked || (isGeneralMode && !canPlaceInterna)}
               className="bg-blue-600 hover:bg-blue-700 text-white"
             >
               {isLoading ? "Guardando..." : editId ? "Actualizar Requisición" : "Crear Requisición"}

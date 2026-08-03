@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { apps, appGroups } from "@/config/apps";
 import { NavLink, NavGroup, AppConfig, AppGroupConfig } from "@/types";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Code2 } from "lucide-react";
 import {
   get_app_icon_style,
   get_app_strip_style,
@@ -11,6 +11,7 @@ import {
 import { cn } from "@/lib/utils";
 import { getUserRolesByApp, getUserRole } from "@/actions/apps";
 import { can_access_shell_app } from "@/lib/shell-app-access";
+import { isTedMember } from "@/actions/ted";
 
 function flattenNavLinks(navLinks: (NavLink | NavGroup)[]): NavLink[] {
   return navLinks.flatMap((item) =>
@@ -19,9 +20,10 @@ function flattenNavLinks(navLinks: (NavLink | NavGroup)[]): NavLink[] {
 }
 
 export default async function DashboardPage() {
-  const [userRolesByApp, globalRole] = await Promise.all([
+  const [userRolesByApp, globalRole, tedMember] = await Promise.all([
     getUserRolesByApp(),
     getUserRole(),
+    isTedMember(),
   ]);
 
   const canAccessApp = (app: AppConfig) =>
@@ -74,6 +76,27 @@ export default async function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {tedMember && (
+          <Link
+            href="/ted"
+            className="group relative flex flex-col gap-4 p-6 pt-7 rounded-xl border border-border bg-white hover:bg-accent/40 hover:border-border/80 transition-all duration-150 overflow-hidden"
+          >
+            <div className="absolute inset-x-0 top-0 h-1 rounded-t-xl bg-gradient-to-r from-indigo-600 to-violet-500" />
+            <div className="flex items-start justify-between">
+              <div className="p-2.5 rounded-lg bg-indigo-50 text-indigo-600">
+                <Code2 className="h-5 w-5" />
+              </div>
+              <ArrowRight className="h-4 w-4 text-muted-foreground/0 group-hover:text-muted-foreground transition-all translate-x-1 group-hover:translate-x-0 duration-150" />
+            </div>
+            <div>
+              <h2 className="font-semibold text-foreground text-base">TED</h2>
+              <p className="mt-0.5 text-sm text-muted-foreground">
+                Equipo de Tecnología y Desarrollo · Programadores
+              </p>
+            </div>
+          </Link>
+        )}
+
         {renderItems.map((item, index) => {
           const is_lone_last =
             has_lone_last_card && index === renderItems.length - 1;

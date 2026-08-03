@@ -70,6 +70,140 @@ export async function notifyAdminsOfNewRequisicion(
   }
 }
 
+// Notify the gerencia's lider that an interna is pending their approval.
+// Resolves the lider via departamentos.gerencia → gerencias.lider → usuarios.id_auth.
+export async function notifyLiderOfPendingInterna(
+  requisicionId: number,
+  solicitanteName: string,
+  departamentoName: string,
+) {
+  try {
+    const supabase = await createAdminClient();
+
+    // Resolve the lider's auth id for the given department's gerencia.
+    const { data: dept, error: deptError } = await supabase
+      .from("departamentos")
+      .select("gerencia, gerencias!departamentos_gerencia_fkey(lider)")
+      .ilike("nombre", departamentoName)
+      .maybeSingle();
+
+    console.log("[notifyLiderOfPendingInterna] dept lookup:", { departamentoName, dept, deptError });
+
+    if (deptError || !dept) {
+      console.error("[notifyLiderOfPendingInterna] Could not resolve department:", deptError);
+      return;
+    }
+
+    const liderUsuarioId = (dept.gerencias as any)?.lider;
+    console.log("[notifyLiderOfPendingInterna] liderUsuarioId:", liderUsuarioId, "gerencia:", dept.gerencia);
+    if (!liderUsuarioId) {
+      console.warn("[notifyLiderOfPendingInterna] No lider set on gerencia:", dept.gerencia);
+      return;
+    }
+
+    const { data: lider, error: liderError } = await supabase
+      .from("usuarios")
+      .select("id_auth")
+      .eq("id", liderUsuarioId)
+      .maybeSingle();
+
+    console.log("[notifyLiderOfPendingInterna] lider user lookup:", { lider, liderError });
+    if (liderError || !lider?.id_auth) {
+      console.warn("[notifyLiderOfPendingInterna] Could not resolve lider auth id:", liderError);
+      return;
+    }
+
+    const { error: insertError } = await supabase
+      .schema("notify")
+      .from("inbox")
+      .insert({
+        app_slug: "administracion",
+        event_key: "requisicion_pending_lider",
+        recipient_id_auth: lider.id_auth,
+        title: "Requisición Interna Pendiente de Aprobación",
+        body: `${solicitanteName} ha creado una requisición interna que requiere su aprobación como Lider de la Gerencia.`,
+        link_path: `/requisiciones/view/${requisicionId}`,
+        dedupe_key: `requisicion:${requisicionId}:pending_lider`,
+        priority: 2,
+      });
+
+    if (insertError) {
+      console.error("[notifyLiderOfPendingInterna] Error inserting notification:", insertError);
+    }
+  } catch (err) {
+    console.error("[notifyLiderOfPendingInterna] Unexpected error:", err);
+  }
+}
+
+// Notify the department's coordinador that an externa is pending their approval.
+// If the department has no coordinador, notifies the gerencia's lider (fallback).
+export async function notifyCoordinadorOfPendingExterna(
+  requisicionId: number,
+  solicitanteName: string,
+  departamentoName: string,
+) {
+  try {
+    const supabase = await createAdminClient();
+
+    const { data: dept, error: deptError } = await supabase
+      .from("departamentos")
+      .select("coordinador, gerencia, gerencias!departamentos_gerencia_fkey(lider)")
+      .ilike("nombre", departamentoName)
+      .maybeSingle();
+
+    if (deptError || !dept) {
+      console.error("[notifyCoordinadorOfPendingExterna] Could not resolve department:", deptError);
+      return;
+    }
+
+    // Prefer the department's coordinador; fall back to the gerencia's lider.
+    const approverUsuarioId = dept.coordinador || (dept.gerencias as any)?.lider;
+    if (!approverUsuarioId) {
+      console.warn("[notifyCoordinadorOfPendingExterna] No approver found for department:", departamentoName);
+      return;
+    }
+
+    const { data: approver, error: approverError } = await supabase
+      .from("usuarios")
+      .select("id_auth")
+      .eq("id", approverUsuarioId)
+      .maybeSingle();
+
+    if (approverError || !approver?.id_auth) {
+      console.warn("[notifyCoordinadorOfPendingExterna] Could not resolve approver auth id:", approverError);
+      return;
+    }
+
+    const isFallback = !dept.coordinador;
+    const title = isFallback
+      ? "Requisición Externa Pendiente de Aprobación (Lider)"
+      : "Requisición Externa Pendiente de Aprobación (Coordinador)";
+    const body = isFallback
+      ? `${solicitanteName} ha creado una requisición externa que requiere su aprobación como Lider (el departamento no tiene coordinador asignado).`
+      : `${solicitanteName} ha creado una requisición externa que requiere su aprobación como Coordinador del departamento.`;
+
+    const { error: insertError } = await supabase
+      .schema("notify")
+      .from("inbox")
+      .insert({
+        app_slug: "administracion",
+        event_key: "requisicion_pending_coordinador",
+        recipient_id_auth: approver.id_auth,
+        title,
+        body,
+        link_path: `/requisiciones/view/${requisicionId}`,
+        dedupe_key: `requisicion:${requisicionId}:pending_coordinador`,
+        priority: 2,
+      });
+
+    if (insertError) {
+      console.error("[notifyCoordinadorOfPendingExterna] Error inserting notification:", insertError);
+    }
+  } catch (err) {
+    console.error("[notifyCoordinadorOfPendingExterna] Unexpected error:", err);
+  }
+}
+
 export async function notifyCreatorOfProcesada(
   requisicionId: number,
   creatorAuthId: string,
@@ -180,6 +314,42 @@ export async function notifyCreatorOfCoordinadorRechazada(
     }
   } catch (err) {
     console.error("[notifyCreatorOfCoordinadorRechazada] Unexpected error:", err);
+  }
+}
+
+export async function notifyCreatorOfLiderRechazada(
+  requisicionId: number,
+  creatorAuthId: string,
+  requisicionLabel: string,
+  motivo: string,
+) {
+  try {
+    const supabase = await createAdminClient();
+
+    const body = `Tu requisición ${requisicionLabel} fue rechazada por el Lider. Motivo: ${motivo}`;
+
+    const { error: insertError } = await supabase
+      .schema("notify")
+      .from("inbox")
+      .insert({
+          app_slug: "administracion",
+          event_key: "requisicion_rechazada",
+          recipient_id_auth: creatorAuthId,
+          title: "Requisición Rechazada por Lider",
+          body,
+          link_path: `/requisiciones/view/${requisicionId}`,
+          dedupe_key: `requisicion:${requisicionId}:lider_rechazada:${Date.now()}`,
+          priority: 2,
+        });
+
+    if (insertError) {
+      console.error(
+        "[notifyCreatorOfLiderRechazada] Error inserting notification:",
+        insertError,
+      );
+    }
+  } catch (err) {
+    console.error("[notifyCreatorOfLiderRechazada] Unexpected error:", err);
   }
 }
 

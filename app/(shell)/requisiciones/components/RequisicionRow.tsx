@@ -4,7 +4,7 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { deleteRequisicionRecord, setRequisicionEstatus, markAllItemsVerificadas, acknowledgeRequisicionReceipt, approveRequisicionByCoordinador, rejectRequisicionByCoordinador } from "@/actions/requisiciones";
+import { deleteRequisicionRecord, setRequisicionEstatus, markAllItemsVerificadas, acknowledgeRequisicionReceipt, approveRequisicionByCoordinador, rejectRequisicionByCoordinador, approveRequisicionByLider, rejectRequisicionByLider } from "@/actions/requisiciones";
 import { Eye, Edit, Trash2, Lock, CheckCircle2, Undo2, XCircle, CalendarClock, AlertTriangle, PackageCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import MotivoModal from "./MotivoModal";
@@ -15,12 +15,16 @@ export default function RequisicionRow({
   osiLookup,
   isCoordinador = false,
   coordinadorDept = null,
+  isLider = false,
+  liderGerencia = null,
 }: {
   record: any;
   isAdminView?: boolean;
   osiLookup?: Map<number, string>;
   isCoordinador?: boolean;
   coordinadorDept?: string | null;
+  isLider?: boolean;
+  liderGerencia?: string | null;
 }) {
   const router = useRouter();
   const [isUpdating, setIsUpdating] = useState(false);
@@ -28,6 +32,7 @@ export default function RequisicionRow({
   const [localItems, setLocalItems] = useState<any[]>(record.additional_items || []);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [coordinadorRejectOpen, setCoordinadorRejectOpen] = useState(false);
+  const [liderRejectOpen, setLiderRejectOpen] = useState(false);
 
   const estatus = localEstatus;
   const isProcesada = estatus === "procesada";
@@ -41,15 +46,56 @@ export default function RequisicionRow({
     (!record.tipo_solicitud && !record.id_osi);
   const locked = isResolved && !isAdminView;
 
-  // Coordinador approval: can act on pending internas from their department.
+  // --- Lider approval: internas pending lider approval. ---
+  // The lider of the requisicion's gerencia can approve/reject. We match by
+  // the lider's gerencia name against the requisicion's departamento gerencia.
+  // Since the row doesn't carry the departamento's gerencia directly, we rely
+  // on the server-side query (getAllRequisiciones) which already filtered
+  // pending internas to the lider's gerencia. For safety, the server action
+  // re-checks ownership.
+  const liderEstatus = record.lider_estatus as string | null | undefined;
+  const isLiderPendiente = isInterna && liderEstatus === "pendiente";
+  const canLiderAct = isLiderPendiente && isLider && !!liderGerencia && !isAdminView;
+
+  const handleLiderApprove = async () => {
+    setIsUpdating(true);
+    try {
+      await approveRequisicionByLider(record.id);
+      router.refresh();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Error al aprobar");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleLiderRejectConfirm = async (motivo: string) => {
+    setIsUpdating(true);
+    try {
+      await rejectRequisicionByLider(record.id, motivo);
+      router.refresh();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Error al rechazar");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  // --- Coordinador approval: externas pending coordinador approval. ---
+  // The coordinador of the requisicion's department can approve/reject. If the
+  // department has no coordinador, the gerencia lider is the fallback approver
+  // (the server action handles that check).
   const coordinadorEstatus = record.coordinador_estatus as string | null | undefined;
-  const isCoordinadorPendiente = isInterna && coordinadorEstatus === "pendiente";
+  const isCoordinadorPendiente = !isInterna && coordinadorEstatus === "pendiente";
   const coordinadorDeptMatches = isCoordinador && !!coordinadorDept && (
     !!record.departamento
       ? coordinadorDept.trim().toLowerCase().includes(record.departamento.trim().toLowerCase())
       : true // fallback: if departamento is null (legacy), allow any coordinador
   );
+  // Lider fallback for externas when the department has no coordinador.
+  const canLiderFallbackAct = isCoordinadorPendiente && isLider && !!liderGerencia && !isAdminView && !coordinadorDeptMatches;
   const canCoordinadorAct = isCoordinadorPendiente && coordinadorDeptMatches && !isAdminView;
+  const canExternasApproverAct = canCoordinadorAct || canLiderFallbackAct;
 
   const handleCoordinadorApprove = async () => {
     setIsUpdating(true);
@@ -262,15 +308,26 @@ export default function RequisicionRow({
         )}
       </td>
       <td className="px-4 py-4 whitespace-nowrap text-sm">
-        {isInterna && record.coordinador_estatus ? (
+        {/* Approval status: internas show lider_estatus, externas show coordinador_estatus */}
+        {isInterna && record.lider_estatus ? (
+          <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
+            record.lider_estatus === "aprobada" ? 'bg-blue-100 text-blue-800'
+            : record.lider_estatus === "rechazada" ? 'bg-red-100 text-red-800'
+            : 'bg-amber-100 text-amber-800'
+          }`}>
+            {record.lider_estatus === "aprobada" ? "Aprobada (Lider)"
+              : record.lider_estatus === "rechazada" ? "Rechazada (Lider)"
+              : "Pendiente (Lider)"}
+          </span>
+        ) : !isInterna && record.coordinador_estatus ? (
           <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
             record.coordinador_estatus === "aprobada" ? 'bg-blue-100 text-blue-800'
             : record.coordinador_estatus === "rechazada" ? 'bg-red-100 text-red-800'
             : 'bg-amber-100 text-amber-800'
           }`}>
-            {record.coordinador_estatus === "aprobada" ? "Aprobada"
-              : record.coordinador_estatus === "rechazada" ? "Rechazada"
-              : "Pendiente"}
+            {record.coordinador_estatus === "aprobada" ? "Aprobada (Coord.)"
+              : record.coordinador_estatus === "rechazada" ? "Rechazada (Coord.)"
+              : "Pendiente (Coord.)"}
           </span>
         ) : (
           <span className="text-gray-300">—</span>
@@ -330,7 +387,35 @@ export default function RequisicionRow({
               </form>
             </>
           ) : null}
-          {canCoordinadorAct && (
+          {/* Lider approve/reject for pending internas */}
+          {canLiderAct && (
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                disabled={isUpdating}
+                onClick={handleLiderApprove}
+                className="h-8 w-8 text-blue-600 hover:text-blue-800 hover:bg-blue-50"
+                title="Aprobar (Lider)"
+              >
+                <CheckCircle2 className="h-4 w-4" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                disabled={isUpdating}
+                onClick={() => setLiderRejectOpen(true)}
+                className="h-8 w-8 text-red-600 hover:text-red-800 hover:bg-red-50"
+                title="Rechazar (Lider)"
+              >
+                <XCircle className="h-4 w-4" />
+              </Button>
+            </>
+          )}
+          {/* Coordinador (or lider fallback) approve/reject for pending externas */}
+          {canExternasApproverAct && (
             <>
               <Button
                 type="button"
@@ -339,7 +424,7 @@ export default function RequisicionRow({
                 disabled={isUpdating}
                 onClick={handleCoordinadorApprove}
                 className="h-8 w-8 text-blue-600 hover:text-blue-800 hover:bg-blue-50"
-                title="Aprobar (Coordinador)"
+                title={canLiderFallbackAct ? "Aprobar (Lider - sin coordinador)" : "Aprobar (Coordinador)"}
               >
                 <CheckCircle2 className="h-4 w-4" />
               </Button>
@@ -350,7 +435,7 @@ export default function RequisicionRow({
                 disabled={isUpdating}
                 onClick={() => setCoordinadorRejectOpen(true)}
                 className="h-8 w-8 text-red-600 hover:text-red-800 hover:bg-red-50"
-                title="Rechazar (Coordinador)"
+                title={canLiderFallbackAct ? "Rechazar (Lider - sin coordinador)" : "Rechazar (Coordinador)"}
               >
                 <XCircle className="h-4 w-4" />
               </Button>
@@ -438,6 +523,17 @@ export default function RequisicionRow({
         confirmLabel="Rechazar"
         onConfirm={handleCoordinadorRejectConfirm}
         onClose={() => setCoordinadorRejectOpen(false)}
+      />,
+      document.body,
+    )}
+    {typeof document !== "undefined" && createPortal(
+      <MotivoModal
+        open={liderRejectOpen}
+        title="Rechazar Requisición (Lider)"
+        description="El solicitante será notificado con el motivo del rechazo del lider."
+        confirmLabel="Rechazar"
+        onConfirm={handleLiderRejectConfirm}
+        onClose={() => setLiderRejectOpen(false)}
       />,
       document.body,
     )}

@@ -217,12 +217,6 @@ export default function ConsultaOSIClient({ canChangeStatus, canHideForClient }:
     setCurrentPage(1);
   }, []);
 
-  const handleRowClick = useCallback((osi: OSIListItem) => {
-    if (osi.id_osi) {
-      router.push(`/consulta-osi/preview/${osi.id_osi}`);
-    }
-  }, [router]);
-
   const handleCommentsClick = useCallback((osi: OSIListItem) => {
     setSelectedOSI(osi);
     setSidebarOpen(true);
@@ -318,7 +312,6 @@ export default function ConsultaOSIClient({ canChangeStatus, canHideForClient }:
           osis={osis}
           loading={loading}
           fetching={fetching}
-          onRowClick={handleRowClick}
           onCommentsClick={handleCommentsClick}
           selectedOSI={selectedOSI}
           canChangeStatus={canChangeStatus}

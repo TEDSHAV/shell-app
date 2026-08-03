@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { getAllRequisiciones, isRequisicionesAdmin, isCurrentUserCapacitacion, getOsiNumbersForLookup, isRequisicionesCoordinador, getCurrentUserDepartment } from "@/actions/requisiciones";
+import { getAllRequisiciones, isRequisicionesAdmin, isCurrentUserCapacitacion, getOsiNumbersForLookup, isRequisicionesCoordinador, getCurrentUserDepartment, isRequisicionesLider, getCurrentUserGerencia } from "@/actions/requisiciones";
 import RequisicionesTable from "./components/RequisicionesTable";
 import { FilePlus2 } from "lucide-react";
 
@@ -13,6 +13,8 @@ export default async function RequisicionesPage() {
   const isCapacitacionView = !isAdminView && await isCurrentUserCapacitacion();
   const isCoordinador = !isAdminView && await isRequisicionesCoordinador();
   const coordinadorDept = isCoordinador ? await getCurrentUserDepartment() : null;
+  const isLider = !isAdminView && await isRequisicionesLider();
+  const liderGerencia = isLider ? await getCurrentUserGerencia() : null;
   const [records, osiPairs] = await Promise.all([
     getAllRequisiciones(isAdminView),
     getOsiNumbersForLookup(),
@@ -25,9 +27,13 @@ export default async function RequisicionesPage() {
     }
   });
 
-  const pendingCoordinadorCount = (records || []).filter(
-    (r: any) => r.tipo_solicitud === "Interno" && r.coordinador_estatus === "pendiente"
+  const pendingLiderCount = (records || []).filter(
+    (r: any) => r.tipo_solicitud === "Interno" && r.lider_estatus === "pendiente"
   ).length;
+  const pendingCoordinadorCount = (records || []).filter(
+    (r: any) => r.tipo_solicitud === "Externo" && r.coordinador_estatus === "pendiente"
+  ).length;
+  const pendingApprovalCount = pendingLiderCount + pendingCoordinadorCount;
 
   return (
     <div className="p-4 sm:p-8">
@@ -39,8 +45,8 @@ export default async function RequisicionesPage() {
           <p className="mt-1 text-sm text-gray-600">
             {isAdminView
               ? "Listado de todas las requisiciones recibidas por Administración."
-              : isCoordinador && pendingCoordinadorCount > 0
-                ? `Tienes ${pendingCoordinadorCount} requisición${pendingCoordinadorCount !== 1 ? "es" : ""} interna${pendingCoordinadorCount !== 1 ? "s" : ""} pendiente${pendingCoordinadorCount !== 1 ? "s" : ""} por aprobar.`
+              : (isLider || isCoordinador) && pendingApprovalCount > 0
+                ? `Tienes ${pendingApprovalCount} requisición${pendingApprovalCount !== 1 ? "es" : ""} pendiente${pendingApprovalCount !== 1 ? "s" : ""} por aprobar.`
                 : isCapacitacionView
                   ? "Listado de las requisiciones creadas por el departamento de Capacitación."
                   : "Listado de todas las solicitudes de requisición que has creado."}
@@ -60,6 +66,8 @@ export default async function RequisicionesPage() {
         osiLookup={osiLookup}
         isCoordinador={isCoordinador}
         coordinadorDept={coordinadorDept}
+        isLider={isLider}
+        liderGerencia={liderGerencia}
       />
     </div>
   );

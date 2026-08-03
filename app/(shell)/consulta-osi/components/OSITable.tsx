@@ -10,7 +10,6 @@ interface OSITableProps {
   osis: OSIListItem[];
   loading: boolean;
   fetching?: boolean;
-  onRowClick: (osi: OSIListItem) => void;
   onCommentsClick: (osi: OSIListItem) => void;
   selectedOSI: OSIListItem | null;
   canChangeStatus: boolean;
@@ -25,7 +24,6 @@ export default function OSITable({
   osis,
   loading,
   fetching = false,
-  onRowClick,
   onCommentsClick,
   selectedOSI,
   canChangeStatus,
@@ -225,8 +223,7 @@ export default function OSITable({
             return (
             <Fragment key={`${osi.id_osi}-${osi.nro_osi}-${index}`}>
             <tr
-              onClick={() => onRowClick(osi)}
-              className={`transition-colors cursor-pointer border-l-2 ${
+              className={`transition-colors border-l-2 ${
                 isSelected
                   ? "bg-blue-50 border-l-blue-500"
                   : "hover:bg-blue-50 border-l-transparent"
@@ -373,7 +370,6 @@ export default function OSITable({
                 <div className="inline-flex items-center gap-1.5">
                   <Link
                     href={`/consulta-osi/preview/${osi.id_osi}`}
-                    onClick={(event) => event.stopPropagation()}
                     className="inline-flex items-center justify-center rounded-md border border-gray-200 p-1.5 text-blue-700 hover:bg-blue-50 transition-colors"
                     title="Ver formato OSI"
                   >
@@ -416,99 +412,113 @@ export default function OSITable({
               </td>
             </tr>
             {isExpanded && osi.id_osi && (
-              <tr className="bg-gray-50/50">
-                <td colSpan={11} className="px-4 py-3">
-                  {sessionsLoading === osi.id_osi ? (
-                    <div className="flex items-center gap-2 text-xs text-gray-500">
+              sessionsLoading === osi.id_osi ? (
+                <tr className="bg-gray-50/50">
+                  <td colSpan={11} className="px-2 py-2">
+                    <div className="flex items-center gap-2 text-xs text-gray-500 pl-10">
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       Cargando sesiones...
                     </div>
-                  ) : (sessionsByOSI[osi.id_osi] || []).length === 0 ? (
-                    <p className="text-xs text-gray-500 italic">Esta OSI no tiene sesiones registradas.</p>
-                  ) : (
-                    <div className="space-y-2">
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-xs border border-gray-200 rounded">
-                          <thead className="bg-gray-100">
-                            <tr>
-                              <th className="px-2 py-1.5 text-left font-semibold text-gray-600 uppercase tracking-wider">Sesión</th>
-                              <th className="px-2 py-1.5 text-left font-semibold text-gray-600 uppercase tracking-wider">Fecha</th>
-                              <th className="px-2 py-1.5 text-left font-semibold text-gray-600 uppercase tracking-wider">Hora Inicio</th>
-                              <th className="px-2 py-1.5 text-left font-semibold text-gray-600 uppercase tracking-wider">Hora Fin</th>
-                              <th className="px-2 py-1.5 text-left font-semibold text-gray-600 uppercase tracking-wider">Estado</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-200">
-                            {(sessionsByOSI[osi.id_osi] || []).map((session) => (
-                              <tr key={session.id}>
-                                <td className="px-2 py-1.5 font-medium text-gray-700">#{session.nro_sesion}</td>
-                                <td className="px-2 py-1.5 text-gray-600">{formatDate(session.fecha)}</td>
-                                <td className="px-2 py-1.5 text-gray-600">{session.hora_inicio || "-"}</td>
-                                <td className="px-2 py-1.5 text-gray-600">{session.hora_fin || "-"}</td>
-                                <td className="px-2 py-1.5">
-                                  {canChangeStatus && onSessionStatusChange ? (
-                                    <div className="relative inline-block">
-                                      {sessionStatusLoading === session.id ? (
-                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] text-gray-500">
-                                          <Loader2 className="h-3 w-3 animate-spin" />
-                                          ...
-                                        </span>
-                                      ) : (
-                                        <div
-                                          className="relative inline-flex items-center rounded-full transition-opacity hover:opacity-80"
-                                          style={{
-                                            backgroundColor: `${getStatusInfo(session.id_estatus).color}20`,
-                                            border: `1px solid ${getStatusInfo(session.id_estatus).color}60`,
-                                          }}
-                                        >
-                                          <select
-                                            value={session.id_estatus ?? ""}
-                                            onChange={(e) => {
-                                              const val = e.target.value;
-                                              if (val) handleSessionStatusSelect(session, parseInt(val));
-                                            }}
-                                            className="text-[10px] font-bold uppercase rounded-full pl-2 pr-5 py-0.5 text-center border-0 cursor-pointer focus:ring-2 focus:ring-blue-400 focus:outline-none appearance-none bg-transparent min-w-[55px]"
-                                            style={{ color: getStatusInfo(session.id_estatus).color }}
-                                            title={`${getStatusInfo(session.id_estatus).name} — Click para cambiar`}
-                                          >
-                                            <option value="" style={{ backgroundColor: "white", color: "#374151", textTransform: "none", fontWeight: "normal", fontSize: "12px" }}>
-                                              Sin estado
-                                            </option>
-                                            {statuses.map((status) => (
-                                              <option
-                                                key={status.id}
-                                                value={status.id}
-                                                style={{ backgroundColor: "white", color: "#374151", textTransform: "none", fontWeight: "normal", fontSize: "12px" }}
-                                              >
-                                                {status.nombre_estado}
-                                              </option>
-                                            ))}
-                                          </select>
-                                          <ChevronDown
-                                            className="pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 h-3 w-3"
-                                            style={{ color: getStatusInfo(session.id_estatus).color }}
-                                          />
-                                        </div>
-                                      )}
-                                    </div>
-                                  ) : (
-                                    <span
-                                      className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase whitespace-nowrap"
-                                      style={{
-                                        backgroundColor: `${getStatusInfo(session.id_estatus).color}20`,
-                                        color: getStatusInfo(session.id_estatus).color,
-                                      }}
+                  </td>
+                </tr>
+              ) : (sessionsByOSI[osi.id_osi] || []).length === 0 ? (
+                <tr className="bg-gray-50/50">
+                  <td colSpan={11} className="px-2 py-2">
+                    <p className="text-xs text-gray-500 italic pl-10">Esta OSI no tiene sesiones registradas.</p>
+                  </td>
+                </tr>
+              ) : (
+                <>
+                  {/* Session header row — aligned with outer table columns */}
+                  <tr className="bg-gray-100 border-y border-gray-200">
+                    <td className="px-2 py-1.5 w-8"></td>
+                    <td className="px-2 py-1.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Sesión</td>
+                    <td className="px-2 py-1.5"></td>
+                    <td className="px-2 py-1.5"></td>
+                    <td className="px-2 py-1.5"></td>
+                    <td className="px-2 py-1.5"></td>
+                    <td className="px-2 py-1.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Fecha</td>
+                    <td className="px-2 py-1.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Hora Inicio</td>
+                    <td className="px-2 py-1.5"></td>
+                    <td className="px-2 py-1.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Estado</td>
+                    <td className="px-2 py-1.5"></td>
+                  </tr>
+                  {/* Session data rows */}
+                  {(sessionsByOSI[osi.id_osi] || []).map((session) => (
+                    <tr key={session.id} className="bg-gray-50/50 border-b border-gray-100">
+                      <td className="px-2 py-1.5 w-8"></td>
+                      <td className="px-2 py-1.5 text-xs font-medium text-gray-700">#{session.nro_sesion}</td>
+                      <td className="px-2 py-1.5"></td>
+                      <td className="px-2 py-1.5"></td>
+                      <td className="px-2 py-1.5"></td>
+                      <td className="px-2 py-1.5"></td>
+                      <td className="px-2 py-1.5 text-xs text-gray-600 whitespace-nowrap">{formatDate(session.fecha)}</td>
+                      <td className="px-2 py-1.5 text-xs text-gray-600 whitespace-nowrap">{session.hora_inicio || "-"}</td>
+                      <td className="px-2 py-1.5"></td>
+                      <td className="px-2 py-1.5">
+                        {canChangeStatus && onSessionStatusChange ? (
+                          <div className="relative inline-block">
+                            {sessionStatusLoading === session.id ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] text-gray-500">
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                                ...
+                              </span>
+                            ) : (
+                              <div
+                                className="relative inline-flex items-center rounded-full transition-opacity hover:opacity-80"
+                                style={{
+                                  backgroundColor: `${getStatusInfo(session.id_estatus).color}20`,
+                                  border: `1px solid ${getStatusInfo(session.id_estatus).color}60`,
+                                }}
+                              >
+                                <select
+                                  value={session.id_estatus ?? ""}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (val) handleSessionStatusSelect(session, parseInt(val));
+                                  }}
+                                  className="text-[10px] font-bold uppercase rounded-full pl-2 pr-5 py-0.5 text-center border-0 cursor-pointer focus:ring-2 focus:ring-blue-400 focus:outline-none appearance-none bg-transparent min-w-[55px]"
+                                  style={{ color: getStatusInfo(session.id_estatus).color }}
+                                  title={`${getStatusInfo(session.id_estatus).name} — Click para cambiar`}
+                                >
+                                  <option value="" style={{ backgroundColor: "white", color: "#374151", textTransform: "none", fontWeight: "normal", fontSize: "12px" }}>
+                                    Sin estado
+                                  </option>
+                                  {statuses.map((status) => (
+                                    <option
+                                      key={status.id}
+                                      value={status.id}
+                                      style={{ backgroundColor: "white", color: "#374151", textTransform: "none", fontWeight: "normal", fontSize: "12px" }}
                                     >
-                                      {getStatusInfo(session.id_estatus).name}
-                                    </span>
-                                  )}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                      {allFinalBanner[osi.id_osi] && (
+                                      {status.nombre_estado}
+                                    </option>
+                                  ))}
+                                </select>
+                                <ChevronDown
+                                  className="pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 h-3 w-3"
+                                  style={{ color: getStatusInfo(session.id_estatus).color }}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span
+                            className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase whitespace-nowrap"
+                            style={{
+                              backgroundColor: `${getStatusInfo(session.id_estatus).color}20`,
+                              color: getStatusInfo(session.id_estatus).color,
+                            }}
+                          >
+                            {getStatusInfo(session.id_estatus).name}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-2 py-1.5"></td>
+                    </tr>
+                  ))}
+                  {allFinalBanner[osi.id_osi] && (
+                    <tr className="bg-gray-50/50">
+                      <td colSpan={11} className="px-2 py-2">
                         <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-300 rounded text-xs text-amber-800">
                           <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
                           <span>Todas las sesiones están en estado final.</span>
@@ -525,11 +535,11 @@ export default function OSITable({
                             Actualizar OSI
                           </button>
                         </div>
-                      )}
-                    </div>
+                      </td>
+                    </tr>
                   )}
-                </td>
-              </tr>
+                </>
+              )
             )}
             </Fragment>
             );

@@ -6,6 +6,8 @@ import {
   isRequisicionesAdmin,
   isRequisicionesCoordinador,
   getCurrentUserDepartment,
+  isRequisicionesLider,
+  getCurrentUserGerencia,
 } from "@/actions/requisiciones";
 import RequisicionView from "./components/RequisicionView";
 import { notFound } from "next/navigation";
@@ -17,17 +19,18 @@ export const metadata = {
   title: "Detalle de Requisición | PRISMA",
 };
 
-export default async function ViewRequisicionPage({ 
-  params 
-}: { 
-  params: Promise<{ id: string }> 
+export default async function ViewRequisicionPage({
+  params
+}: {
+  params: Promise<{ id: string }>
 }) {
   const { id } = await params;
-  const [record, isAdminView, isCoordinador, banks] = await Promise.all([
+  const [record, isAdminView, isCoordinador, banks, isLider] = await Promise.all([
     getRequisicionRecord(parseInt(id)),
     isRequisicionesAdmin(),
     isRequisicionesCoordinador(),
     getBanksForDropdown(),
+    isRequisicionesLider(),
   ]);
 
   if (!record) {
@@ -37,6 +40,7 @@ export default async function ViewRequisicionPage({
   // Only fetch the coordinador's department if they are a coordinador (avoids an
   // unnecessary query for regular users / admins).
   const coordinadorDept = isCoordinador ? await getCurrentUserDepartment() : null;
+  const liderGerencia = isLider ? await getCurrentUserGerencia() : null;
 
   let osiData = null;
   const osiLookup = new Map<number, string>();
@@ -111,7 +115,7 @@ export default async function ViewRequisicionPage({
         ) : null}
       </div>
 
-      <RequisicionView record={record} osiData={osiData} osiLookup={osiLookup} isAdminView={isAdminView} isCoordinador={isCoordinador} coordinadorDept={coordinadorDept} banks={banks} />
+      <RequisicionView record={record} osiData={osiData} osiLookup={osiLookup} isAdminView={isAdminView} isCoordinador={isCoordinador} coordinadorDept={coordinadorDept} isLider={isLider} liderGerencia={liderGerencia} banks={banks} />
     </div>
   );
 }

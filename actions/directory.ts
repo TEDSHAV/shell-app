@@ -10,7 +10,7 @@ export async function getAllUsers(): Promise<DirectoryUser[]> {
     const { data, error } = await supabase
       .from("usuarios")
       .select(
-        "id, nombre_apellido, email_corporativo, telefono, cargo, departamento, esta_activo, departamentos(nombre)",
+        "id, nombre_apellido, email_corporativo, telefono, cargo, departamento, esta_activo, departamentos!usuarios_departamento_fkey(nombre)",
       )
       .order("nombre_apellido");
 
