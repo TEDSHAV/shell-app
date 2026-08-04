@@ -1243,18 +1243,21 @@ export async function approveRequisicionByCoordinador(id: number) {
   const supabase = await createClient();
   const userResponse = await supabase.auth.getUser();
   const userId = userResponse.data.user?.id || null;
+  const usuarioId = await getCurrentUserUsuarioId();
+
+  const admin = await createAdminClient();
 
   // Try selecting with new columns; fall back to base columns if they don't exist.
   let existing: any;
   let fetchError: any;
-  ({ data: existing, error: fetchError } = await supabase
+  ({ data: existing, error: fetchError } = await admin
     .from("requisiciones")
     .select("tipo_solicitud, coordinador_estatus, solicitante, created_by, departamento, v_osi_formato_completo (nro_osi)")
     .eq("id", id)
     .single());
 
   if (fetchError && (fetchError.message || "").includes("column") && (fetchError.message || "").includes("does not exist")) {
-    const fallback = await supabase
+    const fallback = await admin
       .from("requisiciones")
       .select("tipo_solicitud, solicitante, created_by, v_osi_formato_completo (nro_osi)")
       .eq("id", id)
@@ -1287,11 +1290,11 @@ export async function approveRequisicionByCoordinador(id: number) {
   }
 
   // Try updating with new columns; fall back to just notifying admin if they don't exist.
-  const { error } = await supabase
+  const { error } = await admin
     .from("requisiciones")
     .update({
       coordinador_estatus: "aprobada",
-      coordinador_por: userId,
+      coordinador_por: usuarioId,
       coordinador_at: new Date().toISOString(),
     })
     .eq("id", id);
@@ -1320,18 +1323,21 @@ export async function rejectRequisicionByCoordinador(id: number, motivo: string)
   const supabase = await createClient();
   const userResponse = await supabase.auth.getUser();
   const userId = userResponse.data.user?.id || null;
+  const usuarioId = await getCurrentUserUsuarioId();
+
+  const admin = await createAdminClient();
 
   // Try selecting with new columns; fall back to base columns if they don't exist.
   let existing: any;
   let fetchError: any;
-  ({ data: existing, error: fetchError } = await supabase
+  ({ data: existing, error: fetchError } = await admin
     .from("requisiciones")
     .select("tipo_solicitud, coordinador_estatus, solicitante, created_by, departamento, v_osi_formato_completo (nro_osi)")
     .eq("id", id)
     .single());
 
   if (fetchError && (fetchError.message || "").includes("column") && (fetchError.message || "").includes("does not exist")) {
-    const fallback = await supabase
+    const fallback = await admin
       .from("requisiciones")
       .select("tipo_solicitud, solicitante, created_by, v_osi_formato_completo (nro_osi)")
       .eq("id", id)
@@ -1364,11 +1370,11 @@ export async function rejectRequisicionByCoordinador(id: number, motivo: string)
   }
 
   // Try updating with new columns; fall back to just notifying creator if they don't exist.
-  const { error } = await supabase
+  const { error } = await admin
     .from("requisiciones")
     .update({
       coordinador_estatus: "rechazada",
-      coordinador_por: userId,
+      coordinador_por: usuarioId,
       coordinador_at: new Date().toISOString(),
       motivo_rechazo_coordinador: motivo.trim(),
     })
@@ -1395,18 +1401,21 @@ export async function approveRequisicionByLider(id: number) {
   const supabase = await createClient();
   const userResponse = await supabase.auth.getUser();
   const userId = userResponse.data.user?.id || null;
+  const usuarioId = await getCurrentUserUsuarioId();
+
+  const admin = await createAdminClient();
 
   // Try selecting with new columns; fall back to base columns if they don't exist.
   let existing: any;
   let fetchError: any;
-  ({ data: existing, error: fetchError } = await supabase
+  ({ data: existing, error: fetchError } = await admin
     .from("requisiciones")
     .select("tipo_solicitud, lider_estatus, solicitante, created_by, departamento, v_osi_formato_completo (nro_osi)")
     .eq("id", id)
     .single());
 
   if (fetchError && (fetchError.message || "").includes("column") && (fetchError.message || "").includes("does not exist")) {
-    const fallback = await supabase
+    const fallback = await admin
       .from("requisiciones")
       .select("tipo_solicitud, solicitante, created_by, v_osi_formato_completo (nro_osi)")
       .eq("id", id)
@@ -1435,11 +1444,11 @@ export async function approveRequisicionByLider(id: number) {
   }
 
   // Try updating with new columns; fall back to just notifying admin if they don't exist.
-  const { error } = await supabase
+  const { error } = await admin
     .from("requisiciones")
     .update({
       lider_estatus: "aprobada",
-      lider_por: userId,
+      lider_por: usuarioId,
       lider_at: new Date().toISOString(),
     })
     .eq("id", id);
@@ -1467,18 +1476,21 @@ export async function rejectRequisicionByLider(id: number, motivo: string) {
   const supabase = await createClient();
   const userResponse = await supabase.auth.getUser();
   const userId = userResponse.data.user?.id || null;
+  const usuarioId = await getCurrentUserUsuarioId();
+
+  const admin = await createAdminClient();
 
   // Try selecting with new columns; fall back to base columns if they don't exist.
   let existing: any;
   let fetchError: any;
-  ({ data: existing, error: fetchError } = await supabase
+  ({ data: existing, error: fetchError } = await admin
     .from("requisiciones")
     .select("tipo_solicitud, lider_estatus, solicitante, created_by, departamento, v_osi_formato_completo (nro_osi)")
     .eq("id", id)
     .single());
 
   if (fetchError && (fetchError.message || "").includes("column") && (fetchError.message || "").includes("does not exist")) {
-    const fallback = await supabase
+    const fallback = await admin
       .from("requisiciones")
       .select("tipo_solicitud, solicitante, created_by, v_osi_formato_completo (nro_osi)")
       .eq("id", id)
@@ -1507,11 +1519,11 @@ export async function rejectRequisicionByLider(id: number, motivo: string) {
   }
 
   // Try updating with new columns; fall back to just notifying creator if they don't exist.
-  const { error } = await supabase
+  const { error } = await admin
     .from("requisiciones")
     .update({
       lider_estatus: "rechazada",
-      lider_por: userId,
+      lider_por: usuarioId,
       lider_at: new Date().toISOString(),
       motivo_rechazo_lider: motivo.trim(),
     })
