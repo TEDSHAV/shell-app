@@ -295,31 +295,6 @@ export const apps: AppConfig[] = [
           },
         ],
       },
-      {
-        groupLabel: "Reporte Leads",
-        links: [
-          {
-            label: "Leads",
-            path: "/reportes/crm-ejecutivos",
-            icon: Users,
-            requiredPermissions: ["reportes:access:leads"],
-          },
-          {
-            label: "Mi avance Leads",
-            path: "/reportes/crm-ejecutivos/mi-avance",
-            icon: Target,
-            requiredRoles: ["gestor_clientes"],
-            excludeRoles: ["admin", "superadmin"],
-          },
-          {
-            label: "Mi avance Leads",
-            path: "/reportes/crm-ejecutivos/mi-avance",
-            icon: Target,
-            requiredPermissions: ["reportes:mi-avance:admin-access"],
-            requiredRoles: ["admin", "superadmin"],
-          },
-        ],
-      },
       ...[requisicionesNavGroup],
     ],
   }),
@@ -338,7 +313,7 @@ export const apps: AppConfig[] = [
     dashboardOrder: 6,
     navLinks: [
       {
-        groupLabel: "Indicador",
+        groupLabel: "FINANZAS",
         department: "negocios",
         links: [
           {
@@ -357,6 +332,32 @@ export const apps: AppConfig[] = [
           {
             label: "Mi avance",
             path: "/presupuestos/mi-avance",
+            icon: Target,
+            requiredPermissions: ["reportes:mi-avance:admin-access"],
+            requiredRoles: ["admin", "superadmin"],
+          },
+        ],
+      },
+      {
+        groupLabel: "CRM",
+        department: "negocios",
+        links: [
+          {
+            label: "Leads",
+            path: "/crm-ejecutivos",
+            icon: Users,
+            requiredPermissions: ["reportes:access:leads"],
+          },
+          {
+            label: "Mi avance Leads",
+            path: "/crm-ejecutivos/mi-avance",
+            icon: Target,
+            requiredRoles: ["gestor_clientes"],
+            excludeRoles: ["admin", "superadmin"],
+          },
+          {
+            label: "Mi avance Leads",
+            path: "/crm-ejecutivos/mi-avance",
             icon: Target,
             requiredPermissions: ["reportes:mi-avance:admin-access"],
             requiredRoles: ["admin", "superadmin"],
