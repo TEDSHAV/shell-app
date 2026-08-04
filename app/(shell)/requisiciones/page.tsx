@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { getAllRequisiciones, isRequisicionesAdmin, isCurrentUserCapacitacion, getOsiNumbersForLookup, isRequisicionesCoordinador, getCurrentUserDepartment, isRequisicionesLider, getCurrentUserGerencia } from "@/actions/requisiciones";
+import { getAllRequisiciones, isRequisicionesAdmin, isCurrentUserCapacitacion, getOsiNumbersForLookup, getCoordinatedDepartments, getDepartmentsInLedGerencias, getCoordinatorlessDepartmentsInLedGerencias } from "@/actions/requisiciones";
 import RequisicionesTable from "./components/RequisicionesTable";
 import { FilePlus2 } from "lucide-react";
 
@@ -11,10 +11,18 @@ export const metadata = {
 export default async function RequisicionesPage() {
   const isAdminView = await isRequisicionesAdmin();
   const isCapacitacionView = !isAdminView && await isCurrentUserCapacitacion();
-  const isCoordinador = !isAdminView && await isRequisicionesCoordinador();
-  const coordinadorDept = isCoordinador ? await getCurrentUserDepartment() : null;
-  const isLider = !isAdminView && await isRequisicionesLider();
-  const liderGerencia = isLider ? await getCurrentUserGerencia() : null;
+  // Approval scope is resolved from departamentos.coordinador / gerencias.lider,
+  // never from the user's own department (a coordinador/lider may belong to a
+  // different department than the one they coordinate/lead).
+  const coordinadorDepts = isAdminView ? [] : await getCoordinatedDepartments();
+  const isCoordinador = coordinadorDepts.length > 0;
+  const [liderDepts, liderFallbackDepts] = isAdminView
+    ? [[], []]
+    : await Promise.all([
+        getDepartmentsInLedGerencias(),
+        getCoordinatorlessDepartmentsInLedGerencias(),
+      ]);
+  const isLider = liderDepts.length > 0;
   const [records, osiPairs] = await Promise.all([
     getAllRequisiciones(isAdminView),
     getOsiNumbersForLookup(),
@@ -65,9 +73,10 @@ export default async function RequisicionesPage() {
         isAdminView={isAdminView}
         osiLookup={osiLookup}
         isCoordinador={isCoordinador}
-        coordinadorDept={coordinadorDept}
+        coordinadorDepts={coordinadorDepts}
         isLider={isLider}
-        liderGerencia={liderGerencia}
+        liderDepts={liderDepts}
+        liderFallbackDepts={liderFallbackDepts}
       />
     </div>
   );

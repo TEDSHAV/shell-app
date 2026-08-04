@@ -23,7 +23,10 @@ import {
   notifyCoordinadorOfPendingExterna,
 } from "@/actions/requisicion-notifications";
 import { getUsdToVesRate } from "@/lib/exchange-rate";
-import { isCapacitacionDept } from "@/lib/requisiciones-gerencia";
+import {
+  isCapacitacionDept,
+  resolveInternaApprovalGerencia,
+} from "@/lib/requisiciones-gerencia";
 
 // Check if the current user belongs to the Administración department.
 // Department-based only — role (admin/superadmin) is NOT considered.
@@ -75,7 +78,8 @@ export const getCurrentUserUsuarioId = cache(async (): Promise<number | null> =>
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
-    const { data: usuario } = await supabase
+    const admin = await createAdminClient();
+    const { data: usuario } = await admin
       .from("usuarios")
       .select("id")
       .eq("id_auth", user.id)
@@ -92,7 +96,8 @@ export const getCurrentUserDepartment = cache(async (): Promise<string | null> =
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
-    const { data: usuario } = await supabase
+    const admin = await createAdminClient();
+    const { data: usuario } = await admin
       .from("usuarios")
       .select("departamentos!usuarios_departamento_fkey(nombre)")
       .eq("id_auth", user.id)
@@ -110,7 +115,8 @@ export const getCurrentUserGerencia = cache(async (): Promise<string | null> => 
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
-    const { data: usuario } = await supabase
+    const admin = await createAdminClient();
+    const { data: usuario } = await admin
       .from("usuarios")
       .select("departamentos!usuarios_departamento_fkey(gerencia)")
       .eq("id_auth", user.id)
@@ -129,7 +135,7 @@ export const isCoordinadorForDepartment = cache(async (deptName: string | null |
   const usuarioId = await getCurrentUserUsuarioId();
   if (!usuarioId) return false;
   try {
-    const supabase = await createClient();
+    const supabase = await createAdminClient();
     const { data: dept } = await supabase
       .from("departamentos")
       .select("coordinador")
@@ -149,7 +155,7 @@ export const isLiderForGerencia = cache(async (gerenciaName: string | null | und
   const usuarioId = await getCurrentUserUsuarioId();
   if (!usuarioId) return false;
   try {
-    const supabase = await createClient();
+    const supabase = await createAdminClient();
     const { data: g } = await supabase
       .from("gerencias")
       .select("lider")
@@ -166,7 +172,7 @@ export const isLiderForGerencia = cache(async (gerenciaName: string | null | und
 export const isLiderForDepartmentGerencia = cache(async (deptName: string | null | undefined): Promise<boolean> => {
   if (!deptName) return false;
   try {
-    const supabase = await createClient();
+    const supabase = await createAdminClient();
     const { data: dept } = await supabase
       .from("departamentos")
       .select("gerencia")
@@ -179,12 +185,24 @@ export const isLiderForDepartmentGerencia = cache(async (deptName: string | null
   }
 });
 
+// True when the current user is the lider who must approve INTERNAS for the given
+// department. Honours the TEMPORARY interna routing override
+// (resolveInternaApprovalGerencia); otherwise falls back to the lider of the
+// department's own gerencia. Externas intentionally keep using
+// isLiderForDepartmentGerencia.
+export const isLiderForInternaApproval = cache(async (deptName: string | null | undefined): Promise<boolean> => {
+  if (!deptName) return false;
+  const overrideGerencia = resolveInternaApprovalGerencia(deptName);
+  if (overrideGerencia) return isLiderForGerencia(overrideGerencia);
+  return isLiderForDepartmentGerencia(deptName);
+});
+
 // True when the given department has a coordinador registered
 // (departamentos.coordinador is not null).
 export const departmentHasCoordinador = cache(async (deptName: string | null | undefined): Promise<boolean> => {
   if (!deptName) return false;
   try {
-    const supabase = await createClient();
+    const supabase = await createAdminClient();
     const { data: dept } = await supabase
       .from("departamentos")
       .select("coordinador")
@@ -198,51 +216,130 @@ export const departmentHasCoordinador = cache(async (deptName: string | null | u
 
 // True when the current user can place an Interna for the given department:
 //   - they are the department's coordinador, OR
-//   - the department has no coordinador AND they are the gerencia's lider
-//     (in which case the interna skips approval and goes straight to admin).
+//   - the department has no coordinador AND they are the lider who approves
+//     internas for it (in which case the interna skips approval and goes
+//     straight to admin).
 export const canPlaceInterna = cache(async (deptName: string | null | undefined): Promise<boolean> => {
   if (!deptName) return false;
   const isCoord = await isCoordinadorForDepartment(deptName);
   if (isCoord) return true;
   const hasCoord = await departmentHasCoordinador(deptName);
   if (hasCoord) return false;
-  return isLiderForDepartmentGerencia(deptName);
+  return isLiderForInternaApproval(deptName);
+});
+
+// Names of ALL departments the current user coordinates (departamentos.coordinador).
+// A user may coordinate more than one department, and may coordinate a department
+// other than the one they belong to, so this must never be derived from
+// usuarios.departamento.
+export const getCoordinatedDepartments = cache(async (): Promise<string[]> => {
+  const usuarioId = await getCurrentUserUsuarioId();
+  if (!usuarioId) return [];
+  try {
+    const supabase = await createAdminClient();
+    const { data, error } = await supabase
+      .from("departamentos")
+      .select("nombre")
+      .eq("coordinador", usuarioId);
+    if (error) {
+      console.error("[getCoordinatedDepartments] Error:", error);
+      return [];
+    }
+    return (data || []).map((d: { nombre: string | null }) => d.nombre).filter((n): n is string => !!n);
+  } catch {
+    return [];
+  }
+});
+
+// Names of ALL gerencias the current user leads (gerencias.lider). Same rationale
+// as getCoordinatedDepartments: never derive this from the user's own department.
+export const getLedGerencias = cache(async (): Promise<string[]> => {
+  const usuarioId = await getCurrentUserUsuarioId();
+  if (!usuarioId) return [];
+  try {
+    const supabase = await createAdminClient();
+    const { data, error } = await supabase
+      .from("gerencias")
+      .select("nombre")
+      .eq("lider", usuarioId);
+    if (error) {
+      console.error("[getLedGerencias] Error:", error);
+      return [];
+    }
+    return (data || []).map((g: { nombre: string | null }) => g.nombre).filter((n): n is string => !!n);
+  } catch {
+    return [];
+  }
+});
+
+// Department names whose INTERNAS the current user approves as lider.
+//
+// Base set: every department in the gerencia(s) they lead. Then the TEMPORARY
+// interna routing override is applied — overridden departments are removed from
+// their natural gerencia's lider and added to the lider of their target gerencia.
+export const getDepartmentsInLedGerencias = cache(async (): Promise<string[]> => {
+  const gerencias = await getLedGerencias();
+  if (gerencias.length === 0) return [];
+  try {
+    const supabase = await createAdminClient();
+    // All departments, so overridden ones can be re-assigned to the lider of
+    // their target gerencia even when that department sits elsewhere.
+    const { data, error } = await supabase
+      .from("departamentos")
+      .select("nombre, gerencia");
+    if (error) {
+      console.error("[getDepartmentsInLedGerencias] Error:", error);
+      return [];
+    }
+    const ledLower = gerencias.map((g) => g.trim().toLowerCase());
+    const result: string[] = [];
+    for (const d of (data || []) as { nombre: string | null; gerencia: string | null }[]) {
+      if (!d.nombre) continue;
+      const overrideGerencia = resolveInternaApprovalGerencia(d.nombre);
+      const effectiveGerencia = overrideGerencia || d.gerencia;
+      if (!effectiveGerencia) continue;
+      if (ledLower.includes(effectiveGerencia.trim().toLowerCase())) {
+        result.push(d.nombre);
+      }
+    }
+    return result;
+  } catch {
+    return [];
+  }
+});
+
+// Department names WITHOUT a coordinador inside the gerencias the current user
+// leads. For those departments the lider is the fallback approver of externas.
+export const getCoordinatorlessDepartmentsInLedGerencias = cache(async (): Promise<string[]> => {
+  const gerencias = await getLedGerencias();
+  if (gerencias.length === 0) return [];
+  try {
+    const supabase = await createAdminClient();
+    const { data, error } = await supabase
+      .from("departamentos")
+      .select("nombre")
+      .in("gerencia", gerencias)
+      .is("coordinador", null);
+    if (error) {
+      console.error("[getCoordinatorlessDepartmentsInLedGerencias] Error:", error);
+      return [];
+    }
+    return (data || []).map((d: { nombre: string | null }) => d.nombre).filter((n): n is string => !!n);
+  } catch {
+    return [];
+  }
 });
 
 // Back-compat: some callers still reference isRequisicionesCoordinador to decide
-// whether to show coordinador-related UI. We keep it but now derive it from the
-// schema (the user is the coordinador of SOME department).
+// whether to show coordinador-related UI. Derived from the schema (the user is the
+// coordinador of AT LEAST ONE department).
 export const isRequisicionesCoordinador = cache(async (): Promise<boolean> => {
-  const usuarioId = await getCurrentUserUsuarioId();
-  if (!usuarioId) return false;
-  try {
-    const supabase = await createClient();
-    const { data: dept } = await supabase
-      .from("departamentos")
-      .select("id")
-      .eq("coordinador", usuarioId)
-      .maybeSingle();
-    return !!dept;
-  } catch {
-    return false;
-  }
+  return (await getCoordinatedDepartments()).length > 0;
 });
 
-// True when the current user is the lider of SOME gerencia.
+// True when the current user is the lider of AT LEAST ONE gerencia.
 export const isRequisicionesLider = cache(async (): Promise<boolean> => {
-  const usuarioId = await getCurrentUserUsuarioId();
-  if (!usuarioId) return false;
-  try {
-    const supabase = await createClient();
-    const { data: g } = await supabase
-      .from("gerencias")
-      .select("id")
-      .eq("lider", usuarioId)
-      .maybeSingle();
-    return !!g;
-  } catch {
-    return false;
-  }
+  return (await getLedGerencias()).length > 0;
 });
 
 // Derive whether a requisicion record is a "Capacitacion" record based on the
@@ -387,24 +484,24 @@ export async function createRequisicionRecord(
   const primaryOSI = formData.selectedOSIs[0] || null;
   const isInterna = formData.is_general;
 
-  // --- New workflow ---
+  // --- Workflow ---
   // Internas: placed only by the department's coordinador (or, if the department
   //   has no coordinador, by the gerencia's lider). When a coordinador places it,
-  //   it needs Lider approval before reaching Administración. When the gerencia
-  //   lider places it (no coordinador case), it skips approval and goes straight
-  //   to Administración.
+  //   it needs Lider approval before reaching Administración — UNLESS the
+  //   coordinador is also the gerencia's lider, in which case there is nobody left
+  //   to approve and it goes straight to Administración. When the gerencia lider
+  //   places it (no coordinador case), it also skips approval.
   // Externas: placed by anyone. If the creator IS the coordinador (or the gerencia
   //   lider when the department has no coordinador), it skips approval and goes
   //   straight to Administración. If an analyst places it, it needs Coordinador
   //   approval (or gerencia Lider fallback) before reaching Administración.
   let needsLiderApproval = false;       // internas
-  let liderBypassApproval = false;      // internas placed by lider with no coordinador
+  let liderBypassApproval = false;      // internas that skip lider approval
   let needsCoordinadorApproval = false; // externas placed by analyst
   let coordinadorBypassApproval = false;// externas placed by coordinador (or lider fallback)
 
   if (isInterna) {
     const canPlace = await canPlaceInterna(formData.departamento);
-    console.log("[createRequisicionRecord] INTERNA - departamento:", formData.departamento, "canPlace:", canPlace);
     if (!canPlace) {
       throw new Error(
         "Las requisiciones internas deben ser colocadas por el coordinador de su departamento. " +
@@ -412,18 +509,20 @@ export async function createRequisicionRecord(
       );
     }
     const hasCoord = await departmentHasCoordinador(formData.departamento);
-    console.log("[createRequisicionRecord] INTERNA - hasCoord:", hasCoord);
-    if (hasCoord) {
-      // Coordinador placed it → needs Lider approval.
+    // If the creator is the approving lider there is no separate approver, so the
+    // interna skips the lider gate (this covers both the "no coordinador" case and
+    // the case where the coordinador is also the lider — otherwise the requisicion
+    // would sit pending on its own creator's approval forever).
+    const creatorIsLider = await isLiderForInternaApproval(formData.departamento);
+    if (hasCoord && !creatorIsLider) {
+      // Coordinador (who is not the lider) placed it → needs Lider approval.
       needsLiderApproval = true;
     } else {
-      // No coordinador → the gerencia lider placed it → skip approval.
       liderBypassApproval = true;
     }
   } else {
     // Externa. Check if the creator is the approver (coordinador or lider fallback).
     const isCoord = await isCoordinadorForDepartment(formData.departamento);
-    console.log("[createRequisicionRecord] EXTERNA - departamento:", formData.departamento, "isCoord:", isCoord);
     if (isCoord) {
       // Coordinador placed it → skip approval, go straight to Administración.
       coordinadorBypassApproval = true;
@@ -543,17 +642,13 @@ export async function createRequisicionRecord(
   await syncRequisicionOsis(data.id, formData);
 
   // Notifications based on the workflow path:
-  // - Internas placed by lider (no coordinador) → notify Administración directly.
+  // - Internas that skip the lider gate → notify Administración directly.
   // - Internas placed by coordinador → notify the gerencia's lider to approve.
   // - Externas placed by coordinador (or lider fallback) → notify Administración directly.
   // - Externas placed by analyst → notify the department's coordinador (or lider fallback).
-  console.log("[createRequisicionRecord] NOTIFICATION BRANCH:", {
-    isInterna, liderBypassApproval, needsLiderApproval, coordinadorBypassApproval, needsCoordinadorApproval,
-  });
   if (isInterna && liderBypassApproval) {
     await notifyAdminsOfNewRequisicion(data.id, formData.solicitante, "interna");
   } else if (isInterna && needsLiderApproval) {
-    console.log("[createRequisicionRecord] Calling notifyLiderOfPendingInterna for dept:", formData.departamento);
     await notifyLiderOfPendingInterna(data.id, formData.solicitante, formData.departamento || "");
   } else if (!isInterna && coordinadorBypassApproval) {
     const label = `de la OSI N° ${primaryOSI?.nro_osi || ""}`;
@@ -952,16 +1047,14 @@ export async function getAllRequisiciones(isAdmin?: boolean) {
     )
   `;
 
-  // 1) Lider: pending internas from their gerencia's departments.
-  const userGerencia = await getCurrentUserGerencia();
-  const isLider = userGerencia ? await isLiderForGerencia(userGerencia) : false;
-  if (isLider && userGerencia) {
-    // Find all departments in this gerencia.
-    const { data: gerDepts } = await supabase
-      .from("departamentos")
-      .select("nombre")
-      .ilike("gerencia", userGerencia);
-    const deptNames = (gerDepts || []).map((d: any) => d.nombre).filter(Boolean);
+  // 1) Lider: pending internas from every department in the gerencia(s) they lead.
+  //    Resolved from gerencias.lider (NOT from the lider's own department), since a
+  //    lider may belong to a department under a different gerencia.
+  const ledGerencias = await getLedGerencias();
+  const isLider = ledGerencias.length > 0;
+
+  if (isLider) {
+    const deptNames = await getDepartmentsInLedGerencias();
     if (deptNames.length > 0) {
       const { data: pendingInternas, error: pendingErr } = await supabase
         .from("requisiciones")
@@ -982,10 +1075,11 @@ export async function getAllRequisiciones(isAdmin?: boolean) {
     }
   }
 
-  // 2) Coordinador: pending externas from their department.
-  const coordDept = await getCurrentUserDepartment();
-  const isCoord = coordDept ? await isCoordinadorForDepartment(coordDept) : false;
-  if (isCoord && coordDept) {
+  // 2) Coordinador: pending externas from EVERY department they coordinate
+  //    (resolved from departamentos.coordinador, not from their own department).
+  const coordDepts = await getCoordinatedDepartments();
+  const isCoord = coordDepts.length > 0;
+  if (isCoord) {
     const { data: pendingExternas, error: pendingErr } = await supabase
       .from("requisiciones")
       .select(SELECT_RELATIONS)
@@ -993,7 +1087,7 @@ export async function getAllRequisiciones(isAdmin?: boolean) {
       .eq("coordinador_estatus", "pendiente")
       .neq("created_by", userId)
       .is("deleted_at", null)
-      .ilike("departamento", coordDept)
+      .in("departamento", coordDepts)
       .order("id", { ascending: false });
     if (pendingErr && (pendingErr.message || "").includes("column") && (pendingErr.message || "").includes("does not exist")) {
       console.warn("[getAllRequisiciones] coordinador_estatus column not found, skipping coordinador queue");
@@ -1004,15 +1098,10 @@ export async function getAllRequisiciones(isAdmin?: boolean) {
     }
   }
 
-  // 3) Gerencia Lider fallback: pending externas from departments in their gerencia
-  //    that have NO coordinador (the lider is the fallback approver).
-  if (isLider && userGerencia && !isCoord) {
-    const { data: gerDepts } = await supabase
-      .from("departamentos")
-      .select("nombre")
-      .ilike("gerencia", userGerencia)
-      .is("coordinador", null);
-    const noCoordDeptNames = (gerDepts || []).map((d: any) => d.nombre).filter(Boolean);
+  // 3) Gerencia Lider fallback: pending externas from departments in the gerencia(s)
+  //    they lead that have NO coordinador (the lider is the fallback approver).
+  if (isLider) {
+    const noCoordDeptNames = await getCoordinatorlessDepartmentsInLedGerencias();
     if (noCoordDeptNames.length > 0) {
       const { data: pendingExternas, error: pendingErr } = await supabase
         .from("requisiciones")
@@ -1333,9 +1422,13 @@ export async function approveRequisicionByLider(id: number) {
   if (existing.lider_estatus !== undefined && existing.lider_estatus !== "pendiente") {
     throw new Error("Esta requisición interna ya fue procesada por el lider.");
   }
-  // Verify the caller is the lider of the requisicion's gerencia.
+  // A creator can never approve their own interna.
+  if (existing.created_by && userId && existing.created_by === userId) {
+    throw new Error("No puede aprobar su propia requisición interna.");
+  }
+  // Verify the caller is the lider who approves internas for this department.
   if (existing.departamento) {
-    const isLider = await isLiderForDepartmentGerencia(existing.departamento);
+    const isLider = await isLiderForInternaApproval(existing.departamento);
     if (!isLider) {
       throw new Error("Solo el lider de la gerencia puede aprobar esta requisición interna.");
     }
@@ -1401,9 +1494,13 @@ export async function rejectRequisicionByLider(id: number, motivo: string) {
   if (existing.lider_estatus !== undefined && existing.lider_estatus !== "pendiente") {
     throw new Error("Esta requisición interna ya fue procesada por el lider.");
   }
-  // Verify the caller is the lider of the requisicion's gerencia.
+  // A creator can never reject their own interna.
+  if (existing.created_by && userId && existing.created_by === userId) {
+    throw new Error("No puede rechazar su propia requisición interna.");
+  }
+  // Verify the caller is the lider who approves internas for this department.
   if (existing.departamento) {
-    const isLider = await isLiderForDepartmentGerencia(existing.departamento);
+    const isLider = await isLiderForInternaApproval(existing.departamento);
     if (!isLider) {
       throw new Error("Solo el lider de la gerencia puede rechazar esta requisición interna.");
     }

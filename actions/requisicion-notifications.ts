@@ -1,6 +1,7 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/server";
+import { resolveInternaApprovalGerencia } from "@/lib/requisiciones-gerencia";
 
 export async function notifyAdminsOfNewRequisicion(
   requisicionId: number,
@@ -70,8 +71,10 @@ export async function notifyAdminsOfNewRequisicion(
   }
 }
 
-// Notify the gerencia's lider that an interna is pending their approval.
-// Resolves the lider via departamentos.gerencia → gerencias.lider → usuarios.id_auth.
+// Notify the lider that an interna is pending their approval.
+// Resolves the lider via the TEMPORARY interna routing override when one applies
+// for the department, otherwise via departamentos.gerencia → gerencias.lider →
+// usuarios.id_auth.
 export async function notifyLiderOfPendingInterna(
   requisicionId: number,
   solicitanteName: string,
@@ -80,24 +83,44 @@ export async function notifyLiderOfPendingInterna(
   try {
     const supabase = await createAdminClient();
 
-    // Resolve the lider's auth id for the given department's gerencia.
-    const { data: dept, error: deptError } = await supabase
-      .from("departamentos")
-      .select("gerencia, gerencias!departamentos_gerencia_fkey(lider)")
-      .ilike("nombre", departamentoName)
-      .maybeSingle();
+    let liderUsuarioId: number | null = null;
+    let gerenciaLabel: string | null = resolveInternaApprovalGerencia(departamentoName);
 
-    console.log("[notifyLiderOfPendingInterna] dept lookup:", { departamentoName, dept, deptError });
+    if (gerenciaLabel) {
+      // Overridden department: approve via the target gerencia's lider.
+      const { data: gerencia, error: gerenciaError } = await supabase
+        .from("gerencias")
+        .select("lider")
+        .ilike("nombre", gerenciaLabel)
+        .maybeSingle();
+      if (gerenciaError || !gerencia) {
+        console.error(
+          "[notifyLiderOfPendingInterna] Could not resolve override gerencia:",
+          gerenciaLabel,
+          gerenciaError,
+        );
+        return;
+      }
+      liderUsuarioId = gerencia.lider;
+    } else {
+      // Resolve the lider's auth id for the given department's own gerencia.
+      const { data: dept, error: deptError } = await supabase
+        .from("departamentos")
+        .select("gerencia, gerencias!departamentos_gerencia_fkey(lider)")
+        .ilike("nombre", departamentoName)
+        .maybeSingle();
 
-    if (deptError || !dept) {
-      console.error("[notifyLiderOfPendingInterna] Could not resolve department:", deptError);
-      return;
+      if (deptError || !dept) {
+        console.error("[notifyLiderOfPendingInterna] Could not resolve department:", deptError);
+        return;
+      }
+
+      gerenciaLabel = dept.gerencia;
+      liderUsuarioId = (dept.gerencias as any)?.lider ?? null;
     }
 
-    const liderUsuarioId = (dept.gerencias as any)?.lider;
-    console.log("[notifyLiderOfPendingInterna] liderUsuarioId:", liderUsuarioId, "gerencia:", dept.gerencia);
     if (!liderUsuarioId) {
-      console.warn("[notifyLiderOfPendingInterna] No lider set on gerencia:", dept.gerencia);
+      console.warn("[notifyLiderOfPendingInterna] No lider set on gerencia:", gerenciaLabel);
       return;
     }
 
@@ -107,7 +130,6 @@ export async function notifyLiderOfPendingInterna(
       .eq("id", liderUsuarioId)
       .maybeSingle();
 
-    console.log("[notifyLiderOfPendingInterna] lider user lookup:", { lider, liderError });
     if (liderError || !lider?.id_auth) {
       console.warn("[notifyLiderOfPendingInterna] Could not resolve lider auth id:", liderError);
       return;

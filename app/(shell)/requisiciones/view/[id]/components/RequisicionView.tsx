@@ -8,6 +8,14 @@ import { RequisicionItem, OSIFixedItem } from "@/types/requisiciones";
 import { setRequisicionEstatus, updateItemVerificacion, updateFixedItemVerificacion, markAllItemsVerificadas, saveVerificacionProgress, getExchangeRate, updateFacilitadorBankingDetails, acknowledgeRequisicionReceipt, approveRequisicionByCoordinador, rejectRequisicionByCoordinador, approveRequisicionByLider, rejectRequisicionByLider } from "@/actions/requisiciones";
 import { CheckCircle2, XCircle, Undo2, Clock, AlertTriangle, CalendarClock, Copy, Check, Download, Save, Printer, PackageCheck } from "lucide-react";
 import MotivoModal from "../../../components/MotivoModal";
+import { formatDate } from "@/lib/utils";
+
+// Exact, case-insensitive department name match (trimmed).
+function deptInList(deptName: string | null | undefined, list: string[]): boolean {
+  if (!deptName) return false;
+  const target = deptName.trim().toLowerCase();
+  return list.some((d) => d.trim().toLowerCase() === target);
+}
 
 export default function RequisicionView({
   record,
@@ -15,9 +23,10 @@ export default function RequisicionView({
   osiLookup,
   isAdminView = false,
   isCoordinador = false,
-  coordinadorDept = null,
+  coordinadorDepts = [],
   isLider = false,
-  liderGerencia = null,
+  liderDepts = [],
+  liderFallbackDepts = [],
   banks = [],
 }: {
   record: any,
@@ -25,9 +34,13 @@ export default function RequisicionView({
   osiLookup?: Map<number, string>,
   isAdminView?: boolean,
   isCoordinador?: boolean,
-  coordinadorDept?: string | null,
+  /** Departments the current user coordinates (departamentos.coordinador). */
+  coordinadorDepts?: string[],
   isLider?: boolean,
-  liderGerencia?: string | null,
+  /** All departments inside the gerencia(s) the current user leads. */
+  liderDepts?: string[],
+  /** Departments inside the led gerencia(s) that have NO coordinador. */
+  liderFallbackDepts?: string[],
   banks?: { id: number; nombre: string }[],
 }) {
   const router = useRouter();
@@ -58,23 +71,31 @@ export default function RequisicionView({
   const isLiderPendiente = isGeneralMode && liderEstatus === "pendiente";
   const isLiderAprobada = isGeneralMode && liderEstatus === "aprobada";
   const isLiderRechazada = isGeneralMode && liderEstatus === "rechazada";
-  // The lider of the requisicion's gerencia can approve/reject internas.
-  const canLiderAct = isLiderPendiente && isLider && !!liderGerencia;
+  // The lider can approve/reject internas whose departamento belongs to one of the
+  // gerencias they lead (legacy records without departamento allow any lider; the
+  // server action re-checks either way).
+  const liderDeptMatches = isLider && (
+    record.departamento ? deptInList(record.departamento, liderDepts) : true
+  );
+  const canLiderAct = isLiderPendiente && liderDeptMatches;
 
   // --- Coordinador approval state (externas only) ---
   const coordinadorEstatus = record.coordinador_estatus as "pendiente" | "aprobada" | "rechazada" | null | undefined;
   const isCoordinadorPendiente = !isGeneralMode && coordinadorEstatus === "pendiente";
   const isCoordinadorAprobada = !isGeneralMode && coordinadorEstatus === "aprobada";
   const isCoordinadorRechazada = !isGeneralMode && coordinadorEstatus === "rechazada";
-  // A coordinador can only approve/reject externas from their own department.
+  // A coordinador can only approve/reject externas of the departments they coordinate.
   // Fallback: if record.departamento is null (legacy record), allow any coordinador.
-  const coordinadorDeptMatches = isCoordinador && !!coordinadorDept && (
-    !!record.departamento
-      ? coordinadorDept.trim().toLowerCase().includes(record.departamento.trim().toLowerCase())
+  const coordinadorDeptMatches = isCoordinador && (
+    record.departamento
+      ? deptInList(record.departamento, coordinadorDepts)
       : true
   );
-  // Lider fallback for externas when the department has no coordinador.
-  const canLiderFallbackAct = isCoordinadorPendiente && isLider && !!liderGerencia && !coordinadorDeptMatches;
+  // Lider fallback for externas, but ONLY for departments that genuinely have no
+  // coordinador inside the gerencia(s) this user leads.
+  const canLiderFallbackAct = isCoordinadorPendiente && isLider
+    && !coordinadorDeptMatches
+    && deptInList(record.departamento, liderFallbackDepts);
   const canCoordinadorAct = isCoordinadorPendiente && coordinadorDeptMatches;
   const canExternasApproverAct = canCoordinadorAct || canLiderFallbackAct;
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
@@ -516,7 +537,7 @@ export default function RequisicionView({
             {executionAlert.text}
             {executionDate && (
               <span className="ml-auto text-xs font-normal opacity-70">
-                {new Date(executionDate + "T00:00:00").toLocaleDateString("es-VE")}
+                {formatDate(new Date(executionDate + "T00:00:00"))}
               </span>
             )}
           </div>
@@ -730,7 +751,7 @@ export default function RequisicionView({
               Fecha de solicitud:
             </div>
             <div className={`p-3 border-r border-gray-300 flex items-center ${showOSIHeader ? "col-span-4" : "col-span-9"}`}>
-              {record.fecha_solicitud ? new Date(record.fecha_solicitud + "T00:00:00").toLocaleDateString("es-VE") : "-"}
+              {record.fecha_solicitud ? formatDate(new Date(record.fecha_solicitud + "T00:00:00")) : "-"}
             </div>
             {showOSIHeader && (
             <>

@@ -7,24 +7,37 @@ import Link from "next/link";
 import { deleteRequisicionRecord, setRequisicionEstatus, markAllItemsVerificadas, acknowledgeRequisicionReceipt, approveRequisicionByCoordinador, rejectRequisicionByCoordinador, approveRequisicionByLider, rejectRequisicionByLider } from "@/actions/requisiciones";
 import { Eye, Edit, Trash2, Lock, CheckCircle2, Undo2, XCircle, CalendarClock, AlertTriangle, PackageCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { formatDate } from "@/lib/utils";
 import MotivoModal from "./MotivoModal";
+
+// Exact, case-insensitive department name match (trimmed).
+function deptInList(deptName: string | null | undefined, list: string[]): boolean {
+  if (!deptName) return false;
+  const target = deptName.trim().toLowerCase();
+  return list.some((d) => d.trim().toLowerCase() === target);
+}
 
 export default function RequisicionRow({
   record,
   isAdminView = false,
   osiLookup,
   isCoordinador = false,
-  coordinadorDept = null,
+  coordinadorDepts = [],
   isLider = false,
-  liderGerencia = null,
+  liderDepts = [],
+  liderFallbackDepts = [],
 }: {
   record: any;
   isAdminView?: boolean;
   osiLookup?: Map<number, string>;
   isCoordinador?: boolean;
-  coordinadorDept?: string | null;
+  /** Departments the current user coordinates (departamentos.coordinador). */
+  coordinadorDepts?: string[];
   isLider?: boolean;
-  liderGerencia?: string | null;
+  /** All departments inside the gerencia(s) the current user leads. */
+  liderDepts?: string[];
+  /** Departments inside the led gerencia(s) that have NO coordinador. */
+  liderFallbackDepts?: string[];
 }) {
   const router = useRouter();
   const [isUpdating, setIsUpdating] = useState(false);
@@ -47,15 +60,15 @@ export default function RequisicionRow({
   const locked = isResolved && !isAdminView;
 
   // --- Lider approval: internas pending lider approval. ---
-  // The lider of the requisicion's gerencia can approve/reject. We match by
-  // the lider's gerencia name against the requisicion's departamento gerencia.
-  // Since the row doesn't carry the departamento's gerencia directly, we rely
-  // on the server-side query (getAllRequisiciones) which already filtered
-  // pending internas to the lider's gerencia. For safety, the server action
-  // re-checks ownership.
+  // The lider can approve/reject internas whose departamento belongs to one of the
+  // gerencias they lead. Legacy records without departamento fall back to allowing
+  // any lider; the server action re-checks ownership either way.
   const liderEstatus = record.lider_estatus as string | null | undefined;
   const isLiderPendiente = isInterna && liderEstatus === "pendiente";
-  const canLiderAct = isLiderPendiente && isLider && !!liderGerencia && !isAdminView;
+  const liderDeptMatches = isLider && (
+    record.departamento ? deptInList(record.departamento, liderDepts) : true
+  );
+  const canLiderAct = isLiderPendiente && liderDeptMatches && !isAdminView;
 
   const handleLiderApprove = async () => {
     setIsUpdating(true);
@@ -87,13 +100,16 @@ export default function RequisicionRow({
   // (the server action handles that check).
   const coordinadorEstatus = record.coordinador_estatus as string | null | undefined;
   const isCoordinadorPendiente = !isInterna && coordinadorEstatus === "pendiente";
-  const coordinadorDeptMatches = isCoordinador && !!coordinadorDept && (
-    !!record.departamento
-      ? coordinadorDept.trim().toLowerCase().includes(record.departamento.trim().toLowerCase())
+  const coordinadorDeptMatches = isCoordinador && (
+    record.departamento
+      ? deptInList(record.departamento, coordinadorDepts)
       : true // fallback: if departamento is null (legacy), allow any coordinador
   );
-  // Lider fallback for externas when the department has no coordinador.
-  const canLiderFallbackAct = isCoordinadorPendiente && isLider && !!liderGerencia && !isAdminView && !coordinadorDeptMatches;
+  // Lider fallback for externas, but ONLY for departments that genuinely have no
+  // coordinador inside the gerencia(s) this user leads.
+  const canLiderFallbackAct = isCoordinadorPendiente && isLider && !isAdminView
+    && !coordinadorDeptMatches
+    && deptInList(record.departamento, liderFallbackDepts);
   const canCoordinadorAct = isCoordinadorPendiente && coordinadorDeptMatches && !isAdminView;
   const canExternasApproverAct = canCoordinadorAct || canLiderFallbackAct;
 
@@ -279,9 +295,9 @@ export default function RequisicionRow({
       <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
         <div className="flex items-center gap-2">
           {executionDate
-            ? new Date(executionDate + "T00:00:00").toLocaleDateString()
+            ? formatDate(new Date(executionDate + "T00:00:00"))
             : record.fecha_solicitud
-              ? new Date(record.fecha_solicitud + "T00:00:00").toLocaleDateString()
+              ? formatDate(new Date(record.fecha_solicitud + "T00:00:00"))
               : "-"}
           {executionBadge && (
             <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${

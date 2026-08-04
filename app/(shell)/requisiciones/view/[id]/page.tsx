@@ -4,10 +4,9 @@ import {
   getOsisByIds,
   getBanksForDropdown,
   isRequisicionesAdmin,
-  isRequisicionesCoordinador,
-  getCurrentUserDepartment,
-  isRequisicionesLider,
-  getCurrentUserGerencia,
+  getCoordinatedDepartments,
+  getDepartmentsInLedGerencias,
+  getCoordinatorlessDepartmentsInLedGerencias,
 } from "@/actions/requisiciones";
 import RequisicionView from "./components/RequisicionView";
 import { notFound } from "next/navigation";
@@ -25,22 +24,23 @@ export default async function ViewRequisicionPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params;
-  const [record, isAdminView, isCoordinador, banks, isLider] = await Promise.all([
+  const [record, isAdminView, banks, coordinadorDepts, liderDepts, liderFallbackDepts] = await Promise.all([
     getRequisicionRecord(parseInt(id)),
     isRequisicionesAdmin(),
-    isRequisicionesCoordinador(),
     getBanksForDropdown(),
-    isRequisicionesLider(),
+    // Approval scope comes from departamentos.coordinador / gerencias.lider, not
+    // from the user's own department.
+    getCoordinatedDepartments(),
+    getDepartmentsInLedGerencias(),
+    getCoordinatorlessDepartmentsInLedGerencias(),
   ]);
 
   if (!record) {
     notFound();
   }
 
-  // Only fetch the coordinador's department if they are a coordinador (avoids an
-  // unnecessary query for regular users / admins).
-  const coordinadorDept = isCoordinador ? await getCurrentUserDepartment() : null;
-  const liderGerencia = isLider ? await getCurrentUserGerencia() : null;
+  const isCoordinador = coordinadorDepts.length > 0;
+  const isLider = liderDepts.length > 0;
 
   let osiData = null;
   const osiLookup = new Map<number, string>();
@@ -115,7 +115,7 @@ export default async function ViewRequisicionPage({
         ) : null}
       </div>
 
-      <RequisicionView record={record} osiData={osiData} osiLookup={osiLookup} isAdminView={isAdminView} isCoordinador={isCoordinador} coordinadorDept={coordinadorDept} isLider={isLider} liderGerencia={liderGerencia} banks={banks} />
+      <RequisicionView record={record} osiData={osiData} osiLookup={osiLookup} isAdminView={isAdminView} isCoordinador={isCoordinador} coordinadorDepts={coordinadorDepts} isLider={isLider} liderDepts={liderDepts} liderFallbackDepts={liderFallbackDepts} banks={banks} />
     </div>
   );
 }
