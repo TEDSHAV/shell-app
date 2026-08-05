@@ -27,6 +27,21 @@ export async function getOSIList(
 
     const supabase = await createClient();
 
+    // If the attachment-received filter is active, pre-fetch the set of OSI IDs
+    // that have attachment_received=true on an active facilitador assignment,
+    // then constrain the main query to either those IDs ("received") or the
+    // complement ("not_received"). Uses admin client to bypass RLS.
+    let receivedOsiIds: number[] | null = null;
+    if (filters.attachmentReceived) {
+      const admin = await createAdminClient();
+      const { data: receivedRows } = await admin
+        .from("facilitador_osi_assignments")
+        .select("osi_id")
+        .eq("is_active", true)
+        .eq("attachment_received", true);
+      receivedOsiIds = (receivedRows || []).map((r: any) => r.osi_id as number);
+    }
+
     let query = supabase
       .from("v_osi_lista")
       .select(
@@ -36,6 +51,13 @@ export async function getOSIList(
 
     // Exclude pending OSIs (nro_osi starting with PEN-)
     query = query.not("nro_osi", "like", "PEN-%");
+
+    // Apply attachment-received filter
+    if (filters.attachmentReceived === "received") {
+      query = query.in("id_osi", receivedOsiIds && receivedOsiIds.length > 0 ? receivedOsiIds : [-1]);
+    } else if (filters.attachmentReceived === "not_received") {
+      query = query.not("id_osi", "in", `(${(receivedOsiIds && receivedOsiIds.length > 0 ? receivedOsiIds : [-1]).join(",")})`);
+    }
 
     // Apply department-based tipo_servicio filter
     if (accessFilter === "capacitacion") {
@@ -99,7 +121,7 @@ export async function getOSIList(
       .map((osi: any) => osi.id_osi)
       .filter((id: number | null) => id !== null) as number[];
 
-    const [statuses, cityResult, visibleOsiIds, sesionesProgramadasResult] = await Promise.all([
+    const [statuses, cityResult, visibleOsiIds, sesionesProgramadasResult, attachmentResult] = await Promise.all([
       getOSIStatuses(),
       uniqueCityIds.length > 0
         ? supabase
@@ -120,6 +142,15 @@ export async function getOSIList(
             .select("id, sesiones_programadas")
             .in("id", pageOsiIds)
         : Promise.resolve({ data: null }),
+      // Fetch attachment-received flags from active facilitador assignments.
+      // Uses admin client to avoid RLS on the assignments table.
+      pageOsiIds.length > 0
+        ? (await createAdminClient())
+            .from("facilitador_osi_assignments")
+            .select("osi_id, attachment_received, attachment_received_at, attachment_received_by")
+            .in("osi_id", pageOsiIds)
+            .eq("is_active", true)
+        : Promise.resolve({ data: null }),
     ]);
 
     const statusMap = new Map(statuses.map((s) => [s.id, s]));
@@ -132,8 +163,19 @@ export async function getOSIList(
       sessionCountMap.set(osiId, Array.isArray(sesiones) ? sesiones.length : 0);
     }
 
+    // Map attachment-received state by osi_id
+    const attachmentByOsi = new Map<number, { received: boolean; at: string | null; by: string | null }>();
+    for (const row of (attachmentResult as any)?.data || []) {
+      attachmentByOsi.set(row.osi_id, {
+        received: !!row.attachment_received,
+        at: row.attachment_received_at ?? null,
+        by: row.attachment_received_by ?? null,
+      });
+    }
+
     const enrichedOSIs: OSIListItem[] = (data || []).map((osi: any) => {
       const status = osi.id_estatus ? statusMap.get(osi.id_estatus) : null;
+      const attachment = osi.id_osi ? attachmentByOsi.get(osi.id_osi) : undefined;
       return {
         id_osi: osi.id_osi,
         nro_osi: osi.nro_osi,
@@ -153,6 +195,9 @@ export async function getOSIList(
         oculto_para_cliente: osi.id_osi ? !visibleOsiIds.has(osi.id_osi) : true,
         sesiones_ejecucion: osi.sesiones_ejecucion ?? null,
         total_sesiones: osi.id_osi ? (sessionCountMap.get(osi.id_osi) ?? 0) : null,
+        attachment_received: attachment?.received ?? false,
+        attachment_received_at: attachment?.at ?? null,
+        attachment_received_by: attachment?.by ?? null,
       };
     });
 
@@ -575,6 +620,23 @@ export async function canHideOSIFromClient(): Promise<boolean> {
   return getCachedCanHideOSIFromClient();
 }
 
+// True when the current user belongs to the capacitacion department OR is a
+// superadmin/admin (global role). Used to gate the "lista física recibida"
+// toggle so only capacitacion users (and superadmins) can see/use it on the
+// Consulta de OSIs page.
+export async function canToggleOSIAttachment(): Promise<boolean> {
+  try {
+    // Superadmin/admin bypass — matches the canHideOSIFromClient pattern.
+    const globalRole = (await getUserRole()).toLowerCase();
+    if (globalRole === "superadmin" || globalRole === "admin") return true;
+
+    const filter = await getUserOSIAccessFilter();
+    return filter === "capacitacion";
+  } catch {
+    return false;
+  }
+}
+
 export async function setOSIHiddenForClient(
   osiId: number,
   hidden: boolean,
@@ -630,6 +692,72 @@ export async function setOSIHiddenForClient(
     return { success: true };
   } catch (err) {
     console.error("Unexpected error in setOSIHiddenForClient:", err);
+    return { success: false, error: "Error inesperado" };
+  }
+}
+
+// ─── Attachment received toggle ("Lista física recibida") ───
+
+export async function toggleOSIAttachmentReceived(
+  osiId: number,
+): Promise<{ success: boolean; attachment_received?: boolean; error?: string }> {
+  if (!Number.isFinite(osiId) || osiId <= 0) {
+    return { success: false, error: "OSI inválido" };
+  }
+  try {
+    // Only capacitacion users can toggle the attachment-received flag.
+    const canToggle = await canToggleOSIAttachment();
+    if (!canToggle) {
+      return {
+        success: false,
+        error: "Solo el departamento de capacitación puede marcar listas físicas",
+      };
+    }
+
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    const userId = user?.id ?? null;
+
+    // Use admin client for the assignment lookup + update to avoid RLS.
+    const admin = await createAdminClient();
+
+    const { data: assignment, error: findError } = await admin
+      .from("facilitador_osi_assignments")
+      .select("id, attachment_received")
+      .eq("osi_id", osiId)
+      .eq("is_active", true)
+      .maybeSingle();
+
+    if (findError) {
+      console.error("Error finding active assignment for attachment flag:", findError);
+      return { success: false, error: "Error al buscar la asignación" };
+    }
+
+    if (!assignment) {
+      return { success: false, error: "No hay facilitador asignado a esta OSI" };
+    }
+
+    const currentlyReceived = !!assignment.attachment_received;
+    const newReceived = !currentlyReceived;
+
+    const { error: updateError } = await admin
+      .from("facilitador_osi_assignments")
+      .update({
+        attachment_received: newReceived,
+        attachment_received_at: newReceived ? new Date().toISOString() : null,
+        attachment_received_by: newReceived ? userId : null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", assignment.id);
+
+    if (updateError) {
+      console.error("Error toggling attachment_received flag:", updateError);
+      return { success: false, error: "Error al actualizar el estado" };
+    }
+
+    return { success: true, attachment_received: newReceived };
+  } catch (err) {
+    console.error("Unexpected error in toggleOSIAttachmentReceived:", err);
     return { success: false, error: "Error inesperado" };
   }
 }

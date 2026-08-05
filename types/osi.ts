@@ -6,6 +6,7 @@ export interface OSIListFilters {
   dateFrom?: string;
   dateTo?: string;
   status?: string;
+  attachmentReceived?: "received" | "not_received";
 }
 
 export interface OSIStatusOption {
@@ -33,6 +34,10 @@ export interface OSIListItem {
   oculto_para_cliente: boolean;
   sesiones_ejecucion: number | null;
   total_sesiones: number | null;
+  // Attachment received flag (manual mark by capacitacion users)
+  attachment_received?: boolean | null;
+  attachment_received_at?: string | null;
+  attachment_received_by?: string | null;
 }
 
 export interface OSIListResult {

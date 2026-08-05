@@ -7,7 +7,7 @@ import type {
   OSIListItem,
   OSIStatusOption,
 } from "@/types/osi";
-import { getOSIList, getOSIListFilterOptions, updateOSIStatus, updateSessionStatus, setOSIHiddenForClient } from "@/actions/osi";
+import { getOSIList, getOSIListFilterOptions, updateOSIStatus, updateSessionStatus, setOSIHiddenForClient, toggleOSIAttachmentReceived } from "@/actions/osi";
 import OSIFilters from "./components/OSIFilters";
 import OSITable from "./components/OSITable";
 import OSIPagination from "./components/OSIPagination";
@@ -16,6 +16,7 @@ import OSICommentsSheet from "./components/OSICommentsSheet";
 interface ConsultaOSIClientProps {
   canChangeStatus: boolean;
   canHideForClient: boolean;
+  canToggleAttachment: boolean;
 }
 
 // Cache key for a (filters, page, itemsPerPage) combination.
@@ -36,7 +37,7 @@ function cacheKey(filters: OSIListFilters, page: number, itemsPerPage: number): 
   return JSON.stringify({ ...filters, page, itemsPerPage });
 }
 
-export default function ConsultaOSIClient({ canChangeStatus, canHideForClient }: ConsultaOSIClientProps) {
+export default function ConsultaOSIClient({ canChangeStatus, canHideForClient, canToggleAttachment }: ConsultaOSIClientProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [fetching, setFetching] = useState(false);
@@ -286,6 +287,32 @@ export default function ConsultaOSIClient({ canChangeStatus, canHideForClient }:
     [filters, currentPage, itemsPerPage],
   );
 
+  const handleToggleAttachment = useCallback(
+    async (osi: OSIListItem) => {
+      if (!osi.id_osi) return { success: false, error: "OSI inválido" };
+      const result = await toggleOSIAttachmentReceived(osi.id_osi);
+      if (result.success) {
+        const newReceived = !!result.attachment_received;
+        const newAt = newReceived ? new Date().toISOString() : null;
+        setOsis((prev) =>
+          prev.map((o) =>
+            o.id_osi === osi.id_osi
+              ? { ...o, attachment_received: newReceived, attachment_received_at: newAt }
+              : o,
+          ),
+        );
+        // Invalidate cache for current view since data changed.
+        const key = cacheKey(filters, currentPage, itemsPerPage);
+        cacheRef.current.delete(key);
+      } else {
+        console.error("Error toggling attachment received:", result.error);
+        alert(result.error);
+      }
+      return result;
+    },
+    [filters, currentPage, itemsPerPage],
+  );
+
   const totalPages = Math.ceil(totalCount / itemsPerPage);
 
   return (
@@ -320,6 +347,8 @@ export default function ConsultaOSIClient({ canChangeStatus, canHideForClient }:
           onSessionStatusChange={canChangeStatus ? handleSessionStatusChange : undefined}
           canHideForClient={canHideForClient}
           onToggleHidden={canHideForClient ? handleToggleHidden : undefined}
+          canToggleAttachment={canToggleAttachment}
+          onToggleAttachment={canToggleAttachment ? handleToggleAttachment : undefined}
         />
 
         <div className="mt-4">

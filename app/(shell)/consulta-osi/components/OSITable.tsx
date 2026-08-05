@@ -4,7 +4,7 @@ import { useState, Fragment } from "react";
 import Link from "next/link";
 import type { OSIListItem, OSIStatusOption, OSISession } from "@/types/osi";
 import { getOSISessions, checkAllSessionsFinal } from "@/actions/osi";
-import { Eye, FileText, Loader2, ChevronDown, ChevronRight, MessageSquare, CheckCircle2, EyeOff, Eye as EyeShow } from "lucide-react";
+import { Eye, FileText, Loader2, ChevronDown, ChevronRight, MessageSquare, CheckCircle2, EyeOff, Eye as EyeShow, Paperclip } from "lucide-react";
 
 interface OSITableProps {
   osis: OSIListItem[];
@@ -18,6 +18,8 @@ interface OSITableProps {
   onSessionStatusChange?: (sessionId: number, newStatusId: number) => Promise<{ success: boolean; error?: string }>;
   canHideForClient?: boolean;
   onToggleHidden?: (osi: OSIListItem, hidden: boolean) => Promise<{ success: boolean; error?: string }>;
+  canToggleAttachment?: boolean;
+  onToggleAttachment?: (osi: OSIListItem) => Promise<{ success: boolean; error?: string }>;
 }
 
 export default function OSITable({
@@ -32,6 +34,8 @@ export default function OSITable({
   onSessionStatusChange,
   canHideForClient,
   onToggleHidden,
+  canToggleAttachment,
+  onToggleAttachment,
 }: OSITableProps) {
   const [statusLoadingId, setStatusLoadingId] = useState<number | null>(null);
   const [expandedOSIId, setExpandedOSIId] = useState<number | null>(null);
@@ -40,6 +44,7 @@ export default function OSITable({
   const [sessionStatusLoading, setSessionStatusLoading] = useState<number | null>(null);
   const [allFinalBanner, setAllFinalBanner] = useState<Record<number, boolean>>({});
   const [hideLoadingId, setHideLoadingId] = useState<number | null>(null);
+  const [attachmentLoadingId, setAttachmentLoadingId] = useState<number | null>(null);
   const formatDate = (dateString: string | null) => {
     if (!dateString) return "-";
     return new Date(dateString + "T00:00:00").toLocaleDateString("es-ES", {
@@ -172,6 +177,16 @@ export default function OSITable({
     }
   };
 
+  const handleToggleAttachment = async (osi: OSIListItem) => {
+    if (!osi.id_osi || !onToggleAttachment) return;
+    setAttachmentLoadingId(osi.id_osi);
+    try {
+      await onToggleAttachment(osi);
+    } finally {
+      setAttachmentLoadingId(null);
+    }
+  };
+
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-x-auto relative">
       {fetching && (
@@ -256,6 +271,15 @@ export default function OSITable({
                     <span className="inline-flex items-center gap-0.5 px-1 py-px rounded text-[8px] font-bold uppercase tracking-wide bg-red-100 text-red-700 whitespace-nowrap leading-none">
                       <EyeOff className="h-2 w-2 shrink-0" />
                       Oculto
+                    </span>
+                  )}
+                  {canToggleAttachment && osi.attachment_received && (
+                    <span
+                      title={`Lista física recibida${osi.attachment_received_at ? ` el ${new Date(osi.attachment_received_at).toLocaleDateString("es-ES")}` : ""}`}
+                      className="inline-flex items-center gap-0.5 px-1 py-px rounded text-[8px] font-bold uppercase tracking-wide bg-amber-100 text-amber-700 whitespace-nowrap leading-none"
+                    >
+                      <Paperclip className="h-2 w-2 shrink-0" />
+                      Recibida
                     </span>
                   )}
                 </div>
@@ -405,6 +429,27 @@ export default function OSITable({
                         <EyeShow className="h-3.5 w-3.5" />
                       ) : (
                         <EyeOff className="h-3.5 w-3.5" />
+                      )}
+                    </button>
+                  )}
+                  {canToggleAttachment && osi.id_osi && onToggleAttachment && (
+                    <button
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        handleToggleAttachment(osi);
+                      }}
+                      disabled={attachmentLoadingId === osi.id_osi}
+                      className={`inline-flex items-center justify-center rounded-md border p-1.5 transition-colors disabled:opacity-50 ${
+                        osi.attachment_received
+                          ? "border-amber-400 text-amber-700 bg-amber-50 hover:bg-amber-100"
+                          : "border-gray-200 text-gray-400 hover:bg-gray-50 hover:text-gray-600"
+                      }`}
+                      title={osi.attachment_received ? "Marcar lista física como NO recibida" : "Marcar lista física como recibida"}
+                    >
+                      {attachmentLoadingId === osi.id_osi ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Paperclip className="h-3.5 w-3.5" />
                       )}
                     </button>
                   )}

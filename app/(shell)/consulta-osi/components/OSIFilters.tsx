@@ -219,6 +219,24 @@ export default function OSIFilters({
                 ))}
               </select>
             </div>
+
+            <div>
+              <label className="block text-[11px] font-medium text-gray-600 mb-0.5">
+                Lista Física
+              </label>
+              <select
+                value={filters.attachmentReceived || ""}
+                onChange={(e) =>
+                  handleFilterChange("attachmentReceived", e.target.value || undefined)
+                }
+                className="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                disabled={loading}
+              >
+                <option value="">Todas</option>
+                <option value="received">Recibida</option>
+                <option value="not_received">No recibida</option>
+              </select>
+            </div>
           </div>
         </div>
       )}

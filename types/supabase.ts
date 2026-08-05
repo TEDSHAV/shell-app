@@ -3482,6 +3482,9 @@ export type Database = {
       facilitador_osi_assignments: {
         Row: {
           assigned_by: string | null
+          attachment_received: boolean | null
+          attachment_received_at: string | null
+          attachment_received_by: string | null
           created_at: string | null
           facilitador_id: number
           id: number
@@ -3492,6 +3495,9 @@ export type Database = {
         }
         Insert: {
           assigned_by?: string | null
+          attachment_received?: boolean | null
+          attachment_received_at?: string | null
+          attachment_received_by?: string | null
           created_at?: string | null
           facilitador_id: number
           id?: never
@@ -3502,6 +3508,9 @@ export type Database = {
         }
         Update: {
           assigned_by?: string | null
+          attachment_received?: boolean | null
+          attachment_received_at?: string | null
+          attachment_received_by?: string | null
           created_at?: string | null
           facilitador_id?: number
           id?: never
