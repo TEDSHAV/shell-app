@@ -83,6 +83,7 @@ export const appGroups: AppGroupConfig[] = [
   {
     id: "procesos-estrategicos",
     label: "PROCESOS ESTRATÉGICOS",
+    description: "Definen el rumbo, la política y el control de la organización.",
     icon: Target,
     brandColor: "#1e3a5f",
     dashboardOrder: 1,
@@ -90,6 +91,7 @@ export const appGroups: AppGroupConfig[] = [
   {
     id: "procesos-medulares",
     label: "PROCESOS MEDULARES",
+    description: "Generan valor directo para el cliente a través del servicio.",
     icon: Briefcase,
     brandColor: "#c8102e",
     dashboardOrder: 2,
@@ -97,6 +99,7 @@ export const appGroups: AppGroupConfig[] = [
   {
     id: "procesos-de-apoyo",
     label: "PROCESOS DE APOYO",
+    description: "Proveen los recursos y soporte que sostienen la operación.",
     icon: Users,
     brandColor: "#1e3a5f",
     dashboardOrder: 3,

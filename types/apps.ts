@@ -31,6 +31,7 @@ export type AppEmbedMode = "shell" | "raw" | "external" | "native";
 export interface AppGroupConfig {
   id: string;
   label: string;
+  description?: string;
   icon: LucideIcon;
   brandColor: string;
   dashboardOrder?: number;

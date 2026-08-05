@@ -55,22 +55,16 @@ export default async function DashboardPage() {
       <div className="space-y-12">
         {activeGroups.map((group) => (
           <section key={group.id}>
-            <div className="flex items-center gap-3 mb-6">
-              <div
-                className="p-2.5 rounded-lg"
-                style={{
-                  backgroundColor: hex_to_rgba(group.brandColor, 0.14),
-                }}
-              >
-                <group.icon
-                  className="h-5 w-5"
-                  style={get_app_icon_style(group.brandColor)}
-                />
-              </div>
-              <h2 className="text-base font-bold text-foreground tracking-wide uppercase">
+            <div className="w-full rounded-xl bg-slate-900 px-6 py-4 mb-2 text-center">
+              <h2 className="text-sm font-bold text-white tracking-[0.15em] uppercase">
                 {group.label}
               </h2>
             </div>
+            {group.description && (
+              <p className="text-center text-sm text-muted-foreground mb-6">
+                {group.description}
+              </p>
+            )}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {group.apps.map((app, index) => {
                 const number = (index + 1).toString().padStart(2, "0");
