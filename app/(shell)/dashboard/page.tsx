@@ -67,7 +67,7 @@ export default async function DashboardPage() {
               className={cn(
                 "gap-4",
                 group.id === "procesos-de-apoyo"
-                  ? "flex flex-wrap justify-center"
+                  ? "grid grid-cols-1 sm:grid-cols-[repeat(auto-fit,minmax(260px,1fr))]"
                   : "grid grid-cols-1 sm:grid-cols-[repeat(auto-fit,minmax(260px,1fr))] justify-items-stretch",
               )}
             >
@@ -135,8 +135,8 @@ export default async function DashboardPage() {
                 );
 
                 const cardClassName = cn(
-                  "group relative flex flex-col gap-4 p-6 pt-7 rounded-xl border border-border bg-white hover:bg-accent/40 hover:border-border/80 transition-all duration-150 overflow-hidden min-h-[180px]",
-                  group.id === "procesos-de-apoyo" ? "w-full sm:w-[300px]" : "w-full",
+                  "group relative flex flex-col gap-4 p-6 pt-7 rounded-xl border border-border bg-white hover:bg-accent/40 hover:border-border/80 transition-all duration-150 overflow-hidden min-h-[180px] w-full",
+                  group.id === "procesos-de-apoyo" && "sm:max-w-[300px] sm:justify-self-center",
                 );
 
                 if (isPlaceholder) {
