@@ -65,7 +65,7 @@ export default async function DashboardPage() {
                 {group.description}
               </p>
             )}
-            <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-4 justify-items-stretch">
+            <div className="flex flex-wrap gap-4">
               {group.apps.map((app, index) => {
                 const number = (index + 1).toString().padStart(2, "0");
                 const isPlaceholder = app.basePath === "#";
@@ -133,7 +133,7 @@ export default async function DashboardPage() {
                 );
 
                 const cardClassName =
-                  "group relative flex flex-col gap-4 p-6 pt-7 rounded-xl border border-border bg-white hover:bg-accent/40 hover:border-border/80 transition-all duration-150 overflow-hidden min-h-[180px] w-full";
+                  "group relative flex flex-col gap-4 p-6 pt-7 rounded-xl border border-border bg-white hover:bg-accent/40 hover:border-border/80 transition-all duration-150 overflow-hidden min-h-[180px] flex-1 basis-[260px]";
 
                 if (isPlaceholder) {
                   return (
