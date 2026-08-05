@@ -141,7 +141,7 @@ export default async function DashboardPage() {
 
                 const cardClassName = cn(
                   "group relative flex flex-col gap-4 p-6 pt-7 rounded-xl border border-border bg-white hover:bg-accent/40 hover:border-border/80 transition-all duration-150 overflow-hidden min-h-[180px]",
-                  group.id === "procesos-de-apoyo" ? "w-full sm:w-[280px]" : "w-full",
+                  group.id === "procesos-de-apoyo" ? "w-full sm:w-[360px]" : "w-full",
                 );
 
                 if (isPlaceholder) {
