@@ -72,7 +72,6 @@ export default async function DashboardPage() {
               )}
             >
               {group.apps.map((app, index) => {
-                const number = (index + 1).toString().padStart(2, "0");
                 const isPlaceholder = app.basePath === "#";
                 const external = opens_in_new_tab(app);
                 const iconStyle = get_app_icon_style(app.brandColor);
@@ -90,16 +89,11 @@ export default async function DashboardPage() {
                       style={stripStyle}
                     />
                     <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2.5 rounded-lg" style={badgeBg}>
-                          <app.icon
-                            className="h-5 w-5"
-                            style={iconStyle}
-                          />
-                        </div>
-                        <span className="text-xs font-bold text-muted-foreground/70">
-                          {number}
-                        </span>
+                      <div className="p-2.5 rounded-lg" style={badgeBg}>
+                        <app.icon
+                          className="h-5 w-5"
+                          style={iconStyle}
+                        />
                       </div>
                       {isAccessible && (
                         <ArrowRight className="h-4 w-4 text-muted-foreground/0 group-hover:text-muted-foreground transition-all translate-x-1 group-hover:translate-x-0 duration-150" />
