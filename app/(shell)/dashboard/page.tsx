@@ -11,6 +11,7 @@ import {
 import { cn } from "@/lib/utils";
 import { getUserRolesByApp, getUserRole } from "@/actions/apps";
 import { can_access_shell_app } from "@/lib/shell-app-access";
+import { isTedMember } from "@/actions/ted";
 
 function flattenNavLinks(navLinks: (NavLink | NavGroup)[]): NavLink[] {
   return navLinks.flatMap((item) =>
@@ -19,9 +20,10 @@ function flattenNavLinks(navLinks: (NavLink | NavGroup)[]): NavLink[] {
 }
 
 export default async function DashboardPage() {
-  const [userRolesByApp, globalRole] = await Promise.all([
+  const [userRolesByApp, globalRole, tedMember] = await Promise.all([
     getUserRolesByApp(),
     getUserRole(),
+    isTedMember(),
   ]);
 
   const canAccessApp = (app: AppConfig) =>
@@ -66,13 +68,15 @@ export default async function DashboardPage() {
             >
               {group.apps.map((app, index) => {
                 const isPlaceholder = app.basePath === "#";
+                const isTedLocked = app.id === "ted" && !tedMember;
+                const isLocked = isPlaceholder || isTedLocked;
                 const external = opens_in_new_tab(app);
                 const iconStyle = get_app_icon_style(app.brandColor);
                 const stripStyle = get_app_strip_style(app.brandColor);
                 const badgeBg = {
                   backgroundColor: hex_to_rgba(app.brandColor, 0.14),
                 };
-                const isAccessible = !isPlaceholder;
+                const isAccessible = !isLocked;
                 const navLinks = flattenNavLinks(app.navLinks);
 
                 const cardContent = (
@@ -124,7 +128,7 @@ export default async function DashboardPage() {
                 const cardClassName =
                   "group relative flex flex-col gap-4 p-6 pt-7 rounded-xl border border-border bg-white hover:bg-accent/40 hover:border-border/80 transition-all duration-150 overflow-hidden min-h-[180px] w-full";
 
-                if (isPlaceholder) {
+                if (isLocked) {
                   return (
                     <div
                       key={app.id}
