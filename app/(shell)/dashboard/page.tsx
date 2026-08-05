@@ -65,7 +65,14 @@ export default async function DashboardPage() {
                 {group.description}
               </p>
             )}
-            <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-4 justify-items-stretch">
+            <div
+              className={cn(
+                "grid gap-4",
+                group.id === "procesos-de-apoyo"
+                  ? "sm:grid-cols-[repeat(auto-fit,260px)] sm:justify-center"
+                  : "sm:grid-cols-[repeat(auto-fit,minmax(260px,1fr))] justify-items-stretch",
+              )}
+            >
               {group.apps.map((app, index) => {
                 const number = (index + 1).toString().padStart(2, "0");
                 const isPlaceholder = app.basePath === "#";
