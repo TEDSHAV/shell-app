@@ -43,13 +43,6 @@ export default async function DashboardPage() {
 
   return (
     <div className="p-8 w-full max-w-7xl mx-auto">
-      <div className="mb-10">
-        <h1 className="text-2xl font-semibold text-foreground">Bienvenido</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Selecciona un proceso para comenzar
-        </p>
-      </div>
-
       <div className="space-y-12">
         {activeGroups.map((group) => (
           <section key={group.id}>
