@@ -48,7 +48,7 @@ export default async function DashboardPage() {
       <div className="space-y-12">
         {activeGroups.map((group) => (
           <section key={group.id}>
-            <div className="w-full rounded-xl bg-slate-900 px-6 py-4 mb-2 text-center">
+            <div className="w-full rounded-xl px-6 py-4 mb-2 text-center" style={{ backgroundColor: "#0C3F69" }}>
               <h2 className="text-sm font-bold text-white tracking-[0.15em] uppercase">
                 {group.label}
               </h2>
