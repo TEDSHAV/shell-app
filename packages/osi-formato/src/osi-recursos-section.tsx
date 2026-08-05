@@ -30,9 +30,11 @@ type MaskFns = {
 function OsiRecursosVariacionesRows({
   layout,
   section_header_class,
+  maskMonetary,
 }: {
   layout: OsiRecursosLayout;
   section_header_class: string;
+  maskMonetary?: boolean;
 }) {
   if (
     !layout.esPorSesion ||
@@ -51,7 +53,10 @@ function OsiRecursosVariacionesRows({
       </tr>
       <tr>
         <td colSpan={4} className="!text-left align-top p-1 overflow-x-auto">
-          <OsiRecursosVariacionesTable layout={layout} />
+          <OsiRecursosVariacionesTable
+            layout={layout}
+            maskMonetary={maskMonetary}
+          />
         </td>
       </tr>
     </>
@@ -77,6 +82,7 @@ export function OsiCapacitacionRecursosBlocks({
         <OsiRecursosVariacionesRows
           layout={layout}
           section_header_class={section_header_class}
+          maskMonetary={is_hidden("gran_total")}
         />
       </>
     );
@@ -328,6 +334,7 @@ export function OsiStRecursosBlocks({
         <OsiRecursosVariacionesRows
           layout={layout}
           section_header_class={section_header_class}
+          maskMonetary={is_hidden("gran_total")}
         />
       </>
     );

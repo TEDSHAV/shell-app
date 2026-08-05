@@ -87,6 +87,8 @@ export type OsiPreviewData = {
   };
   publicCostMask?: Record<string, boolean>;
   isPublicView?: boolean;
+  /** Servicios técnicos: oculta montos USD para vista pública (resto de usuarios). */
+  hideStMonetary?: boolean;
 };
 
 

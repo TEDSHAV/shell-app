@@ -74,8 +74,10 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
         : "N/A";
   const hl = data.previewHighlights ?? {};
   const is_public_view = Boolean(data.isPublicView);
+  const hide_st_monetary = Boolean(data.hideStMonetary);
   const is_hidden = (key: string) =>
-    is_public_view && Boolean(data.publicCostMask?.[key]);
+    hide_st_monetary ||
+    (is_public_view && Boolean(data.publicCostMask?.[key]));
   const recursos_layout = build_osi_recursos_layout(data);
   const participantesDoc =
     data.participantesDocumento != null && data.participantesDocumento >= 0

@@ -109,7 +109,7 @@ export function OsiResumenRecursosConsolidado({
             {money_cell(t.otros, is_hidden("costo_otros"))}
           </td>
           <td className="text-center h-9 text-[12px] font-bold tabular-nums bg-slate-50">
-            {money_cell(gran_total)}
+            {money_cell(gran_total, is_hidden("gran_total"))}
           </td>
         </tr>
       </>
@@ -144,7 +144,7 @@ export function OsiResumenRecursosConsolidado({
           )}
         </td>
         <td className="text-center h-9 text-[12px] font-bold tabular-nums bg-slate-50">
-          {money_cell(gran_total)}
+          {money_cell(gran_total, is_hidden("gran_total"))}
         </td>
       </tr>
       <tr>

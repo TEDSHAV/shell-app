@@ -429,7 +429,8 @@ export async function getOSIPreviewBundle(
       ecc_children,
       servicio_nombre_by_id,
       public_cost_mask,
-      // Consulta OSI is internal staff: always show private costs.
+      can_reveal_st_monetary: false,
+      st_monetary_public_view: true,
       can_see_private_costs: true,
     };
   } catch (err) {

@@ -20,6 +20,10 @@ export type BuildOsiPreviewInput = {
   servicio_nombre_by_id?: Map<number, string> | Record<number, string>;
   public_cost_mask?: Record<string, boolean>;
   can_see_private_costs?: boolean;
+  /** Admin / superadmin / gestor_financiero (SGestion): puede activar vista privada con montos ST. */
+  can_reveal_st_monetary?: boolean;
+  /** ST: true = vista pública sin montos (default). false = vista privada con montos (solo si can_reveal). */
+  st_monetary_public_view?: boolean;
 };
 
 function to_num(value: unknown): number {
@@ -195,8 +199,13 @@ export function build_osi_preview_data(input: BuildOsiPreviewInput): OsiPreviewD
   const servicio_nombre_by_id = input.servicio_nombre_by_id ?? {};
   const public_cost_mask = input.public_cost_mask ?? {};
   const can_see_private_costs = input.can_see_private_costs !== false;
+  const can_reveal_st_monetary = input.can_reveal_st_monetary === true;
+  const st_monetary_public_view = input.st_monetary_public_view !== false;
 
   const is_capacitacion = resolve_is_capacitacion(view_row);
+  const hide_st_monetary =
+    !is_capacitacion &&
+    (!can_reveal_st_monetary || st_monetary_public_view);
   const st_servicios_preview = is_capacitacion
     ? []
     : build_osi_st_servicio_lines({
@@ -382,5 +391,6 @@ export function build_osi_preview_data(input: BuildOsiPreviewInput): OsiPreviewD
     ),
     publicCostMask: public_cost_mask,
     isPublicView: !can_see_private_costs,
+    hideStMonetary: hide_st_monetary,
   };
 }

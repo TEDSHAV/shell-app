@@ -43,10 +43,21 @@ function CellValue({
   );
 }
 
-function format_footer_money(value: number | undefined): string {
-  if (value == null || !(value > 0)) return "N/A";
+function format_footer_money(
+  value: number | undefined,
+  hidden?: boolean,
+): string {
+  if (hidden || value == null || !(value > 0)) return "N/A";
   return `$${value.toFixed(2)}`;
 }
+
+const NON_MONETARY_VARIATION_KEYS = new Set([
+  "sesion",
+  "pop",
+  "st_dias",
+  "st_impresion_flag",
+  "st_bateria_flag",
+]);
 
 /**
  * Daily detail table: every session cost column + TOTALES footer
@@ -54,8 +65,10 @@ function format_footer_money(value: number | undefined): string {
  */
 export function OsiRecursosVariacionesTable({
   layout,
+  maskMonetary,
 }: {
   layout: OsiRecursosLayout;
+  maskMonetary?: boolean;
 }) {
   const columnas = layout.variacionColumnas;
   const filas = layout.variaciones;
@@ -95,9 +108,12 @@ export function OsiRecursosVariacionesTable({
                   );
                 }
                 const celda = fila.celdas[col.key];
+                const hide_money =
+                  Boolean(maskMonetary) &&
+                  !NON_MONETARY_VARIATION_KEYS.has(col.key);
                 return (
                   <td key={col.key} className="px-1.5 py-1.5 text-center">
-                    {celda ? (
+                    {celda && !hide_money ? (
                       <CellValue
                         celda={celda}
                         allow_badge={col.key !== "total_sesion"}
@@ -124,12 +140,15 @@ export function OsiRecursosVariacionesTable({
               );
             }
             const amount = footer[col.key];
+            const hide_money =
+              Boolean(maskMonetary) &&
+              !NON_MONETARY_VARIATION_KEYS.has(col.key);
             return (
               <td
                 key={col.key}
                 className="px-1.5 py-1.5 text-center text-[10px] tabular-nums"
               >
-                {format_footer_money(amount)}
+                {format_footer_money(amount, hide_money)}
               </td>
             );
           })}
