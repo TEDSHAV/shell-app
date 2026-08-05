@@ -64,6 +64,7 @@ export default function DisenoServicioWizard({
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [showFinalizeConfirm, setShowFinalizeConfirm] = useState(false);
+  const [showFinalizeSuccess, setShowFinalizeSuccess] = useState(false);
 
   // Block states — deep-merge with EMPTY defaults to handle partial JSONB from DB
   const [bloqueRecursos, setBloqueRecursos] = useState<BloqueRecursosRequisitos>(
@@ -132,7 +133,7 @@ export default function DisenoServicioWizard({
       : EMPTY_BLOQUE_SALIDAS
   );
 
-  const isCompleted = solicitud.id_estatus === 37;
+  const isCompleted = solicitud.id_estatus === 38;
   const isCAP = solicitud.tipo_servicio?.toLowerCase().includes("cap") || solicitud.tipo_servicio?.toLowerCase().includes("capacitaci");
   const checklistItems = isCAP ? CAP_CHECKLIST_ITEMS : ST_CHECKLIST_ITEMS;
 
@@ -190,11 +191,14 @@ export default function DisenoServicioWizard({
     try {
       await saveBloqueSalidas(solicitud.id, bloqueSalidas);
       await finalizarSolicitud(solicitud.id);
-      showSaveMessage("success", "Solicitud finalizada correctamente");
       setShowFinalizeConfirm(false);
+      setShowFinalizeSuccess(true);
+      // Auto-redirect to the list after the user has a chance to read the
+      // confirmation. 3.5s is long enough to register, short enough to not
+      // feel stuck.
       setTimeout(() => {
         router.push("/nuevo-servicio");
-      }, 2000);
+      }, 3500);
     } catch (error) {
       console.error("Finalize error:", error);
       showSaveMessage("error", "Error al finalizar la solicitud.");
@@ -207,6 +211,45 @@ export default function DisenoServicioWizard({
 
   return (
     <div className="max-w-5xl mx-auto">
+      {/* Finalize Success Card */}
+      {showFinalizeSuccess && (
+        <div className="bg-white border border-green-200 rounded-xl shadow-sm p-8 text-center space-y-4">
+          <div className="flex justify-center">
+            <div className="flex items-center justify-center w-16 h-16 rounded-full bg-green-100">
+              <CheckCircle2 className="h-9 w-9 text-green-600" />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <h2 className="text-2xl font-bold text-gray-900">Solicitud Finalizada</h2>
+            <p className="text-sm text-gray-600">
+              La solicitud <span className="font-medium text-gray-900">&quot;{solicitud.nombre_sugerido}&quot;</span> ha sido finalizada correctamente.
+            </p>
+            <p className="text-sm text-gray-600">
+              Se ha notificado al solicitante que su solicitud de diseño ha sido completada.
+            </p>
+            <p className="text-xs text-gray-400 pt-1">
+              Serás redirigido al listado en unos segundos...
+            </p>
+          </div>
+          <div className="flex justify-center gap-3 pt-2">
+            <Button
+              onClick={() => router.push("/nuevo-servicio")}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white flex gap-2"
+            >
+              Volver al listado
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setShowFinalizeSuccess(false)}
+            >
+              Cerrar
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {!showFinalizeSuccess && (
+        <>
       {/* Step Progress Indicator */}
       <div className="mb-8">
         <div className="flex items-center justify-between">
@@ -269,7 +312,14 @@ export default function DisenoServicioWizard({
                   <Label className="text-gray-600 text-xs">Fecha de Solicitud</Label>
                   <p className="text-sm font-medium text-gray-900 mt-1">
                     {solicitud.fecha_solicitud
-                      ? new Date(solicitud.fecha_solicitud).toLocaleString("es-VE")
+                      ? new Date(solicitud.fecha_solicitud).toLocaleString("es-VE", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          hour12: true,
+                        }).replace(/\u00a0/g, " ")
                       : "—"}
                   </p>
                 </div>
@@ -1003,6 +1053,8 @@ export default function DisenoServicioWizard({
           )}
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 }

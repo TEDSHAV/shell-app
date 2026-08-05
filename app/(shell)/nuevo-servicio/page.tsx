@@ -1,5 +1,5 @@
 import { getDisenoServicioList } from "@/actions/diseno-servicio";
-import DisenoServicioTable from "./components/DisenoServicioTable";
+import DisenoServicioListClient from "./components/DisenoServicioListClient";
 import { FileText } from "lucide-react";
 
 export const metadata = {
@@ -23,7 +23,7 @@ export default async function DisenoServicioPage() {
         </p>
       </div>
 
-      <DisenoServicioTable records={records} />
+      <DisenoServicioListClient records={records} />
     </div>
   );
 }

@@ -8,6 +8,7 @@ const STATUS_COLORS: Record<number, string> = {
   35: "bg-amber-100 text-amber-800 border-amber-300",
   36: "bg-blue-100 text-blue-800 border-blue-300",
   37: "bg-green-100 text-green-800 border-green-300",
+  38: "bg-green-100 text-green-800 border-green-300",
 };
 
 export default function DisenoServicioTable({
@@ -21,7 +22,7 @@ export default function DisenoServicioTable({
     return (
       <div className="text-center py-16 bg-gray-50 rounded-lg border border-gray-200">
         <p className="text-gray-500 text-sm">
-          No hay solicitudes de nuevos servicios disponibles.
+          No hay solicitudes de nuevos servicios que coincidan con los filtros.
         </p>
       </div>
     );
@@ -35,6 +36,7 @@ export default function DisenoServicioTable({
             <th className="px-4 py-3 text-left font-semibold text-gray-700">Nombre Sugerido</th>
             <th className="px-4 py-3 text-left font-semibold text-gray-700">Tipo Servicio</th>
             <th className="px-4 py-3 text-left font-semibold text-gray-700">Solicitante</th>
+            <th className="px-4 py-3 text-left font-semibold text-gray-700">Departamento</th>
             <th className="px-4 py-3 text-left font-semibold text-gray-700">Estatus</th>
             <th className="px-4 py-3 text-left font-semibold text-gray-700">Fecha Solicitud</th>
           </tr>
@@ -54,6 +56,9 @@ export default function DisenoServicioTable({
               </td>
               <td className="px-4 py-3 text-gray-600">
                 {record.solicitante_nombre || "—"}
+              </td>
+              <td className="px-4 py-3 text-gray-600">
+                {record.solicitante_departamento || "—"}
               </td>
               <td className="px-4 py-3">
                 <Badge

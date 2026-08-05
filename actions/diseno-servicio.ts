@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { notifySolicitanteOfFinalizacion } from "@/actions/diseno-servicio-notifications";
 import type {
   BloqueRecursosRequisitos,
   BloqueHigieneSeguridadAmbiente,
@@ -14,7 +15,7 @@ import type {
 
 const ESTATUS_PENDIENTE = 35;
 const ESTATUS_EN_PROCESO = 36;
-const ESTATUS_COMPLETADO = 37;
+const ESTATUS_COMPLETADO = 38;
 
 // Get current logged in user details
 export async function getCurrentUserForDiseno() {
@@ -54,7 +55,7 @@ export async function getDisenoServicioList(): Promise<DisenoServicioListItem[]>
       id_solicitante,
       id_servicio_relacionado,
       conf_estatus!solicitudes_diseno_servicio_id_estatus_fkey(nombre_estado),
-      usuarios!solicitudes_diseno_servicio_id_solicitante_fkey(nombre_apellido),
+      usuarios!solicitudes_diseno_servicio_id_solicitante_fkey(nombre_apellido, departamento),
       catalogo_servicios!solicitudes_diseno_servicio_id_servicio_relacionado_fkey(nombre)
     `)
     .order("id", { ascending: false });
@@ -62,6 +63,31 @@ export async function getDisenoServicioList(): Promise<DisenoServicioListItem[]>
   if (error) {
     console.error("Error fetching solicitudes_diseno_servicio:", JSON.stringify(error, null, 2));
     return [];
+  }
+
+  // Batch-fetch department names for the distinct solicitante departamento IDs.
+  // Done as a separate one-level join (known to work in getCurrentUserForDiseno)
+  // to avoid the two-level nested join which PostgREST can fail to resolve.
+  const departamentoIds = Array.from(
+    new Set(
+      (data || [])
+        .map((row: any) => (row.usuarios as any)?.departamento as number | null)
+        .filter((id: number | null): id is number => id !== null && id !== undefined),
+    ),
+  );
+
+  let departamentoMap = new Map<number, string>();
+  if (departamentoIds.length > 0) {
+    const { data: deptos, error: deptError } = await supabase
+      .from("departamentos")
+      .select("id, nombre")
+      .in("id", departamentoIds);
+
+    if (deptError) {
+      console.error("Error fetching departamentos:", JSON.stringify(deptError, null, 2));
+    } else {
+      departamentoMap = new Map((deptos || []).map((d: any) => [d.id, d.nombre]));
+    }
   }
 
   return (data || []).map((row: any) => ({
@@ -72,6 +98,8 @@ export async function getDisenoServicioList(): Promise<DisenoServicioListItem[]>
     id_estatus: row.id_estatus,
     estatus_nombre: row.conf_estatus?.nombre_estado || "",
     solicitante_nombre: row.usuarios?.nombre_apellido || "",
+    solicitante_departamento:
+      departamentoMap.get((row.usuarios as any)?.departamento) || "",
     fecha_solicitud: row.fecha_solicitud,
   }));
 }
@@ -247,5 +275,10 @@ export async function finalizarSolicitud(id: number) {
 
   if (error) throw error;
   revalidatePath("/nuevo-servicio");
+
+  // Notify the original solicitante that their request has been finalized.
+  // Non-throwing: a notify-schema issue must not roll back the finalize.
+  await notifySolicitanteOfFinalizacion(id);
+
   return { success: true };
 }

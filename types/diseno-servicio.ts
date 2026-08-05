@@ -128,6 +128,7 @@ export interface DisenoServicioListItem {
   id_estatus: number;
   estatus_nombre: string;
   solicitante_nombre: string;
+  solicitante_departamento: string;
   fecha_solicitud: string | null;
 }
 
