@@ -49,17 +49,27 @@ export function isServiciosTecnicosDept(deptName: string | null | undefined): bo
 // Requisiciones INTERNAS from these departments must be approved by the lider of
 // the target gerencia below instead of the lider of their own
 // departamentos.gerencia. Requested so the Negocios lider approves these
-// departments' internas for a while.
+// departments' internas for a while, because the Servicios lider is temporarily
+// absent.
 //
 // Scope: internas ONLY. Externas keep the department coordinador as approver
 // (with the department's natural gerencia lider as fallback).
+//
+// Coverage: every department whose natural gerencia is "Servicios"
+// (Capacitacion, Servicios Tecnicos, Calidad, SIG, SSST) plus TED (which is
+// naturally Negocios but is listed for clarity). When the Servicios lider
+// returns, remove the Servicios-gerencia entries (and TED if desired).
 //
 // TO REMOVE THIS WORKAROUND: delete INTERNA_LIDER_GERENCIA_OVERRIDES and the two
 // helpers below; the call sites fall back to the department's own gerencia.
 // ---------------------------------------------------------------------------
 const INTERNA_LIDER_GERENCIA_OVERRIDES: { matches: (d: string) => boolean; gerencia: string }[] = [
   { matches: (d) => d.includes("capacitacion"), gerencia: "Negocios" },
+  { matches: (d) => d.includes("servicios") && d.includes("tecnic"), gerencia: "Negocios" },
   { matches: (d) => d.includes("calidad"), gerencia: "Negocios" },
+  // Exact match: "sig" is short enough that a substring test would be risky.
+  { matches: (d) => d === "sig", gerencia: "Negocios" },
+  { matches: (d) => d.includes("ssst"), gerencia: "Negocios" },
   // Exact match: "ted" is short enough that a substring test would be risky.
   { matches: (d) => d === "ted", gerencia: "Negocios" },
 ];

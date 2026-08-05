@@ -216,8 +216,10 @@ export const departmentHasCoordinador = cache(async (deptName: string | null | u
 
 // True when the current user can place an Interna for the given department:
 //   - they are the department's coordinador, OR
-//   - the department has no coordinador AND they are the lider who approves
-//     internas for it (in which case the interna skips approval and goes
+//   - the department has no coordinador (anyone in the department may place it;
+//     it will then route to the approving lider for approval — see
+//     resolveInternaApprovalGerencia for the temporary override — unless the
+//     creator IS that approving lider, in which case it skips approval and goes
 //     straight to admin).
 export const canPlaceInterna = cache(async (deptName: string | null | undefined): Promise<boolean> => {
   if (!deptName) return false;
@@ -225,7 +227,10 @@ export const canPlaceInterna = cache(async (deptName: string | null | undefined)
   if (isCoord) return true;
   const hasCoord = await departmentHasCoordinador(deptName);
   if (hasCoord) return false;
-  return isLiderForInternaApproval(deptName);
+  // No coordinador → anyone in the department can place an interna. The
+  // workflow step in createRequisicionRecord decides whether it needs lider
+  // approval (creator is not the approving lider) or skips it (creator is).
+  return true;
 });
 
 // Names of ALL departments the current user coordinates (departamentos.coordinador).
@@ -485,12 +490,13 @@ export async function createRequisicionRecord(
   const isInterna = formData.is_general;
 
   // --- Workflow ---
-  // Internas: placed only by the department's coordinador (or, if the department
-  //   has no coordinador, by the gerencia's lider). When a coordinador places it,
-  //   it needs Lider approval before reaching Administración — UNLESS the
-  //   coordinador is also the gerencia's lider, in which case there is nobody left
-  //   to approve and it goes straight to Administración. When the gerencia lider
-  //   places it (no coordinador case), it also skips approval.
+  // Internas: placed by the department's coordinador, or by anyone when the
+  //   department has no coordinador (e.g. TED, Calidad, SIG, SSST, Servicios
+  //   Tecnicos). An interna needs Lider approval before reaching Administración
+  //   — UNLESS the creator IS the approving lider (which covers both the
+  //   "no coordinador and the creator is the lider" case and the "coordinador
+  //   is also the lider" case), in which case there is nobody left to approve
+  //   and it goes straight to Administración.
   // Externas: placed by anyone. If the creator IS the coordinador (or the gerencia
   //   lider when the department has no coordinador), it skips approval and goes
   //   straight to Administración. If an analyst places it, it needs Coordinador
@@ -508,17 +514,17 @@ export async function createRequisicionRecord(
         "Solicite a su coordinador que la coloque por usted."
       );
     }
-    const hasCoord = await departmentHasCoordinador(formData.departamento);
     // If the creator is the approving lider there is no separate approver, so the
-    // interna skips the lider gate (this covers both the "no coordinador" case and
-    // the case where the coordinador is also the lider — otherwise the requisicion
-    // would sit pending on its own creator's approval forever).
+    // interna skips the lider gate (this covers the coordinador-less case where
+    // the lider places it themselves, and the case where the coordinador is also
+    // the lider — otherwise the requisicion would sit pending on its own
+    // creator's approval forever). Any other creator (coordinador, or an analyst
+    // in a coordinador-less department) needs Lider approval.
     const creatorIsLider = await isLiderForInternaApproval(formData.departamento);
-    if (hasCoord && !creatorIsLider) {
-      // Coordinador (who is not the lider) placed it → needs Lider approval.
-      needsLiderApproval = true;
-    } else {
+    if (creatorIsLider) {
       liderBypassApproval = true;
+    } else {
+      needsLiderApproval = true;
     }
   } else {
     // Externa. Check if the creator is the approver (coordinador or lider fallback).
