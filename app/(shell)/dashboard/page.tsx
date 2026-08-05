@@ -65,14 +65,7 @@ export default async function DashboardPage() {
                 {group.description}
               </p>
             )}
-            <div
-              className={cn(
-                "gap-4",
-                group.id === "procesos-de-apoyo"
-                  ? "flex flex-wrap justify-center"
-                  : "grid grid-cols-1 sm:grid-cols-[repeat(auto-fit,minmax(260px,1fr))] justify-items-stretch",
-              )}
-            >
+            <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-4 justify-items-stretch">
               {group.apps.map((app, index) => {
                 const number = (index + 1).toString().padStart(2, "0");
                 const isPlaceholder = app.basePath === "#";
@@ -139,10 +132,8 @@ export default async function DashboardPage() {
                   </>
                 );
 
-                const cardClassName = cn(
-                  "group relative flex flex-col gap-4 p-6 pt-7 rounded-xl border border-border bg-white hover:bg-accent/40 hover:border-border/80 transition-all duration-150 overflow-hidden min-h-[180px]",
-                  group.id === "procesos-de-apoyo" ? "w-full sm:w-[360px]" : "w-full",
-                );
+                const cardClassName =
+                  "group relative flex flex-col gap-4 p-6 pt-7 rounded-xl border border-border bg-white hover:bg-accent/40 hover:border-border/80 transition-all duration-150 overflow-hidden min-h-[180px] w-full";
 
                 if (isPlaceholder) {
                   return (
