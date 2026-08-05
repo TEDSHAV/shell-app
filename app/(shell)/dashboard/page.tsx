@@ -65,7 +65,7 @@ export default async function DashboardPage() {
                 {group.description}
               </p>
             )}
-            <div className="flex flex-wrap gap-4">
+            <div className="flex flex-wrap justify-center gap-4">
               {group.apps.map((app, index) => {
                 const number = (index + 1).toString().padStart(2, "0");
                 const isPlaceholder = app.basePath === "#";
@@ -133,7 +133,7 @@ export default async function DashboardPage() {
                 );
 
                 const cardClassName =
-                  "group relative flex flex-col gap-4 p-6 pt-7 rounded-xl border border-border bg-white hover:bg-accent/40 hover:border-border/80 transition-all duration-150 overflow-hidden min-h-[180px] flex-1 basis-[260px]";
+                  "group relative flex flex-col gap-4 p-6 pt-7 rounded-xl border border-border bg-white hover:bg-accent/40 hover:border-border/80 transition-all duration-150 overflow-hidden min-h-[180px] w-full sm:w-[300px]";
 
                 if (isPlaceholder) {
                   return (
