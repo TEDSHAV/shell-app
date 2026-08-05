@@ -67,10 +67,10 @@ export default async function DashboardPage() {
             )}
             <div
               className={cn(
-                "grid gap-4",
+                "gap-4",
                 group.id === "procesos-de-apoyo"
-                  ? "sm:grid-cols-[repeat(auto-fit,260px)] sm:justify-center"
-                  : "sm:grid-cols-[repeat(auto-fit,minmax(260px,1fr))] justify-items-stretch",
+                  ? "flex flex-wrap justify-center"
+                  : "grid grid-cols-1 sm:grid-cols-[repeat(auto-fit,minmax(260px,1fr))] justify-items-stretch",
               )}
             >
               {group.apps.map((app, index) => {
@@ -139,8 +139,10 @@ export default async function DashboardPage() {
                   </>
                 );
 
-                const cardClassName =
-                  "group relative flex flex-col gap-4 p-6 pt-7 rounded-xl border border-border bg-white hover:bg-accent/40 hover:border-border/80 transition-all duration-150 overflow-hidden min-h-[180px]";
+                const cardClassName = cn(
+                  "group relative flex flex-col gap-4 p-6 pt-7 rounded-xl border border-border bg-white hover:bg-accent/40 hover:border-border/80 transition-all duration-150 overflow-hidden min-h-[180px]",
+                  group.id === "procesos-de-apoyo" ? "w-full sm:w-[280px]" : "w-full",
+                );
 
                 if (isPlaceholder) {
                   return (
