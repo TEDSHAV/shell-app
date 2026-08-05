@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { apps, appGroups } from "@/config/apps";
-import { AppConfig, AppGroupConfig } from "@/types";
+import { NavLink, NavGroup, AppConfig, AppGroupConfig } from "@/types";
 import { ArrowRight } from "lucide-react";
 import {
   get_app_icon_style,
@@ -12,12 +12,10 @@ import { cn } from "@/lib/utils";
 import { getUserRolesByApp, getUserRole } from "@/actions/apps";
 import { can_access_shell_app } from "@/lib/shell-app-access";
 
-function getProgress(app: AppConfig): number {
-  // Placeholder apps (basePath "#") show 0% progress; active apps show a
-  // deterministic percentage so the progress bar renders in the layout.
-  if (app.basePath === "#") return 0;
-  if (app.dashboardOrder) return Math.min(95, 50 + app.dashboardOrder * 5);
-  return 75;
+function flattenNavLinks(navLinks: (NavLink | NavGroup)[]): NavLink[] {
+  return navLinks.flatMap((item) =>
+    "groupLabel" in item ? item.links : [item],
+  );
 }
 
 export default async function DashboardPage() {
@@ -82,8 +80,8 @@ export default async function DashboardPage() {
                 const badgeBg = {
                   backgroundColor: hex_to_rgba(app.brandColor, 0.14),
                 };
-                const progress = getProgress(app);
                 const isAccessible = !isPlaceholder;
+                const navLinks = flattenNavLinks(app.navLinks);
 
                 const cardContent = (
                   <>
@@ -108,34 +106,31 @@ export default async function DashboardPage() {
                       )}
                     </div>
                     <div>
-                      <h3 className="font-semibold text-foreground text-base flex items-center gap-2">
+                      <h3 className="font-semibold text-foreground text-base">
                         {app.name}
-                        <span
-                          className={cn(
-                            "w-2 h-2 rounded-full",
-                            isPlaceholder ? "bg-amber-500" : "bg-green-500",
-                          )}
-                        />
                       </h3>
                       <p className="mt-0.5 text-sm text-muted-foreground line-clamp-2">
                         {app.description}
                       </p>
                     </div>
-                    <div className="mt-auto">
-                      <div className="flex justify-between text-xs text-muted-foreground mb-1">
-                        <span>Avance</span>
-                        <span>{progress}%</span>
+                    {navLinks.length > 0 && (
+                      <div className="flex gap-2 flex-wrap mt-auto">
+                        {navLinks.slice(0, 3).map((link, idx) => (
+                          <span
+                            key={`${link.path}-${idx}`}
+                            className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground"
+                          >
+                            <link.icon className="h-2.5 w-2.5" />
+                            {link.label}
+                          </span>
+                        ))}
+                        {navLinks.length > 3 && (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                            +{navLinks.length - 3} más
+                          </span>
+                        )}
                       </div>
-                      <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                        <div
-                          className="h-full rounded-full transition-all"
-                          style={{
-                            width: `${progress}%`,
-                            backgroundColor: app.brandColor,
-                          }}
-                        />
-                      </div>
-                    </div>
+                    )}
                   </>
                 );
 
