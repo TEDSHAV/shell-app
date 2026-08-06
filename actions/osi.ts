@@ -627,9 +627,13 @@ export async function canHideOSIFromClient(): Promise<boolean> {
 // Consulta de OSIs page.
 export async function canToggleOSIAttachment(): Promise<boolean> {
   try {
-    // Superadmin/admin bypass — matches the canHideOSIFromClient pattern.
+    // Only capacitacion department users and global superadmins can see/use
+    // the "lista física recibida" toggle. We intentionally do NOT bypass for
+    // the "admin" role (unlike canHideOSIFromClient): getUserRole() treats
+    // app-level admins in any app as "admin", which would wrongly grant the
+    // toggle to servicios tecnicos (and other department) app-admins.
     const globalRole = (await getUserRole()).toLowerCase();
-    if (globalRole === "superadmin" || globalRole === "admin") return true;
+    if (globalRole === "superadmin") return true;
 
     const filter = await getUserOSIAccessFilter();
     return filter === "capacitacion";

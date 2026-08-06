@@ -273,7 +273,7 @@ export default function OSITable({
                       Oculto
                     </span>
                   )}
-                  {canToggleAttachment && osi.attachment_received && (
+                  {osi.attachment_received && (
                     <span
                       title={`Lista física recibida${osi.attachment_received_at ? ` el ${new Date(osi.attachment_received_at).toLocaleDateString("es-ES")}` : ""}`}
                       className="inline-flex items-center gap-0.5 px-1 py-px rounded text-[8px] font-bold uppercase tracking-wide bg-amber-100 text-amber-700 whitespace-nowrap leading-none"
