@@ -11,13 +11,10 @@ export async function getFrameUrl(
   return buildFrameUrl(appId, subPath);
 }
 
-/** App authprisma Administración (id=4). */
-export const SADMINISTRACION_APP_SLUG = "sadministracion";
-
-/** Usuario con rol asignado en la app Administración (consulta OSI en Shell). */
+/** Usuario con rol asignado en la app Administración (authprisma id=4, slug sadministracion). */
 export async function isSadministracionUser(): Promise<boolean> {
   const roles = await getUserRolesByApp();
-  return Object.prototype.hasOwnProperty.call(roles, SADMINISTRACION_APP_SLUG);
+  return Object.prototype.hasOwnProperty.call(roles, "sadministracion");
 }
 
 export async function isSgestionAdmin(): Promise<boolean> {
