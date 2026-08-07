@@ -290,8 +290,13 @@ export default function CredencialesClient() {
       setError(result.error);
     } else {
       setSuccess("Credencial actualizada exitosamente");
-      setSavedPassword("");
-      setCopied(false);
+      if (editPassword) {
+        setSavedUsername(editUsername);
+        setSavedPassword(editPassword);
+        setCopied(false);
+      } else {
+        setSavedPassword("");
+      }
       handleCancelEdit();
       if (selectedCompanyId) {
         loadCredentials(selectedCompanyId);
