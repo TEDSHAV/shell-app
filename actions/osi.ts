@@ -4,7 +4,11 @@ import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { notifySessionStatusChange } from "@/actions/osi-session-notifications";
-import { getUserRole, getUserRolesByApp } from "@/actions/apps";
+import {
+  getUserRole,
+  getUserRolesByApp,
+  isSadministracionUser,
+} from "@/actions/apps";
 import type { BuildOsiPreviewInput } from "@sha/osi-formato";
 import type {
   OSIListFilters,
@@ -423,14 +427,16 @@ export async function getOSIPreviewBundle(
       }
     }
 
+    const can_reveal_st_monetary = await isSadministracionUser();
+
     return {
       view_row: view_row as Record<string, unknown>,
       osi_base_row: (osi_base_row ?? null) as Record<string, unknown> | null,
       ecc_children,
       servicio_nombre_by_id,
       public_cost_mask,
-      can_reveal_st_monetary: false,
-      st_monetary_public_view: true,
+      can_reveal_st_monetary,
+      st_monetary_public_view: !can_reveal_st_monetary,
       can_see_private_costs: true,
     };
   } catch (err) {
