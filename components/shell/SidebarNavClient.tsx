@@ -121,7 +121,9 @@ export function SidebarNavClient({
             </span>
           </div>
         )}
-        {homeNavApps.map((app) => {
+        {homeNavApps
+          .filter((app) => app.id !== "osis")
+          .map((app) => {
           const external = opens_in_new_tab(app);
           const icon_style = get_app_icon_style(app.brandColor);
 

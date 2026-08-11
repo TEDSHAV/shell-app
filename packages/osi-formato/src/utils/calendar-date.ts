@@ -38,3 +38,23 @@ export function formatCalendarDayEsVe(value: unknown): string {
   }
   return date.toLocaleDateString("es-VE");
 }
+
+/** Formato 12 h con AM/PM para horas de sesión (ej. 08:00 → 8:00 AM). */
+export function formatTimeAmPmEsVe(value: unknown): string {
+  if (value == null) return "N/A";
+  const text = String(value).trim();
+  if (!text) return "N/A";
+
+  const match = text.match(/^(\d{1,2}):(\d{2})(?::\d{2})?/);
+  if (!match) return text;
+
+  const hours24 = Number(match[1]);
+  const minutes = match[2];
+  if (!Number.isFinite(hours24) || hours24 < 0 || hours24 > 23) return text;
+
+  const period = hours24 >= 12 ? "PM" : "AM";
+  let hours12 = hours24 % 12;
+  if (hours12 === 0) hours12 = 12;
+
+  return `${hours12}:${minutes} ${period}`;
+}

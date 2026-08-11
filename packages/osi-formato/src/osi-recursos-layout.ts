@@ -48,6 +48,8 @@ export type OsiRecursosCostSlice = {
   bateriaIncluida: boolean;
   certificadoImpreso: boolean;
   carnetImpreso: boolean;
+  incluyeRefrigerio: boolean;
+  entregaCertificado: "retira_cliente" | "se_envia" | null;
 };
 
 export type OsiBadgeTone = "base" | "up" | "down";
@@ -175,6 +177,8 @@ function session_to_cost_slice(
     bateriaIncluida: session.bateriaIncluida !== false,
     certificadoImpreso: data.certificadoImpreso,
     carnetImpreso: data.carnetImpreso,
+    incluyeRefrigerio: Boolean(data.incluyeRefrigerio),
+    entregaCertificado: data.entregaCertificado ?? null,
   };
 }
 
@@ -208,6 +212,8 @@ function global_to_cost_slice(data: OsiPreviewData): OsiRecursosCostSlice {
     bateriaIncluida: data.bateriaIncluida !== false,
     certificadoImpreso: data.certificadoImpreso,
     carnetImpreso: data.carnetImpreso,
+    incluyeRefrigerio: Boolean(data.incluyeRefrigerio),
+    entregaCertificado: data.entregaCertificado ?? null,
   };
 }
 
@@ -350,6 +356,8 @@ function sum_slices(
       : first.bateriaIncluida,
     certificadoImpreso: data.certificadoImpreso,
     carnetImpreso: data.carnetImpreso,
+    incluyeRefrigerio: Boolean(data.incluyeRefrigerio),
+    entregaCertificado: data.entregaCertificado ?? null,
   };
 
   return consolidado;
@@ -434,12 +442,12 @@ const GROUP_COLUMN_META: Array<{
   label: string;
 }> = [
   { key: "honorarios", label: "HONORARIOS FACILITADOR" },
-  { key: "impresion", label: "IMPRESIÓN DE MATERIAL" },
-  { key: "traslado", label: "TRASLADO" },
-  { key: "traslado_externo", label: "TRASLADO EXTERNO" },
-  { key: "logistica", label: "LOGÍSTICA" },
   { key: "hospedaje", label: "HOSPEDAJE" },
-  { key: "otros", label: "OTROS" },
+  { key: "logistica", label: "LOGÍSTICA / COMIDA" },
+  { key: "traslado", label: "TRASLADO URBANO" },
+  { key: "traslado_externo", label: "TRASLADO EXTRAURBANO" },
+  { key: "otros", label: "TRASLADO OTROS" },
+  { key: "impresion", label: "IMPRESIÓN DE MATERIAL" },
   { key: "pop", label: "POP" },
   { key: "st_dias", label: "DÍAS / ESPECIALISTAS" },
   { key: "st_envios", label: "ENVÍOS" },
@@ -670,12 +678,12 @@ function select_detail_group_keys(
   const allow = is_capacitacion
     ? ([
         "honorarios",
-        "impresion",
+        "hospedaje",
+        "logistica",
         "traslado",
         "traslado_externo",
-        "logistica",
-        "hospedaje",
         "otros",
+        "impresion",
         "pop",
       ] as OsiRecursosGroupKey[])
     : ([

@@ -114,7 +114,7 @@ export const appGroups: AppGroupConfig[] = [
 ];
 
 /** Apps visibles en header/sidebar del home de Shell, en este orden. */
-export const HOME_NAV_APP_IDS = ["reportes", "tickets"] as const;
+export const HOME_NAV_APP_IDS = ["reportes", "tickets", "osis"] as const;
 export const HOME_NAV_GROUP_IDS = ["utilidades"] as const;
 
 export const apps: AppConfig[] = [
@@ -753,6 +753,18 @@ export const apps: AppConfig[] = [
     embedMode: "raw",
     hiddenFromDashboard: true,
     dashboardOrder: 7,
+    navLinks: [],
+  }),
+  build_app_config({
+    id: "osis",
+    name: "OSIs",
+    description: "Consulta y seguimiento de órdenes de servicio internas",
+    basePath: "/consulta-osi",
+    icon: FileCheck,
+    brandColor: "#0EA5E9",
+    embedMode: "native",
+    hiddenFromDashboard: true,
+    dashboardOrder: 7.5,
     navLinks: [],
   }),
   build_app_config({

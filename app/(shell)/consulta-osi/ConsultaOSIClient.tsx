@@ -258,8 +258,16 @@ export default function ConsultaOSIClient({ canChangeStatus, canHideForClient, c
   );
 
   const handleSessionStatusChange = useCallback(
-    async (sessionId: number, newStatusId: number) => {
-      return await updateSessionStatus(sessionId, newStatusId);
+    async (
+      sessionId: number,
+      newStatusId: number,
+      execution?: {
+        fecha_ejecutada: string;
+        hora_ejecutada: string;
+        ejecutada_en_fecha_planificada: boolean;
+      },
+    ) => {
+      return await updateSessionStatus(sessionId, newStatusId, execution);
     },
     [],
   );

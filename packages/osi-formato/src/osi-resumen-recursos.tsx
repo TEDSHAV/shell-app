@@ -1,6 +1,13 @@
 "use client";
 
+import { cn } from "./utils/cn";
 import type { OsiRecursosLayout } from "./osi-recursos-layout";
+import {
+  format_certificado_entrega_display,
+  format_osi_si_no,
+  OSI_BOOLEAN_VALUE_CLASS,
+  OSI_DOC_VALUE_CLASS,
+} from "./osi-document-typography";
 
 function money_cell(value: number, hidden?: boolean): string {
   if (hidden || !(value > 0)) return "N/A";
@@ -39,51 +46,62 @@ export function OsiResumenRecursosConsolidado({
     return (
       <>
         <tr>
-          <th colSpan={4} className={section_header_class}>
+          <th colSpan={6} className={section_header_class}>
             RESUMEN DE RECURSOS DEL SERVICIO
           </th>
         </tr>
         <tr>
-          <th className="osi-label-md leading-tight">HONORARIOS</th>
-          <th className="osi-label-md leading-tight">IMPRESIÓN DE MATERIAL</th>
-          <th className="osi-label-md leading-tight">TRASLADO</th>
-          <th className="osi-label-md leading-tight">
-            CERTIFICADO / CARNET / POP
-          </th>
+          <th className="osi-label-md leading-tight" colSpan={2}>HONORARIOS</th>
+          <th className="osi-label-md leading-tight" colSpan={2}>HOSPEDAJE</th>
+          <th className="osi-label-md leading-tight" colSpan={2}>LOGÍSTICA / COMIDA</th>
         </tr>
         <tr>
-          <td className="text-center h-9 text-[11px] font-semibold tabular-nums">
+          <td className={cn(OSI_DOC_VALUE_CLASS, "h-9")} colSpan={2}>
             {money_cell(t.honorarios, is_hidden("honorarios_unit_cost"))}
           </td>
-          <td className="text-center h-9 text-[11px] font-semibold tabular-nums">
-            {money_cell(
-              t.impresion,
-              is_hidden("costo_impresion_material"),
-            )}
+          <td className={cn(OSI_DOC_VALUE_CLASS, "h-9")} colSpan={2}>
+            {money_cell(t.hospedaje, is_hidden("hospedaje_unit_cost"))}
           </td>
-          <td className="text-center h-9 text-[11px] font-semibold tabular-nums">
-            {money_cell(
-              t.traslado + t.traslado_externo,
-              is_hidden("costo_traslado") && is_hidden("traslado_externo"),
-            )}
+          <td className={cn(OSI_DOC_VALUE_CLASS, "h-9")} colSpan={2}>
+            {money_cell(t.logistica, is_hidden("logistica_unit_cost"))}
           </td>
-          <td className="p-0 align-top">
-            <table className="w-full table-fixed border-collapse">
-              <colgroup>
-                <col className="w-1/3" />
-                <col className="w-1/3" />
-                <col className="w-1/3" />
-              </colgroup>
+        </tr>
+        <tr>
+          <td className="p-0 align-top" colSpan={3}>
+            <table className="w-full table-fixed border-collapse [&_td]:border [&_td]:border-black [&_th]:border [&_th]:border-black">
               <tbody>
                 <tr>
-                  <td className="text-center h-9 text-[10px] font-bold border-r border-black">
-                    {c.certificadoImpreso ? "SÍ" : "NO"}
+                  <th className="bg-slate-100 osi-label-md px-1 py-0.5">
+                    IMPRESIÓN DE MATERIAL
+                  </th>
+                </tr>
+                <tr>
+                  <td className={cn(OSI_DOC_VALUE_CLASS, "h-9")}>
+                    {money_cell(
+                      t.impresion,
+                      is_hidden("costo_impresion_material"),
+                    )}
                   </td>
-                  <td className="text-center h-9 text-[10px] font-bold border-r border-black">
-                    {c.carnetImpreso ? "SÍ" : "NO"}
-                  </td>
-                  <td className="text-center h-9 text-[10px] font-bold">
-                    {c.popIncluido ? "SÍ" : "NO"}
+                </tr>
+              </tbody>
+            </table>
+          </td>
+          <td className="p-0 align-top" colSpan={3}>
+            <table className="w-full table-fixed border-collapse [&_td]:border [&_td]:border-black [&_th]:border [&_th]:border-black">
+              <tbody>
+                <tr>
+                  <th className="bg-slate-100 osi-label-md px-1 py-0.5">
+                    TRASLADOS
+                  </th>
+                </tr>
+                <tr>
+                  <td className={cn(OSI_DOC_VALUE_CLASS, "h-9")}>
+                    {money_cell(
+                      t.traslado + t.traslado_externo + t.otros,
+                      is_hidden("costo_traslado") &&
+                        is_hidden("traslado_externo") &&
+                        is_hidden("costo_otros"),
+                    )}
                   </td>
                 </tr>
               </tbody>
@@ -91,24 +109,45 @@ export function OsiResumenRecursosConsolidado({
           </td>
         </tr>
         <tr>
-          <th className="osi-label-md leading-tight">LOGÍSTICA</th>
-          <th className="osi-label-md leading-tight">HOSPEDAJE</th>
-          <th className="osi-label-md leading-tight">OTROS</th>
-          <th className="osi-label-md leading-tight bg-slate-100">
+          <th className="osi-label-md leading-tight" colSpan={2}>
+            CERTIFICADO
+          </th>
+          <th className="osi-label-md leading-tight" colSpan={2}>
+            CARNET
+          </th>
+          <th className="osi-label-md leading-tight">POP</th>
+          <th className="osi-label-md leading-tight">INCLUYE REFRIGERIO</th>
+        </tr>
+        <tr>
+          <td
+            className={cn(OSI_BOOLEAN_VALUE_CLASS, "h-9 px-1 leading-tight")}
+            colSpan={2}
+          >
+            {format_certificado_entrega_display(
+              c.certificadoImpreso,
+              c.entregaCertificado,
+            )}
+          </td>
+          <td className={cn(OSI_BOOLEAN_VALUE_CLASS, "h-9")} colSpan={2}>
+            {format_osi_si_no(c.carnetImpreso)}
+          </td>
+          <td className={cn(OSI_BOOLEAN_VALUE_CLASS, "h-9")}>
+            {format_osi_si_no(c.popIncluido)}
+          </td>
+          <td className={cn(OSI_BOOLEAN_VALUE_CLASS, "h-9")}>
+            {format_osi_si_no(c.incluyeRefrigerio)}
+          </td>
+        </tr>
+        <tr>
+          <th className="osi-label-md leading-tight bg-slate-100" colSpan={6}>
             TOTAL OSI
           </th>
         </tr>
         <tr>
-          <td className="text-center h-9 text-[11px] font-semibold tabular-nums">
-            {money_cell(t.logistica, is_hidden("logistica_unit_cost"))}
-          </td>
-          <td className="text-center h-9 text-[11px] font-semibold tabular-nums">
-            {money_cell(t.hospedaje, is_hidden("hospedaje_unit_cost"))}
-          </td>
-          <td className="text-center h-9 text-[11px] font-semibold tabular-nums">
-            {money_cell(t.otros, is_hidden("costo_otros"))}
-          </td>
-          <td className="text-center h-9 text-[12px] font-bold tabular-nums bg-slate-50">
+          <td
+            className={cn(OSI_DOC_VALUE_CLASS, "h-9 font-bold bg-slate-50")}
+            colSpan={6}
+          >
             {money_cell(gran_total, is_hidden("gran_total"))}
           </td>
         </tr>
@@ -119,7 +158,7 @@ export function OsiResumenRecursosConsolidado({
   return (
     <>
       <tr>
-        <th colSpan={4} className={section_header_class}>
+        <th colSpan={6} className={section_header_class}>
           RESUMEN DE RECURSOS DEL SERVICIO
         </th>
       </tr>
@@ -130,20 +169,20 @@ export function OsiResumenRecursosConsolidado({
         <th className="osi-label-md leading-tight bg-slate-100">TOTAL OSI</th>
       </tr>
       <tr>
-        <td className="text-center h-9 text-[11px] font-semibold tabular-nums">
+        <td className={cn(OSI_DOC_VALUE_CLASS, "h-9")}>
           {money_cell(t.hospedaje, is_hidden("hospedaje_unit_cost"))}
         </td>
-        <td className="text-center h-9 text-[11px] font-semibold tabular-nums">
+        <td className={cn(OSI_DOC_VALUE_CLASS, "h-9")}>
           {money_cell(t.logistica, is_hidden("logistica_unit_cost"))}
         </td>
-        <td className="text-center h-9 text-[11px] font-semibold tabular-nums">
+        <td className={cn(OSI_DOC_VALUE_CLASS, "h-9")}>
           {money_cell(
             t.impresion + t.st_traslados,
             is_hidden("costo_impresion_material") &&
               is_hidden("costo_traslado"),
           )}
         </td>
-        <td className="text-center h-9 text-[12px] font-bold tabular-nums bg-slate-50">
+        <td className={cn(OSI_DOC_VALUE_CLASS, "h-9 font-bold bg-slate-50")}>
           {money_cell(gran_total, is_hidden("gran_total"))}
         </td>
       </tr>
@@ -157,7 +196,7 @@ export function OsiResumenRecursosConsolidado({
       </tr>
       <tr>
         <td
-          className="text-center h-9 text-[11px] font-semibold tabular-nums"
+          className={cn(OSI_DOC_VALUE_CLASS, "h-9")}
           colSpan={2}
         >
           {money_cell(
@@ -166,7 +205,7 @@ export function OsiResumenRecursosConsolidado({
           )}
         </td>
         <td
-          className="text-center h-9 text-[11px] font-semibold tabular-nums"
+          className={cn(OSI_DOC_VALUE_CLASS, "h-9")}
           colSpan={2}
         >
           {money_cell(t.otros, is_hidden("costo_otros"))}

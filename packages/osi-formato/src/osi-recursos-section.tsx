@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment } from "react";
+import { cn } from "./utils/cn";
 import {
   type OsiRecursosCostSlice,
   type OsiRecursosLayout,
@@ -17,6 +18,13 @@ import {
 } from "./osi-recursos-segmentado";
 import { OsiRecursosVariacionesTable } from "./osi-recursos-variaciones-table";
 import { OsiResumenRecursosConsolidado } from "./osi-resumen-recursos";
+import {
+  format_certificado_entrega_display,
+  format_osi_si_no,
+  OSI_BOOLEAN_VALUE_CLASS,
+  OSI_DOC_VALUE_BOLD_CLASS,
+  OSI_DOC_VALUE_CLASS,
+} from "./osi-document-typography";
 
 export type { OsiRecursosCostSlice, OsiRecursosLayout };
 export { build_osi_recursos_layout };
@@ -47,12 +55,12 @@ function OsiRecursosVariacionesRows({
   return (
     <>
       <tr>
-        <th colSpan={4} className={section_header_class}>
+        <th colSpan={6} className={section_header_class}>
           DESGLOSE DIARIO POR SESIÓN
         </th>
       </tr>
       <tr>
-        <td colSpan={4} className="!text-left align-top p-1 overflow-x-auto">
+        <td colSpan={6} className="!text-left align-top p-1 overflow-x-auto">
           <OsiRecursosVariacionesTable
             layout={layout}
             maskMonetary={maskMonetary}
@@ -62,6 +70,47 @@ function OsiRecursosVariacionesRows({
     </>
   );
 }
+
+function OsiCapDesgloseDiarioRows({
+  layout,
+  section_header_class,
+  maskMonetary,
+}: {
+  layout: OsiRecursosLayout;
+  section_header_class: string;
+  maskMonetary?: boolean;
+}) {
+  const hasVariaciones =
+    layout.esPorSesion &&
+    layout.variaciones.length > 0 &&
+    layout.variacionColumnas.length > 0;
+
+  return (
+    <>
+      <tr>
+        <th colSpan={6} className={section_header_class}>
+          DESGLOSE DIARIO POR SESIÓN
+        </th>
+      </tr>
+      <tr>
+        <td colSpan={6} className="!text-left align-top p-1 overflow-x-auto">
+          {hasVariaciones ? (
+            <OsiRecursosVariacionesTable
+              layout={layout}
+              maskMonetary={maskMonetary}
+            />
+          ) : (
+            <p className="text-left text-[12px] leading-snug px-1 py-1">
+              detalle en el cuadro resumen de recursos del servicio
+            </p>
+          )}
+        </td>
+      </tr>
+    </>
+  );
+}
+
+export { format_certificado_entrega_display } from "./osi-document-typography";
 
 export function OsiCapacitacionRecursosBlocks({
   layout,
@@ -79,7 +128,7 @@ export function OsiCapacitacionRecursosBlocks({
           section_header_class={section_header_class}
           is_capacitacion
         />
-        <OsiRecursosVariacionesRows
+        <OsiCapDesgloseDiarioRows
           layout={layout}
           section_header_class={section_header_class}
           maskMonetary={is_hidden("gran_total")}
@@ -128,12 +177,12 @@ export function OsiCapacitacionRecursosBlocks({
   return (
     <>
       <tr>
-        <th colSpan={4} className={section_header_class}>
+        <th colSpan={6} className={section_header_class}>
           RECURSOS ESTIMADOS PARA EL SERVICIO
         </th>
       </tr>
       <tr>
-        <td rowSpan={2} className="p-0 align-middle w-[28%]">
+        <td className="p-0 align-middle w-[34%]" colSpan={2}>
           <table className="osi-nested-table w-full table-fixed border-collapse [&_td]:border [&_td]:border-black [&_th]:border [&_th]:border-black">
             <OsiRecursosColGroup />
             <tbody>
@@ -148,24 +197,20 @@ export function OsiCapacitacionRecursosBlocks({
               <tr>
                 <th className="osi-label-sm px-0.5 py-0.5 leading-tight">HORAS</th>
                 <th className="osi-label-sm osi-th-nowrap px-0.5 py-0.5 leading-tight">
-                  COSTO/H
+                  COSTO
                 </th>
-                <th className="osi-label-sm px-0.5 py-0.5 leading-tight">
-                  TOTAL
-                  <br />
-                  HON.
-                </th>
+                <th className="osi-label-sm px-0.5 py-0.5 leading-tight">TOTAL</th>
               </tr>
               <tr>
-                <td className="text-center h-8 font-bold text-[10px]">
+                <td className={cn(OSI_DOC_VALUE_BOLD_CLASS, "h-9")}>
                   {horas_view > 0 ? String(horas_view) : "N/A"}
                 </td>
-                <td className="text-center h-8 text-[10px]">
+                <td className={cn(OSI_DOC_VALUE_CLASS, "h-9")}>
                   {tarifa_honorarios_view > 0
                     ? `$${tarifa_honorarios_view.toFixed(2)}`
                     : "N/A"}
                 </td>
-                <td className="text-center h-8 font-semibold text-[10px]">
+                <td className={cn(OSI_DOC_VALUE_CLASS, "h-9")}>
                   {total_honorarios_view > 0
                     ? `$${total_honorarios_view.toFixed(2)}`
                     : "N/A"}
@@ -174,143 +219,175 @@ export function OsiCapacitacionRecursosBlocks({
             </tbody>
           </table>
         </td>
-        <th className="osi-label-md leading-tight">IMPRESIÓN DE MATERIAL</th>
-        <th className="osi-label-md leading-tight">TRASLADO</th>
-        <th className="osi-label-md leading-tight">TRASLADO EXTERNO</th>
-      </tr>
-      <tr>
-        <td className="text-center h-8">
-          {format_money_or_dash(
-            costo_impresion_material_view,
-            impresion_mask_hidden,
-          )}
-        </td>
-        <td className="text-center h-8">
-          {format_money_or_dash(costo_traslado_view, traslado_mask_hidden)}
-        </td>
-        <td className="text-center h-8">
-          {format_money_or_dash(
-            traslado_externo_view,
-            traslado_ext_mask_hidden,
-          )}
-        </td>
-      </tr>
-      <tr>
-        <th className="w-[26%] osi-label-md leading-tight">LOGÍSTICA</th>
-        <th className="w-[26%] osi-label-md leading-tight">HOSPEDAJE</th>
-        <th className="w-[12%] osi-label-md leading-tight">OTROS</th>
-        <th className="w-[36%] osi-label-md leading-tight">
-          CERTIFICADO / CARNET / POP
-        </th>
-      </tr>
-      <tr>
-        <td className="w-[26%] p-0 align-top">
+        <td className="w-[33%] p-0 align-top" colSpan={2}>
           <table className="osi-nested-table w-full table-fixed border-collapse [&_td]:border [&_td]:border-black [&_th]:border [&_th]:border-black">
             <OsiRecursosColGroup />
             <tbody>
               <tr>
-                <th className="osi-label-sm px-0.5 py-0.5 leading-tight">
-                  DIAS/
-                  <br />
-                  FACILITADOR
-                </th>
-                <th className="osi-label-sm osi-th-nowrap px-0.5 py-0.5 leading-tight">
-                  COSTO
-                </th>
-                <th className="osi-label-sm px-0.5 py-0.5 leading-tight">
-                  TOTAL
-                  <br />
-                  LOGISTICA
-                </th>
-              </tr>
-              <tr>
-                <td className="text-center h-8 font-bold text-[10px]">
-                  {dias_logistica > 0 ? String(dias_logistica) : "N/A"}
-                </td>
-                <td className="text-center h-8 text-[10px]">
-                  {costo_logistica_view > 0
-                    ? `$${costo_logistica_view.toFixed(2)}`
-                    : "N/A"}
-                </td>
-                <td className="text-center h-8 font-semibold text-[10px]">
-                  {logistica_total > 0 ? `$${logistica_total.toFixed(2)}` : "N/A"}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </td>
-        <td className="w-[26%] p-0 align-top">
-          <table className="osi-nested-table w-full table-fixed border-collapse [&_td]:border [&_td]:border-black [&_th]:border [&_th]:border-black">
-            <OsiRecursosColGroup />
-            <tbody>
-              <tr>
-                <th className="osi-label-sm px-0.5 py-0.5 leading-tight">
-                  DIAS/
-                  <br />
-                  FACILITADOR
-                </th>
-                <th className="osi-label-sm osi-th-nowrap px-0.5 py-0.5 leading-tight">
-                  COSTO
-                </th>
-                <th className="osi-label-sm px-0.5 py-0.5 leading-tight">
-                  TOTAL
-                  <br />
+                <th
+                  colSpan={3}
+                  className="bg-slate-100 text-black osi-label-md px-0.5 py-0.5 leading-tight"
+                >
                   HOSPEDAJE
                 </th>
               </tr>
               <tr>
-                <td className="text-center h-8 font-bold text-[10px]">
+                <th className="osi-label-sm px-0.5 py-0.5 leading-tight">DÍAS</th>
+                <th className="osi-label-sm osi-th-nowrap px-0.5 py-0.5 leading-tight">
+                  COSTO
+                </th>
+                <th className="osi-label-sm px-0.5 py-0.5 leading-tight">TOTAL</th>
+              </tr>
+              <tr>
+                <td className={cn(OSI_DOC_VALUE_BOLD_CLASS, "h-9")}>
                   {dias_hospedaje > 0 ? String(dias_hospedaje) : "N/A"}
                 </td>
-                <td className="text-center h-8 text-[10px]">
+                <td className={cn(OSI_DOC_VALUE_CLASS, "h-9")}>
                   {costo_hospedaje_view > 0
                     ? `$${costo_hospedaje_view.toFixed(2)}`
                     : "N/A"}
                 </td>
-                <td className="text-center h-8 font-semibold text-[10px]">
+                <td className={cn(OSI_DOC_VALUE_CLASS, "h-9")}>
                   {hospedaje_total > 0 ? `$${hospedaje_total.toFixed(2)}` : "N/A"}
                 </td>
               </tr>
             </tbody>
           </table>
         </td>
-        <td className="w-[12%] text-center h-8 align-middle">
-          {format_money_or_dash(costo_otros_view, otros_mask_hidden)}
-        </td>
-        <td className="w-[36%] p-0 align-top">
-          <table className="osi-nested-table osi-cert-table w-full table-fixed border-collapse">
-            <colgroup>
-              <col className="w-1/3" />
-              <col className="w-1/3" />
-              <col className="w-1/3" />
-            </colgroup>
+        <td className="w-[33%] p-0 align-top" colSpan={2}>
+          <table className="osi-nested-table w-full table-fixed border-collapse [&_td]:border [&_td]:border-black [&_th]:border [&_th]:border-black">
+            <OsiRecursosColGroup />
             <tbody>
               <tr>
-                <th className="osi-cert-label osi-th-nowrap w-1/3 border-b border-black py-1 leading-tight border-r">
-                  CERTIFICADO
-                </th>
-                <th className="osi-th-nowrap w-1/3 border-b border-black py-1 leading-tight border-r">
-                  CARNET
-                </th>
-                <th className="osi-th-nowrap w-1/3 border-b border-black py-1 leading-tight">
-                  POP
+                <th
+                  colSpan={3}
+                  className="bg-slate-100 text-black osi-label-md px-0.5 py-0.5 leading-tight"
+                >
+                  LOGÍSTICA / COMIDA
                 </th>
               </tr>
               <tr>
-                <td className="text-center h-8 font-bold border-r border-black">
-                  {slice.certificadoImpreso ? "SÍ" : "NO"}
+                <th className="osi-label-sm px-0.5 py-0.5 leading-tight">DÍAS</th>
+                <th className="osi-label-sm osi-th-nowrap px-0.5 py-0.5 leading-tight">
+                  COSTO
+                </th>
+                <th className="osi-label-sm px-0.5 py-0.5 leading-tight">TOTAL</th>
+              </tr>
+              <tr>
+                <td className={cn(OSI_DOC_VALUE_BOLD_CLASS, "h-9")}>
+                  {dias_logistica > 0 ? String(dias_logistica) : "N/A"}
                 </td>
-                <td className="text-center h-8 font-bold border-r border-black">
-                  {slice.carnetImpreso ? "SÍ" : "NO"}
+                <td className={cn(OSI_DOC_VALUE_CLASS, "h-9")}>
+                  {costo_logistica_view > 0
+                    ? `$${costo_logistica_view.toFixed(2)}`
+                    : "N/A"}
                 </td>
-                <td className="text-center h-8 font-bold">
-                  {slice.popIncluido ? "SÍ" : "NO"}
+                <td className={cn(OSI_DOC_VALUE_CLASS, "h-9")}>
+                  {logistica_total > 0 ? `$${logistica_total.toFixed(2)}` : "N/A"}
                 </td>
               </tr>
             </tbody>
           </table>
         </td>
       </tr>
+      <tr>
+        <td className="p-0 align-top" colSpan={3}>
+          <table className="osi-nested-table w-full table-fixed border-collapse [&_td]:border [&_td]:border-black [&_th]:border [&_th]:border-black">
+            <tbody>
+              <tr>
+                <th className="bg-slate-100 text-black osi-label-md px-0.5 py-0.5 leading-tight">
+                  IMPRESIÓN DE MATERIAL
+                </th>
+              </tr>
+              <tr>
+                <td className={cn(OSI_DOC_VALUE_CLASS, "h-9")}>
+                  {format_money_or_dash(
+                    costo_impresion_material_view,
+                    impresion_mask_hidden,
+                  )}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </td>
+        <td className="p-0 align-top" colSpan={3}>
+          <table className="osi-nested-table w-full table-fixed border-collapse [&_td]:border [&_td]:border-black [&_th]:border [&_th]:border-black">
+            <tbody>
+              <tr>
+                <th
+                  colSpan={3}
+                  className="bg-slate-100 text-black osi-label-md px-0.5 py-0.5 leading-tight"
+                >
+                  TRASLADOS
+                </th>
+              </tr>
+              <tr>
+                <th className="osi-label-sm px-0.5 py-0.5 leading-tight">URBANO</th>
+                <th className="osi-label-sm px-0.5 py-0.5 leading-tight">
+                  EXTRAURBANO
+                </th>
+                <th className="osi-label-sm px-0.5 py-0.5 leading-tight">OTROS</th>
+              </tr>
+              <tr>
+                <td className={cn(OSI_DOC_VALUE_CLASS, "h-9")}>
+                  {format_money_or_dash(costo_traslado_view, traslado_mask_hidden)}
+                </td>
+                <td className={cn(OSI_DOC_VALUE_CLASS, "h-9")}>
+                  {format_money_or_dash(
+                    traslado_externo_view,
+                    traslado_ext_mask_hidden,
+                  )}
+                </td>
+                <td className={cn(OSI_DOC_VALUE_CLASS, "h-9")}>
+                  {format_money_or_dash(costo_otros_view, otros_mask_hidden)}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </td>
+      </tr>
+      <tr>
+        <th
+          className="osi-cert-label osi-th-nowrap border-b border-black py-1.5 leading-tight osi-label-md"
+          colSpan={2}
+        >
+          CERTIFICADO
+        </th>
+        <th
+          className="osi-th-nowrap border-b border-black py-1.5 leading-tight osi-label-md"
+          colSpan={2}
+        >
+          CARNET
+        </th>
+        <th className="osi-th-nowrap border-b border-black py-1.5 leading-tight osi-label-md">
+          POP
+        </th>
+        <th className="osi-th-nowrap border-b border-black py-1.5 leading-tight osi-label-md">
+          INCLUYE REFRIGERIO
+        </th>
+      </tr>
+      <tr>
+        <td className={cn(OSI_BOOLEAN_VALUE_CLASS, "h-9 px-1 leading-tight")} colSpan={2}>
+          {format_certificado_entrega_display(
+            slice.certificadoImpreso,
+            slice.entregaCertificado,
+          )}
+        </td>
+        <td className={cn(OSI_BOOLEAN_VALUE_CLASS, "h-9")} colSpan={2}>
+          {format_osi_si_no(slice.carnetImpreso)}
+        </td>
+        <td className={cn(OSI_BOOLEAN_VALUE_CLASS, "h-9")}>
+          {format_osi_si_no(slice.popIncluido)}
+        </td>
+        <td className={cn(OSI_BOOLEAN_VALUE_CLASS, "h-9")}>
+          {format_osi_si_no(slice.incluyeRefrigerio)}
+        </td>
+      </tr>
+      <OsiCapDesgloseDiarioRows
+        layout={layout}
+        section_header_class={section_header_class}
+        maskMonetary={is_hidden("gran_total")}
+      />
     </>
   );
 }
@@ -379,12 +456,12 @@ export function OsiStRecursosBlocks({
   return (
     <>
       <tr>
-        <th colSpan={4} className={section_header_class}>
+        <th colSpan={6} className={section_header_class}>
           RECURSOS ESTIMADOS PARA EL SERVICIO
         </th>
       </tr>
       <tr>
-        <td colSpan={4} className="p-0 align-top">
+        <td colSpan={6} className="p-0 align-top">
           <table className="w-full border-collapse [&_td]:border [&_td]:border-black [&_th]:border [&_th]:border-black">
             <tbody>
               <tr>
@@ -394,24 +471,24 @@ export function OsiStRecursosBlocks({
                       <tr>
                         <th
                           colSpan={3}
-                          className="bg-slate-100 text-[9px] px-1 py-0.5"
+                          className="bg-slate-100 osi-label-md px-1 py-0.5"
                         >
                           DÍAS POR SERVICIO / ESPECIALISTAS
                         </th>
                       </tr>
                       <tr>
-                        <th className="text-[8px]">DÍAS CAMPO</th>
-                        <th className="text-[8px]">DÍAS INFORME</th>
-                        <th className="text-[8px]">ANALISTAS/REC.</th>
+                        <th className="osi-label-sm">DÍAS CAMPO</th>
+                        <th className="osi-label-sm">DÍAS INFORME</th>
+                        <th className="osi-label-sm">ANALISTAS/REC.</th>
                       </tr>
                       <tr>
-                        <td className="text-center text-[9px]">
+                        <td className="osi-doc-value text-center">
                           {slice.stDiasCampo || "N/A"}
                         </td>
-                        <td className="text-center text-[9px]">
+                        <td className="osi-doc-value text-center">
                           {slice.stDiasInforme || "N/A"}
                         </td>
-                        <td className="text-center text-[9px]">
+                        <td className="osi-doc-value text-center">
                           {slice.stAnalistas || "N/A"}
                         </td>
                       </tr>
@@ -424,26 +501,26 @@ export function OsiStRecursosBlocks({
                       <tr>
                         <th
                           colSpan={3}
-                          className="bg-slate-100 text-[9px] px-1 py-0.5"
+                          className="bg-slate-100 osi-label-md px-1 py-0.5"
                         >
                           HOSPEDAJE
                         </th>
                       </tr>
                       <tr>
-                        <th className="text-[8px]">DÍAS</th>
-                        <th className="text-[8px]">$/DÍA</th>
-                        <th className="text-[8px]">TOTAL</th>
+                        <th className="osi-label-sm">DÍAS</th>
+                        <th className="osi-label-sm">$/DÍA</th>
+                        <th className="osi-label-sm">TOTAL</th>
                       </tr>
                       <tr>
-                        <td className="text-center text-[9px]">
+                        <td className="osi-doc-value text-center">
                           {dias_hospedaje > 0 ? String(dias_hospedaje) : "N/A"}
                         </td>
-                        <td className="text-center text-[9px]">
+                        <td className="osi-doc-value text-center">
                           {costo_hospedaje_view > 0
                             ? `$${costo_hospedaje_view.toFixed(2)}`
                             : "N/A"}
                         </td>
-                        <td className="text-center text-[9px]">
+                        <td className="osi-doc-value text-center">
                           {st_totals.total_hospedaje > 0
                             ? `$${st_totals.total_hospedaje.toFixed(2)}`
                             : "N/A"}
@@ -457,23 +534,23 @@ export function OsiStRecursosBlocks({
                     <tbody>
                       <tr>
                         <th
-                          colSpan={4}
-                          className="bg-slate-100 text-[9px] px-1 py-0.5"
+                          colSpan={6}
+                          className="bg-slate-100 osi-label-md px-1 py-0.5"
                         >
                           LOGÍSTICA / COMIDA
                         </th>
                       </tr>
                       <tr>
-                        <th className="text-[8px]">DÍAS</th>
-                        <th className="text-[8px]">REC.</th>
-                        <th className="text-[8px]">$/DÍA</th>
-                        <th className="text-[8px]">TOTAL</th>
+                        <th className="osi-label-sm">DÍAS</th>
+                        <th className="osi-label-sm">REC.</th>
+                        <th className="osi-label-sm">$/DÍA</th>
+                        <th className="osi-label-sm">TOTAL</th>
                       </tr>
                       <tr>
-                        <td className="text-center text-[9px]">
+                        <td className="osi-doc-value text-center">
                           {dias_logistica > 0 ? String(dias_logistica) : "N/A"}
                         </td>
-                        <td className="text-center text-[9px]">
+                        <td className="osi-doc-value text-center">
                           {(slice.stLogisticaRecursos ?? slice.stAnalistas ?? 0) >
                           0
                             ? String(
@@ -481,12 +558,12 @@ export function OsiStRecursosBlocks({
                               )
                             : "N/A"}
                         </td>
-                        <td className="text-center text-[9px]">
+                        <td className="osi-doc-value text-center">
                           {costo_logistica_view > 0
                             ? `$${costo_logistica_view.toFixed(2)}`
                             : "N/A"}
                         </td>
-                        <td className="text-center font-semibold text-[9px]">
+                        <td className="osi-doc-value text-center font-semibold">
                           {st_totals.total_logistica > 0
                             ? `$${st_totals.total_logistica.toFixed(2)}`
                             : "N/A"}
@@ -499,17 +576,17 @@ export function OsiStRecursosBlocks({
                   <table className="w-full border-collapse [&_td]:border [&_td]:border-black [&_th]:border [&_th]:border-black">
                     <tbody>
                       <tr>
-                        <th className="bg-slate-100 text-[9px] px-1 py-0.5">
+                        <th className="bg-slate-100 osi-label-md px-1 py-0.5">
                           IMPRESIÓN DE MATERIAL
                         </th>
                       </tr>
                       <tr>
-                        <td className="text-center font-bold text-[9px] py-1">
-                          {impresion_si ? "SÍ" : "NO"}
+                        <td className="osi-doc-value text-center font-bold py-1">
+                          {format_osi_si_no(impresion_si)}
                         </td>
                       </tr>
                       <tr>
-                        <td className="text-center text-[9px]">
+                        <td className="osi-doc-value text-center">
                           {format_money_or_dash(
                             costo_impresion_material_view,
                             impresion_mask_hidden,
@@ -527,7 +604,7 @@ export function OsiStRecursosBlocks({
                       <tr>
                         <th
                           colSpan={3}
-                          className="bg-slate-100 text-[9px] px-1 py-0.5"
+                          className="bg-slate-100 osi-label-md px-1 py-0.5"
                         >
                           TRASLADOS
                         </th>
@@ -538,28 +615,28 @@ export function OsiStRecursosBlocks({
                             <tr>
                               <th
                                 colSpan={3}
-                                className="text-[8px] font-normal"
+                                className="osi-label-sm font-normal"
                               >
                                 {OSI_ST_TRASLADO_LABELS[traslado.tipo]}
                               </th>
                             </tr>
                             <tr>
-                              <th className="text-[8px]">CANT.</th>
-                              <th className="text-[8px]">$/U</th>
-                              <th className="text-[8px]">TOTAL</th>
+                              <th className="osi-label-sm">CANT.</th>
+                              <th className="osi-label-sm">$/U</th>
+                              <th className="osi-label-sm">TOTAL</th>
                             </tr>
                             <tr>
-                              <td className="text-center text-[9px]">
+                              <td className="osi-doc-value text-center">
                                 {traslado.cantidad > 0
                                   ? String(traslado.cantidad)
                                   : "N/A"}
                               </td>
-                              <td className="text-center text-[9px]">
+                              <td className="osi-doc-value text-center">
                                 {!traslado_mask && traslado.costo_unidad > 0
                                   ? `$${traslado.costo_unidad.toFixed(2)}`
                                   : "N/A"}
                               </td>
-                              <td className="text-center font-semibold text-[9px]">
+                              <td className="osi-doc-value text-center font-semibold">
                                 {!traslado_mask &&
                                 traslado.cantidad * traslado.costo_unidad > 0
                                   ? `$${(
@@ -573,18 +650,18 @@ export function OsiStRecursosBlocks({
                       ) : (
                         <>
                           <tr>
-                            <th className="text-[8px]">URBANO</th>
-                            <th className="text-[8px]" colSpan={2}>
+                            <th className="osi-label-sm">URBANO</th>
+                            <th className="osi-label-sm" colSpan={2}>
                               EXTERNOS
                             </th>
                           </tr>
                           <tr>
-                            <td className="text-center text-[9px]">
+                            <td className="osi-doc-value text-center">
                               {st_traslado_total > 0
                                 ? `$${st_traslado_total.toFixed(2)}`
                                 : "N/A"}
                             </td>
-                            <td className="text-center text-[9px]" colSpan={2}>
+                            <td className="osi-doc-value text-center" colSpan={2}>
                               {st_traslado_externo_total > 0
                                 ? `$${st_traslado_externo_total.toFixed(2)}`
                                 : "N/A"}
@@ -601,22 +678,22 @@ export function OsiStRecursosBlocks({
                       <tr>
                         <th
                           colSpan={2}
-                          className="bg-slate-100 text-[9px] px-1 py-0.5"
+                          className="bg-slate-100 osi-label-md px-1 py-0.5"
                         >
                           ENVÍOS
                         </th>
                       </tr>
                       <tr>
-                        <th className="text-[8px]">FACTURA</th>
-                        <th className="text-[8px]">MATERIALES</th>
+                        <th className="osi-label-sm">FACTURA</th>
+                        <th className="osi-label-sm">MATERIALES</th>
                       </tr>
                       <tr>
-                        <td className="text-center text-[9px] py-1">
+                        <td className="osi-doc-value text-center py-1">
                           {st_envio_factura_view > 0
                             ? `$${Number(st_envio_factura_view).toFixed(2)}`
                             : "N/A"}
                         </td>
-                        <td className="text-center text-[9px] py-1">
+                        <td className="osi-doc-value text-center py-1">
                           {st_envio_materiales_view > 0
                             ? `$${Number(st_envio_materiales_view).toFixed(2)}`
                             : "N/A"}
@@ -629,12 +706,12 @@ export function OsiStRecursosBlocks({
                   <table className="w-full border-collapse [&_td]:border [&_td]:border-black [&_th]:border [&_th]:border-black">
                     <tbody>
                       <tr>
-                        <th className="bg-slate-100 text-[9px] px-1 py-0.5">
+                        <th className="bg-slate-100 osi-label-md px-1 py-0.5">
                           OTROS
                         </th>
                       </tr>
                       <tr>
-                        <td className="text-center text-[9px] py-1">
+                        <td className="osi-doc-value text-center py-1">
                           {format_money_or_dash(
                             costo_otros_view,
                             otros_mask_hidden,

@@ -37,10 +37,10 @@ export function SegmentadoPorSesionTable({
           </th>
         </tr>
         <tr>
-          <td className="text-center h-8 font-semibold text-[10px]">
+          <td className="osi-doc-value text-center h-8 font-semibold">
             {show_total ? `$${total.toFixed(2)}` : "N/A"}
           </td>
-          <td className="text-center h-8 text-[8px] leading-tight px-0.5">
+          <td className="osi-doc-value text-center h-8 leading-tight px-0.5">
             Ver costo por
             <br />
             sesión abajo
@@ -62,13 +62,13 @@ export function SegmentadoPorSesionInline({
   const show_total = !totalHidden && total > 0;
   return (
     <div className="flex h-full min-h-8 flex-col items-stretch justify-center gap-0.5 px-0.5 py-0.5 text-center">
-      <div className="text-[8px] font-bold uppercase leading-tight text-slate-700">
+      <div className="osi-label-md font-bold uppercase leading-tight text-slate-700">
         Total
       </div>
-      <div className="font-semibold text-[10px] leading-tight">
+      <div className="osi-doc-value font-semibold leading-tight">
         {show_total ? `$${total.toFixed(2)}` : "N/A"}
       </div>
-      <div className="text-[7px] leading-tight text-slate-600">
+      <div className="osi-doc-value leading-tight text-slate-600">
         Segmentado por sesión · ver abajo
       </div>
     </div>

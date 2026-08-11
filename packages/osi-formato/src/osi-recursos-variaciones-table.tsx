@@ -9,7 +9,7 @@ import type {
 function badge_class(tone: OsiBadgeTone): string {
   const base =
     "inline-flex max-w-full items-center justify-center gap-0.5 rounded " +
-    "px-1.5 py-0.5 text-[10px] font-semibold whitespace-nowrap";
+    "px-1.5 py-0.5 osi-doc-value font-semibold whitespace-nowrap";
   if (tone === "up") {
     return `${base} bg-amber-100 text-amber-950 ring-1 ring-amber-300/80`;
   }
@@ -24,12 +24,12 @@ function CellValue({
   allow_badge: boolean;
 }) {
   if (celda.texto === "N/A") {
-    return <span className="text-[10px] text-slate-500">N/A</span>;
+    return <span className="osi-doc-value text-slate-500">N/A</span>;
   }
   // TOTAL SESIÓN y tonos base: siempre texto plano.
   if (!allow_badge || celda.tone === "base") {
     return (
-      <span className="text-[10px] font-medium tabular-nums text-slate-900 whitespace-nowrap">
+      <span className="osi-doc-value font-medium tabular-nums text-slate-900 whitespace-nowrap">
         {celda.texto}
       </span>
     );
@@ -82,7 +82,7 @@ export function OsiRecursosVariacionesTable({
           {columnas.map((col) => (
             <th
               key={col.key}
-              className="px-1.5 py-1.5 text-center text-[9px] font-bold uppercase leading-tight tracking-tight text-slate-700"
+              className="px-1.5 py-1.5 text-center osi-label-md font-bold uppercase leading-tight tracking-tight text-slate-700"
             >
               {col.label}
             </th>
@@ -100,7 +100,7 @@ export function OsiRecursosVariacionesTable({
                   return (
                     <td
                       key={col.key}
-                      className="px-1.5 py-1.5 text-left text-[10px] font-semibold leading-snug"
+                      className="px-1.5 py-1.5 text-left osi-doc-value font-semibold leading-snug"
                     >
                       {nro}
                       {fecha}
@@ -133,7 +133,7 @@ export function OsiRecursosVariacionesTable({
               return (
                 <td
                   key={col.key}
-                  className="px-1.5 py-1.5 text-left text-[10px] uppercase"
+                  className="px-1.5 py-1.5 text-left osi-doc-value uppercase"
                 >
                   Totales
                 </td>
@@ -146,7 +146,7 @@ export function OsiRecursosVariacionesTable({
             return (
               <td
                 key={col.key}
-                className="px-1.5 py-1.5 text-center text-[10px] tabular-nums"
+                className="px-1.5 py-1.5 text-center osi-doc-value tabular-nums"
               >
                 {format_footer_money(amount, hide_money)}
               </td>

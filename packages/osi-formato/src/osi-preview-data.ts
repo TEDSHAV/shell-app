@@ -5,16 +5,40 @@ export type OsiPreviewData = {
     hora_fin?: string | null;
   }>;
   nroOsi: string;
+  nroTrato?: string | null;
+  nroSolped?: string | null;
   fechaEmisionPresupuesto: string | null;
   nroPresupuesto: string | null;
   nroOrdenCompra: string | null;
   codigoCliente: string | null;
   fechaDocumento?: string | null;
+  fechaSugerida?: string | null;
+  /** Fase 2: fecha al marcar ejecución en Shell. */
+  fechaPlanificada?: string | null;
+  /** Sesiones propuestas al solicitar la OSI (fecha sugerida). */
+  sesionesFechaSugerida?: Array<{
+    fecha: string;
+    hora_inicio?: string | null;
+    hora_fin?: string | null;
+  }>;
+  /** Fase 2: sesiones confirmadas al planificar ejecución. */
+  sesionesFechaPlanificada?: Array<{
+    fecha: string;
+    hora_inicio?: string | null;
+    hora_fin?: string | null;
+  }>;
+  /** Fase 2: fechas reales de ejecución por sesión (osi_sesion). */
+  sesionesFechaEjecutada?: Array<{
+    fecha: string;
+    hora_inicio?: string | null;
+    hora_fin?: string | null;
+  }>;
   revisionDocumento?: string | null;
   detalleServicio: string | null;
   servicio: string | null;
   tipoServicio: string | null;
   nombreEmpresa: string | null;
+  sede?: string | null;
   clienteRif: string | null;
   direccionFiscal: string | null;
   personaContacto: string | null;
@@ -55,6 +79,8 @@ export type OsiPreviewData = {
   desgloseRecursosSesiones?: OsiRecursosSesionPreview[];
   certificadoImpreso: boolean;
   carnetImpreso: boolean;
+  incluyeRefrigerio?: boolean;
+  entregaCertificado?: "retira_cliente" | "se_envia" | null;
   audiovisuales: boolean;
   isCapacitacion: boolean;
   stServicios?: Array<{
@@ -89,6 +115,10 @@ export type OsiPreviewData = {
   isPublicView?: boolean;
   /** Servicios técnicos: oculta montos USD para vista pública (resto de usuarios). */
   hideStMonetary?: boolean;
+  /** Bloque de cierre (departamento ejecutante). Solo si la OSI está cerrada/ejecutada. */
+  showCierreSection?: boolean;
+  /** Etiqueta legible del estatus operativo de la OSI. */
+  estatusOsiLabel?: string | null;
 };
 
 
@@ -122,6 +152,7 @@ export type OsiRecursosSesionPreview = {
   stTraslados?: OsiPreviewData["stTraslados"];
   impresionMaterialIncluida?: boolean;
   bateriaIncluida?: boolean;
+  incluyeRefrigerio?: boolean;
 };
 
 export type OsiStServicioLine = {

@@ -59,10 +59,22 @@ export interface OSISession {
   fecha: string;
   hora_inicio: string | null;
   hora_fin: string | null;
+  fecha_ejecutada: string | null;
+  hora_ejecutada: string | null;
+  ejecutada_en_fecha_planificada: boolean | null;
   id_estatus: number | null;
   status_name?: string;
   status_color?: string;
 }
+
+/** conf_estatus id for session/OSI "Ejecutada". */
+export const OSI_STATUS_EJECUTADO_ID = 12;
+
+export type SessionExecutionPayload = {
+  fecha_ejecutada: string;
+  hora_ejecutada: string;
+  ejecutada_en_fecha_planificada: boolean;
+};
 
 export interface OSISessionsFinalCheck {
   allFinal: boolean;

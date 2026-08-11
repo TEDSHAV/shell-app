@@ -1,8 +1,9 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element -- native img for reliable print paint */
+import { useEffect, useRef, useState } from "react";
 import { cn } from "./utils/cn";
-import { formatCalendarDayEsVe } from "./utils/calendar-date";
+import { formatCalendarDayEsVe, formatTimeAmPmEsVe } from "./utils/calendar-date";
 import { merged_content_to_display_html, RICH_HTML_CONTENT_CLASS } from "./rich-html";
 import type { OsiStServicioLine } from "./osi-preview-data";
 import { type OsiDocumentAssets, type OsiPreviewData } from "./osi-preview-data";
@@ -11,13 +12,16 @@ import {
   OsiCapacitacionRecursosBlocks,
   OsiStRecursosBlocks,
 } from "./osi-recursos-section";
+import { OSI_DOC_ROOT_TEXT_CLASS } from "./osi-document-typography";
 
-/** Fixed header metadata (CÓDIGO / FECHA / REVISIÓN block). */
+/** Fixed header metadata (CÓDIGO / FECHA / REVISIÓN / PÁGINA block). */
 const OSI_FORM_META = {
   codigo: "SHA-RG-NEG-003",
-  fecha: "09/06/2026",
-  revision: "0",
+  fecha: "12/08/2026",
+  revision: "1",
 } as const;
+
+const OSI_PRINT_PAGE_HEIGHT_MM = 279.4 - 20;
 
 function OsiRichHtmlContent({
   content,
@@ -34,7 +38,7 @@ function OsiRichHtmlContent({
     <div
       className={cn(
         RICH_HTML_CONTENT_CLASS,
-        "osi-rich-html text-[10px] leading-snug text-left",
+        "osi-rich-html text-[12px] leading-snug text-left",
         "whitespace-pre-wrap break-words",
         "[&_strong]:font-bold [&_em]:italic",
         className,
@@ -51,15 +55,416 @@ function st_lines_with_field(
   return (lines ?? []).filter((line) => String(line[field] ?? "").trim().length > 0);
 }
 
+function OsiPretensionesRows({
+  items,
+  section_text_class,
+}: {
+  items: Array<{
+    servicio?: string;
+    fuente: "SOLPED" | "OSI";
+    contenido: string;
+  }>;
+  section_text_class: string;
+}) {
+  return (
+    <>
+      <tr>
+        <th colSpan={6} className={section_text_class}>
+          PRETENSIONES DEL CLIENTE
+        </th>
+      </tr>
+      <tr>
+        <td
+          colSpan={6}
+          className="osi-long-text min-h-12 max-w-0 align-top relative !text-left px-2 py-2 text-black"
+        >
+          {items.length > 0 ? (
+            <div className="space-y-2 text-black">
+              {items.map((item, idx) => (
+                <div
+                  key={`pret-item-${idx}`}
+                  className="border-b border-dashed pb-2 last:border-b-0 last:pb-0"
+                >
+                  <div className="text-[12px] font-bold uppercase text-black">
+                    {item.servicio
+                      ? `${item.servicio} — ${item.fuente}`
+                      : item.fuente}
+                  </div>
+                  <OsiRichHtmlContent
+                    content={item.contenido}
+                    className="text-black"
+                  />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <span className="text-black">Sin pretensiones</span>
+          )}
+        </td>
+      </tr>
+    </>
+  );
+}
+
+function OsiObservacionesRows({
+  items,
+  section_text_class,
+}: {
+  items: Array<{
+    servicio?: string;
+    fuente: "SOLPED" | "OSI";
+    contenido: string;
+  }>;
+  section_text_class: string;
+}) {
+  return (
+    <>
+      <tr>
+        <th colSpan={6} className={section_text_class}>
+          OBSERVACIONES ADICIONALES
+        </th>
+      </tr>
+      <tr>
+        <td
+          colSpan={6}
+          className="osi-long-text min-h-12 max-w-0 align-top relative !text-left px-2 py-2 text-black"
+        >
+          {items.length > 0 ? (
+            <div className="space-y-2 text-black">
+              {items.map((item, idx) => (
+                <div
+                  key={`obs-item-${idx}`}
+                  className="border-b border-dashed pb-2 last:border-b-0 last:pb-0"
+                >
+                  <div className="text-[12px] font-bold uppercase text-black">
+                    {item.servicio
+                      ? `${item.servicio} — ${item.fuente}`
+                      : item.fuente}
+                  </div>
+                  <OsiRichHtmlContent
+                    content={item.contenido}
+                    className="text-black"
+                  />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <span className="text-black">N/A</span>
+          )}
+        </td>
+      </tr>
+    </>
+  );
+}
+
+function map_sesiones_dia_hora(
+  sessions:
+    | Array<{
+        fecha: string;
+        hora_inicio?: string | null;
+        hora_fin?: string | null;
+      }>
+    | undefined,
+): Array<{ fecha: string; hora: string }> {
+  return (sessions ?? [])
+    .filter((session) => typeof session?.fecha === "string" && session.fecha.trim())
+    .map((session) => ({
+      fecha: session.fecha,
+      hora: formatTimeAmPmEsVe(
+        session.hora_inicio || session.hora_fin || null,
+      ),
+    }));
+}
+
+function map_sesiones_ejecutada_dia_hora(
+  sessions:
+    | Array<{
+        fecha: string;
+        hora_inicio?: string | null;
+        hora_fin?: string | null;
+      }>
+    | undefined,
+): Array<{ fecha: string; hora: string }> {
+  return (sessions ?? []).map((session) => {
+    const fecha =
+      typeof session?.fecha === "string" ? session.fecha.trim() : "";
+    if (!fecha) {
+      return { fecha: "", hora: "—" };
+    }
+    return {
+      fecha,
+      hora: formatTimeAmPmEsVe(
+        session.hora_inicio || session.hora_fin || null,
+      ),
+    };
+  });
+}
+
+function OsiSesionesDiaHoraTable({
+  sessions,
+  emptyFallback = "N/A",
+}: {
+  sessions: Array<{ fecha: string; hora: string }>;
+  emptyFallback?: string;
+}) {
+  return (
+    <table className="w-full table-fixed border-collapse">
+      <tbody>
+        <tr>
+          <th className="border-b border-black px-1 py-0.5 text-left text-[12px]">
+            DÍA
+          </th>
+          <th className="border-b border-black px-1 py-0.5 text-right text-[12px]">
+            HORA
+          </th>
+        </tr>
+        {sessions.length > 0 ? (
+          sessions.map((session, idx) => (
+            <tr key={`${session.fecha}-${idx}`}>
+              <td className="border-b border-black px-1 py-0.5 text-[12px]">
+                {session.fecha
+                  ? formatCalendarDayEsVe(session.fecha)
+                  : "—"}
+              </td>
+              <td className="border-b border-black px-1 py-0.5 text-right text-[12px]">
+                {session.hora}
+              </td>
+            </tr>
+          ))
+        ) : (
+          <tr>
+            <td colSpan={2} className="px-1 py-1 text-[12px]">
+              {emptyFallback}
+            </td>
+          </tr>
+        )}
+      </tbody>
+    </table>
+  );
+}
+
+function OsiEstatusOsiRows({ label }: { label: string }) {
+  return (
+    <>
+      <tr>
+        <th colSpan={6} className="bg-slate-100 py-2 text-center text-[12px] font-bold uppercase">
+          ESTATUS DE OSI
+        </th>
+      </tr>
+      <tr>
+        <td colSpan={6} className="py-2 text-center text-[12px] font-bold uppercase">
+          {label}
+        </td>
+      </tr>
+    </>
+  );
+}
+
+function OsiQuejasClienteRows() {
+  return (
+    <>
+      <tr>
+        <th colSpan={6} className="bg-slate-100 text-center h-8">
+          QUEJAS, OBSERVACIONES O RECLAMOS RECIBIDOS POR EL CLIENTE
+        </th>
+      </tr>
+      <tr>
+        <td colSpan={6} className="h-10" />
+      </tr>
+    </>
+  );
+}
+
+function OsiCierreServicioRows({
+  section_header_class,
+}: {
+  section_header_class: string;
+}) {
+  return (
+    <>
+      <tr>
+        <th colSpan={6} className={section_header_class}>
+          CIERRE DEL SERVICIO EJECUTADO / LLENAR POR EL DEPARTAMENTO EJECUTANTE
+        </th>
+      </tr>
+      <tr>
+        <th className="text-[8px]">DEPARTAMENTO EJECUTANTE / NOMBRE</th>
+        <th className="p-0" colSpan={3}>
+          <table className="w-full h-full border-collapse">
+            <tbody>
+              <tr>
+                <th className="w-1/3 border-r border-black border-b text-[8px] px-1 py-1 h-10">
+                  OSI NOTIFICADA EL
+                </th>
+                <th className="w-1/3 border-r border-black border-b text-[8px] px-1 py-1 h-10">
+                  FECHA DE RECEPCIÓN DE OSI
+                </th>
+                <th className="w-1/3 border-black border-b text-[8px] px-1 py-1 h-10">
+                  FECHA DE INICIO DEL SERVICIO
+                </th>
+              </tr>
+              <tr>
+                <td className="border-r border-black text-center text-[9px] py-1">—</td>
+                <td className="border-r border-black" />
+                <td />
+              </tr>
+              <tr>
+                <th
+                  className="w-1/3 border-r border-black border-b text-[8px] px-1 py-1 h-10"
+                  colSpan={1}
+                >
+                  FECHA DE FINALIZACIÓN DEL SERVICIO
+                </th>
+                <th colSpan={2} className="border-black border-b text-[8px] px-1 py-1 h-10" />
+              </tr>
+              <tr>
+                <td
+                  colSpan={3}
+                  className="text-center font-bold text-[9px] py-1 border-b border-black"
+                >
+                  ¿SU DPTO. CUENTA CON TODOS LOS SOPORTES REQUERIDOS INDICADOS EN ESTA OSI?
+                </td>
+              </tr>
+              <tr>
+                <th
+                  colSpan={3}
+                  className="text-left px-2 py-1 text-[8px] font-bold"
+                  style={{ background: "transparent" }}
+                >
+                  DE SER NO, JUSTIFIQUE
+                </th>
+              </tr>
+            </tbody>
+          </table>
+        </th>
+        <th className="p-0" colSpan={2}>
+          <table className="w-full h-full border-collapse">
+            <tbody>
+              <tr>
+                <th colSpan={2} className="border-b border-black text-[9px] py-1">
+                  RESPONSABLE DEL DPTO.
+                </th>
+              </tr>
+              <tr>
+                <th
+                  className="w-1/2 border-r border-b border-black text-[9px] py-1 h-8"
+                  style={{ background: "transparent" }}
+                >
+                  NOMBRE Y APELLIDO
+                </th>
+                <th
+                  className="w-1/2 border-b border-black text-[9px] py-1 h-8"
+                  style={{ background: "transparent" }}
+                >
+                  FIRMA
+                </th>
+              </tr>
+              <tr>
+                <td colSpan={2} className="h-10" />
+              </tr>
+            </tbody>
+          </table>
+        </th>
+      </tr>
+      <tr>
+        <th className="h-8 align-middle text-left bg-transparent">REQUISICIONES</th>
+        <th className="p-0" colSpan={5}>
+          <table className="w-full h-full border-collapse">
+            <tbody>
+              <tr>
+                <th
+                  className="w-[15%] text-[9px] border-r border-black"
+                  style={{ background: "transparent" }}
+                >
+                  CANTIDAD
+                </th>
+                <th
+                  className="w-[35%] text-[9px] border-r border-black"
+                  style={{ background: "transparent" }}
+                >
+                  DETALLE
+                </th>
+                <th
+                  className="w-[20%] text-[9px] border-r border-black"
+                  style={{ background: "transparent" }}
+                >
+                  N° SOLICITUD(ES) DE ORDEN DE COMPRA
+                </th>
+                <th
+                  className="w-[15%] text-[9px] border-r border-black"
+                  style={{ background: "transparent" }}
+                >
+                  CANTIDAD
+                </th>
+                <th className="w-[15%] text-[9px]" style={{ background: "transparent" }}>
+                  DETALLE
+                </th>
+              </tr>
+            </tbody>
+          </table>
+        </th>
+      </tr>
+      <tr>
+        <td className="p-0 border-0" colSpan={6}>
+          <table className="w-full border-collapse h-full [&_td]:border [&_td]:border-black [&_td]:px-1 [&_td]:py-1 [&_th]:border [&_th]:border-black [&_th]:px-1 [&_th]:py-1">
+            <tbody>
+              <tr>
+                <th className="w-[15%] bg-transparent border-t-0 border-l-0 border-b-0 border-r-0" />
+                <th className="w-[25%] bg-slate-100">GENERACIÓN DE SOPORTE</th>
+                <th className="w-[40%] bg-slate-100" colSpan={2}>
+                  VALIDACIÓN DE SOPORTES
+                </th>
+                <th className="w-[20%] bg-slate-100">VERIFICACIÓN DE SOPORTES</th>
+              </tr>
+              <tr>
+                <th className="text-left text-[9px] bg-transparent font-bold">
+                  NOMBRE Y APELLIDO:
+                </th>
+                <td className="h-6" />
+                <td className="h-6 w-[20%]" />
+                <td className="h-6 w-[20%]" />
+                <td className="h-6" />
+              </tr>
+              <tr>
+                <th className="text-left text-[9px] bg-transparent font-bold">CARGO:</th>
+                <td className="text-center font-bold text-[8px]">[DEPARTAMENTO SOLICITANTE]</td>
+                <td className="text-center font-bold text-[8px]">[QHSE]</td>
+                <td className="text-center font-bold text-[8px]">[NEGOCIOS]</td>
+                <td className="text-center font-bold text-[8px]">DIRECTOR GERENTE</td>
+              </tr>
+              <tr>
+                <th className="text-left text-[9px] bg-transparent font-bold">FIRMA:</th>
+                <td className="h-8" />
+                <td className="h-8" />
+                <td className="h-8" />
+                <td className="h-8" />
+              </tr>
+              <tr>
+                <th className="text-left text-[9px] bg-transparent font-bold">FECHA:</th>
+                <td className="h-6" />
+                <td className="h-6" />
+                <td className="h-6" />
+                <td className="h-6" />
+              </tr>
+            </tbody>
+          </table>
+        </td>
+      </tr>
+    </>
+  );
+}
+
 export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets: OsiDocumentAssets }) {
   const section_header_class =
-    "py-2 text-center text-[11px] font-bold text-[#002b5c] bg-slate-200";
+    "py-2 text-center text-[12px] font-bold text-[#002b5c] bg-slate-200";
+  const section_text_black_class =
+    "py-2 text-center text-[12px] font-bold text-black bg-slate-200";
   const sesiones = Array.isArray(data.sesionesProgramadas)
     ? data.sesionesProgramadas.filter((s) => typeof s?.fecha === "string" && s.fecha)
     : [];
   const sesiones_detalle = sesiones.map((s) => ({
     fecha: s.fecha,
-    hora: s.hora_inicio || s.hora_fin || "N/A",
+    hora: formatTimeAmPmEsVe(s.hora_inicio || s.hora_fin || null),
   }));
   const fechaServicioTexto =
     sesiones.length > 0
@@ -187,43 +592,56 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
     (item) => !item.maskKey || !content_hidden(item.maskKey),
   );
 
+  const sesiones_fecha_planificada_detalle = map_sesiones_dia_hora(
+    data.sesionesFechaPlanificada ?? data.sesionesProgramadas,
+  );
+  const sesiones_fecha_ejecutada_detalle = map_sesiones_ejecutada_dia_hora(
+    data.sesionesFechaEjecutada,
+  );
+
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const [printPageCount, setPrintPageCount] = useState(1);
+
+  useEffect(() => {
+    const measure = () => {
+      const el = sheetRef.current;
+      if (!el) return;
+      const mmToPx = (mm: number) => mm * (96 / 25.4);
+      const pageHeightPx = mmToPx(OSI_PRINT_PAGE_HEIGHT_MM);
+      const height = el.scrollHeight;
+      setPrintPageCount(Math.max(1, Math.ceil(height / pageHeightPx)));
+    };
+    measure();
+    const el = sheetRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    window.addEventListener("beforeprint", measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("beforeprint", measure);
+    };
+  }, [data, recursos_layout]);
+
   const st_fecha_inicio_cell = (
-    <table className="w-full table-fixed border-collapse">
-      <tbody>
-        <tr>
-          <th className="border-b border-black px-1 py-0.5 text-left text-[8px]">
-            Día
-          </th>
-          <th className="border-b border-black px-1 py-0.5 text-right text-[8px]">
-            Hora
-          </th>
-        </tr>
-        {sesiones_detalle.length > 0 ? (
-          sesiones_detalle.slice(0, 1).map((s, idx) => (
-            <tr key={`${s.fecha}-${idx}`}>
-              <td className="border-b border-black px-1 py-0.5 text-[9px]">
-                {formatCalendarDayEsVe(s.fecha)}
-              </td>
-              <td className="border-b border-black px-1 py-0.5 text-right text-[9px]">
-                {s.hora}
-              </td>
-            </tr>
-          ))
-        ) : (
-          <tr>
-            <td colSpan={2} className="px-1 py-1 text-[9px]">
-              {fechaServicioTexto}
-            </td>
-          </tr>
-        )}
-      </tbody>
-    </table>
+    <OsiSesionesDiaHoraTable
+      sessions={sesiones_detalle}
+      emptyFallback={fechaServicioTexto}
+    />
   );
 
   return (
-    <div className="print-document-palette osi-document-root mx-auto mt-4 box-border w-[210mm] max-w-full overflow-hidden bg-white print:mt-3 print:w-full text-[10px] text-black shadow-sm print:shadow-none">
+    <div className={cn("print-document-palette osi-document-root mx-auto mt-4 box-border w-[210mm] max-w-full overflow-hidden bg-white print:mt-3 print:w-full text-black shadow-sm print:shadow-none", OSI_DOC_ROOT_TEXT_CLASS)}>
       <style>{`
-        @page { size: letter; margin: 10mm; }
+        @page {
+          size: letter;
+          margin: 10mm;
+          @top-right {
+            content: "PÁGINA " counter(page) " DE " counter(pages);
+            font-size: 8pt;
+            font-family: Arial, sans-serif;
+          }
+        }
         [data-osi-table] {
           table-layout: fixed;
           width: 100%;
@@ -247,25 +665,41 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
           hyphens: none;
           text-align: center;
           vertical-align: middle;
-          padding: 2px 1px;
+          padding: 4px 2px;
           box-sizing: border-box;
+          font-size: 12px;
+          line-height: 1.3;
+          text-transform: uppercase;
         }
         [data-osi-table] .osi-nested-table col.osi-col-dias { width: 44%; }
         [data-osi-table] .osi-nested-table col.osi-col-costo { width: 22%; }
         [data-osi-table] .osi-nested-table col.osi-col-total { width: 34%; }
-        [data-osi-table] .osi-label-xs { font-size: 7px; line-height: 1.1; }
-        [data-osi-table] .osi-label-sm { font-size: 8px; line-height: 1.15; }
-        [data-osi-table] .osi-label-md { font-size: 9px; line-height: 1.2; }
+        [data-osi-table] .osi-label-xs,
+        [data-osi-table] .osi-label-sm,
+        [data-osi-table] .osi-label-md {
+          font-size: 12px;
+          line-height: 1.3;
+        }
+        [data-osi-table] .osi-doc-value {
+          font-size: 12px;
+          line-height: 1.3;
+        }
+        [data-osi-table] .osi-boolean-value {
+          font-size: 12px;
+          line-height: 1.3;
+          font-weight: 700;
+          text-transform: uppercase;
+        }
         [data-osi-table] .osi-cert-table th,
         [data-osi-table] .osi-cert-table td {
-          font-size: 8px;
-          line-height: 1.15;
+          font-size: 12px;
+          line-height: 1.3;
           font-weight: 700;
         }
         [data-osi-table] .osi-cert-table th.osi-cert-label {
-          font-size: 7px;
-          line-height: 1.1;
-          padding: 3px 1px;
+          font-size: 12px;
+          line-height: 1.3;
+          padding: 4px 2px;
         }
         [data-osi-table] .osi-th-nowrap {
           white-space: nowrap;
@@ -274,6 +708,11 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
           white-space: pre-wrap;
           overflow-wrap: break-word;
           word-break: break-word;
+          text-transform: uppercase;
+        }
+        [data-osi-table] .osi-rich-html,
+        [data-osi-table] .rich-html-content {
+          text-transform: uppercase;
         }
         @media print {
           html, body { margin: 0; padding: 0; background: #fff; }
@@ -298,7 +737,7 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
           }
         }
       `}</style>
-      <div className="osi-print-sheet p-0.5 print:p-0">
+      <div ref={sheetRef} className="osi-print-sheet p-0.5 print:p-0">
         {/* Header section */}
         <div className="mb-2 flex items-start justify-between gap-2">
           <div className="flex w-[170px] items-center">
@@ -317,7 +756,7 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
               ORDEN DE SERVICIO INTERNA
             </h1>
           </div>
-          <div className="w-[170px] text-[8px] text-slate-700">
+          <div className="w-[170px] text-[11px] text-slate-700">
             <div className="grid grid-cols-[60px_1fr] gap-x-2">
               <span className="font-bold">CÓDIGO</span>
               <span>{OSI_FORM_META.codigo}</span>
@@ -326,78 +765,92 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
               <span className="font-bold">REVISIÓN</span>
               <span>{OSI_FORM_META.revision}</span>
               <span className="font-bold">PÁGINA</span>
-              <span>1 de 1</span>
+              <span>1 de {printPageCount}</span>
             </div>
           </div>
         </div>
 
         {/* Form Table */}
-        <table data-osi-table className="w-full table-fixed border-collapse border border-black [&_td]:border [&_td]:border-black [&_td]:px-2 [&_td]:py-1.5 [&_td]:align-middle [&_td]:text-center [&_th]:border [&_th]:border-black [&_th]:bg-slate-100 [&_th]:px-2 [&_th]:py-1.5 [&_th]:text-center [&_th]:font-bold [&_th]:uppercase">
+        <table data-osi-table className="w-full table-fixed border-collapse border border-black text-[12px] [&_td]:border [&_td]:border-black [&_td]:px-2 [&_td]:py-2 [&_td]:align-middle [&_td]:text-center [&_th]:border [&_th]:border-black [&_th]:bg-slate-100 [&_th]:px-2 [&_th]:py-2 [&_th]:text-center [&_th]:text-[12px] [&_th]:font-bold [&_th]:uppercase">
           <tbody>
             <tr>
-              <th className="w-1/4">FECHA DE EMISIÓN</th>
-              <th className="w-1/4">N° DE PRESUPUESTO</th>
-              <th className="w-1/4">N° DE ORDEN DE COMPRA</th>
-              <th className="w-1/4">N° DE ORDEN DE SERVICIO INTERNA</th>
+              <th>FECHA</th>
+              <th>N° TRATO</th>
+              <th>N° SOLPED</th>
+              <th>N° PPTO</th>
+              <th>N° DE ORDEN DE COMPRA</th>
+              <th>N° OSI</th>
             </tr>
             <tr>
               <td className="text-center">
                 {data.fechaDocumento || data.fechaEmisionPresupuesto || "N/A"}
               </td>
+              <td className="text-center">{data.nroTrato || "N/A"}</td>
+              <td className="text-center">{data.nroSolped || "N/A"}</td>
               <td className="text-center">{data.nroPresupuesto || "N/A"}</td>
               <td className="text-center">{data.nroOrdenCompra || "N/A"}</td>
-              <td className="text-center font-bold text-red-600">{data.nroOsi || "N/A"}</td>
-            </tr>
-
-            <tr>
-              <th colSpan={4} className="text-center">DATOS DEL CLIENTE</th>
-            </tr>
-
-            <tr>
-              <th className="text-left" colSpan={2}>NOMBRE DE LA EMPRESA</th>
-              <th className="text-left">RIF</th>
-              <th className="text-left">CÓDIGO DEL CLIENTE</th>
-            </tr>
-            <tr>
-              <td colSpan={2}>{data.nombreEmpresa || "N/A"}</td>
-              <td>{data.clienteRif || "N/A"}</td>
-              <td>{data.codigoCliente || "N/A"}</td>
-            </tr>
-            <tr>
-              <th className="text-left">DIRECCIÓN FISCAL DEL CLIENTE</th>
-              <td colSpan={3} className="!text-left">
-                {data.direccionFiscal || "N/A"}
+              <td className="text-center font-bold text-red-600">
+                {data.nroOsi || "N/A"}
               </td>
             </tr>
+
             <tr>
-              <th className="text-left">DIRECCIÓN DE EJECUCIÓN DEL SERVICIO</th>
+              <th colSpan={3}>EJECUTIVO DE NEGOCIOS</th>
+              <th colSpan={3}>TIPO DE SERVICIO</th>
+            </tr>
+            <tr>
+              <td colSpan={3}>{data.ejecutivoNegocios || "N/A"}</td>
+              <td colSpan={3}>{data.tipoServicio || "N/A"}</td>
+            </tr>
+
+            <tr>
+              <th
+                colSpan={6}
+                className="py-2 text-center text-[12px] font-bold text-[#002b5c] bg-slate-200"
+              >
+                DATOS DEL CLIENTE
+              </th>
+            </tr>
+
+            <tr>
+              <th className="text-left" colSpan={3}>NOMBRE DE LA EMPRESA</th>
+              <th className="text-left">SEDE</th>
+              <th className="text-left" colSpan={2}>RIF</th>
+            </tr>
+            <tr>
+              <td colSpan={3}>{data.nombreEmpresa || "N/A"}</td>
+              <td>{data.sede?.trim() ? data.sede : "—"}</td>
+              <td colSpan={2}>{data.clienteRif || "N/A"}</td>
+            </tr>
+            <tr>
+              <th className="text-left" colSpan={2}>DIRECCIÓN DE EJECUCIÓN DEL SERVICIO</th>
               <td
-                colSpan={3}
+                colSpan={4}
                 className={cn("!text-left", cellHl(hl.direccionEjecucion))}
               >
                 {data.direccionEjecucion || "N/A"}
               </td>
             </tr>
             <tr>
-              <th className="text-left">DIRECCIÓN DE ENVÍO DEL SERVICIO</th>
-              <td colSpan={3} className="!text-left">{data.direccionEnvio || "N/A"}</td>
+              <th className="text-left" colSpan={2}>DIRECCIÓN DE ENVÍO DEL SERVICIO</th>
+              <td colSpan={4} className="!text-left">{data.direccionEnvio || "N/A"}</td>
             </tr>
 
             <tr>
-              <th className="text-center" colSpan={2}>PERSONA CONTACTO</th>
+              <th className="text-center" colSpan={3}>PERSONA CONTACTO</th>
               <th className="text-center">NÚMERO TELEFÓNICO</th>
-              <th className="text-center">CORREO ELECTRÓNICO</th>
+              <th className="text-center" colSpan={2}>CORREO ELECTRÓNICO</th>
             </tr>
             <tr>
-              <td className="text-center" colSpan={2}>{data.personaContacto || "N/A"}</td>
+              <td className="text-center" colSpan={3}>{data.personaContacto || "N/A"}</td>
               <td className="text-center">{data.contactoTelefono || "N/A"}</td>
-              <td className="break-all text-center text-[9px]">
+              <td className="break-all text-center text-[12px]" colSpan={2}>
                 {data.contactoEmail || "N/A"}
               </td>
             </tr>
 
             <tr>
-              <th colSpan={4} className={section_header_class}>
+              <th colSpan={6} className={section_header_class}>
                 DETALLE DEL SERVICIO
               </th>
             </tr>
@@ -405,77 +858,79 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
             {data.isCapacitacion ? (
               <>
                 <tr>
-                  <th className="text-left">EJECUTIVO DE NEGOCIOS</th>
-                  <th className="text-left">TIPO DE SERVICIO</th>
-                  <th className="text-left" colSpan={2}>SERVICIO</th>
-                </tr>
-                <tr>
-                  <td>{data.ejecutivoNegocios || "N/A"}</td>
-                  <td>{data.tipoServicio || "N/A"}</td>
-                  <td colSpan={2} className="!text-left text-[9px] leading-tight">
-                    {data.servicio || "N/A"}
-                  </td>
-                </tr>
-                <tr>
-                  <th className="text-left">N° PARTICIPANTES</th>
-                  <th className="text-left">N° SESIONES</th>
-                  <th className="text-left">N° TOTALES</th>
-                  <th className="text-left">FECHA DEL SERVICIO</th>
-                </tr>
-                <tr>
-                  <td className={cn("text-center font-bold text-[10px]", cellHl(hl.participantes))}>
-                    {participantesDoc != null ? String(participantesDoc) : "N/A"}
-                  </td>
-                  <td className={cn("text-center", cellHl(hl.fechaServicio))}>
-                    {sesionesDoc != null ? String(sesionesDoc) : "N/A"}
-                  </td>
-                  <td className="text-center">{data.horasAcademicasSolped ?? "N/A"}</td>
-                  <td className={cn("align-top", cellHl(hl.fechaServicio))}>
-                    <table className="w-full table-fixed border-collapse">
-                      <tbody>
-                        <tr>
-                          <th className="border-b border-black px-1 py-0.5 text-left">Día</th>
-                          <th className="border-b border-black px-1 py-0.5 text-right">Hora</th>
-                        </tr>
-                        {sesiones_detalle.length > 0 ? (
-                          sesiones_detalle.map((s, idx) => (
-                            <tr key={`${s.fecha}-${idx}`}>
-                              <td className="border-b border-black px-1 py-0.5">
-                                {formatCalendarDayEsVe(s.fecha)}
-                              </td>
-                              <td className="border-b border-black px-1 py-0.5 text-right">
-                                {s.hora}
-                              </td>
-                            </tr>
-                          ))
-                        ) : (
-                          <tr>
-                            <td colSpan={2} className="px-1 py-1">{fechaServicioTexto}</td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </td>
-                </tr>
-                <tr>
                   <td
-                    colSpan={4}
-                    className={cn("align-top relative", cellHl(hl.detalle))}
+                    colSpan={6}
+                    className={cn("align-top relative !text-left", cellHl(hl.detalle))}
                   >
-                      <div className="absolute inset-x-0 bottom-0 top-0 flex items-center justify-center opacity-10">
+                    <div className="absolute inset-x-0 bottom-0 top-0 flex items-center justify-center opacity-10">
                       <img
                         src={assets.logoSrc}
-                            alt=""
-                            width={64}
-                            height={64}
+                        alt=""
+                        width={64}
+                        height={64}
                         loading="eager"
                         decoding="async"
                         className="h-16 w-16 object-contain opacity-10"
-                          />
-                      </div>
-                      <span className="relative z-10">
-                        {data.detalleServicio || data.servicio || "N/A"}
-                      </span>
+                      />
+                    </div>
+                    <span className="relative z-10">
+                      {data.detalleServicio || data.servicio || "N/A"}
+                    </span>
+                  </td>
+                </tr>
+                <OsiPretensionesRows
+                  items={pretensiones_items_visible}
+                  section_text_class={section_text_black_class}
+                />
+                <OsiObservacionesRows
+                  items={observaciones_items_visible}
+                  section_text_class={section_text_black_class}
+                />
+                <tr>
+                  <th className="text-left" colSpan={3}>SERVICIO</th>
+                  <th className="text-left">N° PARTICIPANTES</th>
+                  <th className="text-left">N SESIONES</th>
+                  <th className="text-left">N HORAS</th>
+                </tr>
+                <tr>
+                  <td colSpan={3} className="!text-left text-[12px] leading-snug">
+                    {data.servicio || "N/A"}
+                  </td>
+                  <td
+                    className={cn(
+                      "text-center font-bold text-[12px]",
+                      cellHl(hl.participantes),
+                    )}
+                  >
+                    {participantesDoc != null ? String(participantesDoc) : "N/A"}
+                  </td>
+                  <td
+                    className={cn("text-center", cellHl(hl.fechaServicio))}
+                  >
+                    {sesionesDoc != null ? String(sesionesDoc) : "N/A"}
+                  </td>
+                  <td className="text-center">
+                    {data.horasAcademicasSolped ?? "N/A"}
+                  </td>
+                </tr>
+                <tr>
+                  <th className="text-left" colSpan={3}>FECHA PLANIFICADA</th>
+                  <th className="text-left" colSpan={3}>FECHA EJECUTADA</th>
+                </tr>
+                <tr>
+                  <td
+                    colSpan={3}
+                    className={cn("align-top", cellHl(hl.fechaServicio))}
+                  >
+                    <OsiSesionesDiaHoraTable
+                      sessions={sesiones_fecha_planificada_detalle}
+                    />
+                  </td>
+                  <td colSpan={3} className="align-top">
+                    <OsiSesionesDiaHoraTable
+                      sessions={sesiones_fecha_ejecutada_detalle}
+                      emptyFallback="—"
+                    />
                   </td>
                 </tr>
                 <OsiCapacitacionRecursosBlocks
@@ -489,7 +944,7 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
                 <tr>
                   <th className="text-left">EJECUTIVO DE NEGOCIOS</th>
                   <th className="text-left">TIPO DE SERVICIO</th>
-                  <th className="text-left" colSpan={2}>
+                  <th className="text-left" colSpan={4}>
                     FECHA DE INICIO DEL SERVICIO
                   </th>
                 </tr>
@@ -497,14 +952,14 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
                   <td>{data.ejecutivoNegocios || "N/A"}</td>
                   <td>{data.tipoServicio || "Servicios Tecnicos"}</td>
                   <td
-                    colSpan={2}
+                    colSpan={4}
                     className={cn("align-top", cellHl(hl.fechaServicio))}
                   >
                     {st_fecha_inicio_cell}
                   </td>
                 </tr>
                 <tr>
-                  <td colSpan={4} className="!text-left align-top text-[10px] leading-snug">
+                  <td colSpan={6} className="!text-left align-top text-[12px] leading-snug">
                     {(data.stServicios ?? []).length > 0 ? (
                       <div className="space-y-2">
                         {data.stServicios!.map((svc, idx) => (
@@ -529,177 +984,82 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
               </>
             )}
 
-            <tr>
-              <th colSpan={4} className={section_header_class}>
-                PRETENSIONES DEL CLIENTE
-              </th>
-            </tr>
-            <tr>
-              <td
-                colSpan={4}
-                className="osi-long-text min-h-12 max-w-0 align-top relative !text-left px-2 py-2"
-              >
-                {pretensiones_items_visible.length > 0 ? (
-                  <div className="space-y-2">
-                    {pretensiones_items_visible.map((item, idx) => (
-                      <div key={`pret-item-${idx}`} className="border-b border-dashed pb-2 last:border-b-0 last:pb-0">
-                        <div className="text-[9px] font-bold uppercase text-slate-600">
-                          {item.servicio
-                            ? `${item.servicio} — ${item.fuente}`
-                            : item.fuente}
-                        </div>
-                        <OsiRichHtmlContent content={item.contenido} />
+            {!data.isCapacitacion ? (
+              <>
+                <tr>
+                  <th colSpan={6} className={section_text_black_class}>
+                    PRETENSIONES DEL CLIENTE
+                  </th>
+                </tr>
+                <tr>
+                  <td
+                    colSpan={6}
+                    className="osi-long-text min-h-12 max-w-0 align-top relative !text-left px-2 py-2 text-black"
+                  >
+                    {pretensiones_items_visible.length > 0 ? (
+                      <div className="space-y-2 text-black">
+                        {pretensiones_items_visible.map((item, idx) => (
+                          <div key={`pret-item-${idx}`} className="border-b border-dashed pb-2 last:border-b-0 last:pb-0">
+                            <div className="text-[12px] font-bold uppercase text-black">
+                              {item.servicio
+                                ? `${item.servicio} — ${item.fuente}`
+                                : item.fuente}
+                            </div>
+                            <OsiRichHtmlContent content={item.contenido} className="text-black" />
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <span>N/A</span>
-                )}
-              </td>
-            </tr>
+                    ) : (
+                      <span className="text-black">Sin pretensiones</span>
+                    )}
+                  </td>
+                </tr>
+              </>
+            ) : null}
 
-            <tr>
-              <th colSpan={4} className={section_header_class}>
-                OBSERVACIONES ADICIONALES
-              </th>
-            </tr>
-            <tr>
-              <td
-                colSpan={4}
-                className="osi-long-text min-h-12 max-w-0 align-top relative !text-left px-2 py-2"
-              >
-                {observaciones_items_visible.length > 0 ? (
-                  <div className="space-y-2">
-                    {observaciones_items_visible.map((item, idx) => (
-                      <div key={`obs-item-${idx}`} className="border-b border-dashed pb-2 last:border-b-0 last:pb-0">
-                        <div className="text-[9px] font-bold uppercase text-slate-600">
-                          {item.servicio
-                            ? `${item.servicio} — ${item.fuente}`
-                            : item.fuente}
-                        </div>
-                        <OsiRichHtmlContent content={item.contenido} />
+            {!data.isCapacitacion ? (
+              <>
+                <tr>
+                  <th colSpan={6} className={section_text_black_class}>
+                    OBSERVACIONES ADICIONALES
+                  </th>
+                </tr>
+                <tr>
+                  <td
+                    colSpan={6}
+                    className="osi-long-text min-h-12 max-w-0 align-top relative !text-left px-2 py-2 text-black"
+                  >
+                    {observaciones_items_visible.length > 0 ? (
+                      <div className="space-y-2 text-black">
+                        {observaciones_items_visible.map((item, idx) => (
+                          <div
+                            key={`obs-item-${idx}`}
+                            className="border-b border-dashed pb-2 last:border-b-0 last:pb-0"
+                          >
+                            <div className="text-[12px] font-bold uppercase text-black">
+                              {item.servicio
+                                ? `${item.servicio} — ${item.fuente}`
+                                : item.fuente}
+                            </div>
+                            <OsiRichHtmlContent content={item.contenido} className="text-black" />
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <span>N/A</span>
-                )}
-              </td>
-            </tr>
+                    ) : (
+                      <span className="text-black">N/A</span>
+                    )}
+                  </td>
+                </tr>
+              </>
+            ) : null}
 
-            <tr>
-              <th colSpan={4} className={section_header_class}>
-                CIERRE DEL SERVICIO EJECUTADO / LLENAR POR EL DEPARTAMENTO EJECUTANTE
-              </th>
-            </tr>
-            <tr>
-               <th className="text-[8px]">DEPARTAMENTO EJECUTANTE / NOMBRE</th>
-               <th className="p-0" colSpan={2}>
-                    <table className="w-full h-full border-collapse">
-                      <tbody>
-                        <tr>
-                            <th className="w-1/3 border-r border-black border-b text-[8px] px-1 py-1 h-10">FECHA DE RECEPCIÓN DE OSI</th>
-                            <th className="w-1/3 border-r border-black border-b text-[8px] px-1 py-1 h-10">FECHA DE INICIO DEL SERVICIO</th>
-                            <th className="w-1/3 border-black border-b text-[8px] px-1 py-1 h-10">FECHA DE FINALIZACIÓN DEL SERVICIO</th>
-                        </tr>
-                        <tr>
-                            <td colSpan={3} className="text-center font-bold text-[9px] py-1 border-b border-black">
-                                ¿SU DPTO. CUENTA CON TODOS LOS SOPORTES REQUERIDOS INDICADOS EN ESTA OSI?
-                            </td>
-                        </tr>
-                        <tr>
-                            <th colSpan={3} className="text-left px-2 py-1 text-[8px] font-bold" style={{ background: "transparent" }}>
-                                DE SER NO, JUSTIFIQUE
-                            </th>
-                        </tr>
-                      </tbody>
-                    </table>
-               </th>
-               <th className="p-0">
-                  <table className="w-full h-full border-collapse">
-                      <tbody>
-                          <tr>
-                              <th colSpan={2} className="border-b border-black text-[9px] py-1">RESPONSABLE DEL DPTO.</th>
-                          </tr>
-                          <tr>
-                              <th className="w-1/2 border-r border-b border-black text-[9px] py-1 h-8" style={{ background: "transparent" }}>NOMBRE Y APELLIDO</th>
-                              <th className="w-1/2 border-b border-black text-[9px] py-1 h-8" style={{ background: "transparent" }}>FIRMA</th>
-                          </tr>
-                          <tr>
-                              <td colSpan={2} className="h-10"></td>
-                          </tr>
-                      </tbody>
-                  </table>
-               </th>
-            </tr>
-            <tr>
-                <th className="h-8 align-middle text-left bg-transparent">REQUISICIONES</th>
-                <th className="p-0" colSpan={3}>
-                    <table className="w-full h-full border-collapse">
-                        <tbody>
-                            <tr>
-                                <th className="w-[15%] text-[9px] border-r border-black" style={{ background: "transparent" }}>CANTIDAD</th>
-                                <th className="w-[35%] text-[9px] border-r border-black" style={{ background: "transparent" }}>DETALLE</th>
-                                <th className="w-[20%] text-[9px] border-r border-black" style={{ background: "transparent" }}>N° SOLICITUD(ES) DE ORDEN DE COMPRA</th>
-                                <th className="w-[15%] text-[9px] border-r border-black" style={{ background: "transparent" }}>CANTIDAD</th>
-                                <th className="w-[15%] text-[9px]" style={{ background: "transparent" }}>DETALLE</th>
-                            </tr>
-                        </tbody>
-                    </table>
-                </th>
-            </tr>
+            <OsiQuejasClienteRows />
 
-            <tr>
-                <th colSpan={4} className="bg-slate-100 text-center h-8">
-                    QUEJAS, OBSERVACIONES O RECLAMOS RECIBIDOS POR EL CLIENTE
-                </th>
-            </tr>
-            <tr>
-               <td colSpan={4} className="h-10"></td>
-            </tr>
+            <OsiEstatusOsiRows label={data.estatusOsiLabel || "N/A"} />
 
-            <tr>
-               <td className="p-0 border-0" colSpan={4}>
-                   <table className="w-full border-collapse h-full [&_td]:border [&_td]:border-black [&_td]:px-1 [&_td]:py-1 [&_th]:border [&_th]:border-black [&_th]:px-1 [&_th]:py-1">
-                      <tbody>
-                          <tr>
-                              <th className="w-[15%] bg-transparent border-t-0 border-l-0 border-b-0 border-r-0"></th>
-                              <th className="w-[25%] bg-slate-100">GENERACIÓN DE SOPORTE</th>
-                              <th className="w-[40%] bg-slate-100" colSpan={2}>VALIDACIÓN DE SOPORTES</th>
-                              <th className="w-[20%] bg-slate-100">VERIFICACIÓN DE SOPORTES</th>
-                          </tr>
-                           <tr>
-                              <th className="text-left text-[9px] bg-transparent font-bold">NOMBRE Y APELLIDO:</th>
-                              <td className="h-6"></td>
-                              <td className="h-6 w-[20%]"></td>
-                              <td className="h-6 w-[20%]"></td>
-                              <td className="h-6"></td>
-                          </tr>
-                          <tr>
-                              <th className="text-left text-[9px] bg-transparent font-bold">CARGO:</th>
-                              <td className="text-center font-bold text-[8px]">[DEPARTAMENTO SOLICITANTE]</td>
-                              <td className="text-center font-bold text-[8px]">[QHSE]</td>
-                              <td className="text-center font-bold text-[8px]">[NEGOCIOS]</td>
-                              <td className="text-center font-bold text-[8px]">DIRECTOR GERENTE</td>
-                          </tr>
-                          <tr>
-                              <th className="text-left text-[9px] bg-transparent font-bold">FIRMA:</th>
-                              <td className="h-8"></td>
-                              <td className="h-8"></td>
-                              <td className="h-8"></td>
-                              <td className="h-8"></td>
-                          </tr>
-                           <tr>
-                              <th className="text-left text-[9px] bg-transparent font-bold">FECHA:</th>
-                              <td className="h-6"></td>
-                              <td className="h-6"></td>
-                              <td className="h-6"></td>
-                              <td className="h-6"></td>
-                          </tr>
-                      </tbody>
-                   </table>
-               </td>
-            </tr>
+            {data.showCierreSection ? (
+              <OsiCierreServicioRows section_header_class={section_header_class} />
+            ) : null}
           </tbody>
         </table>
 

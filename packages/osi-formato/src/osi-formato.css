@@ -62,36 +62,49 @@
 
 .osi-document-root {
   font-family: "Poppins", ui-sans-serif, system-ui, sans-serif;
-  font-size: 10px;
+  font-size: 12px;
+  text-transform: uppercase;
 }
 
 /* ponytail: plain CSS so SGestion (TW v4) and Shell (TW v3) match without arbitrary text-[Npx] */
 .osi-document-root [data-osi-table] .osi-label-xs {
-  font-size: 7px;
-  line-height: 1.1;
+  font-size: 11px;
+  line-height: 1.25;
 }
 
 .osi-document-root [data-osi-table] .osi-label-sm {
-  font-size: 8px;
-  line-height: 1.15;
+  font-size: 12px;
+  line-height: 1.3;
 }
 
 .osi-document-root [data-osi-table] .osi-label-md {
-  font-size: 9px;
-  line-height: 1.2;
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.osi-document-root [data-osi-table] .osi-doc-value {
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.osi-document-root [data-osi-table] .osi-boolean-value {
+  font-size: 12px;
+  line-height: 1.3;
+  font-weight: 700;
+  text-transform: uppercase;
 }
 
 .osi-document-root [data-osi-table] .osi-cert-table th,
 .osi-document-root [data-osi-table] .osi-cert-table td {
-  font-size: 8px;
-  line-height: 1.15;
+  font-size: 12px;
+  line-height: 1.3;
   font-weight: 700;
 }
 
 .osi-document-root [data-osi-table] .osi-cert-table th.osi-cert-label {
-  font-size: 7px;
-  line-height: 1.1;
-  padding: 3px 1px;
+  font-size: 12px;
+  line-height: 1.3;
+  padding: 4px 2px;
 }
 
 .osi-document-root [data-osi-table] td,
@@ -115,8 +128,9 @@
   hyphens: none;
   text-align: center;
   vertical-align: middle;
-  padding: 2px 1px;
+  padding: 4px 2px;
   box-sizing: border-box;
+  text-transform: uppercase;
 }
 
 .osi-document-root [data-osi-table] .osi-th-nowrap {
@@ -139,6 +153,12 @@
   white-space: pre-wrap;
   overflow-wrap: break-word;
   word-break: break-word;
+  text-transform: uppercase;
+}
+
+.osi-document-root [data-osi-table] .osi-rich-html,
+.osi-document-root .rich-html-content {
+  text-transform: uppercase;
 }
 
 @media print {

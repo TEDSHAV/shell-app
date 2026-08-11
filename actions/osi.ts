@@ -7,9 +7,14 @@ import { notifySessionStatusChange } from "@/actions/osi-session-notifications";
 import {
   getUserRole,
   getUserRolesByApp,
-  isSadministracionUser,
+  getUserPermissionsByApp,
 } from "@/actions/apps";
 import type { BuildOsiPreviewInput } from "@sha/osi-formato";
+import {
+  has_cap_cierre_certificados_step,
+  parse_osi_cost_visibility_row,
+  user_can_reveal_osi_costs,
+} from "@sha/osi-formato";
 import type {
   OSIListFilters,
   OSIListItem,
@@ -18,6 +23,7 @@ import type {
   OSIStatusOption,
   OSISession,
   OSISessionsFinalCheck,
+  SessionExecutionPayload,
 } from "@/types/osi";
 
 export async function getOSIList(
@@ -427,7 +433,92 @@ export async function getOSIPreviewBundle(
       }
     }
 
-    const can_reveal_st_monetary = await isSadministracionUser();
+    const { data: osi_sesiones_rows } = await supabase
+      .from("osi_sesion")
+      .select(
+        "nro_sesion, fecha, hora_inicio, fecha_ejecutada, hora_ejecutada",
+      )
+      .eq("id_osi", osiId)
+      .order("nro_sesion", { ascending: true });
+
+    const { data: visibility_rows } = await supabase
+      .from("osi_cost_visibility_config")
+      .select("*");
+
+    const visibility_by_formato = new Map<
+      string,
+      ReturnType<typeof parse_osi_cost_visibility_row>
+    >();
+    for (const row of visibility_rows ?? []) {
+      const parsed = parse_osi_cost_visibility_row(
+        row as Record<string, unknown>,
+      );
+      if (parsed) visibility_by_formato.set(parsed.formato, parsed);
+    }
+
+    const { data: { user } } = await supabase.auth.getUser();
+    let departamento_id: number | null = null;
+    if (user) {
+      const { data: usuario } = await supabase
+        .from("usuarios")
+        .select("departamento")
+        .eq("id_auth", user.id)
+        .maybeSingle();
+      departamento_id =
+        typeof usuario?.departamento === "number" ? usuario.departamento : null;
+    }
+
+    const appRoles = await getUserRolesByApp();
+    const role_slugs = Object.values(appRoles).filter(Boolean);
+    const permsByApp = await getUserPermissionsByApp();
+    const permission_slugs = Object.values(permsByApp).flat();
+
+    const is_cap = tipoServicio.includes("CAPACITACION");
+    const visibility_formato = is_cap ? "capacitacion" : "servicios_tecnicos";
+    const visibility_config =
+      visibility_by_formato.get(visibility_formato) ?? null;
+    const visibility_ctx = {
+      role: appRoles.sgestion ?? appRoles.scapacitacion ?? null,
+      role_slugs,
+      departamento_id,
+      permission_slugs,
+    };
+    const can_reveal_costs = user_can_reveal_osi_costs(
+      visibility_formato,
+      visibility_config,
+      visibility_ctx,
+    );
+
+    const can_reveal_st_monetary = is_cap
+      ? can_reveal_costs
+      : user_can_reveal_osi_costs(
+          "servicios_tecnicos",
+          visibility_by_formato.get("servicios_tecnicos") ?? null,
+          visibility_ctx,
+        );
+    const st_default_hide =
+      visibility_by_formato.get("servicios_tecnicos")?.default_hide_monetary ??
+      true;
+
+    const { data: cap_proceso_steps, error: cap_proceso_steps_error } =
+      await supabase
+        .from("capacitacion_proceso_steps")
+        .select("step_key, completed")
+        .eq("osi_id", osiId);
+
+    if (cap_proceso_steps_error) {
+      console.warn(
+        "capacitacion_proceso_steps no disponible para preview OSI:",
+        cap_proceso_steps_error.message,
+      );
+    }
+
+    const cap_cierre_certificados_step_completed = has_cap_cierre_certificados_step(
+      (cap_proceso_steps ?? []) as Array<{
+        step_key?: unknown;
+        completed?: unknown;
+      }>,
+    );
 
     return {
       view_row: view_row as Record<string, unknown>,
@@ -436,8 +527,10 @@ export async function getOSIPreviewBundle(
       servicio_nombre_by_id,
       public_cost_mask,
       can_reveal_st_monetary,
-      st_monetary_public_view: !can_reveal_st_monetary,
-      can_see_private_costs: true,
+      st_monetary_public_view: can_reveal_st_monetary ? st_default_hide : true,
+      can_see_private_costs: is_cap ? can_reveal_costs : true,
+      cap_cierre_certificados_step_completed,
+      osi_sesiones: (osi_sesiones_rows ?? []) as Array<Record<string, unknown>>,
     };
   } catch (err) {
     console.error("Unexpected error in getOSIPreviewBundle:", err);
@@ -805,24 +898,123 @@ export async function updateOSIStatus(
   }
 }
 
+const OSI_SESION_SELECT_WITH_EXEC =
+  "id, id_osi, nro_sesion, fecha, hora_inicio, hora_fin, fecha_ejecutada, hora_ejecutada, ejecutada_en_fecha_planificada";
+const OSI_SESION_SELECT_BASE =
+  "id, id_osi, nro_sesion, fecha, hora_inicio, hora_fin";
+
+function is_missing_column_error(error: { message?: string; code?: string } | null): boolean {
+  if (!error) return false;
+  const msg = String(error.message ?? "").toLowerCase();
+  return (
+    msg.includes("fecha_ejecutada") ||
+    msg.includes("hora_ejecutada") ||
+    msg.includes("ejecutada_en_fecha_planificada") ||
+    (msg.includes("column") && msg.includes("does not exist")) ||
+    error.code === "42703" ||
+    error.code === "PGRST204"
+  );
+}
+
+/**
+ * If osi_sesion has no rows but ejecucion_osi.sesiones_programadas does,
+ * materialize rows so consulta-osi can show/update session status.
+ */
+async function ensure_osi_sesiones_from_programadas(
+  osiId: number,
+): Promise<void> {
+  try {
+    const supabase = await createClient();
+    const { data: osiRow } = await supabase
+      .from("ejecucion_osi")
+      .select("sesiones_programadas")
+      .eq("id", osiId)
+      .maybeSingle();
+
+    const programmed = Array.isArray(osiRow?.sesiones_programadas)
+      ? (osiRow.sesiones_programadas as Array<Record<string, unknown>>)
+      : [];
+    if (programmed.length === 0) return;
+
+    const rows = programmed
+      .map((item, index) => {
+        const fecha =
+          typeof item.fecha === "string" ? item.fecha.trim() : "";
+        if (!fecha) return null;
+        return {
+          id_osi: osiId,
+          nro_sesion: index + 1,
+          fecha,
+          hora_inicio:
+            typeof item.hora_inicio === "string" ? item.hora_inicio : null,
+          hora_fin: typeof item.hora_fin === "string" ? item.hora_fin : null,
+        };
+      })
+      .filter((row): row is NonNullable<typeof row> => row !== null);
+
+    if (rows.length === 0) return;
+
+    // Admin bypasses RLS insert mutators (finance/sales) so capacitacion
+    // operators can still expand and mark execution for legacy OSIs.
+    const admin = await createAdminClient();
+    const { error } = await admin.from("osi_sesion").upsert(rows, {
+      onConflict: "id_osi,nro_sesion",
+      ignoreDuplicates: true,
+    });
+    if (error) {
+      console.error("Error ensuring osi_sesion from programadas:", error);
+    }
+  } catch (err) {
+    console.error("Unexpected error ensuring osi_sesion:", err);
+  }
+}
+
+async function fetch_osi_sesion_rows(osiId: number) {
+  const supabase = await createClient();
+  const withExec = await supabase
+    .from("osi_sesion")
+    .select(OSI_SESION_SELECT_WITH_EXEC)
+    .eq("id_osi", osiId)
+    .order("nro_sesion", { ascending: true });
+
+  if (!withExec.error) {
+    return { sessions: withExec.data ?? [], hasExecCols: true as const };
+  }
+
+  if (!is_missing_column_error(withExec.error)) {
+    console.error("Error fetching OSI sessions:", withExec.error);
+    return { sessions: [], hasExecCols: false as const };
+  }
+
+  // Migration not applied yet — fall back to pre–Fase 2 columns.
+  const base = await supabase
+    .from("osi_sesion")
+    .select(OSI_SESION_SELECT_BASE)
+    .eq("id_osi", osiId)
+    .order("nro_sesion", { ascending: true });
+
+  if (base.error) {
+    console.error("Error fetching OSI sessions (base):", base.error);
+    return { sessions: [], hasExecCols: false as const };
+  }
+  return { sessions: base.data ?? [], hasExecCols: false as const };
+}
+
 export async function getOSISessions(osiId: number): Promise<OSISession[]> {
   if (!Number.isFinite(osiId) || osiId <= 0) return [];
 
   try {
-    const supabase = await createClient();
+    let { sessions, hasExecCols } = await fetch_osi_sesion_rows(osiId);
 
-    const { data: sessions, error } = await supabase
-      .from("osi_sesion")
-      .select("id, id_osi, nro_sesion, fecha, hora_inicio, hora_fin")
-      .eq("id_osi", osiId)
-      .order("nro_sesion", { ascending: true });
-
-    if (error || !sessions || sessions.length === 0) {
-      if (error) console.error("Error fetching OSI sessions:", error);
-      return [];
+    if (sessions.length === 0) {
+      await ensure_osi_sesiones_from_programadas(osiId);
+      ({ sessions, hasExecCols } = await fetch_osi_sesion_rows(osiId));
     }
 
-    const sessionIds = sessions.map((s) => s.id);
+    if (sessions.length === 0) return [];
+
+    const sessionIds = sessions.map((s) => s.id as number);
+    const supabase = await createClient();
 
     const { data: statusHistory, error: historyError } = await supabase
       .from("historial_cambios_estado")
@@ -844,14 +1036,24 @@ export async function getOSISessions(osiId: number): Promise<OSISession[]> {
     }
 
     return sessions.map((s) => {
-      const statusId = latestStatusBySession.get(s.id) ?? null;
+      const statusId = latestStatusBySession.get(s.id as number) ?? null;
+      const exec = hasExecCols ? (s as Record<string, unknown>) : null;
       return {
-        id: s.id,
-        id_osi: s.id_osi,
-        nro_sesion: s.nro_sesion,
-        fecha: s.fecha,
-        hora_inicio: s.hora_inicio,
-        hora_fin: s.hora_fin,
+        id: s.id as number,
+        id_osi: s.id_osi as number,
+        nro_sesion: s.nro_sesion as number,
+        fecha: s.fecha as string,
+        hora_inicio: (s.hora_inicio as string | null) ?? null,
+        hora_fin: (s.hora_fin as string | null) ?? null,
+        fecha_ejecutada: exec
+          ? ((exec.fecha_ejecutada as string | null) ?? null)
+          : null,
+        hora_ejecutada: exec
+          ? ((exec.hora_ejecutada as string | null) ?? null)
+          : null,
+        ejecutada_en_fecha_planificada: exec
+          ? ((exec.ejecutada_en_fecha_planificada as boolean | null) ?? null)
+          : null,
         id_estatus: statusId,
       } as OSISession;
     });
@@ -864,13 +1066,14 @@ export async function getOSISessions(osiId: number): Promise<OSISession[]> {
 export async function updateSessionStatus(
   sessionId: number,
   newStatusId: number,
+  execution?: SessionExecutionPayload | null,
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const supabase = await createClient();
 
     const { data: session, error: sessionError } = await supabase
       .from("osi_sesion")
-      .select("id_osi")
+      .select("id_osi, fecha, hora_inicio")
       .eq("id", sessionId)
       .single();
 
@@ -881,6 +1084,57 @@ export async function updateSessionStatus(
     const canChange = await canChangeOSIStatus(session.id_osi);
     if (!canChange) {
       return { success: false, error: "No tiene permisos para cambiar el estado de sesiones" };
+    }
+
+    const EJECUTADO_ID = 12;
+    if (newStatusId === EJECUTADO_ID && !execution) {
+      return {
+        success: false,
+        error: "Debe confirmar la fecha de ejecución de la sesión",
+      };
+    }
+
+    if (newStatusId === EJECUTADO_ID && execution) {
+      const { error: sesionUpdateError } = await supabase
+        .from("osi_sesion")
+        .update({
+          fecha_ejecutada: execution.fecha_ejecutada,
+          hora_ejecutada: execution.hora_ejecutada,
+          ejecutada_en_fecha_planificada:
+            execution.ejecutada_en_fecha_planificada,
+        })
+        .eq("id", sessionId);
+
+      if (sesionUpdateError) {
+        console.error(
+          "Error updating session execution dates:",
+          sesionUpdateError,
+        );
+        if (is_missing_column_error(sesionUpdateError)) {
+          return {
+            success: false,
+            error:
+              "Falta aplicar la migración de fechas de ejecución (osi_sesion.fecha_ejecutada). Ejecuta supabase db push.",
+          };
+        }
+        return {
+          success: false,
+          error: "Error al guardar la fecha de ejecución",
+        };
+      }
+    } else {
+      // Leaving EJECUTADO: clear execution dates when columns exist.
+      const { error: clearError } = await supabase
+        .from("osi_sesion")
+        .update({
+          fecha_ejecutada: null,
+          hora_ejecutada: null,
+          ejecutada_en_fecha_planificada: null,
+        })
+        .eq("id", sessionId);
+      if (clearError && !is_missing_column_error(clearError)) {
+        console.error("Error clearing session execution dates:", clearError);
+      }
     }
 
     const { data: prevStatusRow } = await supabase

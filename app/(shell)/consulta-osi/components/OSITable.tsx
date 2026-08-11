@@ -3,8 +3,14 @@
 import { useState, Fragment } from "react";
 import Link from "next/link";
 import type { OSIListItem, OSIStatusOption, OSISession } from "@/types/osi";
+import { OSI_STATUS_EJECUTADO_ID } from "@/types/osi";
+import { formatTimeAmPmEsVe } from "@sha/osi-formato";
 import { getOSISessions, checkAllSessionsFinal } from "@/actions/osi";
-import { Eye, FileText, Loader2, ChevronDown, ChevronRight, MessageSquare, CheckCircle2, EyeOff, Eye as EyeShow, Paperclip } from "lucide-react";
+import SessionExecutionModal, {
+  type SessionExecutionConfirmItem,
+  type SessionExecutionPayload,
+} from "./SessionExecutionModal";
+import { Eye, FileText, Loader2, ChevronDown, ChevronRight, MessageSquare, CheckCircle2, EyeOff, Eye as EyeShow, Paperclip, Pencil } from "lucide-react";
 
 interface OSITableProps {
   osis: OSIListItem[];
@@ -15,7 +21,11 @@ interface OSITableProps {
   canChangeStatus: boolean;
   statuses: OSIStatusOption[];
   onStatusChange: (osi: OSIListItem, newStatusId: number) => Promise<{ success: boolean; error?: string }>;
-  onSessionStatusChange?: (sessionId: number, newStatusId: number) => Promise<{ success: boolean; error?: string }>;
+  onSessionStatusChange?: (
+    sessionId: number,
+    newStatusId: number,
+    execution?: SessionExecutionPayload,
+  ) => Promise<{ success: boolean; error?: string }>;
   canHideForClient?: boolean;
   onToggleHidden?: (osi: OSIListItem, hidden: boolean) => Promise<{ success: boolean; error?: string }>;
   canToggleAttachment?: boolean;
@@ -45,6 +55,13 @@ export default function OSITable({
   const [allFinalBanner, setAllFinalBanner] = useState<Record<number, boolean>>({});
   const [hideLoadingId, setHideLoadingId] = useState<number | null>(null);
   const [attachmentLoadingId, setAttachmentLoadingId] = useState<number | null>(null);
+  const [executionModalSessions, setExecutionModalSessions] = useState<OSISession[]>([]);
+  const [executionModalOsi, setExecutionModalOsi] = useState<OSIListItem | null>(null);
+  const [executionModalAlsoUpdateOsi, setExecutionModalAlsoUpdateOsi] =
+    useState(false);
+  const [executionModalMode, setExecutionModalMode] = useState<"execute" | "edit">(
+    "execute",
+  );
   const formatDate = (dateString: string | null) => {
     if (!dateString) return "-";
     return new Date(dateString + "T00:00:00").toLocaleDateString("es-ES", {
@@ -79,50 +96,243 @@ export default function OSITable({
     }
   };
 
-  const handleSessionStatusSelect = async (session: OSISession, newStatusId: number) => {
-    if (session.id_estatus === newStatusId) return;
+  const formatSessionDateTime = (
+    fecha: string | null | undefined,
+    hora: string | null | undefined,
+    emptyFallback = "—",
+  ) => {
+    if (!fecha) return emptyFallback;
+    const day = formatDate(fecha);
+    const time = formatTimeAmPmEsVe(hora);
+    return `${day} ${time}`;
+  };
+
+  const formatExecutedDate = (session: OSISession) =>
+    formatSessionDateTime(session.fecha_ejecutada, session.hora_ejecutada);
+
+  const formatPlannedDate = (session: OSISession) =>
+    formatSessionDateTime(session.fecha, session.hora_inicio, "-");
+
+  const openExecutionModal = (
+    sessions: OSISession[],
+    options?: {
+      osi?: OSIListItem | null;
+      alsoUpdateOsi?: boolean;
+      mode?: "execute" | "edit";
+    },
+  ) => {
+    if (sessions.length === 0) return;
+    setExecutionModalSessions(sessions);
+    setExecutionModalOsi(options?.osi ?? null);
+    setExecutionModalAlsoUpdateOsi(Boolean(options?.alsoUpdateOsi));
+    setExecutionModalMode(options?.mode ?? "execute");
+  };
+
+  const closeExecutionModal = () => {
+    setExecutionModalSessions([]);
+    setExecutionModalOsi(null);
+    setExecutionModalAlsoUpdateOsi(false);
+    setExecutionModalMode("execute");
+  };
+
+  const loadSessionsForOsi = async (osiId: number): Promise<OSISession[]> => {
+    if (sessionsByOSI[osiId]) return sessionsByOSI[osiId];
+    setSessionsLoading(osiId);
+    try {
+      const sessions = await getOSISessions(osiId);
+      setSessionsByOSI((prev) => ({ ...prev, [osiId]: sessions }));
+      return sessions;
+    } catch (err) {
+      console.error("Error loading sessions:", err);
+      setSessionsByOSI((prev) => ({ ...prev, [osiId]: [] }));
+      return [];
+    } finally {
+      setSessionsLoading(null);
+    }
+  };
+
+  const applySessionStatusChange = async (
+    session: OSISession,
+    newStatusId: number,
+    execution?: SessionExecutionPayload,
+  ) => {
     setSessionStatusLoading(session.id);
     setSessionsByOSI((prev) => ({
       ...prev,
       [session.id_osi]: (prev[session.id_osi] || []).map((s) =>
         s.id === session.id
-          ? { ...s, id_estatus: newStatusId }
-          : s
+          ? {
+              ...s,
+              id_estatus: newStatusId,
+              fecha_ejecutada:
+                execution?.fecha_ejecutada ??
+                (newStatusId === OSI_STATUS_EJECUTADO_ID
+                  ? s.fecha_ejecutada
+                  : null),
+              hora_ejecutada:
+                execution?.hora_ejecutada ??
+                (newStatusId === OSI_STATUS_EJECUTADO_ID
+                  ? s.hora_ejecutada
+                  : null),
+              ejecutada_en_fecha_planificada:
+                execution?.ejecutada_en_fecha_planificada ??
+                (newStatusId === OSI_STATUS_EJECUTADO_ID
+                  ? s.ejecutada_en_fecha_planificada
+                  : null),
+            }
+          : s,
       ),
     }));
     try {
       if (onSessionStatusChange) {
-        const result = await onSessionStatusChange(session.id, newStatusId);
+        const result = await onSessionStatusChange(
+          session.id,
+          newStatusId,
+          execution,
+        );
         if (result.success) {
-          const updatedSessions = sessionsByOSI[session.id_osi]?.map((s) =>
-            s.id === session.id ? { ...s, id_estatus: newStatusId } : s
-          ) || [];
-          const totalSessions = updatedSessions.length;
+          let updatedSessions: OSISession[] = [];
+          setSessionsByOSI((prev) => {
+            updatedSessions = (prev[session.id_osi] || []).map((s) =>
+              s.id === session.id
+                ? {
+                    ...s,
+                    id_estatus: newStatusId,
+                    fecha_ejecutada: execution?.fecha_ejecutada ?? null,
+                    hora_ejecutada: execution?.hora_ejecutada ?? null,
+                    ejecutada_en_fecha_planificada:
+                      execution?.ejecutada_en_fecha_planificada ?? null,
+                  }
+                : s,
+            );
+            return { ...prev, [session.id_osi]: updatedSessions };
+          });
           const statusIds = updatedSessions
             .map((s) => s.id_estatus)
             .filter((id): id is number => id !== null);
-          const check = await checkAllSessionsFinal(totalSessions, statusIds);
-          setAllFinalBanner((prev) => ({ ...prev, [session.id_osi]: check.allFinal }));
-        } else {
-          setSessionsByOSI((prev) => ({
+          const check = await checkAllSessionsFinal(
+            updatedSessions.length,
+            statusIds,
+          );
+          setAllFinalBanner((prev) => ({
             ...prev,
-            [session.id_osi]: (prev[session.id_osi] || []).map((s) =>
-              s.id === session.id ? session : s
-            ),
+            [session.id_osi]: check.allFinal,
           }));
-          console.error("Error changing session status:", result.error);
+          return result;
         }
+        setSessionsByOSI((prev) => ({
+          ...prev,
+          [session.id_osi]: (prev[session.id_osi] || []).map((s) =>
+            s.id === session.id ? session : s,
+          ),
+        }));
+        console.error("Error changing session status:", result.error);
+        return result;
       }
+      return { success: false, error: "Sin handler de sesión" };
     } catch (err) {
       setSessionsByOSI((prev) => ({
         ...prev,
         [session.id_osi]: (prev[session.id_osi] || []).map((s) =>
-          s.id === session.id ? session : s
+          s.id === session.id ? session : s,
         ),
       }));
       console.error("Error changing session status:", err);
+      return { success: false, error: "Error inesperado" };
     } finally {
       setSessionStatusLoading(null);
+    }
+  };
+
+  const handleSessionStatusSelect = async (
+    session: OSISession,
+    newStatusId: number,
+  ) => {
+    if (session.id_estatus === newStatusId) return;
+    if (newStatusId === OSI_STATUS_EJECUTADO_ID) {
+      openExecutionModal([session]);
+      return;
+    }
+    await applySessionStatusChange(session, newStatusId);
+  };
+
+  const handleStatusSelect = async (osi: OSIListItem, newStatusId: number) => {
+    if (!osi.id_osi || osi.id_estatus === newStatusId) return;
+
+    if (newStatusId === OSI_STATUS_EJECUTADO_ID) {
+      setStatusLoadingId(osi.id_osi);
+      try {
+        const sessions = await loadSessionsForOsi(osi.id_osi);
+        if (sessions.length >= 1) {
+          setExpandedOSIId(osi.id_osi);
+          openExecutionModal(sessions, { osi, alsoUpdateOsi: true });
+          return;
+        }
+        await onStatusChange(osi, newStatusId);
+      } finally {
+        setStatusLoadingId(null);
+      }
+      return;
+    }
+
+    setStatusLoadingId(osi.id_osi);
+    try {
+      await onStatusChange(osi, newStatusId);
+    } finally {
+      setStatusLoadingId(null);
+    }
+  };
+
+  const handleExecutionModalConfirm = async (
+    items: SessionExecutionConfirmItem[],
+  ) => {
+    const byId = new Map(items.map((item) => [item.sessionId, item]));
+    for (const session of executionModalSessions) {
+      const payload = byId.get(session.id);
+      if (!payload) continue;
+      const result = await applySessionStatusChange(
+        session,
+        OSI_STATUS_EJECUTADO_ID,
+        {
+          fecha_ejecutada: payload.fecha_ejecutada,
+          hora_ejecutada: payload.hora_ejecutada,
+          ejecutada_en_fecha_planificada:
+            payload.ejecutada_en_fecha_planificada,
+        },
+      );
+      if (!result.success) {
+        throw new Error(result.error || "Error al actualizar sesión");
+      }
+    }
+
+    if (executionModalAlsoUpdateOsi && executionModalOsi) {
+      const result = await onStatusChange(
+        executionModalOsi,
+        OSI_STATUS_EJECUTADO_ID,
+      );
+      if (!result.success) {
+        throw new Error(result.error || "Error al actualizar la OSI");
+      }
+    }
+  };
+
+  const handleToggleHidden = async (osi: OSIListItem) => {
+    if (!osi.id_osi || !onToggleHidden) return;
+    setHideLoadingId(osi.id_osi);
+    try {
+      await onToggleHidden(osi, !osi.oculto_para_cliente);
+    } finally {
+      setHideLoadingId(null);
+    }
+  };
+
+  const handleToggleAttachment = async (osi: OSIListItem) => {
+    if (!osi.id_osi || !onToggleAttachment) return;
+    setAttachmentLoadingId(osi.id_osi);
+    try {
+      await onToggleAttachment(osi);
+    } finally {
+      setAttachmentLoadingId(null);
     }
   };
 
@@ -156,36 +366,6 @@ export default function OSITable({
       </div>
     );
   }
-
-  const handleStatusSelect = async (osi: OSIListItem, newStatusId: number) => {
-    if (!osi.id_osi || osi.id_estatus === newStatusId) return;
-    setStatusLoadingId(osi.id_osi);
-    try {
-      await onStatusChange(osi, newStatusId);
-    } finally {
-      setStatusLoadingId(null);
-    }
-  };
-
-  const handleToggleHidden = async (osi: OSIListItem) => {
-    if (!osi.id_osi || !onToggleHidden) return;
-    setHideLoadingId(osi.id_osi);
-    try {
-      await onToggleHidden(osi, !osi.oculto_para_cliente);
-    } finally {
-      setHideLoadingId(null);
-    }
-  };
-
-  const handleToggleAttachment = async (osi: OSIListItem) => {
-    if (!osi.id_osi || !onToggleAttachment) return;
-    setAttachmentLoadingId(osi.id_osi);
-    try {
-      await onToggleAttachment(osi);
-    } finally {
-      setAttachmentLoadingId(null);
-    }
-  };
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-x-auto relative">
@@ -245,7 +425,7 @@ export default function OSITable({
               }`}
             >
               <td className="px-2 py-2 w-8">
-                {osi.id_osi && osi.total_sesiones !== null && osi.total_sesiones > 1 && (
+                {osi.id_osi && osi.total_sesiones !== null && osi.total_sesiones >= 1 && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -482,9 +662,9 @@ export default function OSITable({
                     <td className="px-2 py-1.5"></td>
                     <td className="px-2 py-1.5"></td>
                     <td className="px-2 py-1.5"></td>
-                    <td className="px-2 py-1.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Fecha</td>
-                    <td className="px-2 py-1.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Hora Inicio</td>
+                    <td className="px-2 py-1.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Fecha planificada</td>
                     <td className="px-2 py-1.5"></td>
+                    <td className="px-2 py-1.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Fecha ejecutada</td>
                     <td className="px-2 py-1.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Estado</td>
                     <td className="px-2 py-1.5"></td>
                   </tr>
@@ -497,9 +677,26 @@ export default function OSITable({
                       <td className="px-2 py-1.5"></td>
                       <td className="px-2 py-1.5"></td>
                       <td className="px-2 py-1.5"></td>
-                      <td className="px-2 py-1.5 text-xs text-gray-600 whitespace-nowrap">{formatDate(session.fecha)}</td>
-                      <td className="px-2 py-1.5 text-xs text-gray-600 whitespace-nowrap">{session.hora_inicio || "-"}</td>
+                      <td className="px-2 py-1.5 text-xs text-gray-600 whitespace-nowrap">{formatPlannedDate(session)}</td>
                       <td className="px-2 py-1.5"></td>
+                      <td className="px-2 py-1.5 text-xs text-gray-600 whitespace-nowrap">
+                        <div className="inline-flex items-center gap-1">
+                          <span>{formatExecutedDate(session)}</span>
+                          {canChangeStatus && onSessionStatusChange && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openExecutionModal([session], { mode: "edit" });
+                              }}
+                              className="inline-flex items-center justify-center rounded p-0.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                              title="Editar fecha ejecutada"
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
                       <td className="px-2 py-1.5">
                         {canChangeStatus && onSessionStatusChange ? (
                           <div className="relative inline-block">
@@ -591,6 +788,14 @@ export default function OSITable({
           })}
         </tbody>
       </table>
+      <SessionExecutionModal
+        open={executionModalSessions.length > 0}
+        sessions={executionModalSessions}
+        osiLabel={executionModalOsi?.nro_osi}
+        mode={executionModalMode}
+        onClose={closeExecutionModal}
+        onConfirm={handleExecutionModalConfirm}
+      />
     </div>
   );
 }

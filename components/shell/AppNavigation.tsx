@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
 import { ChevronDown } from "lucide-react";
 import { apps, appGroups, HOME_NAV_APP_IDS, HOME_NAV_GROUP_IDS } from "@/config/apps";
+import { canAccessConsultaOSI } from "@/actions/osi";
 import { AppConfig, AppGroupConfig } from "@/types";
 import {
   get_app_icon_style,
@@ -22,6 +23,17 @@ interface AppNavigationProps {
 
 export const AppNavigation = ({ userRolesByApp = {}, globalRole }: AppNavigationProps) => {
   const pathname = usePathname();
+  const [canAccessOsi, setCanAccessOsi] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void canAccessConsultaOSI().then((ok) => {
+      if (!cancelled) setCanAccessOsi(ok);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const canAccessApp = (app: AppConfig) =>
     can_access_shell_app(app, userRolesByApp, globalRole);
@@ -35,7 +47,11 @@ export const AppNavigation = ({ userRolesByApp = {}, globalRole }: AppNavigation
 
   const homeNavApps = HOME_NAV_APP_IDS.map((id) =>
     apps.find((app) => app.id === id),
-  ).filter((app): app is AppConfig => !!app && canAccessApp(app));
+  ).filter((app): app is AppConfig => {
+    if (!app || !canAccessApp(app)) return false;
+    if (app.id === "osis") return canAccessOsi;
+    return true;
+  });
 
   return (
     <nav className="hidden md:flex items-center gap-1 mr-2">

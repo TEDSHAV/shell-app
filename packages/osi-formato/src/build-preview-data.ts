@@ -10,6 +10,7 @@ import {
 import { formatOsiSecuencialNro } from "./secuencial-display";
 import { parse_st_traslados_json } from "./st-recursos-types";
 import { build_osi_st_servicio_lines } from "./st-servicio-lines";
+import { resolve_show_cierre_section, resolve_osi_estatus_document_label } from "./osi-status-display";
 
 type GenericRow = Record<string, unknown>;
 
@@ -24,6 +25,10 @@ export type BuildOsiPreviewInput = {
   can_reveal_st_monetary?: boolean;
   /** ST: true = vista pública sin montos (default). false = vista privada con montos (solo si can_reveal). */
   st_monetary_public_view?: boolean;
+  /** Step completado en capacitacion_proceso_steps para habilitar cierre del documento. */
+  cap_cierre_certificados_step_completed?: boolean;
+  /** Filas osi_sesion para fechas planificada / ejecutada en documento Cap. */
+  osi_sesiones?: GenericRow[];
 };
 
 function to_num(value: unknown): number {
@@ -124,9 +129,38 @@ function map_desglose_recursos_sesiones(
       stTraslados: parse_st_traslados_json(row.st_traslados),
       impresionMaterialIncluida: row.impresion_material_incluida !== false,
       bateriaIncluida: row.bateria_incluida !== false,
+      incluyeRefrigerio: Boolean(row.incluye_refrigerio),
     });
   }
   return result;
+}
+
+function split_empresa_sede(
+  nombre_empresa: string | null,
+  sede: string | null,
+): { nombreEmpresa: string | null; sede: string | null } {
+  const sede_trim = sede?.trim() || null;
+  const nombre = nombre_empresa?.trim() || null;
+  if (!nombre) {
+    return { nombreEmpresa: null, sede: sede_trim };
+  }
+  if (!sede_trim) {
+    return { nombreEmpresa: nombre, sede: null };
+  }
+  const suffix = `  ${sede_trim}`;
+  if (nombre.endsWith(suffix)) {
+    return {
+      nombreEmpresa: nombre.slice(0, -suffix.length).trim() || nombre,
+      sede: sede_trim,
+    };
+  }
+  if (nombre.endsWith(sede_trim)) {
+    return {
+      nombreEmpresa: nombre.slice(0, -sede_trim.length).trim() || nombre,
+      sede: sede_trim,
+    };
+  }
+  return { nombreEmpresa: nombre, sede: sede_trim };
 }
 
 function build_detalle_servicio(params: {
@@ -244,6 +278,35 @@ export function build_osi_preview_data(input: BuildOsiPreviewInput): OsiPreviewD
   });
 
   const sesiones_programadas_exec = to_sessions(view_row.sesiones_programadas);
+  const sesiones_fecha_sugerida = sesiones_programadas_exec;
+
+  const osi_sesiones_rows = Array.isArray(input.osi_sesiones)
+    ? input.osi_sesiones
+    : [];
+  const sesiones_fecha_planificada: ReturnType<typeof to_sessions> =
+    osi_sesiones_rows.length > 0
+      ? osi_sesiones_rows
+          .map((row) => {
+            const fecha = typeof row.fecha === "string" ? row.fecha : "";
+            if (!fecha) return null;
+            return {
+              fecha,
+              hora_inicio:
+                typeof row.hora_inicio === "string" ? row.hora_inicio : null,
+              hora_fin: null,
+            };
+          })
+          .filter((item): item is NonNullable<typeof item> => item !== null)
+      : sesiones_programadas_exec;
+
+  const sesiones_fecha_ejecutada: ReturnType<typeof to_sessions> =
+    osi_sesiones_rows.map((row) => ({
+      fecha:
+        typeof row.fecha_ejecutada === "string" ? row.fecha_ejecutada : "",
+      hora_inicio:
+        typeof row.hora_ejecutada === "string" ? row.hora_ejecutada : null,
+      hora_fin: null,
+    }));
   const sesiones_exec_st = is_capacitacion
     ? sesiones_programadas_exec
     : sesiones_programadas_exec.slice(0, 1);
@@ -303,9 +366,26 @@ export function build_osi_preview_data(input: BuildOsiPreviewInput): OsiPreviewD
   })();
 
   const st_traslados = parse_st_traslados_json(view_row.st_traslados);
+  const id_trato = to_num(view_row.id_trato);
+  const id_solped =
+    to_num(view_row.id_ecc_origen) || to_num(view_row.id_ecc_actual);
+  const entrega_raw = to_str(view_row.entrega_certificado);
+  const entrega_certificado =
+    entrega_raw === "retira_cliente" || entrega_raw === "se_envia"
+      ? entrega_raw
+      : null;
+  const empresa_sede = split_empresa_sede(
+    to_str(view_row.nombre_empresa),
+    to_str(view_row.sede),
+  );
+  const fecha_sugerida = to_str(view_row.fecha_emision)
+    ? format_date_for_doc(view_row.fecha_emision)
+    : fecha_documento;
 
   return {
     nroOsi: formatOsiSecuencialNro(view_row.nro_osi),
+    nroTrato: id_trato > 0 ? String(id_trato) : null,
+    nroSolped: id_solped > 0 ? String(id_solped) : null,
     fechaEmisionPresupuesto: to_str(view_row.fecha_emision_presupuesto),
     nroPresupuesto: to_text(view_row.nro_presupuesto),
     nroOrdenCompra: (() => {
@@ -314,11 +394,17 @@ export function build_osi_preview_data(input: BuildOsiPreviewInput): OsiPreviewD
     })(),
     codigoCliente: to_text(view_row.id_empresa) ?? to_text(view_row.codigo_cliente),
     fechaDocumento: fecha_documento,
+    fechaSugerida: fecha_sugerida,
+    fechaPlanificada: null,
+    sesionesFechaSugerida: sesiones_fecha_sugerida,
+    sesionesFechaPlanificada: sesiones_fecha_planificada,
+    sesionesFechaEjecutada: sesiones_fecha_ejecutada,
     revisionDocumento: "1",
     detalleServicio: detalle_servicio,
     servicio: to_str(view_row.servicio),
     tipoServicio: to_str(view_row.tipo_servicio),
-    nombreEmpresa: to_str(view_row.nombre_empresa),
+    nombreEmpresa: empresa_sede.nombreEmpresa,
+    sede: empresa_sede.sede,
     clienteRif: to_str(view_row.cliente_rif),
     direccionFiscal: to_str(view_row.direccion_fiscal),
     personaContacto: to_str(view_row.persona_contacto),
@@ -370,6 +456,8 @@ export function build_osi_preview_data(input: BuildOsiPreviewInput): OsiPreviewD
     costoBateria: to_num(view_row.costo_bateria),
     certificadoImpreso: certificado_impreso,
     carnetImpreso: carnet_impreso,
+    incluyeRefrigerio: Boolean(view_row.incluye_refrigerio),
+    entregaCertificado: entrega_certificado,
     audiovisuales: Boolean(view_row.requiere_audiovisuales),
     isCapacitacion: is_capacitacion,
     stServicios: st_servicios_preview,
@@ -392,5 +480,13 @@ export function build_osi_preview_data(input: BuildOsiPreviewInput): OsiPreviewD
     publicCostMask: public_cost_mask,
     isPublicView: !can_see_private_costs,
     hideStMonetary: hide_st_monetary,
+    showCierreSection: resolve_show_cierre_section(
+      view_row.id_estatus,
+      input.cap_cierre_certificados_step_completed,
+    ),
+    estatusOsiLabel: resolve_osi_estatus_document_label(
+      view_row.id_estatus,
+      view_row.nombre_estado ?? view_row.estatus_nombre,
+    ),
   };
 }
