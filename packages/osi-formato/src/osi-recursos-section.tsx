@@ -1,6 +1,5 @@
 "use client";
 
-import { Fragment } from "react";
 import { cn } from "./utils/cn";
 import {
   type OsiRecursosCostSlice,
@@ -9,7 +8,6 @@ import {
 } from "./osi-recursos-layout";
 import {
   compute_st_recursos_totals,
-  OSI_ST_TRASLADO_LABELS,
 } from "./st-recursos-types";
 import { OsiRecursosColGroup } from "./osi-recursos-colgroup";
 import type { OsiPreviewData } from "./osi-preview-data";
@@ -25,6 +23,26 @@ import {
   OSI_DOC_VALUE_BOLD_CLASS,
   OSI_DOC_VALUE_CLASS,
 } from "./osi-document-typography";
+import {
+  merged_content_to_display_html,
+  RICH_HTML_CONTENT_CLASS,
+} from "./rich-html";
+
+function OsiInlineRichText({ content }: { content: string }) {
+  const html = merged_content_to_display_html(content);
+  if (html === "N/A") {
+    return <span>N/A</span>;
+  }
+  return (
+    <div
+      className={cn(
+        RICH_HTML_CONTENT_CLASS,
+        "osi-rich-html text-[12px] leading-snug text-left whitespace-pre-wrap break-words",
+      )}
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  );
+}
 
 export type { OsiRecursosCostSlice, OsiRecursosLayout };
 export { build_osi_recursos_layout };
@@ -34,6 +52,118 @@ type MaskFns = {
   is_hidden: (key: string) => boolean;
   section_header_class: string;
 };
+
+function traslado_row_total(
+  traslado: { cantidad: number; costo_unidad: number },
+  masked: boolean,
+): string {
+  const total = traslado.cantidad * traslado.costo_unidad;
+  if (masked || total <= 0) return "N/A";
+  return `$${total.toFixed(2)}`;
+}
+
+function find_st_traslado(
+  traslados: Array<{ tipo: string; cantidad: number; costo_unidad: number }>,
+  tipo: "urbano" | "extraurbano" | "rutas",
+) {
+  return (
+    traslados.find((row) => row.tipo === tipo) ?? {
+      tipo,
+      cantidad: 0,
+      costo_unidad: 0,
+    }
+  );
+}
+
+function OsiStTrasladosHorizontalTable({
+  traslados,
+  traslado_mask,
+  st_traslado_total,
+  st_traslado_externo_total,
+  inner_table_class,
+}: {
+  traslados: Array<{ tipo: string; cantidad: number; costo_unidad: number }>;
+  traslado_mask: boolean;
+  st_traslado_total: number;
+  st_traslado_externo_total: number;
+  inner_table_class: string;
+}) {
+  const urbano = find_st_traslado(traslados, "urbano");
+  const rutas = find_st_traslado(traslados, "rutas");
+  const has_detailed = traslados.length > 0;
+
+  const render_tipo_block = (
+    label: string,
+    row: { cantidad: number; costo_unidad: number },
+    fallback_total?: number,
+  ) => (
+    <td className="align-top p-0 w-1/2">
+      <table className={inner_table_class}>
+        <tbody>
+          <tr>
+            <th colSpan={3} className="osi-label-sm font-normal bg-slate-50">
+              {label}
+            </th>
+          </tr>
+          <tr>
+            <th className="osi-label-sm">CANT.</th>
+            <th className="osi-label-sm">$/U</th>
+            <th className="osi-label-sm">TOTAL</th>
+          </tr>
+          <tr>
+            <td className="osi-doc-value text-center">
+              {has_detailed
+                ? row.cantidad > 0
+                  ? String(row.cantidad)
+                  : "N/A"
+                : fallback_total != null && fallback_total > 0
+                  ? "—"
+                  : "N/A"}
+            </td>
+            <td className="osi-doc-value text-center">
+              {has_detailed
+                ? !traslado_mask && row.costo_unidad > 0
+                  ? `$${row.costo_unidad.toFixed(2)}`
+                  : "N/A"
+                : "—"}
+            </td>
+            <td className="osi-doc-value text-center font-semibold">
+              {has_detailed
+                ? traslado_row_total(row, traslado_mask)
+                : fallback_total != null && fallback_total > 0 && !traslado_mask
+                  ? `$${fallback_total.toFixed(2)}`
+                  : "N/A"}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </td>
+  );
+
+  return (
+    <table className={inner_table_class}>
+      <tbody>
+        <tr>
+          <th colSpan={2} className="bg-slate-100 osi-label-md px-1 py-0.5">
+            TRASLADO(S)
+          </th>
+        </tr>
+        <tr>
+          {render_tipo_block(
+            "URBANO",
+            urbano,
+            has_detailed ? undefined : st_traslado_total,
+          )}
+          {render_tipo_block(
+            "RUTAS",
+            rutas,
+            has_detailed ? undefined : st_traslado_externo_total,
+          )}
+        </tr>
+      </tbody>
+    </table>
+  );
+}
 
 function OsiRecursosVariacionesRows({
   layout,
@@ -422,16 +552,14 @@ export function OsiStRecursosBlocks({
   const hospedaje_mask_hidden = is_hidden("hospedaje_unit_cost");
   const impresion_mask_hidden = is_hidden("costo_impresion_material");
   const otros_mask_hidden = is_hidden("costo_otros");
-  const envio_factura_mask = is_hidden("st_envio_factura");
-  const envio_mat_mask = is_hidden("st_envio_materiales");
+  const bateria_mask_hidden = is_hidden("costo_bateria");
   const traslado_mask = is_hidden("costo_traslado");
 
   const costo_logistica_view = logistica_mask_hidden
     ? 0
     : slice.costoLogisticaComida;
   const costo_hospedaje_view = hospedaje_mask_hidden ? 0 : slice.costoHospedaje;
-  const st_envio_factura_view = envio_factura_mask ? 0 : slice.stEnvioFactura;
-  const st_envio_materiales_view = envio_mat_mask ? 0 : slice.stEnvioMateriales;
+  const costo_bateria_view = bateria_mask_hidden ? 0 : slice.costoBateria;
   const costo_otros_view = otros_mask_hidden ? 0 : slice.costoOtros;
   const costo_impresion_material_view = impresion_mask_hidden
     ? 0
@@ -444,14 +572,21 @@ export function OsiStRecursosBlocks({
     dias_logistica_facilitador: dias_logistica,
     costo_logistica_comida: costo_logistica_view,
     st_logistica_recursos: slice.stLogisticaRecursos,
-    st_envio_factura: st_envio_factura_view,
-    st_envio_materiales: st_envio_materiales_view,
+    st_envio_factura: 0,
+    st_envio_materiales: 0,
     st_traslados: slice.stTraslados,
   });
   const st_traslado_total = st_totals.costo_traslado;
   const st_traslado_externo_total = st_totals.traslado_externo;
   const impresion_si = slice.impresionMaterialIncluida;
+  const bateria_si = slice.bateriaIncluida;
   const st_traslados_list = slice.stTraslados;
+  const otros_texto = String(slice.stOtrosTexto ?? "").trim();
+  const garantia_texto = String(slice.stSeguimientoGarantia ?? "").trim();
+
+  const row_cell_class = "align-top p-1 w-1/3";
+  const inner_table_class =
+    "w-full border-collapse [&_td]:border [&_td]:border-black [&_th]:border [&_th]:border-black";
 
   return (
     <>
@@ -465,21 +600,18 @@ export function OsiStRecursosBlocks({
           <table className="w-full border-collapse [&_td]:border [&_td]:border-black [&_th]:border [&_th]:border-black">
             <tbody>
               <tr>
-                <td className="w-1/4 align-top p-1">
-                  <table className="w-full border-collapse [&_td]:border [&_td]:border-black [&_th]:border [&_th]:border-black">
+                <td className={row_cell_class}>
+                  <table className={inner_table_class}>
                     <tbody>
                       <tr>
-                        <th
-                          colSpan={3}
-                          className="bg-slate-100 osi-label-md px-1 py-0.5"
-                        >
-                          DÍAS POR SERVICIO / ESPECIALISTAS
+                        <th colSpan={3} className="bg-slate-100 osi-label-md px-1 py-0.5">
+                          DÍAS DE CAMPO / INFORME / REVISIÓN
                         </th>
                       </tr>
                       <tr>
-                        <th className="osi-label-sm">DÍAS CAMPO</th>
-                        <th className="osi-label-sm">DÍAS INFORME</th>
-                        <th className="osi-label-sm">ANALISTAS/REC.</th>
+                        <th className="osi-label-sm">CAMPO</th>
+                        <th className="osi-label-sm">INFORME</th>
+                        <th className="osi-label-sm">REVISIÓN</th>
                       </tr>
                       <tr>
                         <td className="osi-doc-value text-center">
@@ -489,20 +621,54 @@ export function OsiStRecursosBlocks({
                           {slice.stDiasInforme || "N/A"}
                         </td>
                         <td className="osi-doc-value text-center">
-                          {slice.stAnalistas || "N/A"}
+                          {slice.stDiasRevision || "N/A"}
                         </td>
                       </tr>
                     </tbody>
                   </table>
                 </td>
-                <td className="w-1/4 align-top p-1">
-                  <table className="w-full border-collapse [&_td]:border [&_td]:border-black [&_th]:border [&_th]:border-black">
+                <td className={row_cell_class}>
+                  <table className={inner_table_class}>
                     <tbody>
                       <tr>
-                        <th
-                          colSpan={3}
-                          className="bg-slate-100 osi-label-md px-1 py-0.5"
-                        >
+                        <th colSpan={4} className="bg-slate-100 osi-label-md px-1 py-0.5">
+                          LOGÍSTICA / COMIDA
+                        </th>
+                      </tr>
+                      <tr>
+                        <th className="osi-label-sm">DÍAS</th>
+                        <th className="osi-label-sm">REC.</th>
+                        <th className="osi-label-sm">$/DÍA</th>
+                        <th className="osi-label-sm">TOTAL</th>
+                      </tr>
+                      <tr>
+                        <td className="osi-doc-value text-center">
+                          {dias_logistica > 0 ? String(dias_logistica) : "N/A"}
+                        </td>
+                        <td className="osi-doc-value text-center">
+                          {(slice.stLogisticaRecursos ?? slice.stAnalistas ?? 0) > 0
+                            ? String(slice.stLogisticaRecursos ?? slice.stAnalistas)
+                            : "N/A"}
+                        </td>
+                        <td className="osi-doc-value text-center">
+                          {costo_logistica_view > 0
+                            ? `$${costo_logistica_view.toFixed(2)}`
+                            : "N/A"}
+                        </td>
+                        <td className="osi-doc-value text-center font-semibold">
+                          {st_totals.total_logistica > 0
+                            ? `$${st_totals.total_logistica.toFixed(2)}`
+                            : "N/A"}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </td>
+                <td className={row_cell_class}>
+                  <table className={inner_table_class}>
+                    <tbody>
+                      <tr>
+                        <th colSpan={3} className="bg-slate-100 osi-label-md px-1 py-0.5">
                           HOSPEDAJE
                         </th>
                       </tr>
@@ -529,51 +695,43 @@ export function OsiStRecursosBlocks({
                     </tbody>
                   </table>
                 </td>
-                <td className="w-1/4 align-top p-1">
-                  <table className="w-full border-collapse [&_td]:border [&_td]:border-black [&_th]:border [&_th]:border-black">
+              </tr>
+              <tr>
+                <td className={row_cell_class}>
+                  <OsiStTrasladosHorizontalTable
+                    traslados={st_traslados_list}
+                    traslado_mask={traslado_mask}
+                    st_traslado_total={st_traslado_total}
+                    st_traslado_externo_total={st_traslado_externo_total}
+                    inner_table_class={inner_table_class}
+                  />
+                </td>
+                <td className={row_cell_class}>
+                  <table className={inner_table_class}>
                     <tbody>
                       <tr>
-                        <th
-                          colSpan={6}
-                          className="bg-slate-100 osi-label-md px-1 py-0.5"
-                        >
-                          LOGÍSTICA / COMIDA
+                        <th className="bg-slate-100 osi-label-md px-1 py-0.5">
+                          BATERÍA (SI APLICA)
                         </th>
                       </tr>
                       <tr>
-                        <th className="osi-label-sm">DÍAS</th>
-                        <th className="osi-label-sm">REC.</th>
-                        <th className="osi-label-sm">$/DÍA</th>
-                        <th className="osi-label-sm">TOTAL</th>
+                        <td className="osi-doc-value text-center font-bold py-1">
+                          {format_osi_si_no(bateria_si)}
+                        </td>
                       </tr>
                       <tr>
                         <td className="osi-doc-value text-center">
-                          {dias_logistica > 0 ? String(dias_logistica) : "N/A"}
-                        </td>
-                        <td className="osi-doc-value text-center">
-                          {(slice.stLogisticaRecursos ?? slice.stAnalistas ?? 0) >
-                          0
-                            ? String(
-                                slice.stLogisticaRecursos ?? slice.stAnalistas,
-                              )
-                            : "N/A"}
-                        </td>
-                        <td className="osi-doc-value text-center">
-                          {costo_logistica_view > 0
-                            ? `$${costo_logistica_view.toFixed(2)}`
-                            : "N/A"}
-                        </td>
-                        <td className="osi-doc-value text-center font-semibold">
-                          {st_totals.total_logistica > 0
-                            ? `$${st_totals.total_logistica.toFixed(2)}`
-                            : "N/A"}
+                          {format_money_or_dash(
+                            costo_bateria_view,
+                            bateria_mask_hidden || !bateria_si,
+                          )}
                         </td>
                       </tr>
                     </tbody>
                   </table>
                 </td>
-                <td className="w-1/4 align-top p-1">
-                  <table className="w-full border-collapse [&_td]:border [&_td]:border-black [&_th]:border [&_th]:border-black">
+                <td className={row_cell_class}>
+                  <table className={inner_table_class}>
                     <tbody>
                       <tr>
                         <th className="bg-slate-100 osi-label-md px-1 py-0.5">
@@ -598,123 +756,47 @@ export function OsiStRecursosBlocks({
                 </td>
               </tr>
               <tr>
-                <td className="align-top p-1">
-                  <table className="w-full border-collapse [&_td]:border [&_td]:border-black [&_th]:border [&_th]:border-black">
+                <td colSpan={6} className="align-top p-1">
+                  <table className={inner_table_class}>
                     <tbody>
                       <tr>
-                        <th
-                          colSpan={3}
-                          className="bg-slate-100 osi-label-md px-1 py-0.5"
-                        >
-                          TRASLADOS
-                        </th>
-                      </tr>
-                      {st_traslados_list.length > 0 ? (
-                        st_traslados_list.map((traslado, idx) => (
-                          <Fragment key={`st-traslado-${idx}`}>
-                            <tr>
-                              <th
-                                colSpan={3}
-                                className="osi-label-sm font-normal"
-                              >
-                                {OSI_ST_TRASLADO_LABELS[traslado.tipo]}
-                              </th>
-                            </tr>
-                            <tr>
-                              <th className="osi-label-sm">CANT.</th>
-                              <th className="osi-label-sm">$/U</th>
-                              <th className="osi-label-sm">TOTAL</th>
-                            </tr>
-                            <tr>
-                              <td className="osi-doc-value text-center">
-                                {traslado.cantidad > 0
-                                  ? String(traslado.cantidad)
-                                  : "N/A"}
-                              </td>
-                              <td className="osi-doc-value text-center">
-                                {!traslado_mask && traslado.costo_unidad > 0
-                                  ? `$${traslado.costo_unidad.toFixed(2)}`
-                                  : "N/A"}
-                              </td>
-                              <td className="osi-doc-value text-center font-semibold">
-                                {!traslado_mask &&
-                                traslado.cantidad * traslado.costo_unidad > 0
-                                  ? `$${(
-                                      traslado.cantidad * traslado.costo_unidad
-                                    ).toFixed(2)}`
-                                  : "N/A"}
-                              </td>
-                            </tr>
-                          </Fragment>
-                        ))
-                      ) : (
-                        <>
-                          <tr>
-                            <th className="osi-label-sm">URBANO</th>
-                            <th className="osi-label-sm" colSpan={2}>
-                              EXTERNOS
-                            </th>
-                          </tr>
-                          <tr>
-                            <td className="osi-doc-value text-center">
-                              {st_traslado_total > 0
-                                ? `$${st_traslado_total.toFixed(2)}`
-                                : "N/A"}
-                            </td>
-                            <td className="osi-doc-value text-center" colSpan={2}>
-                              {st_traslado_externo_total > 0
-                                ? `$${st_traslado_externo_total.toFixed(2)}`
-                                : "N/A"}
-                            </td>
-                          </tr>
-                        </>
-                      )}
-                    </tbody>
-                  </table>
-                </td>
-                <td className="align-top p-1">
-                  <table className="w-full border-collapse [&_td]:border [&_td]:border-black [&_th]:border [&_th]:border-black">
-                    <tbody>
-                      <tr>
-                        <th
-                          colSpan={2}
-                          className="bg-slate-100 osi-label-md px-1 py-0.5"
-                        >
-                          ENVÍOS
-                        </th>
-                      </tr>
-                      <tr>
-                        <th className="osi-label-sm">FACTURA</th>
-                        <th className="osi-label-sm">MATERIALES</th>
-                      </tr>
-                      <tr>
-                        <td className="osi-doc-value text-center py-1">
-                          {st_envio_factura_view > 0
-                            ? `$${Number(st_envio_factura_view).toFixed(2)}`
-                            : "N/A"}
-                        </td>
-                        <td className="osi-doc-value text-center py-1">
-                          {st_envio_materiales_view > 0
-                            ? `$${Number(st_envio_materiales_view).toFixed(2)}`
-                            : "N/A"}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </td>
-                <td className="align-top p-1" colSpan={2}>
-                  <table className="w-full border-collapse [&_td]:border [&_td]:border-black [&_th]:border [&_th]:border-black">
-                    <tbody>
-                      <tr>
-                        <th className="bg-slate-100 osi-label-md px-1 py-0.5">
+                        <th className="bg-slate-100 osi-label-md px-2 py-0.5 text-left">
                           OTROS
                         </th>
                       </tr>
                       <tr>
-                        <td className="osi-doc-value text-center py-1">
-                          {format_money_or_dash(
-                            costo_otros_view,
-                            otros_mask_hidden,
+                        <td className="osi-doc-value !text-left px-2 py-1 align-top min-h-8">
+                          {otros_texto.length > 0 ? (
+                            <OsiInlineRichText content={otros_texto} />
+                          ) : (
+                            "N/A"
+                          )}
+                          {!otros_mask_hidden && costo_otros_view > 0 ? (
+                            <div className="mt-1 text-center font-semibold">
+                              {format_money_or_dash(costo_otros_view, false)}
+                            </div>
+                          ) : null}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td colSpan={6} className="align-top p-1">
+                  <table className={inner_table_class}>
+                    <tbody>
+                      <tr>
+                        <th className="bg-slate-100 osi-label-md px-2 py-0.5 text-left">
+                          SEGUIMIENTO DE DÍAS DE GARANTÍA
+                        </th>
+                      </tr>
+                      <tr>
+                        <td className="osi-doc-value !text-left px-2 py-1 align-top min-h-8">
+                          {garantia_texto.length > 0 ? (
+                            <OsiInlineRichText content={garantia_texto} />
+                          ) : (
+                            "N/A"
                           )}
                         </td>
                       </tr>

@@ -122,7 +122,14 @@ function map_desglose_recursos_sesiones(
       diasHospedajeFacilitador: to_num(row.dias_hospedaje_facilitador),
       stDiasCampo: to_num(row.st_dias_campo),
       stDiasInforme: to_num(row.st_dias_informe),
+      stDiasRevision: to_num(row.st_dias_revision),
       stAnalistas: to_num(row.st_analistas),
+      stOtrosTexto:
+        typeof row.st_otros_texto === "string" ? row.st_otros_texto : null,
+      stSeguimientoGarantia:
+        typeof row.st_seguimiento_garantia === "string"
+          ? row.st_seguimiento_garantia
+          : null,
       stLogisticaRecursos: to_num(row.st_logistica_recursos),
       stEnvioFactura: to_num(row.st_envio_factura),
       stEnvioMateriales: to_num(row.st_envio_materiales),
@@ -464,7 +471,12 @@ export function build_osi_preview_data(input: BuildOsiPreviewInput): OsiPreviewD
     stDiasCampo: to_num(view_row.st_dias_campo) || to_num(view_row.cantidad_dias_campo),
     stDiasInforme:
       to_num(view_row.st_dias_informe) || to_num(view_row.cantidad_dias_informe),
+    stDiasRevision:
+      to_num(view_row.st_dias_revision) ||
+      to_num(view_row.cantidad_dias_revision_interna),
     stAnalistas: to_num(view_row.st_analistas) || to_num(view_row.cantidad_analistas),
+    stOtrosTexto: to_str(view_row.st_otros_texto) || null,
+    stSeguimientoGarantia: to_str(view_row.st_seguimiento_garantia) || null,
     stLogisticaRecursos:
       to_num(view_row.st_logistica_recursos) ||
       to_num(view_row.st_analistas) ||

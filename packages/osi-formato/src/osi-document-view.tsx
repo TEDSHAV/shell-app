@@ -454,6 +454,128 @@ function OsiCierreServicioRows({
   );
 }
 
+function OsiStDetalleUnificadoRows({
+  stServicios,
+  servicio,
+  detalleServicio,
+  pretensionesItems,
+  observacionesItems,
+  section_text_class,
+}: {
+  stServicios?: OsiPreviewData["stServicios"];
+  servicio: string | null;
+  detalleServicio: string | null;
+  pretensionesItems: Array<{
+    servicio?: string;
+    fuente: "SOLPED" | "OSI";
+    contenido: string;
+  }>;
+  observacionesItems: Array<{
+    servicio?: string;
+    fuente: "SOLPED" | "OSI";
+    contenido: string;
+  }>;
+  section_text_class: string;
+}) {
+  const has_st_servicios = (stServicios ?? []).length > 0;
+  return (
+    <>
+      <tr>
+        <th colSpan={6} className={section_text_class}>
+          DETALLE DEL SERVICIO
+        </th>
+      </tr>
+      <tr>
+        <td
+          colSpan={6}
+          className="osi-long-text min-h-12 max-w-0 align-top relative !text-left px-2 py-2 text-black"
+        >
+          <div className="space-y-3 text-black">
+            <div className="border-b border-dashed pb-2">
+              <div className="text-[12px] font-bold uppercase text-black">
+                SERVICIO / DETALLE
+              </div>
+              {has_st_servicios ? (
+                <div className="mt-1 space-y-2">
+                  {stServicios!.map((svc, idx) => (
+                    <div key={`st-detalle-${idx}`}>
+                      <div className="font-semibold">{svc.nombre}</div>
+                      {svc.detalle ? (
+                        <OsiRichHtmlContent
+                          content={svc.detalle}
+                          className="text-black"
+                        />
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-1 space-y-1">
+                  <div className="font-semibold">{servicio || "N/A"}</div>
+                  {detalleServicio ? (
+                    <OsiRichHtmlContent
+                      content={detalleServicio}
+                      className="text-black"
+                    />
+                  ) : null}
+                </div>
+              )}
+            </div>
+            <div className="border-b border-dashed pb-2">
+              <div className="text-[12px] font-bold uppercase text-black">
+                PRETENSIONES DEL CLIENTE
+              </div>
+              {pretensionesItems.length > 0 ? (
+                <div className="mt-1 space-y-2">
+                  {pretensionesItems.map((item, idx) => (
+                    <div key={`st-pret-${idx}`}>
+                      <div className="text-[11px] font-bold uppercase text-black">
+                        {item.servicio
+                          ? `${item.servicio} — ${item.fuente}`
+                          : item.fuente}
+                      </div>
+                      <OsiRichHtmlContent
+                        content={item.contenido}
+                        className="text-black"
+                      />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <span className="text-black">Sin pretensiones</span>
+              )}
+            </div>
+            <div>
+              <div className="text-[12px] font-bold uppercase text-black">
+                OBSERVACIONES ADICIONALES
+              </div>
+              {observacionesItems.length > 0 ? (
+                <div className="mt-1 space-y-2">
+                  {observacionesItems.map((item, idx) => (
+                    <div key={`st-obs-${idx}`}>
+                      <div className="text-[11px] font-bold uppercase text-black">
+                        {item.servicio
+                          ? `${item.servicio} — ${item.fuente}`
+                          : item.fuente}
+                      </div>
+                      <OsiRichHtmlContent
+                        content={item.contenido}
+                        className="text-black"
+                      />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <span className="text-black">N/A</span>
+              )}
+            </div>
+          </div>
+        </td>
+      </tr>
+    </>
+  );
+}
+
 export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets: OsiDocumentAssets }) {
   const section_header_class =
     "py-2 text-center text-[12px] font-bold text-[#002b5c] bg-slate-200";
@@ -462,21 +584,6 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
   const sesiones = Array.isArray(data.sesionesProgramadas)
     ? data.sesionesProgramadas.filter((s) => typeof s?.fecha === "string" && s.fecha)
     : [];
-  const sesiones_detalle = sesiones.map((s) => ({
-    fecha: s.fecha,
-    hora: formatTimeAmPmEsVe(s.hora_inicio || s.hora_fin || null),
-  }));
-  const fechaServicioTexto =
-    sesiones.length > 0
-      ? sesiones
-          .map((s) => {
-            const hi = s.hora_inicio ? ` ${s.hora_inicio}` : "";
-            return `${s.fecha}${hi}`;
-          })
-          .join(", ")
-      : data.fechaInicioReal
-        ? `${data.fechaInicioReal} al ${data.fechaFinReal || "N/A"}`
-        : "N/A";
   const hl = data.previewHighlights ?? {};
   const is_public_view = Boolean(data.isPublicView);
   const hide_st_monetary = Boolean(data.hideStMonetary);
@@ -622,13 +729,6 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
       window.removeEventListener("beforeprint", measure);
     };
   }, [data, recursos_layout]);
-
-  const st_fecha_inicio_cell = (
-    <OsiSesionesDiaHoraTable
-      sessions={sesiones_detalle}
-      emptyFallback={fechaServicioTexto}
-    />
-  );
 
   return (
     <div className={cn("print-document-palette osi-document-root mx-auto mt-4 box-border w-[210mm] max-w-full overflow-hidden bg-white print:mt-3 print:w-full text-black shadow-sm print:shadow-none", OSI_DOC_ROOT_TEXT_CLASS)}>
@@ -941,39 +1041,36 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
               </>
             ) : (
               <>
+                <OsiStDetalleUnificadoRows
+                  stServicios={data.stServicios}
+                  servicio={data.servicio}
+                  detalleServicio={data.detalleServicio}
+                  pretensionesItems={pretensiones_items_visible}
+                  observacionesItems={observaciones_items_visible}
+                  section_text_class={section_text_black_class}
+                />
                 <tr>
-                  <th className="text-left">EJECUTIVO DE NEGOCIOS</th>
-                  <th className="text-left">TIPO DE SERVICIO</th>
-                  <th className="text-left" colSpan={4}>
-                    FECHA DE INICIO DEL SERVICIO
+                  <th className="text-left" colSpan={3}>
+                    FECHA PLANIFICADA DEL SERVICIO
+                  </th>
+                  <th className="text-left" colSpan={3}>
+                    FECHA EJECUTADA DEL SERVICIO
                   </th>
                 </tr>
                 <tr>
-                  <td>{data.ejecutivoNegocios || "N/A"}</td>
-                  <td>{data.tipoServicio || "Servicios Tecnicos"}</td>
                   <td
-                    colSpan={4}
+                    colSpan={3}
                     className={cn("align-top", cellHl(hl.fechaServicio))}
                   >
-                    {st_fecha_inicio_cell}
+                    <OsiSesionesDiaHoraTable
+                      sessions={sesiones_fecha_planificada_detalle}
+                    />
                   </td>
-                </tr>
-                <tr>
-                  <td colSpan={6} className="!text-left align-top text-[12px] leading-snug">
-                    {(data.stServicios ?? []).length > 0 ? (
-                      <div className="space-y-2">
-                        {data.stServicios!.map((svc, idx) => (
-                          <div key={`st-svc-${idx}`}>
-                            <div className="font-semibold">{svc.nombre}</div>
-                            {svc.detalle ? (
-                              <div className="text-muted-foreground">{svc.detalle}</div>
-                            ) : null}
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      data.servicio || "N/A"
-                    )}
+                  <td colSpan={3} className="align-top">
+                    <OsiSesionesDiaHoraTable
+                      sessions={sesiones_fecha_ejecutada_detalle}
+                      emptyFallback="—"
+                    />
                   </td>
                 </tr>
                 <OsiStRecursosBlocks
@@ -983,75 +1080,6 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
                 />
               </>
             )}
-
-            {!data.isCapacitacion ? (
-              <>
-                <tr>
-                  <th colSpan={6} className={section_text_black_class}>
-                    PRETENSIONES DEL CLIENTE
-                  </th>
-                </tr>
-                <tr>
-                  <td
-                    colSpan={6}
-                    className="osi-long-text min-h-12 max-w-0 align-top relative !text-left px-2 py-2 text-black"
-                  >
-                    {pretensiones_items_visible.length > 0 ? (
-                      <div className="space-y-2 text-black">
-                        {pretensiones_items_visible.map((item, idx) => (
-                          <div key={`pret-item-${idx}`} className="border-b border-dashed pb-2 last:border-b-0 last:pb-0">
-                            <div className="text-[12px] font-bold uppercase text-black">
-                              {item.servicio
-                                ? `${item.servicio} — ${item.fuente}`
-                                : item.fuente}
-                            </div>
-                            <OsiRichHtmlContent content={item.contenido} className="text-black" />
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="text-black">Sin pretensiones</span>
-                    )}
-                  </td>
-                </tr>
-              </>
-            ) : null}
-
-            {!data.isCapacitacion ? (
-              <>
-                <tr>
-                  <th colSpan={6} className={section_text_black_class}>
-                    OBSERVACIONES ADICIONALES
-                  </th>
-                </tr>
-                <tr>
-                  <td
-                    colSpan={6}
-                    className="osi-long-text min-h-12 max-w-0 align-top relative !text-left px-2 py-2 text-black"
-                  >
-                    {observaciones_items_visible.length > 0 ? (
-                      <div className="space-y-2 text-black">
-                        {observaciones_items_visible.map((item, idx) => (
-                          <div
-                            key={`obs-item-${idx}`}
-                            className="border-b border-dashed pb-2 last:border-b-0 last:pb-0"
-                          >
-                            <div className="text-[12px] font-bold uppercase text-black">
-                              {item.servicio
-                                ? `${item.servicio} — ${item.fuente}`
-                                : item.fuente}
-                            </div>
-                            <OsiRichHtmlContent content={item.contenido} className="text-black" />
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="text-black">N/A</span>
-                    )}
-                  </td>
-                </tr>
-              </>
-            ) : null}
 
             <OsiQuejasClienteRows />
 

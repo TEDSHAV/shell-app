@@ -93,7 +93,10 @@ export type OsiPreviewData = {
   observacionesOsi?: string | null;
   stDiasCampo?: number;
   stDiasInforme?: number;
+  stDiasRevision?: number;
   stAnalistas?: number;
+  stOtrosTexto?: string | null;
+  stSeguimientoGarantia?: string | null;
   stLogisticaRecursos?: number;
   stEnvioFactura?: number;
   stEnvioMateriales?: number;
@@ -145,7 +148,10 @@ export type OsiRecursosSesionPreview = {
   diasHospedajeFacilitador?: number;
   stDiasCampo?: number;
   stDiasInforme?: number;
+  stDiasRevision?: number;
   stAnalistas?: number;
+  stOtrosTexto?: string | null;
+  stSeguimientoGarantia?: string | null;
   stLogisticaRecursos?: number;
   stEnvioFactura?: number;
   stEnvioMateriales?: number;

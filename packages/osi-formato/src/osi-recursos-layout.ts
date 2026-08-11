@@ -39,7 +39,10 @@ export type OsiRecursosCostSlice = {
   diasHospedajeFacilitador: number;
   stDiasCampo: number;
   stDiasInforme: number;
+  stDiasRevision: number;
   stAnalistas: number;
+  stOtrosTexto: string | null;
+  stSeguimientoGarantia: string | null;
   stLogisticaRecursos: number;
   stEnvioFactura: number;
   stEnvioMateriales: number;
@@ -167,7 +170,10 @@ function session_to_cost_slice(
     diasHospedajeFacilitador: session.diasHospedajeFacilitador ?? 0,
     stDiasCampo: session.stDiasCampo ?? 0,
     stDiasInforme: session.stDiasInforme ?? 0,
+    stDiasRevision: session.stDiasRevision ?? 0,
     stAnalistas: session.stAnalistas ?? 0,
+    stOtrosTexto: session.stOtrosTexto ?? null,
+    stSeguimientoGarantia: session.stSeguimientoGarantia ?? null,
     stLogisticaRecursos:
       session.stLogisticaRecursos ?? session.stAnalistas ?? 0,
     stEnvioFactura: session.stEnvioFactura ?? 0,
@@ -203,7 +209,10 @@ function global_to_cost_slice(data: OsiPreviewData): OsiRecursosCostSlice {
     diasHospedajeFacilitador: data.diasHospedajeFacilitador ?? 0,
     stDiasCampo: data.stDiasCampo ?? 0,
     stDiasInforme: data.stDiasInforme ?? 0,
+    stDiasRevision: data.stDiasRevision ?? 0,
     stAnalistas: data.stAnalistas ?? 0,
+    stOtrosTexto: data.stOtrosTexto ?? null,
+    stSeguimientoGarantia: data.stSeguimientoGarantia ?? null,
     stLogisticaRecursos: data.stLogisticaRecursos ?? data.stAnalistas ?? 0,
     stEnvioFactura: data.stEnvioFactura ?? 0,
     stEnvioMateriales: data.stEnvioMateriales ?? 0,
@@ -261,6 +270,7 @@ function detect_omitidos(
   if (
     !nums_uniform(slices.map((s) => s.stDiasCampo)) ||
     !nums_uniform(slices.map((s) => s.stDiasInforme)) ||
+    !nums_uniform(slices.map((s) => s.stDiasRevision)) ||
     !nums_uniform(slices.map((s) => s.stAnalistas))
   ) {
     omitidos.add("st_dias");
@@ -333,7 +343,12 @@ function sum_slices(
     stDiasInforme: omitidos.has("st_dias")
       ? 0
       : sum((s) => s.stDiasInforme),
+    stDiasRevision: omitidos.has("st_dias")
+      ? 0
+      : sum((s) => s.stDiasRevision),
     stAnalistas: omitidos.has("st_dias") ? 0 : first.stAnalistas,
+    stOtrosTexto: first.stOtrosTexto,
+    stSeguimientoGarantia: first.stSeguimientoGarantia,
     stLogisticaRecursos: omitidos.has("logistica")
       ? 0
       : first.stLogisticaRecursos,
@@ -449,7 +464,7 @@ const GROUP_COLUMN_META: Array<{
   { key: "otros", label: "TRASLADO OTROS" },
   { key: "impresion", label: "IMPRESIÓN DE MATERIAL" },
   { key: "pop", label: "POP" },
-  { key: "st_dias", label: "DÍAS / ESPECIALISTAS" },
+  { key: "st_dias", label: "DÍAS CAMPO / INFORME / REVISIÓN" },
   { key: "st_envios", label: "ENVÍOS" },
   { key: "st_traslados", label: "TRASLADOS" },
   { key: "st_impresion_flag", label: "IMPRESIÓN (SÍ/NO)" },
@@ -547,7 +562,7 @@ function session_group_compare_value(
       return (
         slice.stDiasCampo * 10000 +
         slice.stDiasInforme * 100 +
-        slice.stAnalistas
+        slice.stDiasRevision
       );
     default:
       return null;
@@ -593,7 +608,7 @@ function session_group_texto(
     case "pop":
       return slice.popIncluido ? "SÍ" : "NO";
     case "st_dias":
-      return `C${slice.stDiasCampo} · I${slice.stDiasInforme} · A${slice.stAnalistas}`;
+      return `C${slice.stDiasCampo} · I${slice.stDiasInforme} · R${slice.stDiasRevision}`;
     case "st_envios": {
       const total = session_group_amount(slice, key, is_capacitacion);
       return total > 0 ? format_money(total) : "N/A";
@@ -657,7 +672,7 @@ function column_has_activity(
       if (
         slice.stDiasCampo > 0 ||
         slice.stDiasInforme > 0 ||
-        slice.stAnalistas > 0
+        slice.stDiasRevision > 0
       ) {
         return true;
       }
