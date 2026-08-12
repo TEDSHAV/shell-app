@@ -38,7 +38,7 @@ export interface RequisicionItem {
 }
 
 export interface RequisicionFilters {
-  tab: "todas" | "internas" | "externas";
+  tab: "todas" | "internas" | "externas" | "historial";
   gerencia: string;
   estatus: "" | EstatusAdmin;
   fechaDesde: string;

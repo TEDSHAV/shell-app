@@ -19,6 +19,7 @@ import {
   notifyAdminOfAcuseRecibo,
   notifyCreatorOfCoordinadorRechazada,
   notifyCreatorOfLiderRechazada,
+  notifyCreatorOfApproverChanges,
   notifyLiderOfPendingInterna,
   notifyCoordinadorOfPendingExterna,
 } from "@/actions/requisicion-notifications";
@@ -27,6 +28,46 @@ import {
   isCapacitacionDept,
   resolveInternaApprovalGerencia,
 } from "@/lib/requisiciones-gerencia";
+
+// Build a JSON snapshot of the editable content fields of a requisicion record.
+// Captured at creation and on every creator save (so it always reflects the
+// creator's latest version), and used as the baseline for the approver-edit diff
+// shown to the solicitor. The approver's edit action does NOT refresh this
+// snapshot — that's the whole point: the solicitor sees what changed vs. their
+// original request.
+function buildRequisicionSnapshot(rec: Record<string, any>): Record<string, any> {
+  return {
+    additional_items: rec.additional_items,
+    osi_fixed_items: rec.osi_fixed_items,
+    cant_traslado: rec.cant_traslado,
+    cant_impresion: rec.cant_impresion,
+    cant_honorarios: rec.cant_honorarios,
+    cant_informe_final: rec.cant_informe_final,
+    dias_traslado: rec.dias_traslado,
+    costo_traslado: rec.costo_traslado,
+    impresion_total: rec.impresion_total,
+    honorarios_horas: rec.honorarios_horas,
+    honorarios_costo_hora: rec.honorarios_costo_hora,
+    honorarios_total: rec.honorarios_total,
+    informe_final_total: rec.informe_final_total,
+    facilitador: rec.facilitador,
+    cod_facilitador: rec.cod_facilitador,
+    cedula_facilitador: rec.cedula_facilitador,
+    rif_facilitador: rec.rif_facilitador,
+    telefono_facilitador: rec.telefono_facilitador,
+    banco: rec.banco,
+    nro_cuenta: rec.nro_cuenta,
+    observaciones_compras: rec.observaciones_compras,
+    prioridad: rec.prioridad,
+    corresponde_a: rec.corresponde_a,
+    fecha_solicitud: rec.fecha_solicitud,
+    solicitante: rec.solicitante,
+    departamento: rec.departamento,
+    gerencia_solicitante: rec.gerencia_solicitante,
+    tipo_servicio: rec.tipo_servicio,
+    id_sesion: rec.id_sesion,
+  };
+}
 
 // Check if the current user belongs to the Administración department.
 // Department-based only — role (admin/superadmin) is NOT considered.
@@ -623,7 +664,7 @@ export async function createRequisicionRecord(
     lider_estatus: isInterna && needsLiderApproval ? "pendiente" : null,
   };
 
-  const fullRecord = { ...baseRecord, ...newColumns };
+  const fullRecord = { ...baseRecord, ...newColumns, original_snapshot: buildRequisicionSnapshot({ ...baseRecord, ...newColumns }) };
 
   // Try with all columns first; if a column doesn't exist yet, retry with base only.
   let data: any;
@@ -751,6 +792,21 @@ export async function getRequisicionRecord(id: number) {
     );
   }
 
+  // Resolve the approver who modified the requisicion (aprobador_edito_por is a
+  // usuarios.id FK, not an id_auth).
+  if (data?.aprobador_edito_por) {
+    promises.push(
+      (async () => {
+        const { data: approverUser } = await supabase
+          .from("usuarios")
+          .select("nombre_apellido")
+          .eq("id", data.aprobador_edito_por!)
+          .single();
+        (data as Record<string, unknown>).aprobador_edito_por_nombre = approverUser?.nombre_apellido || null;
+      })(),
+    );
+  }
+
   if (verificadorIds.size > 0) {
     promises.push(
       (async () => {
@@ -797,16 +853,21 @@ export async function updateRequisicionRecord(
   const userResponse = await supabase.auth.getUser();
   const userId = userResponse.data.user?.id || null;
 
-  // Locked once Administración marks it as procesada or rechazada (unless caller is admin)
+  // Locked once Administración marks it as procesada or rechazada (unless caller is admin).
+  // Also locked once an approver (lider/coordinador) has modified it — the approver's
+  // version becomes authoritative and the creator can no longer edit it.
   const { data: existing } = await supabase
     .from("requisiciones")
-    .select("estatus_admin")
+    .select("estatus_admin, aprobador_edito")
     .eq("id", id)
     .single();
 
   const isLocked = existing?.estatus_admin === "procesada" || existing?.estatus_admin === "rechazada";
   if (isLocked && !(await isRequisicionesAdmin())) {
     throw new Error("Esta requisición ya fue procesada por Administración y no puede editarse.");
+  }
+  if (existing?.aprobador_edito === true && !(await isRequisicionesAdmin())) {
+    throw new Error("El aprobador ya modificó esta requisición. No puede editarla.");
   }
 
   const isCapacitacion = !formData.is_general && isCapacitacionDept(formData.departamento);
@@ -871,7 +932,9 @@ export async function updateRequisicionRecord(
     id_sesion: formData.id_sesion || null,
   };
 
-  const fullRecord = { ...baseRecord, ...newColumns };
+  // Refresh the original_snapshot on every creator save so it always reflects the
+  // creator's latest version. The approver's edit action does NOT refresh it.
+  const fullRecord = { ...baseRecord, ...newColumns, original_snapshot: buildRequisicionSnapshot({ ...baseRecord, ...newColumns }) };
 
   // Try with all columns first; if a column doesn't exist yet, retry with base only.
   let data: any;
@@ -1125,6 +1188,65 @@ export async function getAllRequisiciones(isAdmin?: boolean) {
       } else {
         addPending(pendingExternas);
       }
+    }
+  }
+
+  // --- Approval history for non-admin users ---
+  // Liders/coordinadors keep seeing requisiciones they've already approved/rejected
+  // (tagged with _isApprovalHistory = true) so they have a record instead of those
+  // vanishing once acted on. Driven by lider_por / coordinador_por (already persisted
+  // by the approve/reject actions), so no schema changes are required for this part.
+  const historyUsuarioId = await getCurrentUserUsuarioId();
+  const addHistory = (rows: any[] | null) => {
+    for (const r of rows || []) {
+      if (!r) continue;
+      r._isApprovalHistory = true;
+      if (!ownIds.has(r.id)) {
+        merged.push(r);
+        ownIds.add(r.id);
+      } else {
+        const existing = merged.find((m: any) => m.id === r.id);
+        if (existing) existing._isApprovalHistory = true;
+      }
+    }
+  };
+
+  // 4) Lider history: internas the current user approved/rejected as lider.
+  if (isLider && historyUsuarioId) {
+    const { data: liderHistory, error: histErr } = await supabase
+      .from("requisiciones")
+      .select(SELECT_RELATIONS)
+      .eq("tipo_solicitud", "Interno")
+      .eq("lider_por", historyUsuarioId)
+      .in("lider_estatus", ["aprobada", "rechazada"])
+      .is("deleted_at", null)
+      .order("id", { ascending: false });
+    if (histErr && (histErr.message || "").includes("column") && (histErr.message || "").includes("does not exist")) {
+      console.warn("[getAllRequisiciones] lider_por column not found, skipping lider history");
+    } else if (histErr) {
+      console.error("[getAllRequisiciones] Error fetching lider history:", histErr);
+    } else {
+      addHistory(liderHistory);
+    }
+  }
+
+  // 5) Coordinador history: externas the current user approved/rejected as coordinador
+  //    (or lider fallback — coordinador_por is set in both paths).
+  if (isCoord && historyUsuarioId) {
+    const { data: coordHistory, error: histErr } = await supabase
+      .from("requisiciones")
+      .select(SELECT_RELATIONS)
+      .eq("tipo_solicitud", "Externo")
+      .eq("coordinador_por", historyUsuarioId)
+      .in("coordinador_estatus", ["aprobada", "rechazada"])
+      .is("deleted_at", null)
+      .order("id", { ascending: false });
+    if (histErr && (histErr.message || "").includes("column") && (histErr.message || "").includes("does not exist")) {
+      console.warn("[getAllRequisiciones] coordinador_por column not found, skipping coordinador history");
+    } else if (histErr) {
+      console.error("[getAllRequisiciones] Error fetching coordinador history:", histErr);
+    } else {
+      addHistory(coordHistory);
     }
   }
 
@@ -1543,6 +1665,148 @@ export async function rejectRequisicionByLider(id: number, motivo: string) {
 
   if (existing.created_by) {
     await notifyCreatorOfLiderRechazada(id, existing.created_by, "interna", motivo.trim());
+  }
+
+  revalidatePath("/requisiciones");
+  revalidatePath(`/requisiciones/view/${id}`);
+}
+
+// Approver (lider for internas, coordinador/lider-fallback for externas) edits the
+// CONTENT of a pending requisicion before approving. The original_snapshot is
+// preserved (captured at creation or, for legacy records, from the current state
+// on the first edit) so the solicitor can see a diff of what changed. This action
+// does NOT change lider_estatus / coordinador_estatus — that stays "pendiente"
+// until the approver explicitly approves/rejects.
+export async function updateRequisicionByApprover(
+  id: number,
+  updates: {
+    additional_items?: any[];
+    observaciones_compras?: string;
+    prioridad?: string;
+    corresponde_a?: string;
+    fecha_solicitud?: string;
+    solicitante?: string;
+  },
+) {
+  const supabase = await createClient();
+  const userResponse = await supabase.auth.getUser();
+  const userId = userResponse.data.user?.id || null;
+  const usuarioId = await getCurrentUserUsuarioId();
+
+  const admin = await createAdminClient();
+
+  // Fetch the record with approval + snapshot columns. Fall back to base columns
+  // if the new columns don't exist yet (migration not applied).
+  let existing: any;
+  let fetchError: any;
+  ({ data: existing, error: fetchError } = await admin
+    .from("requisiciones")
+    .select("tipo_solicitud, lider_estatus, coordinador_estatus, departamento, created_by, original_snapshot, aprobador_edito, additional_items, observaciones_compras, prioridad, corresponde_a, fecha_solicitud, solicitante, gerencia_solicitante, tipo_servicio, id_sesion, cant_traslado, cant_impresion, cant_honorarios, cant_informe_final, dias_traslado, costo_traslado, impresion_total, honorarios_horas, honorarios_costo_hora, honorarios_total, informe_final_total, facilitador, cod_facilitador, cedula_facilitador, rif_facilitador, telefono_facilitador, banco, nro_cuenta, osi_fixed_items")
+    .eq("id", id)
+    .single());
+
+  if (fetchError && (fetchError.message || "").includes("column") && (fetchError.message || "").includes("does not exist")) {
+    const fallback = await admin
+      .from("requisiciones")
+      .select("tipo_solicitud, departamento, created_by, additional_items, observaciones_compras, prioridad, corresponde_a, fecha_solicitud, solicitante, gerencia_solicitante, tipo_servicio, id_sesion, cant_traslado, cant_impresion, cant_honorarios, cant_informe_final, dias_traslado, costo_traslado, impresion_total, honorarios_horas, honorarios_costo_hora, honorarios_total, informe_final_total, facilitador, cod_facilitador, cedula_facilitador, rif_facilitador, telefono_facilitador, banco, nro_cuenta, osi_fixed_items")
+      .eq("id", id)
+      .single();
+    existing = fallback.data;
+    fetchError = fallback.error;
+  }
+
+  if (fetchError || !existing) throw new Error("Requisición no encontrada.");
+
+  const isInterna = existing.tipo_solicitud === "Interno";
+
+  // Verify the caller is the pending approver.
+  if (isInterna) {
+    if (existing.lider_estatus !== undefined && existing.lider_estatus !== "pendiente") {
+      throw new Error("Esta requisición interna ya fue procesada por el lider.");
+    }
+    if (existing.departamento) {
+      const isLider = await isLiderForInternaApproval(existing.departamento);
+      if (!isLider) {
+        throw new Error("Solo el lider de la gerencia puede editar esta requisición interna.");
+      }
+    }
+  } else {
+    if (existing.coordinador_estatus !== undefined && existing.coordinador_estatus !== "pendiente") {
+      throw new Error("Esta requisición externa ya fue procesada por el coordinador.");
+    }
+    if (existing.departamento) {
+      const isCoord = await isCoordinadorForDepartment(existing.departamento);
+      if (!isCoord) {
+        const hasCoord = await departmentHasCoordinador(existing.departamento);
+        if (hasCoord) {
+          throw new Error("Solo el coordinador del departamento puede editar esta requisición externa.");
+        }
+        const isLider = await isLiderForDepartmentGerencia(existing.departamento);
+        if (!isLider) {
+          throw new Error("Solo el lider de la gerencia puede editar esta requisición externa (el departamento no tiene coordinador).");
+        }
+      }
+    }
+  }
+
+  // A creator can never edit their own requisicion as an approver.
+  if (existing.created_by && userId && existing.created_by === userId) {
+    throw new Error("No puede modificar su propia requisición como aprobador.");
+  }
+
+  // Build the update payload from the provided fields only.
+  const updatePayload: Record<string, any> = {};
+  if (updates.additional_items !== undefined) updatePayload.additional_items = updates.additional_items;
+  if (updates.observaciones_compras !== undefined) updatePayload.observaciones_compras = updates.observaciones_compras;
+  if (updates.prioridad !== undefined) updatePayload.prioridad = updates.prioridad;
+  if (updates.corresponde_a !== undefined) updatePayload.corresponde_a = updates.corresponde_a;
+  if (updates.fecha_solicitud !== undefined) updatePayload.fecha_solicitud = updates.fecha_solicitud;
+  if (updates.solicitante !== undefined) updatePayload.solicitante = updates.solicitante;
+
+  // If this is the first approver edit and no original_snapshot exists (legacy
+  // record created before the migration), capture it NOW from the current live
+  // state so the diff has a baseline.
+  const isFirstEdit = existing.aprobador_edito !== true;
+  if (isFirstEdit && !existing.original_snapshot) {
+    updatePayload.original_snapshot = buildRequisicionSnapshot(existing);
+  }
+
+  // Mark that the approver modified the requisicion.
+  updatePayload.aprobador_edito = true;
+  updatePayload.aprobador_edito_por = usuarioId;
+  updatePayload.aprobador_edito_at = new Date().toISOString();
+
+  const { error } = await admin
+    .from("requisiciones")
+    .update(updatePayload)
+    .eq("id", id);
+
+  if (error && (error.message || "").includes("column") && (error.message || "").includes("does not exist")) {
+    // New columns not found — retry with just the content fields (no snapshot/approver tracking).
+    console.warn("[updateRequisicionByApprover] approver columns not found, updating content only");
+    const contentOnly: Record<string, any> = {};
+    if (updates.additional_items !== undefined) contentOnly.additional_items = updates.additional_items;
+    if (updates.observaciones_compras !== undefined) contentOnly.observaciones_compras = updates.observaciones_compras;
+    if (updates.prioridad !== undefined) contentOnly.prioridad = updates.prioridad;
+    if (updates.corresponde_a !== undefined) contentOnly.corresponde_a = updates.corresponde_a;
+    if (updates.fecha_solicitud !== undefined) contentOnly.fecha_solicitud = updates.fecha_solicitud;
+    if (updates.solicitante !== undefined) contentOnly.solicitante = updates.solicitante;
+    const { error: contentErr } = await admin
+      .from("requisiciones")
+      .update(contentOnly)
+      .eq("id", id);
+    if (contentErr) throw contentErr;
+  } else if (error) {
+    throw error;
+  }
+
+  // Notify the creator on the FIRST edit only (avoid spam on subsequent saves).
+  if (isFirstEdit && existing.created_by) {
+    const approverRole = isInterna ? "Lider" : "Coordinador";
+    const requisicionLabel = isInterna
+      ? `interna #${id}`
+      : `de la OSI N° ${(existing as any).v_osi_formato_completo?.nro_osi || ""}`;
+    await notifyCreatorOfApproverChanges(id, existing.created_by, requisicionLabel, approverRole);
   }
 
   revalidatePath("/requisiciones");

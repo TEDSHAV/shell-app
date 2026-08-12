@@ -443,3 +443,43 @@ export async function notifyAdminOfAcuseRecibo(
     console.error("[notifyAdminOfAcuseRecibo] Unexpected error:", err);
   }
 }
+
+// Notify the creator that the approver (lider/coordinador) modified their
+// requisicion before approving. Fires only on the FIRST edit (when
+// aprobador_edito transitions from false to true), not on every save, to avoid
+// notification spam.
+export async function notifyCreatorOfApproverChanges(
+  requisicionId: number,
+  creatorAuthId: string,
+  requisicionLabel: string,
+  approverRole: string,
+) {
+  try {
+    const supabase = await createAdminClient();
+
+    const body = `El ${approverRole} modificó el contenido de tu requisición ${requisicionLabel} antes de aprobarla. Revisa los cambios en el detalle de la requisición.`;
+
+    const { error: insertError } = await supabase
+      .schema("notify")
+      .from("inbox")
+      .insert({
+          app_slug: "administracion",
+          event_key: "requisicion_aprobador_cambios",
+          recipient_id_auth: creatorAuthId,
+          title: "Cambios en tu Requisición",
+          body,
+          link_path: `/requisiciones/view/${requisicionId}`,
+          dedupe_key: `requisicion:${requisicionId}:aprobador_cambios`,
+          priority: 2,
+        });
+
+    if (insertError) {
+      console.error(
+        "[notifyCreatorOfApproverChanges] Error inserting notification:",
+        insertError,
+      );
+    }
+  } catch (err) {
+    console.error("[notifyCreatorOfApproverChanges] Unexpected error:", err);
+  }
+}

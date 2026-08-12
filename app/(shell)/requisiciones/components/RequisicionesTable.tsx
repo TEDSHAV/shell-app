@@ -17,11 +17,8 @@ import { Search, X, ChevronLeft, ChevronRight } from "lucide-react";
 
 const PAGE_SIZE_OPTIONS = [10, 30, 50];
 
-const TABS: { key: RequisicionFilters["tab"]; label: string }[] = [
-  { key: "todas", label: "Todas" },
-  { key: "internas", label: "Internas" },
-  { key: "externas", label: "Externas" },
-];
+// "Historial" tab is appended dynamically inside the component (only for non-admin
+// liders/coordinadors) so regular users and admins don't see it.
 
 const EMPTY_FILTERS: RequisicionFilters = {
   tab: "todas",
@@ -62,6 +59,21 @@ export default function RequisicionesTable({
   liderFallbackDepts?: string[];
 }) {
   const [filters, setFilters] = useState<RequisicionFilters>(EMPTY_FILTERS);
+
+  // "Historial" tab is only shown to non-admin liders/coordinadors so they can
+  // see requisiciones they've already approved/rejected (tagged with
+  // _isApprovalHistory by getAllRequisiciones).
+  const tabs = useMemo(() => {
+    const base: { key: RequisicionFilters["tab"]; label: string }[] = [
+      { key: "todas", label: "Todas" },
+      { key: "internas", label: "Internas" },
+      { key: "externas", label: "Externas" },
+    ];
+    if (!isAdminView && (isLider || isCoordinador)) {
+      base.push({ key: "historial", label: "Historial" });
+    }
+    return base;
+  }, [isAdminView, isLider, isCoordinador]);
 
   // Normalize a department name: trim, replace underscores/hyphens with spaces,
   // collapse whitespace, and title-case. This deduplicates variants like
@@ -110,6 +122,7 @@ export default function RequisicionesTable({
     const result = records.filter((r) => {
       if (filters.tab === "internas" && !isInterna(r)) return false;
       if (filters.tab === "externas" && isInterna(r)) return false;
+      if (filters.tab === "historial" && !r._isApprovalHistory) return false;
 
       if (
         filters.gerencia &&
@@ -190,6 +203,7 @@ export default function RequisicionesTable({
       todas: records.length,
       internas: records.filter(isInterna).length,
       externas: records.filter((r) => !isInterna(r)).length,
+      historial: records.filter((r) => r._isApprovalHistory).length,
     }),
     [records],
   );
@@ -205,9 +219,9 @@ export default function RequisicionesTable({
 
   return (
     <div className="space-y-4">
-      {/* Internas / Externas tabs — visible to all users */}
+      {/* Internas / Externas / Historial tabs */}
       <div className="flex gap-1 border-b border-gray-200">
-        {TABS.map((tab) => (
+        {tabs.map((tab) => (
           <button
             key={tab.key}
             type="button"
@@ -220,7 +234,7 @@ export default function RequisicionesTable({
           >
             {tab.label}
             <span className="ml-2 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600">
-              {counts[tab.key]}
+              {counts[tab.key as keyof typeof counts]}
             </span>
           </button>
         ))}

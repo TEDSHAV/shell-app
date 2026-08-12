@@ -45,7 +45,8 @@ export default async function EditRequisicionPage({
   const adminResolved = editRecord?.estatus_admin === "procesada" || editRecord?.estatus_admin === "rechazada";
   const coordinadorResolved = editRecord?.coordinador_estatus === "rechazada" || editRecord?.coordinador_estatus === "aprobada";
   const liderResolved = editRecord?.lider_estatus === "rechazada" || editRecord?.lider_estatus === "aprobada";
-  const isLocked = adminResolved || coordinadorResolved || liderResolved;
+  const approverEdited = editRecord?.aprobador_edito === true;
+  const isLocked = adminResolved || coordinadorResolved || liderResolved || approverEdited;
 
   const [canPlaceInternaFlag, isLiderFlag] = await Promise.all([
     canPlaceInterna(userDept),

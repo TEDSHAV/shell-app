@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { RequisicionItem, OSIFixedItem } from "@/types/requisiciones";
-import { setRequisicionEstatus, updateItemVerificacion, updateFixedItemVerificacion, markAllItemsVerificadas, saveVerificacionProgress, getExchangeRate, updateFacilitadorBankingDetails, acknowledgeRequisicionReceipt, approveRequisicionByCoordinador, rejectRequisicionByCoordinador, approveRequisicionByLider, rejectRequisicionByLider } from "@/actions/requisiciones";
-import { CheckCircle2, XCircle, Undo2, Clock, AlertTriangle, CalendarClock, Copy, Check, Download, Save, Printer, PackageCheck } from "lucide-react";
+import { setRequisicionEstatus, updateItemVerificacion, updateFixedItemVerificacion, markAllItemsVerificadas, saveVerificacionProgress, getExchangeRate, updateFacilitadorBankingDetails, acknowledgeRequisicionReceipt, approveRequisicionByCoordinador, rejectRequisicionByCoordinador, approveRequisicionByLider, rejectRequisicionByLider, updateRequisicionByApprover } from "@/actions/requisiciones";
+import { CheckCircle2, XCircle, Undo2, Clock, AlertTriangle, CalendarClock, Copy, Check, Download, Save, Printer, PackageCheck, Plus, Trash2 } from "lucide-react";
 import MotivoModal from "../../../components/MotivoModal";
+import ApproverDiff from "./ApproverDiff";
 import { formatDate } from "@/lib/utils";
 
 // Exact, case-insensitive department name match (trimmed).
@@ -101,6 +102,65 @@ export default function RequisicionView({
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [coordinadorRejectOpen, setCoordinadorRejectOpen] = useState(false);
   const [liderRejectOpen, setLiderRejectOpen] = useState(false);
+
+  // --- Approver inline-edit state ---
+  // When the current user is the pending approver (lider for internas, coordinador
+  // / lider-fallback for externas), they can edit the requisicion's content before
+  // approving. The original_snapshot is preserved so the solicitor sees a diff.
+  const canApproverEdit = canLiderAct || canExternasApproverAct;
+  const [editedItems, setEditedItems] = useState<any[]>(record.additional_items || []);
+  const [editedObservaciones, setEditedObservaciones] = useState<string>(record.observaciones_compras || "");
+  const [editedPrioridad, setEditedPrioridad] = useState<string>(record.prioridad || "");
+  const [editedFecha, setEditedFecha] = useState<string>(record.fecha_solicitud || "");
+  const [editedSolicitante, setEditedSolicitante] = useState<string>(record.solicitante || "");
+  const [isSavingApproverEdit, setIsSavingApproverEdit] = useState(false);
+
+  const handleAddApproverItem = () => {
+    setEditedItems(prev => [...prev, {
+      id: `new-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      cant: 1,
+      unidad: "und",
+      descripcion: "",
+      costo_unitario: 0,
+      total: 0,
+    }]);
+  };
+
+  const handleRemoveApproverItem = (itemId: string) => {
+    setEditedItems(prev => prev.filter(i => i.id !== itemId));
+  };
+
+  const handleApproverItemChange = (itemId: string, field: string, value: any) => {
+    setEditedItems(prev => prev.map(item => {
+      if (item.id !== itemId) return item;
+      const updated = { ...item, [field]: value };
+      if (field === "cant" || field === "costo_unitario") {
+        updated.total = (Number(updated.cant) || 0) * (Number(updated.costo_unitario) || 0);
+      }
+      return updated;
+    }));
+  };
+
+  const handleSaveApproverEdits = async (): Promise<boolean> => {
+    if (!canApproverEdit) return true;
+    setIsSavingApproverEdit(true);
+    try {
+      await updateRequisicionByApprover(record.id, {
+        additional_items: editedItems,
+        observaciones_compras: editedObservaciones,
+        prioridad: editedPrioridad,
+        fecha_solicitud: editedFecha,
+        solicitante: editedSolicitante,
+      });
+      return true;
+    } catch (e) {
+      console.error("Error saving approver edits:", e);
+      alert(e instanceof Error ? e.message : "Error al guardar los cambios del aprobador");
+      return false;
+    } finally {
+      setIsSavingApproverEdit(false);
+    }
+  };
 
   useEffect(() => {
     if (!isCapacitacionForRate) return;
@@ -292,6 +352,11 @@ export default function RequisicionView({
     if (!confirm("¿Aprobar esta requisición externa? Se notificará a Administración.")) return;
     setIsUpdating(true);
     try {
+      // Save any pending approver edits before approving.
+      if (canApproverEdit) {
+        const saved = await handleSaveApproverEdits();
+        if (!saved) return;
+      }
       await approveRequisicionByCoordinador(record.id);
       router.refresh();
     } catch (error) {
@@ -320,6 +385,11 @@ export default function RequisicionView({
     if (!confirm("¿Aprobar esta requisición interna? Se notificará a Administración.")) return;
     setIsUpdating(true);
     try {
+      // Save any pending approver edits before approving.
+      if (canApproverEdit) {
+        const saved = await handleSaveApproverEdits();
+        if (!saved) return;
+      }
       await approveRequisicionByLider(record.id);
       router.refresh();
     } catch (error) {
@@ -544,6 +614,37 @@ export default function RequisicionView({
         );
       })()}
 
+      {/* Approver diff — shown to the creator when the approver modified the requisicion */}
+      {record.aprobador_edito === true && !isAdminView && !canApproverEdit && (
+        <ApproverDiff
+          originalSnapshot={record.original_snapshot}
+          currentRecord={record}
+          approverName={record.aprobador_edito_por_nombre}
+          approverAt={record.aprobador_edito_at}
+        />
+      )}
+
+      {/* Approver edit bar — shown when the current user is the pending approver */}
+      {canApproverEdit && (
+        <div className="mb-4 flex flex-wrap items-center gap-3 px-4 py-3 bg-blue-50 border border-blue-300 rounded-lg">
+          <AlertTriangle className="h-4 w-4 text-blue-700 flex-shrink-0" />
+          <span className="text-xs text-blue-800 font-medium">
+            Puede modificar el contenido de esta requisición antes de aprobar. El solicitante verá los cambios.
+          </span>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={isSavingApproverEdit || isUpdating}
+            onClick={handleSaveApproverEdits}
+            className="ml-auto h-8 px-3 text-xs flex gap-1 border-blue-300 text-blue-700 hover:bg-blue-100"
+          >
+            <Save className="h-3.5 w-3.5" />
+            {isSavingApproverEdit ? "Guardando..." : "Guardar Cambios"}
+          </Button>
+        </div>
+      )}
+
       {/* Lider status bar (internas only) */}
       {isGeneralMode && liderEstatus && (
         <div className="mb-4 flex flex-wrap items-center gap-3 px-4 py-3 bg-white border border-gray-200 rounded-lg shadow-sm">
@@ -751,7 +852,16 @@ export default function RequisicionView({
               Fecha de solicitud:
             </div>
             <div className={`p-3 border-r border-gray-300 flex items-center ${showOSIHeader ? "col-span-4" : "col-span-9"}`}>
-              {record.fecha_solicitud ? formatDate(new Date(record.fecha_solicitud + "T00:00:00")) : "-"}
+              {canApproverEdit ? (
+                <input
+                  type="date"
+                  value={editedFecha}
+                  onChange={(e) => setEditedFecha(e.target.value)}
+                  className="px-2 py-1 text-sm border border-gray-300 rounded font-medium focus:outline-none focus:ring-1 focus:ring-blue-400"
+                />
+              ) : (
+                record.fecha_solicitud ? formatDate(new Date(record.fecha_solicitud + "T00:00:00")) : "-"
+              )}
             </div>
             {showOSIHeader && (
             <>
@@ -792,7 +902,16 @@ export default function RequisicionView({
               <span className="font-bold text-sm">Nombre del solicitante:</span>
             </div>
             <div className="col-span-9 p-3 flex items-center font-bold uppercase">
-              {record.solicitante || "-"}
+              {canApproverEdit ? (
+                <input
+                  type="text"
+                  value={editedSolicitante}
+                  onChange={(e) => setEditedSolicitante(e.target.value)}
+                  className="w-full px-2 py-1 text-sm border border-gray-300 rounded font-medium focus:outline-none focus:ring-1 focus:ring-blue-400"
+                />
+              ) : (
+                record.solicitante || "-"
+              )}
             </div>
           </div>
 
@@ -818,13 +937,26 @@ export default function RequisicionView({
               Prioridad:
             </div>
             <div className="col-span-9 p-3 flex items-center">
-              <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
-                record.prioridad === 'Alta' ? 'bg-red-100 text-red-800' : 
-                record.prioridad === 'Media' ? 'bg-yellow-100 text-yellow-800' : 
-                'bg-green-100 text-green-800'
-              }`}>
-                {record.prioridad || "-"}
-              </span>
+              {canApproverEdit ? (
+                <select
+                  value={editedPrioridad}
+                  onChange={(e) => setEditedPrioridad(e.target.value)}
+                  className="px-2 py-1 text-xs border border-gray-300 rounded font-medium focus:outline-none focus:ring-1 focus:ring-blue-400"
+                >
+                  <option value="">Sin prioridad</option>
+                  <option value="Alta">Alta</option>
+                  <option value="Media">Media</option>
+                  <option value="Baja">Baja</option>
+                </select>
+              ) : (
+                <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
+                  record.prioridad === 'Alta' ? 'bg-red-100 text-red-800' :
+                  record.prioridad === 'Media' ? 'bg-yellow-100 text-yellow-800' :
+                  'bg-green-100 text-green-800'
+                }`}>
+                  {record.prioridad || "-"}
+                </span>
+              )}
             </div>
           </div>
 
@@ -1166,7 +1298,7 @@ export default function RequisicionView({
               })()}
 
               {/* Additional Items (non-Capacitación) */}
-              {!isCapacitacion && additionalItems.map((item, index) => (
+              {!isCapacitacion && !canApproverEdit && additionalItems.map((item, index) => (
                 <tr key={item.id} className="border-b border-gray-300 bg-blue-50/10">
                   <td className="p-2 text-center border-r border-gray-300 font-bold">{index + 1}</td>
                   <td className="p-2 border-r border-gray-300 text-center uppercase font-bold">
@@ -1218,6 +1350,92 @@ export default function RequisicionView({
                 </tr>
               ))}
 
+              {/* Additional Items — Approver editable mode (non-Capacitación) */}
+              {!isCapacitacion && canApproverEdit && editedItems.map((item, index) => (
+                <tr key={item.id} className="border-b border-gray-300 bg-blue-50/30">
+                  <td className="p-2 text-center border-r border-gray-300 font-bold">{index + 1}</td>
+                  <td className="p-2 border-r border-gray-300 text-center">
+                    <input
+                      type="text"
+                      value={item.unidad || "und"}
+                      onChange={(e) => handleApproverItemChange(item.id, "unidad", e.target.value)}
+                      className="w-16 px-1 py-0.5 text-xs text-center border border-gray-300 rounded uppercase font-bold focus:outline-none focus:ring-1 focus:ring-blue-400"
+                    />
+                  </td>
+                  <td className="p-2 text-center border-r border-gray-300">
+                    <input
+                      type="number"
+                      min="1"
+                      value={item.cant || 1}
+                      onChange={(e) => handleApproverItemChange(item.id, "cant", Number(e.target.value))}
+                      className="w-14 px-1 py-0.5 text-xs text-center border border-gray-300 rounded font-bold focus:outline-none focus:ring-1 focus:ring-blue-400"
+                    />
+                  </td>
+                  <td className="p-2 border-r border-gray-300">
+                    <input
+                      type="text"
+                      value={item.descripcion || ""}
+                      onChange={(e) => handleApproverItemChange(item.id, "descripcion", e.target.value)}
+                      className="w-full px-1 py-0.5 text-xs border border-gray-300 rounded uppercase focus:outline-none focus:ring-1 focus:ring-blue-400"
+                      placeholder="Descripción..."
+                    />
+                  </td>
+                  {!isGeneralMode && (
+                    <td className="p-2 text-center border-r border-gray-300">
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={item.costo_unitario || 0}
+                        onChange={(e) => handleApproverItemChange(item.id, "costo_unitario", Number(e.target.value))}
+                        className="w-20 px-1 py-0.5 text-xs text-center border border-gray-300 rounded font-bold focus:outline-none focus:ring-1 focus:ring-blue-400"
+                      />
+                    </td>
+                  )}
+                  {isGeneralMode ? (
+                    <td className="p-2 text-center">
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveApproverItem(item.id)}
+                        className="text-red-600 hover:text-red-800 hover:bg-red-50 rounded p-1"
+                        title="Eliminar item"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </td>
+                  ) : (
+                    <td className="p-2 text-center font-bold bg-blue-50/30">
+                      <div className="flex items-center justify-center gap-1">
+                        ${(item.total || 0).toFixed(2)}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveApproverItem(item.id)}
+                          className="text-red-600 hover:text-red-800 hover:bg-red-50 rounded p-0.5"
+                          title="Eliminar item"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
+                    </td>
+                  )}
+                </tr>
+              ))}
+              {/* Add item button (approver editable mode) */}
+              {!isCapacitacion && canApproverEdit && (
+                <tr className="border-b border-gray-300 bg-blue-50/20">
+                  <td colSpan={isGeneralMode ? 5 : 6} className="p-2">
+                    <button
+                      type="button"
+                      onClick={handleAddApproverItem}
+                      className="flex items-center gap-1 text-xs font-medium text-blue-700 hover:text-blue-900 px-2 py-1 rounded hover:bg-blue-100"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Agregar item
+                    </button>
+                  </td>
+                </tr>
+              )}
+
               {!isGeneralMode && (
               <tr className="bg-gray-100 border-b border-gray-300">
                 <td colSpan={(isCapacitacion && osiFixedItems.length > 1) || (!isCapacitacion && linkedOSIs.length > 1) ? (isAdminView ? 6 : 6) : (isAdminView ? 5 : 5)} className="p-2 text-right font-bold uppercase text-sm">Total General:</td>
@@ -1237,7 +1455,16 @@ export default function RequisicionView({
             Observaciones
           </div>
           <div className="p-3 border-b border-gray-300 min-h-[60px] text-xs uppercase whitespace-pre-wrap">
-            {record.observaciones_compras || "SIN OBSERVACIONES"}
+            {canApproverEdit ? (
+              <textarea
+                value={editedObservaciones}
+                onChange={(e) => setEditedObservaciones(e.target.value)}
+                className="w-full min-h-[80px] px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-400 normal-case"
+                placeholder="Observaciones..."
+              />
+            ) : (
+              record.observaciones_compras || "SIN OBSERVACIONES"
+            )}
           </div>
 
           {isAdminView && isCapacitacion && (

@@ -41,6 +41,7 @@ export default async function ViewRequisicionPage({
 
   const isCoordinador = coordinadorDepts.length > 0;
   const isLider = liderDepts.length > 0;
+  const approverEdited = record?.aprobador_edito === true;
 
   let osiData = null;
   const osiLookup = new Map<number, string>();
@@ -104,6 +105,11 @@ export default async function ViewRequisicionPage({
           <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-300 rounded-lg text-amber-800 text-sm font-medium">
             <Lock className="h-4 w-4" />
             {record.estatus_admin === "rechazada" ? "Rechazada por Administración" : "Procesada por Administración"}
+          </div>
+        ) : approverEdited && !isAdminView ? (
+          <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-300 rounded-lg text-amber-800 text-sm font-medium">
+            <Lock className="h-4 w-4" />
+            Modificada por el Aprobador
           </div>
         ) : !isAdminView ? (
           <Link href={`/requisiciones/edit/${id}`}>
