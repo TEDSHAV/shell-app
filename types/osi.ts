@@ -7,6 +7,7 @@ export interface OSIListFilters {
   dateTo?: string;
   status?: string;
   attachmentReceived?: "received" | "not_received";
+  tipoServicio?: "capacitacion" | "servicios_tecnicos";
 }
 
 export interface OSIStatusOption {
@@ -50,7 +51,11 @@ export interface OSIListFilterOptions {
   ejecutivos: string[];
   cityOptions: { id: number; nombre_ciudad: string }[];
   statuses: OSIStatusOption[];
+  accessFilter: OSIAccessFilter;
 }
+
+/** Mirrors OSIAccessFilter from actions/osi.ts to avoid a circular import. */
+export type OSIAccessFilter = "all" | "capacitacion" | "servicios_tecnicos" | "other" | "none";
 
 export interface OSISession {
   id: number;

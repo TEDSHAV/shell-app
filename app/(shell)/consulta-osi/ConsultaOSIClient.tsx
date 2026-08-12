@@ -6,6 +6,7 @@ import type {
   OSIListFilters,
   OSIListItem,
   OSIStatusOption,
+  OSIAccessFilter,
 } from "@/types/osi";
 import { getOSIList, getOSIListFilterOptions, updateOSIStatus, updateSessionStatus, setOSIHiddenForClient, toggleOSIAttachmentReceived } from "@/actions/osi";
 import OSIFilters from "./components/OSIFilters";
@@ -55,6 +56,7 @@ export default function ConsultaOSIClient({ canChangeStatus, canHideForClient, c
     { id: number; nombre_ciudad: string }[]
   >([]);
   const [statuses, setStatuses] = useState<OSIStatusOption[]>([]);
+  const [accessFilter, setAccessFilter] = useState<OSIAccessFilter>("none");
   const [loadingFilters, setLoadingFilters] = useState(true);
 
   const [selectedOSI, setSelectedOSI] = useState<OSIListItem | null>(null);
@@ -157,6 +159,7 @@ export default function ConsultaOSIClient({ canChangeStatus, canHideForClient, c
           setEjecutivos(options.ejecutivos);
           setCityOptions(options.cityOptions);
           setStatuses(options.statuses);
+          setAccessFilter(options.accessFilter);
           filtersLoadedRef.current = true;
         }
       } catch (error) {
@@ -340,6 +343,7 @@ export default function ConsultaOSIClient({ canChangeStatus, canHideForClient, c
           ejecutivos={ejecutivos}
           cityOptions={cityOptions}
           statuses={statuses}
+          accessFilter={accessFilter}
           loading={loadingFilters}
         />
 

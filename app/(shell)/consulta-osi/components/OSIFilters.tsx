@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import type { OSIListFilters, OSIStatusOption } from "@/types/osi";
+import type { OSIListFilters, OSIStatusOption, OSIAccessFilter } from "@/types/osi";
 import { Search, X, Filter, ChevronDown } from "lucide-react";
 
 interface OSIFiltersProps {
@@ -11,6 +11,7 @@ interface OSIFiltersProps {
   ejecutivos: string[];
   cityOptions: { id: number; nombre_ciudad: string }[];
   statuses: OSIStatusOption[];
+  accessFilter: OSIAccessFilter;
   loading?: boolean;
 }
 
@@ -21,6 +22,7 @@ export default function OSIFilters({
   ejecutivos,
   cityOptions,
   statuses,
+  accessFilter,
   loading = false,
 }: OSIFiltersProps) {
   const [expanded, setExpanded] = useState(true);
@@ -118,7 +120,7 @@ export default function OSIFilters({
                 <option value="">Todas</option>
                 {companies.map((company) => (
                   <option
-                    key={company.id_empresa}
+                    key={company.nombre_empresa}
                     value={company.nombre_empresa}
                   >
                     {company.nombre_empresa}
@@ -126,6 +128,29 @@ export default function OSIFilters({
                 ))}
               </select>
             </div>
+
+            {accessFilter !== "capacitacion" && accessFilter !== "servicios_tecnicos" && (
+              <div>
+                <label className="block text-[11px] font-medium text-gray-600 mb-0.5">
+                  Tipo de Servicio
+                </label>
+                <select
+                  value={filters.tipoServicio || ""}
+                  onChange={(e) =>
+                    handleFilterChange(
+                      "tipoServicio",
+                      (e.target.value || undefined) as OSIListFilters["tipoServicio"],
+                    )
+                  }
+                  className="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                  disabled={loading}
+                >
+                  <option value="">Todos</option>
+                  <option value="capacitacion">Capacitación</option>
+                  <option value="servicios_tecnicos">Servicios Técnicos</option>
+                </select>
+              </div>
+            )}
 
             <div>
               <label className="block text-[11px] font-medium text-gray-600 mb-0.5">

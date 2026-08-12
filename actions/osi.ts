@@ -76,6 +76,16 @@ export async function getOSIList(
       query = query.or("tipo_servicio.ilike.%servicios tecnicos%,tipo_servicio.ilike.%servicio tecnico%");
     }
 
+    // Apply user-selected tipo_servicio filter (only meaningful when the
+    // user has access to both types, i.e. accessFilter === "all"; for
+    // department-restricted users the access filter above already constrains
+    // the result set and this is a no-op refinement).
+    if (filters.tipoServicio === "capacitacion") {
+      query = query.ilike("tipo_servicio", "%capacitacion%");
+    } else if (filters.tipoServicio === "servicios_tecnicos") {
+      query = query.or("tipo_servicio.ilike.%servicios tecnicos%,tipo_servicio.ilike.%servicio tecnico%");
+    }
+
     // Apply filters
     if (filters.nroOsi) {
       query = query.ilike("nro_osi", `%${filters.nroOsi}%`);
@@ -227,7 +237,7 @@ export async function getOSIList(
 const getOSIListFilterOptionsCached = unstable_cache(
   async (accessFilter: OSIAccessFilter): Promise<OSIListFilterOptions> => {
     if (accessFilter === "none") {
-      return { companies: [], ejecutivos: [], cityOptions: [], statuses: [] };
+      return { companies: [], ejecutivos: [], cityOptions: [], statuses: [], accessFilter };
     }
 
     const supabase = await createAdminClient();
@@ -256,11 +266,16 @@ const getOSIListFilterOptionsCached = unstable_cache(
 
     const viewRows = viewResult.data || [];
 
-    // Dedupe companies from the single result set
-    const companyMap = new Map<number, { id_empresa: number; nombre_empresa: string }>();
+    // Dedupe companies by nombre_empresa so that every distinct office name
+    // appears as a selectable option (e.g. multiple Coca-Cola offices that
+    // share the same id_empresa but have different display names). The list
+    // filter uses ILIKE on nombre_empresa, not id_empresa, so id_empresa is
+    // only retained for type compatibility (first one seen per name).
+    const companyMap = new Map<string, { id_empresa: number; nombre_empresa: string }>();
     for (const r of viewRows) {
-      if (r.nombre_empresa && r.id_empresa != null && !companyMap.has(r.id_empresa)) {
-        companyMap.set(r.id_empresa, { id_empresa: r.id_empresa, nombre_empresa: r.nombre_empresa });
+      const nombre = r.nombre_empresa?.trim();
+      if (nombre && r.id_empresa != null && !companyMap.has(nombre)) {
+        companyMap.set(nombre, { id_empresa: r.id_empresa, nombre_empresa: r.nombre_empresa });
       }
     }
     const companies = [...companyMap.values()].sort((a, b) =>
@@ -293,7 +308,7 @@ const getOSIListFilterOptionsCached = unstable_cache(
       }));
     }
 
-    return { companies, ejecutivos, cityOptions, statuses };
+    return { companies, ejecutivos, cityOptions, statuses, accessFilter };
   },
   ["osi-filter-options"],
   { tags: ["osi-filters"], revalidate: 300 }
@@ -305,7 +320,7 @@ export async function getOSIListFilterOptions(): Promise<OSIListFilterOptions> {
     return getOSIListFilterOptionsCached(accessFilter);
   } catch (err) {
     console.error("Error fetching OSI filter options:", err);
-    return { companies: [], ejecutivos: [], cityOptions: [], statuses: [] };
+    return { companies: [], ejecutivos: [], cityOptions: [], statuses: [], accessFilter: "none" };
   }
 }
 
