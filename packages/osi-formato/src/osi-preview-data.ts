@@ -1,3 +1,5 @@
+import type { OsiStFechasServicioSlice } from "./st-fechas-document";
+
 export type OsiPreviewData = {
   sesionesProgramadas?: Array<{
     fecha: string;
@@ -97,11 +99,14 @@ export type OsiPreviewData = {
   stAnalistas?: number;
   stOtrosTexto?: string | null;
   stSeguimientoGarantia?: string | null;
+  stFechasPlanificadas?: OsiStFechasServicioSlice;
+  stFechasEjecutadas?: OsiStFechasServicioSlice;
+  stServicioEjecutado?: boolean;
   stLogisticaRecursos?: number;
   stEnvioFactura?: number;
   stEnvioMateriales?: number;
   stTraslados?: Array<{
-    tipo: "urbano" | "extraurbano" | "rutas";
+    tipo: "urbano" | "extraurbano";
     cantidad: number;
     costo_unidad: number;
   }>;

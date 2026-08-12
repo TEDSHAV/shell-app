@@ -64,7 +64,7 @@ function traslado_row_total(
 
 function find_st_traslado(
   traslados: Array<{ tipo: string; cantidad: number; costo_unidad: number }>,
-  tipo: "urbano" | "extraurbano" | "rutas",
+  tipo: "urbano" | "extraurbano",
 ) {
   return (
     traslados.find((row) => row.tipo === tipo) ?? {
@@ -89,7 +89,7 @@ function OsiStTrasladosHorizontalTable({
   inner_table_class: string;
 }) {
   const urbano = find_st_traslado(traslados, "urbano");
-  const rutas = find_st_traslado(traslados, "rutas");
+  const extraurbano = find_st_traslado(traslados, "extraurbano");
   const has_detailed = traslados.length > 0;
 
   const render_tipo_block = (
@@ -155,8 +155,8 @@ function OsiStTrasladosHorizontalTable({
             has_detailed ? undefined : st_traslado_total,
           )}
           {render_tipo_block(
-            "RUTAS",
-            rutas,
+            "EXTRAURBANO",
+            extraurbano,
             has_detailed ? undefined : st_traslado_externo_total,
           )}
         </tr>
@@ -165,7 +165,7 @@ function OsiStTrasladosHorizontalTable({
   );
 }
 
-function OsiRecursosVariacionesRows({
+export function OsiRecursosVariacionesRows({
   layout,
   section_header_class,
   maskMonetary,
@@ -201,7 +201,7 @@ function OsiRecursosVariacionesRows({
   );
 }
 
-function OsiCapDesgloseDiarioRows({
+export function OsiCapDesgloseDiarioRows({
   layout,
   section_header_class,
   maskMonetary,
@@ -246,8 +246,10 @@ export function OsiCapacitacionRecursosBlocks({
   layout,
   is_hidden,
   section_header_class,
+  include_desglose = true,
 }: {
   layout: OsiRecursosLayout;
+  include_desglose?: boolean;
 } & MaskFns) {
   if (layout.esPorSesion) {
     return (
@@ -258,11 +260,13 @@ export function OsiCapacitacionRecursosBlocks({
           section_header_class={section_header_class}
           is_capacitacion
         />
-        <OsiCapDesgloseDiarioRows
-          layout={layout}
-          section_header_class={section_header_class}
-          maskMonetary={is_hidden("gran_total")}
-        />
+        {include_desglose ? (
+          <OsiCapDesgloseDiarioRows
+            layout={layout}
+            section_header_class={section_header_class}
+            maskMonetary={is_hidden("gran_total")}
+          />
+        ) : null}
       </>
     );
   }
@@ -513,11 +517,13 @@ export function OsiCapacitacionRecursosBlocks({
           {format_osi_si_no(slice.incluyeRefrigerio)}
         </td>
       </tr>
-      <OsiCapDesgloseDiarioRows
-        layout={layout}
-        section_header_class={section_header_class}
-        maskMonetary={is_hidden("gran_total")}
-      />
+      {include_desglose ? (
+        <OsiCapDesgloseDiarioRows
+          layout={layout}
+          section_header_class={section_header_class}
+          maskMonetary={is_hidden("gran_total")}
+        />
+      ) : null}
     </>
   );
 }
@@ -526,8 +532,10 @@ export function OsiStRecursosBlocks({
   layout,
   is_hidden,
   section_header_class,
+  include_desglose = true,
 }: {
   layout: OsiRecursosLayout;
+  include_desglose?: boolean;
 } & MaskFns) {
   if (layout.esPorSesion) {
     return (
@@ -538,11 +546,13 @@ export function OsiStRecursosBlocks({
           section_header_class={section_header_class}
           is_capacitacion={false}
         />
-        <OsiRecursosVariacionesRows
-          layout={layout}
-          section_header_class={section_header_class}
-          maskMonetary={is_hidden("gran_total")}
-        />
+        {include_desglose ? (
+          <OsiRecursosVariacionesRows
+            layout={layout}
+            section_header_class={section_header_class}
+            maskMonetary={is_hidden("gran_total")}
+          />
+        ) : null}
       </>
     );
   }
@@ -582,7 +592,8 @@ export function OsiStRecursosBlocks({
   const bateria_si = slice.bateriaIncluida;
   const st_traslados_list = slice.stTraslados;
   const otros_texto = String(slice.stOtrosTexto ?? "").trim();
-  const garantia_texto = String(slice.stSeguimientoGarantia ?? "").trim();
+  const garantia_texto =
+    String(slice.stSeguimientoGarantia ?? "").trim() || "15 días";
 
   const row_cell_class = "align-top p-1 w-1/3";
   const inner_table_class =
@@ -604,14 +615,15 @@ export function OsiStRecursosBlocks({
                   <table className={inner_table_class}>
                     <tbody>
                       <tr>
-                        <th colSpan={3} className="bg-slate-100 osi-label-md px-1 py-0.5">
-                          DÍAS DE CAMPO / INFORME / REVISIÓN
+                        <th className="bg-slate-100 osi-label-sm px-1 py-0.5">
+                          CAMPO
                         </th>
-                      </tr>
-                      <tr>
-                        <th className="osi-label-sm">CAMPO</th>
-                        <th className="osi-label-sm">INFORME</th>
-                        <th className="osi-label-sm">REVISIÓN</th>
+                        <th className="bg-slate-100 osi-label-sm px-1 py-0.5">
+                          INFORME
+                        </th>
+                        <th className="bg-slate-100 osi-label-sm px-1 py-0.5">
+                          REVISIÓN
+                        </th>
                       </tr>
                       <tr>
                         <td className="osi-doc-value text-center">
@@ -697,7 +709,7 @@ export function OsiStRecursosBlocks({
                 </td>
               </tr>
               <tr>
-                <td className={row_cell_class}>
+                <td colSpan={2} className="align-top p-1">
                   <OsiStTrasladosHorizontalTable
                     traslados={st_traslados_list}
                     traslado_mask={traslado_mask}
@@ -706,7 +718,7 @@ export function OsiStRecursosBlocks({
                     inner_table_class={inner_table_class}
                   />
                 </td>
-                <td className={row_cell_class}>
+                <td className="align-top p-1">
                   <table className={inner_table_class}>
                     <tbody>
                       <tr>
@@ -727,12 +739,6 @@ export function OsiStRecursosBlocks({
                           )}
                         </td>
                       </tr>
-                    </tbody>
-                  </table>
-                </td>
-                <td className={row_cell_class}>
-                  <table className={inner_table_class}>
-                    <tbody>
                       <tr>
                         <th className="bg-slate-100 osi-label-md px-1 py-0.5">
                           IMPRESIÓN DE MATERIAL
@@ -756,48 +762,54 @@ export function OsiStRecursosBlocks({
                 </td>
               </tr>
               <tr>
-                <td colSpan={6} className="align-top p-1">
+                <td colSpan={3} className="p-0 align-top">
                   <table className={inner_table_class}>
                     <tbody>
                       <tr>
-                        <th className="bg-slate-100 osi-label-md px-2 py-0.5 text-left">
-                          OTROS
-                        </th>
-                      </tr>
-                      <tr>
-                        <td className="osi-doc-value !text-left px-2 py-1 align-top min-h-8">
-                          {otros_texto.length > 0 ? (
-                            <OsiInlineRichText content={otros_texto} />
-                          ) : (
-                            "N/A"
-                          )}
-                          {!otros_mask_hidden && costo_otros_view > 0 ? (
-                            <div className="mt-1 text-center font-semibold">
-                              {format_money_or_dash(costo_otros_view, false)}
-                            </div>
-                          ) : null}
+                        <td className="w-1/2 align-top p-1">
+                          <table className={inner_table_class}>
+                            <tbody>
+                              <tr>
+                                <th className="bg-slate-100 osi-label-md px-2 py-0.5 text-left">
+                                  OTROS
+                                </th>
+                              </tr>
+                              <tr>
+                                <td className="osi-doc-value !text-left px-2 py-1 align-top min-h-8">
+                                  {otros_texto.length > 0 ? (
+                                    <OsiInlineRichText content={otros_texto} />
+                                  ) : (
+                                    "N/A"
+                                  )}
+                                  {!otros_mask_hidden && costo_otros_view > 0 ? (
+                                    <div className="mt-1 text-center font-semibold">
+                                      {format_money_or_dash(costo_otros_view, false)}
+                                    </div>
+                                  ) : null}
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
                         </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </td>
-              </tr>
-              <tr>
-                <td colSpan={6} className="align-top p-1">
-                  <table className={inner_table_class}>
-                    <tbody>
-                      <tr>
-                        <th className="bg-slate-100 osi-label-md px-2 py-0.5 text-left">
-                          SEGUIMIENTO DE DÍAS DE GARANTÍA
-                        </th>
-                      </tr>
-                      <tr>
-                        <td className="osi-doc-value !text-left px-2 py-1 align-top min-h-8">
-                          {garantia_texto.length > 0 ? (
-                            <OsiInlineRichText content={garantia_texto} />
-                          ) : (
-                            "N/A"
-                          )}
+                        <td className="w-1/2 align-top p-1">
+                          <table className={inner_table_class}>
+                            <tbody>
+                              <tr>
+                                <th className="bg-slate-100 osi-label-md px-2 py-0.5 text-left">
+                                  SEGUIMIENTO DE DÍAS DE GARANTÍA
+                                </th>
+                              </tr>
+                              <tr>
+                                <td className="osi-doc-value !text-left px-2 py-1 align-top min-h-8">
+                                  {garantia_texto.length > 0 ? (
+                                    <OsiInlineRichText content={garantia_texto} />
+                                  ) : (
+                                    "—"
+                                  )}
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
                         </td>
                       </tr>
                     </tbody>

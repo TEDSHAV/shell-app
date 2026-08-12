@@ -1,27 +1,47 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element -- native img for reliable print paint */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { cn } from "./utils/cn";
 import { formatCalendarDayEsVe, formatTimeAmPmEsVe } from "./utils/calendar-date";
+import type { OsiStFechasServicioSlice } from "./st-fechas-document";
 import { merged_content_to_display_html, RICH_HTML_CONTENT_CLASS } from "./rich-html";
 import type { OsiStServicioLine } from "./osi-preview-data";
 import { type OsiDocumentAssets, type OsiPreviewData } from "./osi-preview-data";
 import {
   build_osi_recursos_layout,
   OsiCapacitacionRecursosBlocks,
+  OsiCapDesgloseDiarioRows,
+  OsiRecursosVariacionesRows,
   OsiStRecursosBlocks,
 } from "./osi-recursos-section";
+import {
+  build_osi_observaciones_document_items,
+  type OsiObservacionDocumentItem,
+} from "./osi-observaciones-document";
 import { OSI_DOC_ROOT_TEXT_CLASS } from "./osi-document-typography";
+import {
+  compute_osi_page1_fill_gap,
+  distribute_osi_page1_fill,
+} from "./osi-print-layout";
 
 /** Fixed header metadata (CÓDIGO / FECHA / REVISIÓN / PÁGINA block). */
-const OSI_FORM_META = {
-  codigo: "SHA-RG-NEG-003",
+const OSI_FORM_META_CAP = {
+  codigo: "RG-NEG-003",
   fecha: "12/08/2026",
   revision: "1",
 } as const;
 
-const OSI_PRINT_PAGE_HEIGHT_MM = 279.4 - 20;
+const OSI_FORM_META_ST = {
+  codigo: "RG-NEG-004",
+  fecha: "12/08/2026",
+  revision: "1",
+} as const;
+
+const OSI_TABLE_CLASS =
+  "w-full table-fixed border-collapse border border-black text-[12px] [&_td]:border [&_td]:border-black [&_td]:px-2 [&_td]:py-2 [&_td]:align-middle [&_td]:text-center [&_th]:border [&_th]:border-black [&_th]:bg-slate-100 [&_th]:px-2 [&_th]:py-2 [&_th]:text-center [&_th]:text-[12px] [&_th]:font-bold [&_th]:uppercase";
+
+const OSI_GROW_CELL_CLASS = "osi-print-grow align-top";
 
 function OsiRichHtmlContent({
   content,
@@ -76,7 +96,12 @@ function OsiPretensionesRows({
       <tr>
         <td
           colSpan={6}
-          className="osi-long-text min-h-12 max-w-0 align-top relative !text-left px-2 py-2 text-black"
+          className={cn(
+            OSI_GROW_CELL_CLASS,
+            "osi-long-text min-h-12 max-w-0 relative !text-left px-2 py-2 text-black",
+          )}
+          data-osi-grow-weight="0.2"
+          data-osi-grow-base="48"
         >
           {items.length > 0 ? (
             <div className="space-y-2 text-black">
@@ -106,15 +131,40 @@ function OsiPretensionesRows({
   );
 }
 
+function OsiObservacionesContent({
+  items,
+}: {
+  items: OsiObservacionDocumentItem[];
+}) {
+  if (items.length === 0) {
+    return <span className="text-black">N/A</span>;
+  }
+  return (
+    <div className="space-y-0 text-black">
+      {items.map((item, idx) => (
+        <div
+          key={`obs-item-${idx}`}
+          className={cn(
+            idx < items.length - 1 ? "border-b border-dashed pb-2 mb-2" : "",
+          )}
+        >
+          <div className="text-[12px] font-bold uppercase text-black">
+            {item.servicio
+              ? `${item.servicio} — ${item.etiqueta}`
+              : item.etiqueta}
+          </div>
+          <OsiRichHtmlContent content={item.contenido} className="text-black" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function OsiObservacionesRows({
   items,
   section_text_class,
 }: {
-  items: Array<{
-    servicio?: string;
-    fuente: "SOLPED" | "OSI";
-    contenido: string;
-  }>;
+  items: OsiObservacionDocumentItem[];
   section_text_class: string;
 }) {
   return (
@@ -127,27 +177,15 @@ function OsiObservacionesRows({
       <tr>
         <td
           colSpan={6}
-          className="osi-long-text min-h-12 max-w-0 align-top relative !text-left px-2 py-2 text-black"
+          className={cn(
+            OSI_GROW_CELL_CLASS,
+            "osi-long-text min-h-12 max-w-0 relative !text-left px-2 py-2 text-black",
+          )}
+          data-osi-grow-weight="0.5"
+          data-osi-grow-base="48"
         >
           {items.length > 0 ? (
-            <div className="space-y-2 text-black">
-              {items.map((item, idx) => (
-                <div
-                  key={`obs-item-${idx}`}
-                  className="border-b border-dashed pb-2 last:border-b-0 last:pb-0"
-                >
-                  <div className="text-[12px] font-bold uppercase text-black">
-                    {item.servicio
-                      ? `${item.servicio} — ${item.fuente}`
-                      : item.fuente}
-                  </div>
-                  <OsiRichHtmlContent
-                    content={item.contenido}
-                    className="text-black"
-                  />
-                </div>
-              ))}
-            </div>
+            <OsiObservacionesContent items={items} />
           ) : (
             <span className="text-black">N/A</span>
           )}
@@ -200,6 +238,146 @@ function map_sesiones_ejecutada_dia_hora(
   });
 }
 
+function format_st_fecha_celda(
+  value: string | null | undefined,
+  vacio: boolean,
+): string {
+  if (vacio || !String(value ?? "").trim()) return "— —";
+  return formatCalendarDayEsVe(value);
+}
+
+function OsiStFechasCategoriaTable({
+  titulo,
+  fechas,
+  vacio,
+  highlight,
+}: {
+  titulo: string;
+  fechas: OsiStFechasServicioSlice;
+  vacio: boolean;
+  highlight?: boolean;
+}) {
+  const inner_class =
+    "w-full border-collapse [&_td]:border [&_td]:border-black [&_th]:border [&_th]:border-black";
+  const row_class = highlight ? "bg-amber-50 ring-2 ring-amber-300 ring-inset" : "";
+
+  return (
+    <table className={inner_class}>
+      <tbody>
+        <tr>
+          <th colSpan={3} className="bg-slate-100 px-1 py-0.5 text-left text-[11px]">
+            {titulo}
+          </th>
+        </tr>
+        <tr className={row_class}>
+          <th className="px-1 py-0.5 text-left text-[10px] font-normal">
+            REUNIÓN PRE-PROYECTO
+          </th>
+          <td colSpan={2} className="px-1 py-0.5 text-[11px]">
+            {format_st_fecha_celda(fechas.reunionPreProyecto, vacio)}
+          </td>
+        </tr>
+        <tr>
+          <th className="px-1 py-0.5 text-left text-[10px] font-normal">
+            DÍAS DE CAMPO
+          </th>
+          <th className="px-1 py-0.5 text-[10px] font-normal">INICIO</th>
+          <th className="px-1 py-0.5 text-[10px] font-normal">FIN</th>
+        </tr>
+        <tr>
+          <td className="px-1 py-0.5 text-[10px] text-muted-foreground"> </td>
+          <td className="px-1 py-0.5 text-[11px]">
+            {format_st_fecha_celda(fechas.diasCampo.inicio, vacio)}
+          </td>
+          <td className="px-1 py-0.5 text-[11px]">
+            {format_st_fecha_celda(fechas.diasCampo.fin, vacio)}
+          </td>
+        </tr>
+        <tr>
+          <th className="px-1 py-0.5 text-left text-[10px] font-normal">
+            DÍAS DE INFORME
+          </th>
+          <th className="px-1 py-0.5 text-[10px] font-normal">INICIO</th>
+          <th className="px-1 py-0.5 text-[10px] font-normal">FIN</th>
+        </tr>
+        <tr>
+          <td className="px-1 py-0.5 text-[10px] text-muted-foreground"> </td>
+          <td className="px-1 py-0.5 text-[11px]">
+            {format_st_fecha_celda(fechas.diasInforme.inicio, vacio)}
+          </td>
+          <td className="px-1 py-0.5 text-[11px]">
+            {format_st_fecha_celda(fechas.diasInforme.fin, vacio)}
+          </td>
+        </tr>
+        <tr>
+          <th className="px-1 py-0.5 text-left text-[10px] font-normal">
+            DÍAS DE REVISIÓN
+          </th>
+          <th className="px-1 py-0.5 text-[10px] font-normal">INICIO</th>
+          <th className="px-1 py-0.5 text-[10px] font-normal">FIN</th>
+        </tr>
+        <tr>
+          <td className="px-1 py-0.5 text-[10px] text-muted-foreground"> </td>
+          <td className="px-1 py-0.5 text-[11px]">
+            {format_st_fecha_celda(fechas.diasRevision.inicio, vacio)}
+          </td>
+          <td className="px-1 py-0.5 text-[11px]">
+            {format_st_fecha_celda(fechas.diasRevision.fin, vacio)}
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  );
+}
+
+function OsiStFechasServicioRows({
+  planificadas,
+  ejecutadas,
+  servicio_ejecutado,
+  highlight,
+}: {
+  planificadas: OsiStFechasServicioSlice;
+  ejecutadas: OsiStFechasServicioSlice;
+  servicio_ejecutado: boolean;
+  highlight?: boolean;
+}) {
+  return (
+    <>
+      <tr>
+        <th className="text-left" colSpan={3}>
+          FECHAS PLANIFICADAS DEL SERVICIO
+        </th>
+        <th className="text-left" colSpan={3}>
+          FECHAS DE EJECUCIÓN DEL SERVICIO
+        </th>
+      </tr>
+      <tr>
+        <td
+          colSpan={3}
+          className={cn(
+            "align-top p-1",
+            highlight ? "bg-amber-50 ring-2 ring-amber-300 ring-inset" : "",
+          )}
+        >
+          <OsiStFechasCategoriaTable
+            titulo="PLANIFICACIÓN"
+            fechas={planificadas}
+            vacio={false}
+            highlight={highlight}
+          />
+        </td>
+        <td colSpan={3} className="align-top p-1">
+          <OsiStFechasCategoriaTable
+            titulo="EJECUCIÓN"
+            fechas={ejecutadas}
+            vacio={!servicio_ejecutado}
+          />
+        </td>
+      </tr>
+    </>
+  );
+}
+
 function OsiSesionesDiaHoraTable({
   sessions,
   emptyFallback = "N/A",
@@ -243,16 +421,25 @@ function OsiSesionesDiaHoraTable({
   );
 }
 
-function OsiEstatusOsiRows({ label }: { label: string }) {
+function OsiEstatusOsiRows({
+  label,
+  section_header_class,
+}: {
+  label: string;
+  section_header_class: string;
+}) {
   return (
     <>
       <tr>
-        <th colSpan={6} className="bg-slate-100 py-2 text-center text-[12px] font-bold uppercase">
+        <th colSpan={6} className={section_header_class}>
           ESTATUS DE OSI
         </th>
       </tr>
       <tr>
-        <td colSpan={6} className="py-2 text-center text-[12px] font-bold uppercase">
+        <td
+          colSpan={6}
+          className="py-2 text-center text-[12px] font-bold uppercase text-black"
+        >
           {label}
         </td>
       </tr>
@@ -260,16 +447,25 @@ function OsiEstatusOsiRows({ label }: { label: string }) {
   );
 }
 
-function OsiQuejasClienteRows() {
+function OsiQuejasClienteRows({
+  section_header_class,
+}: {
+  section_header_class: string;
+}) {
   return (
     <>
       <tr>
-        <th colSpan={6} className="bg-slate-100 text-center h-8">
+        <th colSpan={6} className={section_header_class}>
           QUEJAS, OBSERVACIONES O RECLAMOS RECIBIDOS POR EL CLIENTE
         </th>
       </tr>
       <tr>
-        <td colSpan={6} className="h-10" />
+        <td
+          colSpan={6}
+          className="osi-quejas-body-cell h-10 text-center text-black"
+        >
+          —
+        </td>
       </tr>
     </>
   );
@@ -460,7 +656,6 @@ function OsiStDetalleUnificadoRows({
   detalleServicio,
   pretensionesItems,
   observacionesItems,
-  section_text_class,
 }: {
   stServicios?: OsiPreviewData["stServicios"];
   servicio: string | null;
@@ -470,25 +665,20 @@ function OsiStDetalleUnificadoRows({
     fuente: "SOLPED" | "OSI";
     contenido: string;
   }>;
-  observacionesItems: Array<{
-    servicio?: string;
-    fuente: "SOLPED" | "OSI";
-    contenido: string;
-  }>;
-  section_text_class: string;
+  observacionesItems: OsiObservacionDocumentItem[];
 }) {
   const has_st_servicios = (stServicios ?? []).length > 0;
   return (
     <>
       <tr>
-        <th colSpan={6} className={section_text_class}>
-          DETALLE DEL SERVICIO
-        </th>
-      </tr>
-      <tr>
         <td
           colSpan={6}
-          className="osi-long-text min-h-12 max-w-0 align-top relative !text-left px-2 py-2 text-black"
+          className={cn(
+            OSI_GROW_CELL_CLASS,
+            "osi-long-text min-h-12 max-w-0 relative !text-left px-2 py-2 text-black",
+          )}
+          data-osi-grow-weight="0.3"
+          data-osi-grow-base="72"
         >
           <div className="space-y-3 text-black">
             <div className="border-b border-dashed pb-2">
@@ -550,21 +740,7 @@ function OsiStDetalleUnificadoRows({
                 OBSERVACIONES ADICIONALES
               </div>
               {observacionesItems.length > 0 ? (
-                <div className="mt-1 space-y-2">
-                  {observacionesItems.map((item, idx) => (
-                    <div key={`st-obs-${idx}`}>
-                      <div className="text-[11px] font-bold uppercase text-black">
-                        {item.servicio
-                          ? `${item.servicio} — ${item.fuente}`
-                          : item.fuente}
-                      </div>
-                      <OsiRichHtmlContent
-                        content={item.contenido}
-                        className="text-black"
-                      />
-                    </div>
-                  ))}
-                </div>
+                <OsiObservacionesContent items={observacionesItems} />
               ) : (
                 <span className="text-black">N/A</span>
               )}
@@ -609,15 +785,12 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
         : data.sesionesSolped != null && data.sesionesSolped > 0
           ? data.sesionesSolped
           : null;
+  const form_meta = data.isCapacitacion ? OSI_FORM_META_CAP : OSI_FORM_META_ST;
   const cellHl = (on: boolean | undefined) =>
     on ? "bg-amber-50 ring-2 ring-amber-300 ring-inset" : "";
   const pretensiones_por_servicio = st_lines_with_field(
     data.stServicios,
     "pretensiones",
-  );
-  const observaciones_por_servicio = st_lines_with_field(
-    data.stServicios,
-    "observaciones",
   );
   const content_hidden = (key: string) => Boolean(data.publicCostMask?.[key]);
   const pretensiones_items: Array<{
@@ -647,54 +820,17 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
       });
     }
   }
-
-  const observaciones_items: Array<{
-    servicio?: string;
-    fuente: "SOLPED" | "OSI";
-    contenido: string;
-    maskKey?: string;
-  }> = [];
-  for (const svc of observaciones_por_servicio) {
-    const contenido = String(svc.observaciones ?? "").trim();
-    if (!contenido) continue;
-    const maskKey = `osi_content_hidden:obs:${observaciones_items.length}`;
-    observaciones_items.push({
-      servicio: svc.nombre,
-      fuente: "SOLPED",
-      contenido,
-      maskKey,
-    });
-  }
-  if (observaciones_items.length === 0) {
-    const obs_solped = String(data.observacionesSolped ?? "").trim();
-    if (obs_solped.length > 0) {
-      observaciones_items.push({
-        fuente: "SOLPED",
-        contenido: obs_solped,
-        maskKey: "osi_content_hidden:obs:base",
-      });
-    }
-  }
-  const obs_osi_solicitud = String(data.observacionesOsiSolicitud ?? "").trim();
-  const obs_osi_emision = String(data.observacionesOsi ?? "").trim();
-  const osi_observaciones_merged = [
-    obs_osi_solicitud.length > 0 &&
-    !content_hidden("osi_content_hidden:osi_solicitud_obs")
-      ? obs_osi_solicitud
-      : null,
-    obs_osi_emision.length > 0 ? obs_osi_emision : null,
-  ]
-    .filter((part): part is string => Boolean(part))
-    .join("\n\n");
-  if (osi_observaciones_merged.length > 0) {
-    observaciones_items.push({
-      fuente: "OSI",
-      contenido: osi_observaciones_merged,
-    });
-  }
   const pretensiones_items_visible = pretensiones_items.filter(
     (item) => !item.maskKey || !content_hidden(item.maskKey),
   );
+
+  const observaciones_items = build_osi_observaciones_document_items({
+    stServicios: data.stServicios,
+    observacionesSolped: data.observacionesSolped,
+    observacionesOsiSolicitud: data.observacionesOsiSolicitud,
+    observacionesOsi: data.observacionesOsi,
+    hideOsiSolicitud: content_hidden("osi_content_hidden:osi_solicitud_obs"),
+  });
   const observaciones_items_visible = observaciones_items.filter(
     (item) => !item.maskKey || !content_hidden(item.maskKey),
   );
@@ -706,27 +842,37 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
     data.sesionesFechaEjecutada,
   );
 
+  const show_desglose_tail =
+    recursos_layout.esPorSesion &&
+    recursos_layout.variaciones.length > 0 &&
+    recursos_layout.variacionColumnas.length > 0;
+
   const sheetRef = useRef<HTMLDivElement>(null);
-  const [printPageCount, setPrintPageCount] = useState(1);
 
   useEffect(() => {
-    const measure = () => {
-      const el = sheetRef.current;
-      if (!el) return;
-      const mmToPx = (mm: number) => mm * (96 / 25.4);
-      const pageHeightPx = mmToPx(OSI_PRINT_PAGE_HEIGHT_MM);
-      const height = el.scrollHeight;
-      setPrintPageCount(Math.max(1, Math.ceil(height / pageHeightPx)));
+    const reset_print_fill = () => {
+      const sheet = sheetRef.current;
+      if (!sheet) return;
+      distribute_osi_page1_fill(sheet, 0);
     };
-    measure();
-    const el = sheetRef.current;
-    if (!el) return;
-    const observer = new ResizeObserver(measure);
-    observer.observe(el);
-    window.addEventListener("beforeprint", measure);
+
+    const apply_print_fill = () => {
+      const sheet = sheetRef.current;
+      if (!sheet) return;
+      reset_print_fill();
+      const gap = compute_osi_page1_fill_gap(sheet);
+      if (gap > 0) {
+        distribute_osi_page1_fill(sheet, Math.round(gap * 0.88));
+      }
+    };
+
+    reset_print_fill();
+    window.addEventListener("beforeprint", apply_print_fill);
+    window.addEventListener("afterprint", reset_print_fill);
     return () => {
-      observer.disconnect();
-      window.removeEventListener("beforeprint", measure);
+      window.removeEventListener("beforeprint", apply_print_fill);
+      window.removeEventListener("afterprint", reset_print_fill);
+      reset_print_fill();
     };
   }, [data, recursos_layout]);
 
@@ -826,7 +972,17 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
           }
-          .osi-print-footer {
+          .osi-print-unit {
+            break-inside: avoid;
+            page-break-inside: avoid;
+          }
+          .osi-print-unit + .osi-print-unit {
+            margin-top: -1px;
+          }
+          .osi-print-grow {
+            vertical-align: top;
+          }
+          .osi-print-footer-flow {
             break-inside: avoid;
             page-break-inside: avoid;
           }
@@ -835,11 +991,17 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
             padding-top: 2px !important;
             padding-bottom: 2px !important;
           }
+          [data-osi-table] td.osi-quejas-body-cell {
+            height: 2.5rem !important;
+            min-height: 2.5rem !important;
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+          }
         }
       `}</style>
       <div ref={sheetRef} className="osi-print-sheet p-0.5 print:p-0">
         {/* Header section */}
-        <div className="mb-2 flex items-start justify-between gap-2">
+        <div className="osi-print-header mb-2 flex items-start justify-between gap-2">
           <div className="flex w-[170px] items-center">
             <img
               src={assets.logoSrc}
@@ -859,19 +1021,20 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
           <div className="w-[170px] text-[11px] text-slate-700">
             <div className="grid grid-cols-[60px_1fr] gap-x-2">
               <span className="font-bold">CÓDIGO</span>
-              <span>{OSI_FORM_META.codigo}</span>
+              <span>{form_meta.codigo}</span>
               <span className="font-bold">FECHA</span>
-              <span>{OSI_FORM_META.fecha}</span>
+              <span>{form_meta.fecha}</span>
               <span className="font-bold">REVISIÓN</span>
-              <span>{OSI_FORM_META.revision}</span>
-              <span className="font-bold">PÁGINA</span>
-              <span>1 de {printPageCount}</span>
+              <span>{form_meta.revision}</span>
             </div>
           </div>
         </div>
 
-        {/* Form Table */}
-        <table data-osi-table className="w-full table-fixed border-collapse border border-black text-[12px] [&_td]:border [&_td]:border-black [&_td]:px-2 [&_td]:py-2 [&_td]:align-middle [&_td]:text-center [&_th]:border [&_th]:border-black [&_th]:bg-slate-100 [&_th]:px-2 [&_th]:py-2 [&_th]:text-center [&_th]:text-[12px] [&_th]:font-bold [&_th]:uppercase">
+        {/* Bloque 1: inicio — detalle del servicio */}
+        <table
+          data-osi-table
+          className={cn(OSI_TABLE_CLASS, "osi-print-unit")}
+        >
           <tbody>
             <tr>
               <th>FECHA</th>
@@ -960,7 +1123,13 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
                 <tr>
                   <td
                     colSpan={6}
-                    className={cn("align-top relative !text-left", cellHl(hl.detalle))}
+                    className={cn(
+                      OSI_GROW_CELL_CLASS,
+                      "relative !text-left",
+                      cellHl(hl.detalle),
+                    )}
+                    data-osi-grow-weight="0.3"
+                    data-osi-grow-base="56"
                   >
                     <div className="absolute inset-x-0 bottom-0 top-0 flex items-center justify-center opacity-10">
                       <img
@@ -1033,11 +1202,6 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
                     />
                   </td>
                 </tr>
-                <OsiCapacitacionRecursosBlocks
-                  layout={recursos_layout}
-                  is_hidden={is_hidden}
-                  section_header_class={section_header_class}
-                />
               </>
             ) : (
               <>
@@ -1047,43 +1211,98 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
                   detalleServicio={data.detalleServicio}
                   pretensionesItems={pretensiones_items_visible}
                   observacionesItems={observaciones_items_visible}
-                  section_text_class={section_text_black_class}
                 />
-                <tr>
-                  <th className="text-left" colSpan={3}>
-                    FECHA PLANIFICADA DEL SERVICIO
-                  </th>
-                  <th className="text-left" colSpan={3}>
-                    FECHA EJECUTADA DEL SERVICIO
-                  </th>
-                </tr>
-                <tr>
-                  <td
-                    colSpan={3}
-                    className={cn("align-top", cellHl(hl.fechaServicio))}
-                  >
-                    <OsiSesionesDiaHoraTable
-                      sessions={sesiones_fecha_planificada_detalle}
-                    />
-                  </td>
-                  <td colSpan={3} className="align-top">
-                    <OsiSesionesDiaHoraTable
-                      sessions={sesiones_fecha_ejecutada_detalle}
-                      emptyFallback="—"
-                    />
-                  </td>
-                </tr>
-                <OsiStRecursosBlocks
-                  layout={recursos_layout}
-                  is_hidden={is_hidden}
-                  section_header_class={section_header_class}
+                <OsiStFechasServicioRows
+                  planificadas={
+                    data.stFechasPlanificadas ?? {
+                      reunionPreProyecto: null,
+                      diasCampo: { inicio: null, fin: null },
+                      diasInforme: { inicio: null, fin: null },
+                      diasRevision: { inicio: null, fin: null },
+                    }
+                  }
+                  ejecutadas={
+                    data.stFechasEjecutadas ?? {
+                      reunionPreProyecto: null,
+                      diasCampo: { inicio: null, fin: null },
+                      diasInforme: { inicio: null, fin: null },
+                      diasRevision: { inicio: null, fin: null },
+                    }
+                  }
+                  servicio_ejecutado={Boolean(data.stServicioEjecutado)}
+                  highlight={hl.fechaServicio}
                 />
               </>
             )}
+          </tbody>
+        </table>
 
-            <OsiQuejasClienteRows />
+        {/* Bloque 2: recursos estimados para el servicio */}
+        <table
+          data-osi-table
+          className={cn(OSI_TABLE_CLASS, "osi-print-unit")}
+        >
+          <tbody>
+            {data.isCapacitacion ? (
+              <OsiCapacitacionRecursosBlocks
+                layout={recursos_layout}
+                is_hidden={is_hidden}
+                section_header_class={section_header_class}
+                include_desglose={false}
+              />
+            ) : (
+              <OsiStRecursosBlocks
+                layout={recursos_layout}
+                is_hidden={is_hidden}
+                section_header_class={section_header_class}
+                include_desglose={false}
+              />
+            )}
+          </tbody>
+        </table>
 
-            <OsiEstatusOsiRows label={data.estatusOsiLabel || "N/A"} />
+        {/* Cola: cada sub-bloque evita corte interno pero puede empezar en pág. 1 si cabe */}
+        {data.isCapacitacion || show_desglose_tail ? (
+          <table
+            data-osi-table
+            className={cn(OSI_TABLE_CLASS, "osi-print-unit", "osi-print-tail")}
+          >
+            <tbody>
+              {data.isCapacitacion ? (
+                <OsiCapDesgloseDiarioRows
+                  layout={recursos_layout}
+                  section_header_class={section_header_class}
+                  maskMonetary={is_hidden("gran_total")}
+                />
+              ) : (
+                <OsiRecursosVariacionesRows
+                  layout={recursos_layout}
+                  section_header_class={section_header_class}
+                  maskMonetary={is_hidden("gran_total")}
+                />
+              )}
+            </tbody>
+          </table>
+        ) : null}
+
+        <table
+          data-osi-table
+          className={cn(OSI_TABLE_CLASS, "osi-print-unit", "osi-print-tail")}
+        >
+          <tbody>
+            <OsiQuejasClienteRows section_header_class={section_header_class} />
+          </tbody>
+        </table>
+
+        <table
+          data-osi-table
+          className={cn(OSI_TABLE_CLASS, "osi-print-unit", "osi-print-tail")}
+        >
+          <tbody>
+            <OsiEstatusOsiRows
+              label={data.estatusOsiLabel || "N/A"}
+              section_header_class={section_header_class}
+            />
 
             {data.showCierreSection ? (
               <OsiCierreServicioRows section_header_class={section_header_class} />
@@ -1091,8 +1310,8 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
           </tbody>
         </table>
 
-        {/* Footer */}
-        <div className="osi-print-footer mt-1 w-full">
+        {/* Pie pegado al contenido (pantalla e impresión) */}
+        <div className="osi-print-footer-flow mt-0 w-full">
           <img
             src={assets.footerSrc}
             alt="Pie institucional"

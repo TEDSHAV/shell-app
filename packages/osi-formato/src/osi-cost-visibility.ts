@@ -6,6 +6,8 @@ export type OsiCostVisibilityConfigRow = {
   allowed_departamento_ids: number[];
   default_public_cost_mask: Record<string, boolean>;
   default_hide_monetary: boolean;
+  /** Solo servicios_tecnicos: días por defecto en seguimiento de garantía (ej. 15 → "15 días"). */
+  default_st_garantia_dias: number;
 };
 
 export type OsiCostVisibilityUserContext = {
@@ -40,6 +42,12 @@ function parse_json_number_array(value: unknown): number[] {
   return out;
 }
 
+function parse_positive_int(value: unknown, fallback: number): number {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return fallback;
+  return Math.round(n);
+}
+
 function parse_mask_record(value: unknown): Record<string, boolean> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   const out: Record<string, boolean> = {};
@@ -63,6 +71,10 @@ export function parse_osi_cost_visibility_row(
     ),
     default_public_cost_mask: parse_mask_record(row.default_public_cost_mask),
     default_hide_monetary: Boolean(row.default_hide_monetary),
+    default_st_garantia_dias:
+      formato === "servicios_tecnicos"
+        ? parse_positive_int(row.default_st_garantia_dias, 15)
+        : 15,
   };
 }
 

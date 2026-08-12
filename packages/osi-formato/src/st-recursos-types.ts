@@ -1,4 +1,4 @@
-export type OsiStTrasladoTipo = "urbano" | "extraurbano" | "rutas";
+export type OsiStTrasladoTipo = "urbano" | "extraurbano";
 
 export type OsiStTrasladoRow = {
   tipo: OsiStTrasladoTipo;
@@ -26,7 +26,6 @@ export type OsiStRecursosPayload = {
 export const OSI_ST_TRASLADO_LABELS: Record<OsiStTrasladoTipo, string> = {
   urbano: "Urbano",
   extraurbano: "Extraurbano",
-  rutas: "Rutas",
 };
 
 export function round_osi_money(value: number): number {
@@ -42,10 +41,10 @@ export function aggregate_st_traslados(
     const total = round_osi_money(
       (Number(row.cantidad) || 0) * (Number(row.costo_unidad) || 0),
     );
-    if (row.tipo === "rutas") {
-      traslado_externo = round_osi_money(traslado_externo + total);
-    } else {
+    if (row.tipo === "urbano") {
       costo_traslado = round_osi_money(costo_traslado + total);
+    } else {
+      traslado_externo = round_osi_money(traslado_externo + total);
     }
   }
   return { costo_traslado, traslado_externo };
@@ -53,15 +52,16 @@ export function aggregate_st_traslados(
 
 export function parse_st_traslados_json(value: unknown): OsiStTrasladoRow[] {
   if (!Array.isArray(value)) return [];
-  const valid: OsiStTrasladoTipo[] = ["urbano", "extraurbano", "rutas"];
+  const valid: OsiStTrasladoTipo[] = ["urbano", "extraurbano"];
   return value
     .map((raw) => {
       if (!raw || typeof raw !== "object") return null;
       const row = raw as Record<string, unknown>;
-      const tipo = String(row.tipo ?? "").trim() as OsiStTrasladoTipo;
-      if (!valid.includes(tipo)) return null;
+      let tipo = String(row.tipo ?? "").trim();
+      if (tipo === "rutas") tipo = "extraurbano";
+      if (!valid.includes(tipo as OsiStTrasladoTipo)) return null;
       return {
-        tipo,
+        tipo: tipo as OsiStTrasladoTipo,
         cantidad: Number(row.cantidad ?? 0) || 0,
         costo_unidad: Number(row.costo_unidad ?? 0) || 0,
       };

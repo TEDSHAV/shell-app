@@ -55,8 +55,16 @@ function to_display_html(value: string | null | undefined): string {
   return sanitize_rich_html(plain_text_to_html(raw));
 }
 
+export function strip_legacy_osi_concat_markers(value: string): string {
+  return value
+    .replace(/\s*\|\s*ADICIONAL OSI:\s*/gi, "\n\n")
+    .replace(/\s*\|\s*OBS\.\s*EJECUCIÓN:\s*/gi, "\n\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 export function merged_content_to_display_html(value: string): string {
-  const raw = value.trim();
+  const raw = strip_legacy_osi_concat_markers(value.trim());
   if (!raw || raw === "N/A") return "N/A";
   const sections = raw.split(/\n\n+/).map((s) => s.trim()).filter(Boolean);
   if (sections.length === 0) return "N/A";

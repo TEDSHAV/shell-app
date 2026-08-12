@@ -10,7 +10,17 @@ import {
 import { formatOsiSecuencialNro } from "./secuencial-display";
 import { parse_st_traslados_json } from "./st-recursos-types";
 import { build_osi_st_servicio_lines } from "./st-servicio-lines";
-import { resolve_show_cierre_section, resolve_osi_estatus_document_label } from "./osi-status-display";
+import {
+  OSI_PREVIEW_ESTATUS,
+  resolve_show_cierre_section,
+  resolve_osi_estatus_document_label,
+} from "./osi-status-display";
+import {
+  build_st_fechas_ejecutadas_vacias,
+  build_st_fechas_planificadas,
+  resolve_osi_st_garantia_display,
+  resolve_st_fecha_reunion_pre_proyecto,
+} from "./st-fechas-document";
 
 type GenericRow = Record<string, unknown>;
 
@@ -29,6 +39,8 @@ export type BuildOsiPreviewInput = {
   cap_cierre_certificados_step_completed?: boolean;
   /** Filas osi_sesion para fechas planificada / ejecutada en documento Cap. */
   osi_sesiones?: GenericRow[];
+  /** ST: días por defecto para seguimiento de garantía (reglas OSI). */
+  st_default_garantia_dias?: number;
 };
 
 function to_num(value: unknown): number {
@@ -389,6 +401,25 @@ export function build_osi_preview_data(input: BuildOsiPreviewInput): OsiPreviewD
     ? format_date_for_doc(view_row.fecha_emision)
     : fecha_documento;
 
+  const st_default_garantia_dias =
+    Number.isFinite(input.st_default_garantia_dias) &&
+    Number(input.st_default_garantia_dias) > 0
+      ? Math.round(Number(input.st_default_garantia_dias))
+      : 15;
+  const st_garantia_display = resolve_osi_st_garantia_display(
+    to_str(view_row.st_seguimiento_garantia),
+    st_default_garantia_dias,
+  );
+  const reunion_pre_proyecto = resolve_st_fecha_reunion_pre_proyecto(
+    to_str(view_row.fecha_inicio_real),
+    sesiones_programadas_exec,
+  );
+  const st_fechas_planificadas = build_st_fechas_planificadas(
+    reunion_pre_proyecto,
+  );
+  const st_servicio_ejecutado =
+    to_num(view_row.id_estatus) === OSI_PREVIEW_ESTATUS.EJECUTADO;
+
   return {
     nroOsi: formatOsiSecuencialNro(view_row.nro_osi),
     nroTrato: id_trato > 0 ? String(id_trato) : null,
@@ -476,7 +507,12 @@ export function build_osi_preview_data(input: BuildOsiPreviewInput): OsiPreviewD
       to_num(view_row.cantidad_dias_revision_interna),
     stAnalistas: to_num(view_row.st_analistas) || to_num(view_row.cantidad_analistas),
     stOtrosTexto: to_str(view_row.st_otros_texto) || null,
-    stSeguimientoGarantia: to_str(view_row.st_seguimiento_garantia) || null,
+    stSeguimientoGarantia: st_garantia_display,
+    stFechasPlanificadas: is_capacitacion ? undefined : st_fechas_planificadas,
+    stFechasEjecutadas: is_capacitacion
+      ? undefined
+      : build_st_fechas_ejecutadas_vacias(),
+    stServicioEjecutado: is_capacitacion ? undefined : st_servicio_ejecutado,
     stLogisticaRecursos:
       to_num(view_row.st_logistica_recursos) ||
       to_num(view_row.st_analistas) ||
