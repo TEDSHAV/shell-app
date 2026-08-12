@@ -8,7 +8,7 @@ import { deleteRequisicionRecord, setRequisicionEstatus, markAllItemsVerificadas
 import { Eye, Edit, Trash2, Lock, CheckCircle2, Undo2, XCircle, CalendarClock, AlertTriangle, PackageCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/utils";
-import { mapGerenciaSolicitante } from "@/lib/requisiciones-gerencia";
+import { mapGerenciaSolicitante, getRequisicionDisplayDate } from "@/lib/requisiciones-gerencia";
 import MotivoModal from "./MotivoModal";
 
 // Exact, case-insensitive department name match (trimmed).
@@ -295,11 +295,12 @@ export default function RequisicionRow({
       </td>
       <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
         <div className="flex items-center gap-2">
-          {executionDate
-            ? formatDate(new Date(executionDate + "T00:00:00"))
-            : record.fecha_solicitud
-              ? formatDate(new Date(record.fecha_solicitud + "T00:00:00"))
-              : "-"}
+          {(() => {
+            const displayDate = getRequisicionDisplayDate(record);
+            return displayDate
+              ? formatDate(new Date(displayDate + "T00:00:00"))
+              : "-";
+          })()}
           {executionBadge && (
             <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
               executionBadge.color === "red" ? "bg-red-100 text-red-700" :

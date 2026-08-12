@@ -98,3 +98,24 @@ export function resolveInternaApprovalGerencia(
 export function isInternaLiderOverrideDept(deptName: string | null | undefined): boolean {
   return resolveInternaApprovalGerencia(deptName) !== null;
 }
+
+// Returns the date string (YYYY-MM-DD) used to display a requisicion in the
+// list's "Fecha" column. This MUST match the value rendered by RequisicionRow
+// so the date filters compare against the same date the user sees:
+//   1. The selected session's fecha (when id_sesion is set and found)
+//   2. The OSI's fecha_inicio_real
+//   3. The requisicion's fecha_solicitud
+//   4. "" when none are present
+//
+// Values are sliced to 10 chars (YYYY-MM-DD) so lexicographic comparison
+// against the <input type="date"> filter values stays correct even if a source
+// returns a full timestamp.
+export function getRequisicionDisplayDate(record: any): string {
+  const sesiones = record?.v_osi_formato_completo?.desglose_recursos_sesiones as any[] | null | undefined;
+  const selectedSesion = record?.id_sesion
+    ? (sesiones || []).find((s) => s?.id_sesion === record.id_sesion)
+    : null;
+  const executionDate = selectedSesion?.fecha || record?.v_osi_formato_completo?.fecha_inicio_real;
+  const value = executionDate || record?.fecha_solicitud || "";
+  return typeof value === "string" ? value.slice(0, 10) : "";
+}

@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/select";
 import { RequisicionFilters, EstatusAdmin } from "@/types/requisiciones";
 import RequisicionRow from "./RequisicionRow";
-import { mapGerenciaSolicitante } from "@/lib/requisiciones-gerencia";
+import { mapGerenciaSolicitante, getRequisicionDisplayDate } from "@/lib/requisiciones-gerencia";
 import { Search, X, ChevronLeft, ChevronRight } from "lucide-react";
 
 const PAGE_SIZE_OPTIONS = [10, 30, 50];
@@ -139,10 +139,14 @@ export default function RequisicionesTable({
         if (estatus !== filters.estatus) return false;
       }
 
-      if (filters.fechaDesde && (!r.fecha_solicitud || r.fecha_solicitud < filters.fechaDesde)) {
+      // Filter on the date the user actually sees in the "Fecha" column
+      // (execution date, falling back to fecha_solicitud) so the filter and
+      // the display never disagree.
+      const displayDate = getRequisicionDisplayDate(r);
+      if (filters.fechaDesde && (!displayDate || displayDate < filters.fechaDesde)) {
         return false;
       }
-      if (filters.fechaHasta && (!r.fecha_solicitud || r.fecha_solicitud > filters.fechaHasta)) {
+      if (filters.fechaHasta && (!displayDate || displayDate > filters.fechaHasta)) {
         return false;
       }
 
@@ -383,17 +387,31 @@ export default function RequisicionesTable({
         )}
       </div>
 
-      {/* Admin summary counter */}
-      {isAdminView && (
-        <div className="flex gap-3 text-xs">
-          <span className="px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium">
-            Aprobadas: {records.filter((r) => r.estatus_admin === "procesada").length}
-          </span>
-          <span className="px-2 py-1 rounded-full bg-red-50 text-red-700 border border-red-200 font-medium">
-            Rechazadas: {records.filter((r) => r.estatus_admin === "rechazada").length}
-          </span>
-        </div>
-      )}
+      {/* Results counter — sits next to the admin summary badges so the total
+          (with or without filters) is visible at a glance. */}
+      <div className="flex gap-3 text-xs">
+        <span
+          className={`px-2 py-1 rounded-full border font-medium ${
+            hasActiveFilters
+              ? "bg-blue-50 text-blue-700 border-blue-200"
+              : "bg-gray-100 text-gray-700 border-gray-200"
+          }`}
+        >
+          {hasActiveFilters
+            ? `${filtered.length} de ${records.length} filtrado${filtered.length !== 1 ? "s" : ""}`
+            : `${records.length} requisicion${records.length !== 1 ? "es" : ""}`}
+        </span>
+        {isAdminView && (
+          <>
+            <span className="px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium">
+              Aprobadas: {records.filter((r) => r.estatus_admin === "procesada").length}
+            </span>
+            <span className="px-2 py-1 rounded-full bg-red-50 text-red-700 border border-red-200 font-medium">
+              Rechazadas: {records.filter((r) => r.estatus_admin === "rechazada").length}
+            </span>
+          </>
+        )}
+      </div>
 
       <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
