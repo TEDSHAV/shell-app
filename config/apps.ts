@@ -284,6 +284,12 @@ export const apps: AppConfig[] = [
             icon: FileCheck,
             requiredPermissions: ["finance:osi:edit"],
           },
+          {
+            label: "Configurar costos OSI",
+            path: "/ingenieria/osi-visibilidad-costos",
+            icon: Shield,
+            requiredRoles: ["admin", "superadmin"],
+          },
         ],
       },
       {
