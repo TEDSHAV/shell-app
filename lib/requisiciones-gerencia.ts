@@ -1,6 +1,15 @@
 // Maps a user's department name to the corresponding "Gerencia Solicitante".
-// Used by the requisiciones form so the Gerencia field reflects the
-// organizational grouping rather than the literal department.
+//
+// This is a FALLBACK only. The primary source of truth is the DB's
+// `departamentos.gerencia` column (a FK to `gerencias.nombre`), which is read
+// by `getCurrentUser()` (server-side) and `getRequisicionRecord()` (for display).
+// This hardcoded mapping is used when:
+//   1. The DB gerencia is empty/missing (edge case)
+//   2. A legacy record has no `departamento` and we need to derive the gerencia
+//      from the stored `gerencia_solicitante` in list views (no per-record DB
+//      lookup is feasible there)
+//
+// If the DB mapping changes, update this function to stay in sync.
 //
 // Mapping:
 //   Capacitacion, Servicios Tecnicos, Calidad, SIG, SSST -> "Servicios"

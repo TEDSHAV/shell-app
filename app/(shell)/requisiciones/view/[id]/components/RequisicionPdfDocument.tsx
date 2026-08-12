@@ -271,6 +271,9 @@ export default function RequisicionPdfDocument({
         record.banco ? `Banco: ${record.banco}` : null,
         record.nro_cuenta ? `Cuenta: ${record.nro_cuenta}` : null,
         record.telefono_facilitador ? `Teléfono: ${record.telefono_facilitador}` : null,
+        record.tasa_cambio != null
+          ? `Tasa USD→VES: ${Number(record.tasa_cambio)}${record.tasa_cambio_at ? ` (guardada el ${new Date(record.tasa_cambio_at).toLocaleDateString("es-VE")})` : ""}`
+          : null,
       ]
         .filter(Boolean)
         .join(" | ")
@@ -358,7 +361,7 @@ export default function RequisicionPdfDocument({
               <Text>Gerencia solicitante:</Text>
             </View>
             <View style={[styles.cellValue, { width: "25%" }]}>
-              <Text>{record.gerencia_solicitante || "-"}</Text>
+              <Text>{record.gerencia_display || record.gerencia_solicitante || "-"}</Text>
             </View>
             <View style={[styles.cellLabel, { width: "25%" }]}>
               <Text>Departamento:</Text>

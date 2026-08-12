@@ -93,9 +93,18 @@ export default async function ViewRequisicionPage({
             </Button>
           </Link>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">
-              Detalle de Requisición
-            </h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold text-gray-900">
+                Detalle de Requisición
+              </h1>
+              <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold uppercase ${
+                record.tipo_solicitud === "Interno"
+                  ? "bg-blue-100 text-blue-800"
+                  : "bg-green-100 text-green-800"
+              }`}>
+                {record.tipo_solicitud === "Interno" ? "Interna" : "Externa"}
+              </span>
+            </div>
             <p className="text-sm text-gray-600">
               Vista de lectura del registro {record.nro_correlativo}
             </p>

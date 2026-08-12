@@ -51,7 +51,13 @@ export default function RequisicionView({
   const [localFixedItems, setLocalFixedItems] = useState<OSIFixedItem[]>(record.osi_fixed_items || []);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
-  const [exchangeRateInput, setExchangeRateInput] = useState<string>("");
+  // Exchange rate: if the requisicion was already processed and has a stored
+  // rate snapshot (tasa_cambio), use it as the initial value and mark it as
+  // read-only. Otherwise, start empty and let the live-fetch effect populate it.
+  const hasStoredRate = record.tasa_cambio != null && !isNaN(Number(record.tasa_cambio));
+  const [exchangeRateInput, setExchangeRateInput] = useState<string>(
+    hasStoredRate ? String(record.tasa_cambio) : ""
+  );
   const [isLoadingRate, setIsLoadingRate] = useState(false);
 
   // Editable facilitador banking fields (admin only)
@@ -60,7 +66,11 @@ export default function RequisicionView({
   const [editTelefono, setEditTelefono] = useState<string>(record.telefono_facilitador || "");
   const [editCedula, setEditCedula] = useState<string>(record.cedula_facilitador || "");
   const [editRif, setEditRif] = useState<string>(record.rif_facilitador || "");
+  const [isSavingBanking, setIsSavingBanking] = useState(false);
   const isGeneralMode = record.tipo_solicitud === "Interno";
+  // Use the DB-resolved gerencia (departamentos.gerencia) when available, falling
+  // back to the stored gerencia_solicitante for legacy records.
+  const displayGerencia = record.gerencia_display || record.gerencia_solicitante;
   // Capacitacion-specific behavior is driven by the stored department (preferred)
   // and falls back to gerencia_solicitante for legacy records.
   const isCapacitacionForRate = !isGeneralMode && (
@@ -104,10 +114,22 @@ export default function RequisicionView({
   const [liderRejectOpen, setLiderRejectOpen] = useState(false);
 
   // --- Approver inline-edit state ---
-  // When the current user is the pending approver (lider for internas, coordinador
-  // / lider-fallback for externas), they can edit the requisicion's content before
-  // approving. The original_snapshot is preserved so the solicitor sees a diff.
-  const canApproverEdit = canLiderAct || canExternasApproverAct;
+  // The approver (lider for internas, coordinador/lider-fallback for externas) can
+  // edit the requisicion's content while the approval is pending OR after they've
+  // already approved (they may realize they need to change something before
+  // Administración processes it) — but NOT after a rejection or after admin has
+  // processed it. The original_snapshot is preserved so the solicitor sees a diff.
+  const adminProcessed = record.estatus_admin === "procesada" || record.estatus_admin === "rechazada";
+  const canLiderEditPostApproval = isLiderAprobada && !adminProcessed && liderDeptMatches && !isAdminView;
+  const canCoordinadorEditPostApproval = isCoordinadorAprobada && !adminProcessed && coordinadorDeptMatches && !isAdminView;
+  const canLiderFallbackEditPostApproval = isCoordinadorAprobada && !adminProcessed && isLider
+    && !coordinadorDeptMatches
+    && deptInList(record.departamento, liderFallbackDepts);
+  const canApproverEdit =
+    canLiderAct || canExternasApproverAct
+    || canLiderEditPostApproval
+    || canCoordinadorEditPostApproval
+    || canLiderFallbackEditPostApproval;
   const [editedItems, setEditedItems] = useState<any[]>(record.additional_items || []);
   const [editedObservaciones, setEditedObservaciones] = useState<string>(record.observaciones_compras || "");
   const [editedPrioridad, setEditedPrioridad] = useState<string>(record.prioridad || "");
@@ -163,7 +185,9 @@ export default function RequisicionView({
   };
 
   useEffect(() => {
-    if (!isCapacitacionForRate) return;
+    // Skip the live fetch if we already have a stored rate snapshot — the
+    // historical rate is what matters for processed requisiciones.
+    if (!isCapacitacionForRate || hasStoredRate) return;
     let cancelled = false;
     (async () => {
       setIsLoadingRate(true);
@@ -283,6 +307,21 @@ export default function RequisicionView({
     });
   };
 
+  // Standalone save for the facilitador banking details section (admin only).
+  const handleSaveBankingDetails = async () => {
+    setIsSavingBanking(true);
+    try {
+      await saveBankingDetails();
+      alert("Datos del facilitador guardados correctamente.");
+      router.refresh();
+    } catch (error) {
+      console.error("Error saving banking details:", error);
+      alert(error instanceof Error ? error.message : "Error al guardar los datos del facilitador.");
+    } finally {
+      setIsSavingBanking(false);
+    }
+  };
+
   const handleSetEstatus = async (target: "pendiente" | "procesada" | "rechazada") => {
     // Rejection is handled via the MotivoModal (which captures a reason).
     if (target === "rechazada") {
@@ -293,7 +332,9 @@ export default function RequisicionView({
       if (!confirm(`Hay ${verifiedCount} de ${totalCount} items verificados. ¿Marcar todos como Listo y procesar?`)) return;
       setIsUpdating(true);
       try {
-        await saveBankingDetails();
+        // Save banking details as a best-effort side effect — a banking failure
+        // should NOT block processing.
+        try { await saveBankingDetails(); } catch (e) { console.error("Banking details save failed (non-blocking):", e); }
         await markAllItemsVerificadas(record.id);
         setLocalItems(prev => prev.map(item => ({ ...item, verificacion: "listo" as const })));
         setLocalFixedItems(prev => prev.map(fi => ({
@@ -303,7 +344,7 @@ export default function RequisicionView({
           verificacion_honorarios: "listo" as const,
           verificacion_informe_final: "listo" as const,
         })));
-        await setRequisicionEstatus(record.id, "procesada");
+        await setRequisicionEstatus(record.id, "procesada", undefined, parseFloat(exchangeRateInput) || null);
         router.refresh();
       } catch (error) {
         console.error("Error updating estatus:", error);
@@ -321,9 +362,10 @@ export default function RequisicionView({
     setIsUpdating(true);
     try {
       if (target === "procesada") {
-        await saveBankingDetails();
+        // Best-effort: don't let a banking failure block the estatus change.
+        try { await saveBankingDetails(); } catch (e) { console.error("Banking details save failed (non-blocking):", e); }
       }
-      await setRequisicionEstatus(record.id, target);
+      await setRequisicionEstatus(record.id, target, undefined, target === "procesada" ? (parseFloat(exchangeRateInput) || null) : undefined);
       router.refresh();
     } catch (error) {
       console.error("Error updating estatus:", error);
@@ -416,7 +458,9 @@ export default function RequisicionView({
   const handleSaveProgress = async () => {
     setIsUpdating(true);
     try {
-      await saveBankingDetails();
+      // Save banking details as a best-effort side effect — a banking failure
+      // should NOT block the verification progress save.
+      try { await saveBankingDetails(); } catch (e) { console.error("Banking details save failed (non-blocking):", e); }
       const result = await saveVerificacionProgress(record.id);
       alert(`Notificación enviada al solicitante: ${result.verifiedCount} de ${result.totalCount} items verificados.`);
       router.refresh();
@@ -624,12 +668,14 @@ export default function RequisicionView({
         />
       )}
 
-      {/* Approver edit bar — shown when the current user is the pending approver */}
+      {/* Approver edit bar — shown when the current user can edit as approver */}
       {canApproverEdit && (
         <div className="mb-4 flex flex-wrap items-center gap-3 px-4 py-3 bg-blue-50 border border-blue-300 rounded-lg">
           <AlertTriangle className="h-4 w-4 text-blue-700 flex-shrink-0" />
           <span className="text-xs text-blue-800 font-medium">
-            Puede modificar el contenido de esta requisición antes de aprobar. El solicitante verá los cambios.
+            {canLiderAct || canExternasApproverAct
+              ? "Puede modificar el contenido de esta requisición antes de aprobar. El solicitante verá los cambios."
+              : "Puede modificar el contenido de esta requisición antes de que Administración la procese. El solicitante verá los cambios."}
           </span>
           <Button
             type="button"
@@ -887,7 +933,7 @@ export default function RequisicionView({
               <span className="font-bold text-sm">Gerencia solicitante:</span>
             </div>
             <div className="col-span-3 p-3 border-r border-gray-300 flex items-center uppercase font-medium">
-              {record.gerencia_solicitante || "-"}
+              {displayGerencia || "-"}
             </div>
             <div className="col-span-3 p-3 border-r border-gray-300 bg-gray-50 flex flex-col justify-center">
               <span className="font-bold text-sm">Departamento:</span>
@@ -1624,6 +1670,23 @@ export default function RequisicionView({
             </div>
           </div>
 
+          {/* Save banking details button (admin only) */}
+          {isAdminView && hasFacilitador && (
+            <div className="flex justify-end p-2 border-b border-gray-300">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isSavingBanking}
+                onClick={handleSaveBankingDetails}
+                className="h-7 px-3 text-xs flex gap-1 border-blue-300 text-blue-700 hover:bg-blue-50"
+              >
+                <Save className="h-3.5 w-3.5" />
+                Guardar Datos Facilitador
+              </Button>
+            </div>
+          )}
+
           {/* Exchange rate row */}
           <div className="grid grid-cols-12 text-xs h-12 border-b border-gray-300">
             <div className="col-span-3 p-2 border-r border-gray-300 bg-gray-50 flex items-center font-bold">
@@ -1635,9 +1698,17 @@ export default function RequisicionView({
                 value={exchangeRateInput}
                 onChange={(e) => setExchangeRateInput(e.target.value)}
                 placeholder={isLoadingRate ? "Cargando..." : "Ingrese tasa"}
-                disabled={isLoadingRate}
-                className="w-full px-2 py-1 text-xs border border-gray-300 rounded font-medium focus:outline-none focus:ring-1 focus:ring-blue-400"
+                disabled={isLoadingRate || hasStoredRate}
+                readOnly={hasStoredRate}
+                className={`w-full px-2 py-1 text-xs border border-gray-300 rounded font-medium focus:outline-none focus:ring-1 focus:ring-blue-400 ${
+                  hasStoredRate ? "bg-gray-100 text-gray-600 cursor-not-allowed" : ""
+                }`}
               />
+              {hasStoredRate && (
+                <span className="text-[9px] text-gray-400 whitespace-nowrap" title={`Guardada el ${record.tasa_cambio_at ? new Date(record.tasa_cambio_at).toLocaleString("es-VE") : ""}`}>
+                  (guardada)
+                </span>
+              )}
             </div>
             <div className="col-span-3 p-2 border-r border-gray-300 bg-gray-50 flex items-center font-bold">
               Monto Total VES:

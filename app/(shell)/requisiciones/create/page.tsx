@@ -23,6 +23,7 @@ export default async function CreateRequisicionPage() {
   ]);
 
   const userDept = userData?.departamentos?.nombre || "";
+  const userGerencia = userData?.departamentos?.gerencia || "";
   const [canPlaceInternaFlag, isLiderFlag] = await Promise.all([
     canPlaceInterna(userDept),
     isRequisicionesLider(),
@@ -39,6 +40,7 @@ export default async function CreateRequisicionPage() {
         facilitators={facilitators}
         userData={userData}
         userDept={userDept}
+        userGerencia={userGerencia}
         banks={banks}
         osiSessions={osiSessions}
         canPlaceInterna={canPlaceInternaFlag}

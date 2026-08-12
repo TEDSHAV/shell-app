@@ -493,7 +493,7 @@ export async function getCurrentUser() {
 
   const { data, error } = await supabase
     .from("usuarios")
-    .select("*, departamentos!usuarios_departamento_fkey(nombre)")
+    .select("*, departamentos!usuarios_departamento_fkey(nombre, gerencia)")
     .eq("id_auth", user.id)
     .single();
 
@@ -805,6 +805,24 @@ export async function getRequisicionRecord(id: number) {
         (data as Record<string, unknown>).aprobador_edito_por_nombre = approverUser?.nombre_apellido || null;
       })(),
     );
+  }
+
+  // Resolve the gerencia from the DB (departamentos.gerencia) for accurate display.
+  // Falls back to the stored gerencia_solicitante for legacy records without a
+  // departamento, or to mapGerenciaSolicitante as a last resort.
+  if (data?.departamento) {
+    promises.push(
+      (async () => {
+        const { data: dept } = await supabase
+          .from("departamentos")
+          .select("gerencia")
+          .ilike("nombre", data.departamento!)
+          .maybeSingle();
+        (data as Record<string, unknown>).gerencia_display = dept?.gerencia || data.gerencia_solicitante || null;
+      })(),
+    );
+  } else {
+    (data as Record<string, unknown>).gerencia_display = data?.gerencia_solicitante || null;
   }
 
   if (verificadorIds.size > 0) {
@@ -1298,6 +1316,7 @@ export async function setRequisicionEstatus(
   id: number,
   estatus: "pendiente" | "procesada" | "rechazada",
   motivoRechazo?: string,
+  tasaCambio?: number | null,
 ) {
   if (!(await isRequisicionesAdmin())) {
     throw new Error("No tiene permisos para cambiar el estatus de requisiciones.");
@@ -1321,12 +1340,31 @@ export async function setRequisicionEstatus(
   if (estatus === "rechazada") {
     update.motivo_rechazo = motivoRechazo!.trim();
   }
+  // Snapshot the exchange rate when processing so future views show the rate
+  // that was actually used at payment time, not today's live rate.
+  if (estatus === "procesada" && tasaCambio != null && !isNaN(tasaCambio)) {
+    update.tasa_cambio = tasaCambio;
+    update.tasa_cambio_at = new Date().toISOString();
+  }
 
   const adminClient = await createAdminClient();
-  const { error } = await adminClient
+  let { error } = await adminClient
     .from("requisiciones")
     .update(update)
     .eq("id", id);
+
+  // If the tasa_cambio columns don't exist yet (migration not applied), retry
+  // without them so the estatus change still goes through.
+  if (error && (error.message || "").includes("column") && (error.message || "").includes("does not exist")) {
+    console.warn("[setRequisicionEstatus] tasa_cambio columns not found, retrying without rate snapshot");
+    const { tasa_cambio, tasa_cambio_at, ...updateWithoutRate } = update;
+    void tasa_cambio; void tasa_cambio_at;
+    const retry = await adminClient
+      .from("requisiciones")
+      .update(updateWithoutRate)
+      .eq("id", id);
+    error = retry.error;
+  }
 
   if (error) {
     console.error("[setRequisicionEstatus] Supabase update error:", JSON.stringify(error));
@@ -1701,14 +1739,14 @@ export async function updateRequisicionByApprover(
   let fetchError: any;
   ({ data: existing, error: fetchError } = await admin
     .from("requisiciones")
-    .select("tipo_solicitud, lider_estatus, coordinador_estatus, departamento, created_by, original_snapshot, aprobador_edito, additional_items, observaciones_compras, prioridad, corresponde_a, fecha_solicitud, solicitante, gerencia_solicitante, tipo_servicio, id_sesion, cant_traslado, cant_impresion, cant_honorarios, cant_informe_final, dias_traslado, costo_traslado, impresion_total, honorarios_horas, honorarios_costo_hora, honorarios_total, informe_final_total, facilitador, cod_facilitador, cedula_facilitador, rif_facilitador, telefono_facilitador, banco, nro_cuenta, osi_fixed_items")
+    .select("tipo_solicitud, estatus_admin, lider_estatus, coordinador_estatus, departamento, created_by, original_snapshot, aprobador_edito, additional_items, observaciones_compras, prioridad, corresponde_a, fecha_solicitud, solicitante, gerencia_solicitante, tipo_servicio, id_sesion, cant_traslado, cant_impresion, cant_honorarios, cant_informe_final, dias_traslado, costo_traslado, impresion_total, honorarios_horas, honorarios_costo_hora, honorarios_total, informe_final_total, facilitador, cod_facilitador, cedula_facilitador, rif_facilitador, telefono_facilitador, banco, nro_cuenta, osi_fixed_items")
     .eq("id", id)
     .single());
 
   if (fetchError && (fetchError.message || "").includes("column") && (fetchError.message || "").includes("does not exist")) {
     const fallback = await admin
       .from("requisiciones")
-      .select("tipo_solicitud, departamento, created_by, additional_items, observaciones_compras, prioridad, corresponde_a, fecha_solicitud, solicitante, gerencia_solicitante, tipo_servicio, id_sesion, cant_traslado, cant_impresion, cant_honorarios, cant_informe_final, dias_traslado, costo_traslado, impresion_total, honorarios_horas, honorarios_costo_hora, honorarios_total, informe_final_total, facilitador, cod_facilitador, cedula_facilitador, rif_facilitador, telefono_facilitador, banco, nro_cuenta, osi_fixed_items")
+      .select("tipo_solicitud, estatus_admin, departamento, created_by, additional_items, observaciones_compras, prioridad, corresponde_a, fecha_solicitud, solicitante, gerencia_solicitante, tipo_servicio, id_sesion, cant_traslado, cant_impresion, cant_honorarios, cant_informe_final, dias_traslado, costo_traslado, impresion_total, honorarios_horas, honorarios_costo_hora, honorarios_total, informe_final_total, facilitador, cod_facilitador, cedula_facilitador, rif_facilitador, telefono_facilitador, banco, nro_cuenta, osi_fixed_items")
       .eq("id", id)
       .single();
     existing = fallback.data;
@@ -1718,11 +1756,19 @@ export async function updateRequisicionByApprover(
   if (fetchError || !existing) throw new Error("Requisición no encontrada.");
 
   const isInterna = existing.tipo_solicitud === "Interno";
+  const adminProcessed = existing.estatus_admin === "procesada" || existing.estatus_admin === "rechazada";
 
-  // Verify the caller is the pending approver.
+  // Verify the caller is the approver (lider for internas, coordinador/lider-fallback
+  // for externas). Edits are allowed while the approval is pending OR after the
+  // approver has approved (they may realize they need to change something before
+  // Administración processes it) — but NOT after a rejection (that's final) and
+  // NOT after Administración has processed it.
   if (isInterna) {
-    if (existing.lider_estatus !== undefined && existing.lider_estatus !== "pendiente") {
-      throw new Error("Esta requisición interna ya fue procesada por el lider.");
+    if (existing.lider_estatus === "rechazada") {
+      throw new Error("Esta requisición interna fue rechazada por el lider y no puede editarse.");
+    }
+    if (adminProcessed) {
+      throw new Error("Esta requisición ya fue procesada por Administración y no puede editarse.");
     }
     if (existing.departamento) {
       const isLider = await isLiderForInternaApproval(existing.departamento);
@@ -1731,8 +1777,11 @@ export async function updateRequisicionByApprover(
       }
     }
   } else {
-    if (existing.coordinador_estatus !== undefined && existing.coordinador_estatus !== "pendiente") {
-      throw new Error("Esta requisición externa ya fue procesada por el coordinador.");
+    if (existing.coordinador_estatus === "rechazada") {
+      throw new Error("Esta requisición externa fue rechazada por el coordinador y no puede editarse.");
+    }
+    if (adminProcessed) {
+      throw new Error("Esta requisición ya fue procesada por Administración y no puede editarse.");
     }
     if (existing.departamento) {
       const isCoord = await isCoordinadorForDepartment(existing.departamento);

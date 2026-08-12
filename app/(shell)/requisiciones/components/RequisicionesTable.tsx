@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select";
 import { RequisicionFilters, EstatusAdmin } from "@/types/requisiciones";
 import RequisicionRow from "./RequisicionRow";
+import { mapGerenciaSolicitante } from "@/lib/requisiciones-gerencia";
 import { Search, X, ChevronLeft, ChevronRight } from "lucide-react";
 
 const PAGE_SIZE_OPTIONS = [10, 30, 50];
@@ -87,12 +88,14 @@ export default function RequisicionesTable({
       .replace(/\b\w/g, (c) => c.toUpperCase());
   }
 
-  // Use the departamento field (preferred), falling back to gerencia_solicitante
-  // for legacy records. Normalized to deduplicate variant spellings.
+  // Use the departamento field (preferred), falling back to the mapped
+  // gerencia_solicitante for legacy records. Normalized to deduplicate variant
+  // spellings. Mapping the fallback ensures legacy "Marketing" records group
+  // under "Negocios" in the filter dropdown.
   const departamentos = useMemo(() => {
     const set = new Set<string>();
     for (const r of records) {
-      const raw = r.departamento?.trim() || r.gerencia_solicitante?.trim();
+      const raw = r.departamento?.trim() || mapGerenciaSolicitante(r.gerencia_solicitante).trim();
       if (raw) set.add(normalizeDept(raw));
     }
     return [...set].sort();
@@ -126,7 +129,7 @@ export default function RequisicionesTable({
 
       if (
         filters.gerencia &&
-        normalizeDept(r.departamento?.trim() || r.gerencia_solicitante?.trim() || "") !== filters.gerencia
+        normalizeDept(r.departamento?.trim() || mapGerenciaSolicitante(r.gerencia_solicitante).trim() || "") !== filters.gerencia
       ) {
         return false;
       }
@@ -162,7 +165,7 @@ export default function RequisicionesTable({
           .filter(Boolean);
         const haystack = [
           r.solicitante,
-          r.gerencia_solicitante,
+          mapGerenciaSolicitante(r.gerencia_solicitante),
           r.v_osi_formato_completo?.nro_osi,
           r.v_osi_formato_completo?.servicio,
           ...linkedOsiNumbers,
@@ -418,11 +421,9 @@ export default function RequisicionesTable({
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Coordinador
                 </th>
-                {isAdminView && (
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Progreso
-                  </th>
-                )}
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Progreso
+                </th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Acciones
                 </th>
@@ -446,7 +447,7 @@ export default function RequisicionesTable({
               ) : (
                 <tr>
                   <td
-                    colSpan={isAdminView ? 8 : 7}
+                    colSpan={8}
                     className="px-4 py-12 text-center text-sm text-gray-500"
                   >
                     {filtered.length === 0 && records.length === 0 ? (

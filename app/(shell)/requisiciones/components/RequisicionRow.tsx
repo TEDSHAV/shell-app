@@ -8,6 +8,7 @@ import { deleteRequisicionRecord, setRequisicionEstatus, markAllItemsVerificadas
 import { Eye, Edit, Trash2, Lock, CheckCircle2, Undo2, XCircle, CalendarClock, AlertTriangle, PackageCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/utils";
+import { mapGerenciaSolicitante } from "@/lib/requisiciones-gerencia";
 import MotivoModal from "./MotivoModal";
 
 // Exact, case-insensitive department name match (trimmed).
@@ -283,7 +284,7 @@ export default function RequisicionRow({
         {record.solicitante || "-"}
       </td>
       <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 uppercase">
-        {record.departamento || record.gerencia_solicitante || "-"}
+        {record.departamento || mapGerenciaSolicitante(record.gerencia_solicitante) || "-"}
       </td>
       <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
         <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
@@ -349,19 +350,17 @@ export default function RequisicionRow({
           <span className="text-gray-300">—</span>
         )}
       </td>
-      {isAdminView && (
-        <td className="px-4 py-4 whitespace-nowrap text-sm text-center">
-          {totalCount > 0 ? (
-            <span className={`text-xs font-bold ${
-              verifiedCount === totalCount ? "text-emerald-600" : verifiedCount > 0 ? "text-amber-600" : "text-gray-400"
-            }`}>
-              {verifiedCount}/{totalCount}
-            </span>
-          ) : (
-            <span className="text-gray-300">—</span>
-          )}
-        </td>
-      )}
+      <td className="px-4 py-4 whitespace-nowrap text-sm text-center">
+        {totalCount > 0 ? (
+          <span className={`text-xs font-bold ${
+            verifiedCount === totalCount ? "text-emerald-600" : verifiedCount > 0 ? "text-amber-600" : "text-gray-400"
+          }`}>
+            {verifiedCount}/{totalCount}
+          </span>
+        ) : (
+          <span className="text-gray-300">—</span>
+        )}
+      </td>
       <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900" onClick={handleActionClick}>
         <div className="flex gap-1 items-center justify-center">
           <Link href={`/requisiciones/view/${record.id}`}>

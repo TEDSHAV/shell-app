@@ -32,7 +32,9 @@ export default function RequisicionForm({
   userData = null,
   editRecord = null,
   userDept = "",
+  userGerencia = "",
   isLocked = false,
+  lockReason = "",
   banks = [],
   osiSessions = [],
   canPlaceInterna = true,
@@ -43,7 +45,9 @@ export default function RequisicionForm({
   userData?: any,
   editRecord?: any,
   userDept?: string,
+  userGerencia?: string,
   isLocked?: boolean,
+  lockReason?: string,
   banks?: { id: number; nombre: string }[],
   osiSessions?: { id: number; id_osi: number; nro_sesion: number; fecha: string | null; hora_inicio: string | null; hora_fin: string | null }[],
   canPlaceInterna?: boolean,
@@ -57,7 +61,9 @@ export default function RequisicionForm({
         initialUserData={userData}
         editRecord={editRecord}
         userDept={userDept}
+        userGerencia={userGerencia}
         isLocked={isLocked}
+        lockReason={lockReason}
         banks={banks}
         osiSessions={osiSessions}
         canPlaceInterna={canPlaceInterna}
@@ -73,7 +79,9 @@ function RequisicionFormContent({
   initialUserData,
   editRecord,
   userDept,
+  userGerencia,
   isLocked,
+  lockReason,
   banks,
   osiSessions,
   canPlaceInterna,
@@ -84,7 +92,9 @@ function RequisicionFormContent({
   initialUserData: any,
   editRecord: any,
   userDept: string,
+  userGerencia: string,
   isLocked: boolean,
+  lockReason: string,
   banks: { id: number; nombre: string }[],
   osiSessions: { id: number; id_osi: number; nro_sesion: number; fecha: string | null; hora_inicio: string | null; hora_fin: string | null }[],
   canPlaceInterna: boolean,
@@ -145,8 +155,9 @@ function RequisicionFormContent({
   const defaultIsGeneral = !isCapacitacionDept && !isServiciosDept;
   const editIsGeneral = editRecord ? (editRecord.tipo_solicitud === "Interno" || (!editRecord.tipo_solicitud && !editRecord.id_osi)) : defaultIsGeneral;
   const canUseExternal = true;
-  // Gerencia Solicitante is always the mapped organizational grouping (never the literal department).
-  const defaultGerencia = mapGerenciaSolicitante(userDepartment);
+  // Gerencia Solicitante comes from the DB (departamentos.gerencia) when available,
+  // falling back to the hardcoded mapping for safety.
+  const defaultGerencia = userGerencia || mapGerenciaSolicitante(userDepartment);
 
   // For edit mode: reconstruct selectedOSIs from record
   const editSelectedOSIs: OSIFullData[] = editRecord ? 
@@ -237,8 +248,9 @@ function RequisicionFormContent({
   const internaOsiTipoServicio = isCapacitacionDept ? "capacitacion" : "servicios tecnicos";
 
   const handleModeSwitch = (newMode: "general" | "capacitacion" | "servicios tecnicos" | "negocios") => {
-    // Gerencia Solicitante is always the mapped grouping for the user's department, regardless of mode.
-    const gerencia = mapGerenciaSolicitante(userDepartment);
+    // Gerencia Solicitante comes from the DB (departamentos.gerencia) when available,
+    // falling back to the hardcoded mapping for safety.
+    const gerencia = userGerencia || mapGerenciaSolicitante(userDepartment);
     setMode(newMode);
     setFormData((prev) => ({
       ...prev,
@@ -517,7 +529,7 @@ function RequisicionFormContent({
       return;
     }
     if (isLocked) {
-      alert("Esta requisición ya fue procesada por Administración y no puede editarse.");
+      alert(lockReason || "Esta requisición está bloqueada para edición.");
       return;
     }
     if (isGeneralMode && !canPlaceInterna) {
@@ -568,7 +580,7 @@ function RequisicionFormContent({
       {isLocked && (
         <div className="mb-4 p-3 bg-amber-50 border border-amber-300 rounded-lg flex items-center gap-2 text-amber-800 text-sm font-medium">
           <Lock className="h-4 w-4" />
-          Esta requisición fue procesada por Administración y está bloqueada para edición.
+          {lockReason || "Esta requisición está bloqueada para edición."}
         </div>
       )}
 
