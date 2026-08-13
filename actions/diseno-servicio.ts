@@ -3,6 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { notifySolicitanteOfFinalizacion } from "@/actions/diseno-servicio-notifications";
+import {
+  isCapacitacionDept,
+  isServiciosTecnicosDept,
+} from "@/lib/requisiciones-gerencia";
 import type {
   BloqueRecursosRequisitos,
   BloqueHigieneSeguridadAmbiente,
@@ -16,6 +20,12 @@ import type {
 const ESTATUS_PENDIENTE = 35;
 const ESTATUS_EN_PROCESO = 36;
 const ESTATUS_COMPLETADO = 38;
+
+// Departamento ejecutante IDs (catalogo_servicios.id_departamento_ejecutante).
+// Used to scope solicitudes by the executing department: 3 = Capacitación,
+// 4 = Servicios Técnicos.
+const DEPT_CAPACITACION = 3;
+const DEPT_SERVICIOS_TECNICOS = 4;
 
 // Get current logged in user details
 export async function getCurrentUserForDiseno() {
@@ -41,7 +51,41 @@ export async function getCurrentUserForDiseno() {
 }
 
 // Get all solicitudes for list view
+//
+// Scope: only Capacitación and Servicios Técnicos users may manage these
+// services. Capacitación sees only services whose executing department is
+// Capacitación (id_departamento_ejecutante = 3), Servicios Técnicos sees only
+// those whose executing department is Servicios Técnicos (= 4). Any other
+// department gets an empty list (no access).
 export async function getDisenoServicioList(): Promise<DisenoServicioListItem[]> {
+  // Resolve the current user's department via the user-scoped (RLS-aware) client.
+  const userSupabase = await createClient();
+  const {
+    data: { user },
+  } = await userSupabase.auth.getUser();
+
+  let userDeptName: string | null = null;
+  if (user) {
+    const { data: usuario } = await userSupabase
+      .from("usuarios")
+      .select("departamentos!usuarios_departamento_fkey(nombre)")
+      .eq("id_auth", user.id)
+      .single();
+    userDeptName = (usuario?.departamentos as any)?.nombre ?? null;
+  }
+
+  // Determine the user's scope from their department name.
+  let scopeDeptId: number | null = null;
+  if (isCapacitacionDept(userDeptName)) {
+    scopeDeptId = DEPT_CAPACITACION;
+  } else if (isServiciosTecnicosDept(userDeptName)) {
+    scopeDeptId = DEPT_SERVICIOS_TECNICOS;
+  }
+
+  if (scopeDeptId === null) {
+    return [];
+  }
+
   const supabase = await createAdminClient();
 
   const { data, error } = await supabase
@@ -56,7 +100,7 @@ export async function getDisenoServicioList(): Promise<DisenoServicioListItem[]>
       id_servicio_relacionado,
       conf_estatus!solicitudes_diseno_servicio_id_estatus_fkey(nombre_estado),
       usuarios!solicitudes_diseno_servicio_id_solicitante_fkey(nombre_apellido, departamento),
-      catalogo_servicios!solicitudes_diseno_servicio_id_servicio_relacionado_fkey(nombre)
+      catalogo_servicios!solicitudes_diseno_servicio_id_servicio_relacionado_fkey(nombre, id_departamento_ejecutante)
     `)
     .order("id", { ascending: false });
 
@@ -90,11 +134,13 @@ export async function getDisenoServicioList(): Promise<DisenoServicioListItem[]>
     }
   }
 
-  return (data || []).map((row: any) => ({
+  const allItems = (data || []).map((row: any) => ({
     id: row.id,
     nombre_sugerido: row.nombre_sugerido,
     tipo_solicitud: row.tipo_solicitud,
     tipo_servicio: row.catalogo_servicios?.nombre || "",
+    id_departamento_ejecutante:
+      (row.catalogo_servicios as any)?.id_departamento_ejecutante ?? null,
     id_estatus: row.id_estatus,
     estatus_nombre: row.conf_estatus?.nombre_estado || "",
     solicitante_nombre: row.usuarios?.nombre_apellido || "",
@@ -102,6 +148,13 @@ export async function getDisenoServicioList(): Promise<DisenoServicioListItem[]>
       departamentoMap.get((row.usuarios as any)?.departamento) || "",
     fecha_solicitud: row.fecha_solicitud,
   }));
+
+  // Filter by the user's executing department (id_departamento_ejecutante on
+  // the related catalogo_servicios row). 3 = Capacitación, 4 = Servicios
+  // Técnicos. Records without an executing department are excluded.
+  return allItems.filter(
+    (item) => item.id_departamento_ejecutante === scopeDeptId,
+  );
 }
 
 // Get single record by ID with all JSONB blocks
@@ -113,7 +166,7 @@ export async function getDisenoServicioById(id: number): Promise<DisenoServicioF
       *,
       conf_estatus!solicitudes_diseno_servicio_id_estatus_fkey(nombre_estado),
       usuarios!solicitudes_diseno_servicio_id_solicitante_fkey(nombre_apellido),
-      catalogo_servicios!solicitudes_diseno_servicio_id_servicio_relacionado_fkey(nombre)
+      catalogo_servicios!solicitudes_diseno_servicio_id_servicio_relacionado_fkey(nombre, id_departamento_ejecutante)
     `)
     .eq("id", id)
     .single();
@@ -146,6 +199,8 @@ export async function getDisenoServicioById(id: number): Promise<DisenoServicioF
     nombre_sugerido: data.nombre_sugerido,
     objetivo_proposito: data.objetivo_proposito,
     tipo_servicio: data.catalogo_servicios?.nombre || "",
+    id_departamento_ejecutante:
+      (data.catalogo_servicios as any)?.id_departamento_ejecutante ?? null,
     fecha_aprobacion: data.fecha_aprobacion,
     id_usuario_aprobador: data.id_usuario_aprobador,
     observaciones_cierre: data.observaciones_cierre,

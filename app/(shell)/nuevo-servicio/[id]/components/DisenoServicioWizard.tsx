@@ -255,22 +255,28 @@ export default function DisenoServicioWizard({
         <div className="flex items-center justify-between">
           {STEPS.map((step, idx) => (
             <div key={idx} className="flex items-center flex-1 last:flex-none">
-              <div className="flex flex-col items-center">
+              <button
+                type="button"
+                onClick={() => setCurrentStep(idx)}
+                disabled={isSaving}
+                aria-label={`Ir al paso ${idx + 1}: ${step.label}`}
+                className="flex flex-col items-center group disabled:cursor-not-allowed disabled:opacity-60"
+              >
                 <div
-                  className={`flex items-center justify-center w-9 h-9 rounded-full border-2 text-sm font-semibold transition-colors ${
+                  className={`flex items-center justify-center w-9 h-9 rounded-full border-2 text-sm font-semibold transition-all ${
                     idx === currentStep
                       ? "bg-indigo-600 text-white border-indigo-600"
                       : idx < currentStep
-                      ? "bg-green-500 text-white border-green-500"
-                      : "bg-white text-gray-400 border-gray-300"
+                      ? "bg-green-500 text-white border-green-500 group-hover:scale-105"
+                      : "bg-white text-gray-400 border-gray-300 group-hover:border-indigo-400 group-hover:text-indigo-600"
                   }`}
                 >
                   {idx < currentStep ? <CheckCircle2 className="h-5 w-5" /> : idx + 1}
                 </div>
-                <span className={`mt-1 text-[10px] text-center hidden sm:block ${idx === currentStep ? "text-indigo-600 font-medium" : "text-gray-400"}`}>
+                <span className={`mt-1 text-[10px] text-center hidden sm:block ${idx === currentStep ? "text-indigo-600 font-medium" : "text-gray-400 group-hover:text-indigo-600"}`}>
                   {step.label}
                 </span>
-              </div>
+              </button>
               {idx < STEPS.length - 1 && (
                 <div className={`flex-1 h-0.5 mx-1 ${idx < currentStep ? "bg-green-500" : "bg-gray-200"}`} />
               )}
@@ -465,7 +471,7 @@ export default function DisenoServicioWizard({
                     <Textarea
                       value={bloqueRecursos.criterios_aceptacion}
                       onChange={(e) => setBloqueRecursos({ ...bloqueRecursos, criterios_aceptacion: e.target.value })}
-                      placeholder="Condiciones mínimas que garantizan que el servicio fue exitoso"
+                      placeholder="Condiciones mínimas que garantizan que el servicio sea exitoso"
                       rows={3}
                     />
                   </div>

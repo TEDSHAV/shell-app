@@ -11,6 +11,7 @@ export interface DisenoServicioHeader {
   nombre_sugerido: string;
   objetivo_proposito: string;
   tipo_servicio: string; // 'Capacitación (CAP)' | 'Servicio Técnico (ST)'
+  id_departamento_ejecutante: number | null; // 3 = Capacitación, 4 = Servicios Técnicos
   fecha_aprobacion: string | null;
   id_usuario_aprobador: number | null;
   observaciones_cierre: string | null;
@@ -125,6 +126,7 @@ export interface DisenoServicioListItem {
   nombre_sugerido: string;
   tipo_solicitud: string;
   tipo_servicio: string;
+  id_departamento_ejecutante: number | null; // 3 = Capacitación, 4 = Servicios Técnicos
   id_estatus: number;
   estatus_nombre: string;
   solicitante_nombre: string;

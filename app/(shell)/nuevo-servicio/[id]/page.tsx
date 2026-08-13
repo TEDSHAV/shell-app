@@ -6,6 +6,10 @@ import {
   getDisenoServicioById,
   getCurrentUserForDiseno,
 } from "@/actions/diseno-servicio";
+import {
+  isCapacitacionDept,
+  isServiciosTecnicosDept,
+} from "@/lib/requisiciones-gerencia";
 import DisenoServicioWizard from "./components/DisenoServicioWizard";
 
 export const dynamic = "force-dynamic";
@@ -36,6 +40,28 @@ export default async function DisenoServicioWizardPage({
   ]);
 
   if (!solicitud) {
+    notFound();
+  }
+
+  // Guard: only Capacitación and Servicios Técnicos users may manage these
+  // services, and only those matching the service's executing department.
+  // The service's executing department comes from
+  // catalogo_servicios.id_departamento_ejecutante (3 = Capacitación,
+  // 4 = Servicios Técnicos). Anyone else (or a direct URL to a service outside
+  // the user's scope) is blocked.
+  const userDeptName = (userData?.departamentos as any)?.nombre ?? null;
+  const isCapUser = isCapacitacionDept(userDeptName);
+  const isStUser = isServiciosTecnicosDept(userDeptName);
+
+  if (!userData || (!isCapUser && !isStUser)) {
+    notFound();
+  }
+
+  const ejecutanteId = solicitud.id_departamento_ejecutante;
+  const scopeMatches = isCapUser
+    ? ejecutanteId === 3
+    : ejecutanteId === 4;
+  if (!scopeMatches) {
     notFound();
   }
 

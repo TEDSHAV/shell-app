@@ -11,6 +11,18 @@ const STATUS_COLORS: Record<number, string> = {
   38: "bg-green-100 text-green-800 border-green-300",
 };
 
+// Badge styling + label for tipo_solicitud ("creacion" | "modificacion").
+const TIPO_SOLICITUD_BADGE: Record<string, { label: string; className: string }> = {
+  creacion: {
+    label: "Creación",
+    className: "bg-violet-100 text-violet-800 border-violet-300",
+  },
+  modificacion: {
+    label: "Modificación",
+    className: "bg-cyan-100 text-cyan-800 border-cyan-300",
+  },
+};
+
 export default function DisenoServicioTable({
   records,
 }: {
@@ -34,6 +46,7 @@ export default function DisenoServicioTable({
         <thead className="bg-gray-50 border-b border-gray-200">
           <tr>
             <th className="px-4 py-3 text-left font-semibold text-gray-700">Nombre Sugerido</th>
+            <th className="px-4 py-3 text-left font-semibold text-gray-700">Tipo Solicitud</th>
             <th className="px-4 py-3 text-left font-semibold text-gray-700">Tipo Servicio</th>
             <th className="px-4 py-3 text-left font-semibold text-gray-700">Solicitante</th>
             <th className="px-4 py-3 text-left font-semibold text-gray-700">Departamento</th>
@@ -50,6 +63,18 @@ export default function DisenoServicioTable({
             >
               <td className="px-4 py-3 text-gray-900 font-medium">
                 {record.nombre_sugerido}
+              </td>
+              <td className="px-4 py-3">
+                {(() => {
+                  const tipo = (record.tipo_solicitud || "").toLowerCase();
+                  const cfg = TIPO_SOLICITUD_BADGE[tipo];
+                  if (!cfg) return <span className="text-gray-400">—</span>;
+                  return (
+                    <Badge className={`${cfg.className} border`}>
+                      {cfg.label}
+                    </Badge>
+                  );
+                })()}
               </td>
               <td className="px-4 py-3 text-gray-600">
                 {record.tipo_servicio || "—"}
