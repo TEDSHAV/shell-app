@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
-import { Code2, Github, ExternalLink, BookOpen, Terminal } from "lucide-react";
+import Link from "next/link";
+import { Code2, Github, ExternalLink, BookOpen, Terminal, Bell } from "lucide-react";
 import { isTedMember } from "@/actions/ted";
 import { getAllDepartments } from "@/actions/directory";
 import { PasswordResetCard } from "@/components/admin/PasswordResetCard";
@@ -17,6 +18,14 @@ export default async function TedPage() {
   }
 
   const resources = [
+    {
+      icon: Bell,
+      title: "Notificaciones",
+      description:
+        "Catálogo de eventos notify y configuración de destinatarios por app.",
+      href: "/ted/notificaciones",
+      external: false,
+    },
     {
       icon: Github,
       title: "Repositorios",
@@ -95,9 +104,9 @@ export default async function TedPage() {
               {content}
             </a>
           ) : (
-            <a key={r.title} href={r.href} className={className}>
+            <Link key={r.title} href={r.href} className={className}>
               {content}
-            </a>
+            </Link>
           );
         })}
       </div>

@@ -40,6 +40,7 @@ import {
   Shield,
   Code2,
   Layers,
+  Bell,
 } from "lucide-react";
 import { build_app_config } from "@/lib/app-theme";
 import { get_tickets_form_base_url } from "@/lib/tickets-form-url";
@@ -868,7 +869,18 @@ export const apps: AppConfig[] = [
     embedMode: "native",
     groupId: "procesos-de-apoyo",
     dashboardOrder: 6,
-    navLinks: [],
+    navLinks: [
+      {
+        label: "Catálogo de notificaciones",
+        path: "/notificaciones",
+        icon: Bell,
+      },
+      {
+        label: "Por usuario",
+        path: "/notificaciones/usuarios",
+        icon: Users,
+      },
+    ],
   }),
 ];
 
