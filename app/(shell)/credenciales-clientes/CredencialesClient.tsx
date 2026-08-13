@@ -41,7 +41,7 @@ import type { City, Sede } from "@/types/credenciales-clientes";
 
 export default function CredencialesClient() {
   const [companies, setCompanies] = useState<
-    { id: number; razon_social: string; rif: string; es_cliente: boolean }[]
+    { id: number; razon_social: string; rif: string }[]
   >([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState<number | null>(
     null,

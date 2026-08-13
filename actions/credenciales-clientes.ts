@@ -132,15 +132,14 @@ export async function deleteClienteCredentials(
 // ─── Company & Sede Queries ───
 
 export async function getClienteCompanies(): Promise<{
-  data?: { id: number; razon_social: string; rif: string; es_cliente: boolean }[];
+  data?: { id: number; razon_social: string; rif: string }[];
   error?: string;
 }> {
   const supabase = await createAdminClient();
 
   const { data, error } = await supabase
     .from("empresas")
-    .select("id, razon_social, rif, es_cliente")
-    .eq("es_cliente", true)
+    .select("id, razon_social, rif")
     .order("razon_social", { ascending: true });
 
   if (error) {
