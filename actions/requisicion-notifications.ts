@@ -2,6 +2,13 @@
 
 import { createAdminClient } from "@/lib/supabase/server";
 import { fanOutNotifyByConfig } from "@/lib/notification-recipient/runtime-resolve";
+import { isAdminOsiConfigMode } from "@/lib/notification-recipient/runtime-mode";
+import {
+  legacyInsertInboxRow,
+  legacyNotifyAdminsOfNewRequisicion,
+  legacyNotifyCoordinadorOfPendingExterna,
+  legacyNotifyLiderOfPendingInterna,
+} from "@/lib/notification-recipient/requisicion-notifications-legacy";
 import { resolveInternaApprovalGerencia } from "@/lib/requisiciones-gerencia";
 
 const APP_SLUG = "administracion";
@@ -13,6 +20,16 @@ export async function notifyAdminsOfNewRequisicion(
 ) {
   try {
     const supabase = await createAdminClient();
+    if (!(await isAdminOsiConfigMode(supabase))) {
+      await legacyNotifyAdminsOfNewRequisicion(
+        supabase,
+        requisicionId,
+        solicitanteName,
+        requisicionLabel,
+      );
+      return;
+    }
+
     const rows = await fanOutNotifyByConfig(supabase, {
       appSlug: APP_SLUG,
       eventKey: "requisicion_created",
@@ -31,10 +48,6 @@ export async function notifyAdminsOfNewRequisicion(
   }
 }
 
-// Notify the lider that an interna is pending their approval.
-// Resolves the lider via the TEMPORARY interna routing override when one applies
-// for the department, otherwise via departamentos.gerencia → gerencias.lider →
-// usuarios.id_auth.
 export async function notifyLiderOfPendingInterna(
   requisicionId: number,
   solicitanteName: string,
@@ -42,6 +55,16 @@ export async function notifyLiderOfPendingInterna(
 ) {
   try {
     const supabase = await createAdminClient();
+    if (!(await isAdminOsiConfigMode(supabase))) {
+      await legacyNotifyLiderOfPendingInterna(
+        supabase,
+        requisicionId,
+        solicitanteName,
+        departamentoName,
+      );
+      return;
+    }
+
     const gerenciaLabel = resolveInternaApprovalGerencia(departamentoName);
     const context: Record<string, unknown> = {};
 
@@ -95,8 +118,6 @@ export async function notifyLiderOfPendingInterna(
   }
 }
 
-// Notify the department's coordinador that an externa is pending their approval.
-// If the department has no coordinador, notifies the gerencia's lider (fallback).
 export async function notifyCoordinadorOfPendingExterna(
   requisicionId: number,
   solicitanteName: string,
@@ -104,6 +125,15 @@ export async function notifyCoordinadorOfPendingExterna(
 ) {
   try {
     const supabase = await createAdminClient();
+    if (!(await isAdminOsiConfigMode(supabase))) {
+      await legacyNotifyCoordinadorOfPendingExterna(
+        supabase,
+        requisicionId,
+        solicitanteName,
+        departamentoName,
+      );
+      return;
+    }
 
     const { data: dept, error: deptError } = await supabase
       .from("departamentos")
@@ -153,6 +183,19 @@ async function notifyCreatorEvent(
 ) {
   try {
     const supabase = await createAdminClient();
+    if (!(await isAdminOsiConfigMode(supabase))) {
+      await legacyInsertInboxRow(supabase, {
+        event_key: eventKey,
+        recipient_id_auth: creatorAuthId,
+        title,
+        body,
+        link_path: `/requisiciones/view/${requisicionId}`,
+        dedupe_key: dedupeKey,
+        priority,
+      });
+      return;
+    }
+
     await fanOutNotifyByConfig(supabase, {
       appSlug: APP_SLUG,
       eventKey,
@@ -261,6 +304,19 @@ export async function notifyAdminOfAcuseRecibo(
 ) {
   try {
     const supabase = await createAdminClient();
+    if (!(await isAdminOsiConfigMode(supabase))) {
+      await legacyInsertInboxRow(supabase, {
+        event_key: "requisicion_acuse",
+        recipient_id_auth: adminAuthId,
+        title: "Acuse de Recibo Confirmado",
+        body: `${solicitanteName} ha confirmado la recepción de la requisición ${requisicionLabel}.`,
+        link_path: `/requisiciones/view/${requisicionId}`,
+        dedupe_key: `requisicion:${requisicionId}:acuse:${Date.now()}`,
+        priority: 2,
+      });
+      return;
+    }
+
     await fanOutNotifyByConfig(supabase, {
       appSlug: APP_SLUG,
       eventKey: "requisicion_acuse",

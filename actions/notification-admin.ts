@@ -588,3 +588,46 @@ export async function updateNotificationEventConfig(
     };
   }
 }
+
+export type AdminOsiRecipientsMode = "legacy" | "config";
+
+export async function getAdminOsiRecipientsMode(): Promise<AdminOsiRecipientsMode> {
+  await assertCanManageNotificationAdmin();
+  const supabase = await createAdminClient();
+  const { data, error } = await supabase.rpc(
+    "get_notify_admin_osi_recipients_mode",
+  );
+  if (error) {
+    console.error("[getAdminOsiRecipientsMode]", error);
+    return "legacy";
+  }
+  return data === "config" ? "config" : "legacy";
+}
+
+export async function setAdminOsiRecipientsMode(
+  mode: AdminOsiRecipientsMode,
+): Promise<{ success: boolean; error?: string; mode?: AdminOsiRecipientsMode }> {
+  try {
+    await assertCanManageNotificationAdmin();
+    const supabase = await createAdminClient();
+    const { data, error } = await supabase.rpc(
+      "set_notify_admin_osi_recipients_mode",
+      { p_mode: mode },
+    );
+    if (error) {
+      console.error("[setAdminOsiRecipientsMode]", error);
+      return { success: false, error: error.message };
+    }
+    revalidatePath(NOTIFY_ADMIN_BASE);
+    return {
+      success: true,
+      mode: data === "config" ? "config" : "legacy",
+    };
+  } catch (err) {
+    console.error("[setAdminOsiRecipientsMode]", err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Error inesperado",
+    };
+  }
+}
