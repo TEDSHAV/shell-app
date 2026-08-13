@@ -1,7 +1,10 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/server";
+import { fanOutNotifyByConfig } from "@/lib/notification-recipient/runtime-resolve";
 import { resolveInternaApprovalGerencia } from "@/lib/requisiciones-gerencia";
+
+const APP_SLUG = "administracion";
 
 export async function notifyAdminsOfNewRequisicion(
   requisicionId: number,
@@ -10,61 +13,18 @@ export async function notifyAdminsOfNewRequisicion(
 ) {
   try {
     const supabase = await createAdminClient();
+    const rows = await fanOutNotifyByConfig(supabase, {
+      appSlug: APP_SLUG,
+      eventKey: "requisicion_created",
+      title: "Nueva Requisición Creada",
+      body: `${solicitanteName} ha creado una nueva requisición ${requisicionLabel}.`,
+      linkPath: `/requisiciones/edit/${requisicionId}`,
+      dedupeKey: `requisicion:${requisicionId}:created`,
+      priority: 2,
+    });
 
-    const { data: depto, error: deptError } = await supabase
-      .from("departamentos")
-      .select("id, nombre")
-      .ilike("nombre", "%admin%")
-      .single();
-
-    if (deptError || !depto) {
-      console.error(
-        "[notifyAdminsOfNewRequisicion] Could not find Administracion department:",
-        deptError,
-      );
-      return;
-    }
-
-    const { data: adminUsers, error: usersError } = await supabase
-      .from("usuarios")
-      .select("id_auth")
-      .eq("departamento", depto.id)
-      .not("id_auth", "is", null)
-      .eq("esta_activo", true);
-
-    if (usersError || !adminUsers || adminUsers.length === 0) {
-      console.warn(
-        "[notifyAdminsOfNewRequisicion] No active admin users found:",
-        usersError,
-      );
-      return;
-    }
-
-    const rows = adminUsers
-      .filter((u: { id_auth: string | null }) => u.id_auth)
-      .map((u: { id_auth: string }) => ({
-        app_slug: "administracion",
-        event_key: "requisicion_created",
-        recipient_id_auth: u.id_auth,
-        title: "Nueva Requisición Creada",
-        body: `${solicitanteName} ha creado una nueva requisición ${requisicionLabel}.`,
-        link_path: `/requisiciones/edit/${requisicionId}`,
-        dedupe_key: `requisicion:${requisicionId}:created`,
-        priority: 2,
-      }));
-
-    if (rows.length === 0) return;
-
-    const { error: insertError } = await supabase
-      .schema("notify")
-      .from("inbox")
-      .insert(rows);
-
-    if (insertError) {
-      console.error(
-        "[notifyAdminsOfNewRequisicion] Error inserting notifications:",
-        insertError,
-      );
+    if (rows === 0) {
+      console.warn("[notifyAdminsOfNewRequisicion] No recipients resolved");
     }
   } catch (err) {
     console.error("[notifyAdminsOfNewRequisicion] Unexpected error:", err);
@@ -82,18 +42,17 @@ export async function notifyLiderOfPendingInterna(
 ) {
   try {
     const supabase = await createAdminClient();
-
-    let liderUsuarioId: number | null = null;
-    let gerenciaLabel: string | null = resolveInternaApprovalGerencia(departamentoName);
+    const gerenciaLabel = resolveInternaApprovalGerencia(departamentoName);
+    const context: Record<string, unknown> = {};
 
     if (gerenciaLabel) {
-      // Overridden department: approve via the target gerencia's lider.
       const { data: gerencia, error: gerenciaError } = await supabase
         .from("gerencias")
         .select("lider")
         .ilike("nombre", gerenciaLabel)
         .maybeSingle();
-      if (gerenciaError || !gerencia) {
+
+      if (gerenciaError || !gerencia?.lider) {
         console.error(
           "[notifyLiderOfPendingInterna] Could not resolve override gerencia:",
           gerenciaLabel,
@@ -101,57 +60,36 @@ export async function notifyLiderOfPendingInterna(
         );
         return;
       }
-      liderUsuarioId = gerencia.lider;
-    } else {
-      // Resolve the lider's auth id for the given department's own gerencia.
-      const { data: dept, error: deptError } = await supabase
-        .from("departamentos")
-        .select("gerencia, gerencias!departamentos_gerencia_fkey(lider)")
-        .ilike("nombre", departamentoName)
+
+      const { data: lider, error: liderError } = await supabase
+        .from("usuarios")
+        .select("id_auth")
+        .eq("id", gerencia.lider)
         .maybeSingle();
 
-      if (deptError || !dept) {
-        console.error("[notifyLiderOfPendingInterna] Could not resolve department:", deptError);
+      if (liderError || !lider?.id_auth) {
+        console.warn(
+          "[notifyLiderOfPendingInterna] Could not resolve override lider auth:",
+          liderError,
+        );
         return;
       }
 
-      gerenciaLabel = dept.gerencia;
-      liderUsuarioId = (dept.gerencias as any)?.lider ?? null;
+      context.recipient_auth_ids = [lider.id_auth];
+    } else {
+      context.departamento_nombre = departamentoName;
     }
 
-    if (!liderUsuarioId) {
-      console.warn("[notifyLiderOfPendingInterna] No lider set on gerencia:", gerenciaLabel);
-      return;
-    }
-
-    const { data: lider, error: liderError } = await supabase
-      .from("usuarios")
-      .select("id_auth")
-      .eq("id", liderUsuarioId)
-      .maybeSingle();
-
-    if (liderError || !lider?.id_auth) {
-      console.warn("[notifyLiderOfPendingInterna] Could not resolve lider auth id:", liderError);
-      return;
-    }
-
-    const { error: insertError } = await supabase
-      .schema("notify")
-      .from("inbox")
-      .insert({
-        app_slug: "administracion",
-        event_key: "requisicion_pending_lider",
-        recipient_id_auth: lider.id_auth,
-        title: "Requisición Interna Pendiente de Aprobación",
-        body: `${solicitanteName} ha creado una requisición interna que requiere su aprobación como Lider de la Gerencia.`,
-        link_path: `/requisiciones/view/${requisicionId}`,
-        dedupe_key: `requisicion:${requisicionId}:pending_lider`,
-        priority: 2,
-      });
-
-    if (insertError) {
-      console.error("[notifyLiderOfPendingInterna] Error inserting notification:", insertError);
-    }
+    await fanOutNotifyByConfig(supabase, {
+      appSlug: APP_SLUG,
+      eventKey: "requisicion_pending_lider",
+      title: "Requisición Interna Pendiente de Aprobación",
+      body: `${solicitanteName} ha creado una requisición interna que requiere su aprobación como Lider de la Gerencia.`,
+      linkPath: `/requisiciones/view/${requisicionId}`,
+      dedupeKey: `requisicion:${requisicionId}:pending_lider`,
+      priority: 2,
+      context,
+    });
   } catch (err) {
     console.error("[notifyLiderOfPendingInterna] Unexpected error:", err);
   }
@@ -174,25 +112,10 @@ export async function notifyCoordinadorOfPendingExterna(
       .maybeSingle();
 
     if (deptError || !dept) {
-      console.error("[notifyCoordinadorOfPendingExterna] Could not resolve department:", deptError);
-      return;
-    }
-
-    // Prefer the department's coordinador; fall back to the gerencia's lider.
-    const approverUsuarioId = dept.coordinador || (dept.gerencias as any)?.lider;
-    if (!approverUsuarioId) {
-      console.warn("[notifyCoordinadorOfPendingExterna] No approver found for department:", departamentoName);
-      return;
-    }
-
-    const { data: approver, error: approverError } = await supabase
-      .from("usuarios")
-      .select("id_auth")
-      .eq("id", approverUsuarioId)
-      .maybeSingle();
-
-    if (approverError || !approver?.id_auth) {
-      console.warn("[notifyCoordinadorOfPendingExterna] Could not resolve approver auth id:", approverError);
+      console.error(
+        "[notifyCoordinadorOfPendingExterna] Could not resolve department:",
+        deptError,
+      );
       return;
     }
 
@@ -204,25 +127,44 @@ export async function notifyCoordinadorOfPendingExterna(
       ? `${solicitanteName} ha creado una requisición externa que requiere su aprobación como Lider (el departamento no tiene coordinador asignado).`
       : `${solicitanteName} ha creado una requisición externa que requiere su aprobación como Coordinador del departamento.`;
 
-    const { error: insertError } = await supabase
-      .schema("notify")
-      .from("inbox")
-      .insert({
-        app_slug: "administracion",
-        event_key: "requisicion_pending_coordinador",
-        recipient_id_auth: approver.id_auth,
-        title,
-        body,
-        link_path: `/requisiciones/view/${requisicionId}`,
-        dedupe_key: `requisicion:${requisicionId}:pending_coordinador`,
-        priority: 2,
-      });
-
-    if (insertError) {
-      console.error("[notifyCoordinadorOfPendingExterna] Error inserting notification:", insertError);
-    }
+    await fanOutNotifyByConfig(supabase, {
+      appSlug: APP_SLUG,
+      eventKey: "requisicion_pending_coordinador",
+      title,
+      body,
+      linkPath: `/requisiciones/view/${requisicionId}`,
+      dedupeKey: `requisicion:${requisicionId}:pending_coordinador`,
+      priority: 2,
+      context: { departamento_nombre: departamentoName },
+    });
   } catch (err) {
     console.error("[notifyCoordinadorOfPendingExterna] Unexpected error:", err);
+  }
+}
+
+async function notifyCreatorEvent(
+  eventKey: string,
+  requisicionId: number,
+  creatorAuthId: string,
+  title: string,
+  body: string,
+  dedupeKey: string,
+  priority = 2,
+) {
+  try {
+    const supabase = await createAdminClient();
+    await fanOutNotifyByConfig(supabase, {
+      appSlug: APP_SLUG,
+      eventKey,
+      title,
+      body,
+      linkPath: `/requisiciones/view/${requisicionId}`,
+      dedupeKey,
+      priority,
+      context: { creador_auth: creatorAuthId },
+    });
+  } catch (err) {
+    console.error(`[${eventKey}] Unexpected error:`, err);
   }
 }
 
@@ -231,32 +173,14 @@ export async function notifyCreatorOfProcesada(
   creatorAuthId: string,
   requisicionLabel: string,
 ) {
-  try {
-    const supabase = await createAdminClient();
-
-    const { error: insertError } = await supabase
-      .schema("notify")
-      .from("inbox")
-      .insert({
-          app_slug: "administracion",
-          event_key: "requisicion_procesada",
-          recipient_id_auth: creatorAuthId,
-          title: "Requisición Procesada",
-          body: `Tu requisición ${requisicionLabel} ha sido procesada por Administración.`,
-          link_path: `/requisiciones/view/${requisicionId}`,
-          dedupe_key: `requisicion:${requisicionId}:procesada:${Date.now()}`,
-          priority: 2,
-        });
-
-    if (insertError) {
-      console.error(
-        "[notifyCreatorOfProcesada] Error inserting notification:",
-        insertError,
-      );
-    }
-    } catch (err) {
-    console.error("[notifyCreatorOfProcesada] Unexpected error:", err);
-  }
+  await notifyCreatorEvent(
+    "requisicion_procesada",
+    requisicionId,
+    creatorAuthId,
+    "Requisición Procesada",
+    `Tu requisición ${requisicionLabel} ha sido procesada por Administración.`,
+    `requisicion:${requisicionId}:procesada:${Date.now()}`,
+  );
 }
 
 export async function notifyCreatorOfRechazada(
@@ -265,78 +189,34 @@ export async function notifyCreatorOfRechazada(
   requisicionLabel: string,
   motivoRechazo?: string,
 ) {
-  try {
-    const supabase = await createAdminClient();
+  const body = motivoRechazo?.trim()
+    ? `Tu requisición ${requisicionLabel} ha sido rechazada por Administración. Motivo: ${motivoRechazo.trim()}`
+    : `Tu requisición ${requisicionLabel} ha sido rechazada por Administración.`;
 
-    console.log(`[notifyCreatorOfRechazada] Inserting notification for creator ${creatorAuthId}, req #${requisicionId}`);
-
-    const body = motivoRechazo?.trim()
-      ? `Tu requisición ${requisicionLabel} ha sido rechazada por Administración. Motivo: ${motivoRechazo.trim()}`
-      : `Tu requisición ${requisicionLabel} ha sido rechazada por Administración.`;
-
-    const { data: insertData, error: insertError } = await supabase
-      .schema("notify")
-      .from("inbox")
-      .insert({
-          app_slug: "administracion",
-          event_key: "requisicion_rechazada",
-          recipient_id_auth: creatorAuthId,
-          title: "Requisición Rechazada",
-          body,
-          link_path: `/requisiciones/view/${requisicionId}`,
-          dedupe_key: `requisicion:${requisicionId}:rechazada:${Date.now()}`,
-          priority: 2,
-        })
-      .select();
-
-    if (insertError) {
-      console.error(
-        "[notifyCreatorOfRechazada] Error inserting notification:",
-        insertError,
-      );
-    } else {
-      console.log(`[notifyCreatorOfRechazada] Insert successful:`, insertData);
-    }
-  } catch (err) {
-    console.error("[notifyCreatorOfRechazada] Unexpected error:", err);
-  }
+  await notifyCreatorEvent(
+    "requisicion_rechazada",
+    requisicionId,
+    creatorAuthId,
+    "Requisición Rechazada",
+    body,
+    `requisicion:${requisicionId}:rechazada:${Date.now()}`,
+  );
 }
 
-// Notify the creator that a coordinador rejected their interna with a reason.
 export async function notifyCreatorOfCoordinadorRechazada(
   requisicionId: number,
   creatorAuthId: string,
   requisicionLabel: string,
   motivo: string,
 ) {
-  try {
-    const supabase = await createAdminClient();
-
-    const body = `Tu requisición ${requisicionLabel} fue rechazada por el Coordinador. Motivo: ${motivo}`;
-
-    const { error: insertError } = await supabase
-      .schema("notify")
-      .from("inbox")
-      .insert({
-          app_slug: "administracion",
-          event_key: "requisicion_rechazada",
-          recipient_id_auth: creatorAuthId,
-          title: "Requisición Rechazada por Coordinador",
-          body,
-          link_path: `/requisiciones/view/${requisicionId}`,
-          dedupe_key: `requisicion:${requisicionId}:coordinador_rechazada:${Date.now()}`,
-          priority: 2,
-        });
-
-    if (insertError) {
-      console.error(
-        "[notifyCreatorOfCoordinadorRechazada] Error inserting notification:",
-        insertError,
-      );
-    }
-  } catch (err) {
-    console.error("[notifyCreatorOfCoordinadorRechazada] Unexpected error:", err);
-  }
+  await notifyCreatorEvent(
+    "requisicion_rechazada",
+    requisicionId,
+    creatorAuthId,
+    "Requisición Rechazada por Coordinador",
+    `Tu requisición ${requisicionLabel} fue rechazada por el Coordinador. Motivo: ${motivo}`,
+    `requisicion:${requisicionId}:coordinador_rechazada:${Date.now()}`,
+  );
 }
 
 export async function notifyCreatorOfLiderRechazada(
@@ -345,34 +225,14 @@ export async function notifyCreatorOfLiderRechazada(
   requisicionLabel: string,
   motivo: string,
 ) {
-  try {
-    const supabase = await createAdminClient();
-
-    const body = `Tu requisición ${requisicionLabel} fue rechazada por el Lider. Motivo: ${motivo}`;
-
-    const { error: insertError } = await supabase
-      .schema("notify")
-      .from("inbox")
-      .insert({
-          app_slug: "administracion",
-          event_key: "requisicion_rechazada",
-          recipient_id_auth: creatorAuthId,
-          title: "Requisición Rechazada por Lider",
-          body,
-          link_path: `/requisiciones/view/${requisicionId}`,
-          dedupe_key: `requisicion:${requisicionId}:lider_rechazada:${Date.now()}`,
-          priority: 2,
-        });
-
-    if (insertError) {
-      console.error(
-        "[notifyCreatorOfLiderRechazada] Error inserting notification:",
-        insertError,
-      );
-    }
-  } catch (err) {
-    console.error("[notifyCreatorOfLiderRechazada] Unexpected error:", err);
-  }
+  await notifyCreatorEvent(
+    "requisicion_rechazada",
+    requisicionId,
+    creatorAuthId,
+    "Requisición Rechazada por Lider",
+    `Tu requisición ${requisicionLabel} fue rechazada por el Lider. Motivo: ${motivo}`,
+    `requisicion:${requisicionId}:lider_rechazada:${Date.now()}`,
+  );
 }
 
 export async function notifyCreatorOfPartialVerificacion(
@@ -382,32 +242,15 @@ export async function notifyCreatorOfPartialVerificacion(
   totalCount: number,
   requisicionLabel: string,
 ) {
-  try {
-    const supabase = await createAdminClient();
-
-    const { error: insertError } = await supabase
-      .schema("notify")
-      .from("inbox")
-      .insert({
-          app_slug: "administracion",
-          event_key: "requisicion_parcial",
-          recipient_id_auth: creatorAuthId,
-          title: "Avance en Requisición",
-          body: `Tu requisición ${requisicionLabel} tiene ${verifiedCount} de ${totalCount} items verificados por Administración.`,
-          link_path: `/requisiciones/view/${requisicionId}`,
-          dedupe_key: `requisicion:${requisicionId}:parcial:${Date.now()}`,
-          priority: 1,
-        });
-
-    if (insertError) {
-      console.error(
-        "[notifyCreatorOfPartialVerificacion] Error inserting notification:",
-        insertError,
-      );
-    }
-  } catch (err) {
-    console.error("[notifyCreatorOfPartialVerificacion] Unexpected error:", err);
-  }
+  await notifyCreatorEvent(
+    "requisicion_parcial",
+    requisicionId,
+    creatorAuthId,
+    "Avance en Requisición",
+    `Tu requisición ${requisicionLabel} tiene ${verifiedCount} de ${totalCount} items verificados por Administración.`,
+    `requisicion:${requisicionId}:parcial:${Date.now()}`,
+    1,
+  );
 }
 
 export async function notifyAdminOfAcuseRecibo(
@@ -418,68 +261,33 @@ export async function notifyAdminOfAcuseRecibo(
 ) {
   try {
     const supabase = await createAdminClient();
-
-    const { error: insertError } = await supabase
-      .schema("notify")
-      .from("inbox")
-      .insert({
-          app_slug: "administracion",
-          event_key: "requisicion_acuse",
-          recipient_id_auth: adminAuthId,
-          title: "Acuse de Recibo Confirmado",
-          body: `${solicitanteName} ha confirmado la recepción de la requisición ${requisicionLabel}.`,
-          link_path: `/requisiciones/view/${requisicionId}`,
-          dedupe_key: `requisicion:${requisicionId}:acuse:${Date.now()}`,
-          priority: 2,
-        });
-
-    if (insertError) {
-      console.error(
-        "[notifyAdminOfAcuseRecibo] Error inserting notification:",
-        insertError,
-      );
-    }
+    await fanOutNotifyByConfig(supabase, {
+      appSlug: APP_SLUG,
+      eventKey: "requisicion_acuse",
+      title: "Acuse de Recibo Confirmado",
+      body: `${solicitanteName} ha confirmado la recepción de la requisición ${requisicionLabel}.`,
+      linkPath: `/requisiciones/view/${requisicionId}`,
+      dedupeKey: `requisicion:${requisicionId}:acuse:${Date.now()}`,
+      priority: 2,
+      context: { assignee_auth: adminAuthId },
+    });
   } catch (err) {
     console.error("[notifyAdminOfAcuseRecibo] Unexpected error:", err);
   }
 }
 
-// Notify the creator that the approver (lider/coordinador) modified their
-// requisicion before approving. Fires only on the FIRST edit (when
-// aprobador_edito transitions from false to true), not on every save, to avoid
-// notification spam.
 export async function notifyCreatorOfApproverChanges(
   requisicionId: number,
   creatorAuthId: string,
   requisicionLabel: string,
   approverRole: string,
 ) {
-  try {
-    const supabase = await createAdminClient();
-
-    const body = `El ${approverRole} modificó el contenido de tu requisición ${requisicionLabel} antes de aprobarla. Revisa los cambios en el detalle de la requisición.`;
-
-    const { error: insertError } = await supabase
-      .schema("notify")
-      .from("inbox")
-      .insert({
-          app_slug: "administracion",
-          event_key: "requisicion_aprobador_cambios",
-          recipient_id_auth: creatorAuthId,
-          title: "Cambios en tu Requisición",
-          body,
-          link_path: `/requisiciones/view/${requisicionId}`,
-          dedupe_key: `requisicion:${requisicionId}:aprobador_cambios`,
-          priority: 2,
-        });
-
-    if (insertError) {
-      console.error(
-        "[notifyCreatorOfApproverChanges] Error inserting notification:",
-        insertError,
-      );
-    }
-  } catch (err) {
-    console.error("[notifyCreatorOfApproverChanges] Unexpected error:", err);
-  }
+  await notifyCreatorEvent(
+    "requisicion_aprobador_cambios",
+    requisicionId,
+    creatorAuthId,
+    "Cambios en tu Requisición",
+    `El ${approverRole} modificó el contenido de tu requisición ${requisicionLabel} antes de aprobarla. Revisa los cambios en el detalle de la requisición.`,
+    `requisicion:${requisicionId}:aprobador_cambios`,
+  );
 }
