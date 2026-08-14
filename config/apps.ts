@@ -41,6 +41,7 @@ import {
   Code2,
   Layers,
   Bell,
+  UserPlus,
 } from "lucide-react";
 import { build_app_config } from "@/lib/app-theme";
 import { get_tickets_form_base_url } from "@/lib/tickets-form-url";
@@ -871,14 +872,29 @@ export const apps: AppConfig[] = [
     dashboardOrder: 6,
     navLinks: [
       {
-        label: "Catálogo de notificaciones",
-        path: "/notificaciones",
-        icon: Bell,
+        groupLabel: "Usuarios",
+        links: [
+          {
+            label: "Manejo de usuarios",
+            path: "/usuarios",
+            icon: UserPlus,
+          },
+        ],
       },
       {
-        label: "Por usuario",
-        path: "/notificaciones/usuarios",
-        icon: Users,
+        groupLabel: "Notificaciones",
+        links: [
+          {
+            label: "Catálogo de notificaciones",
+            path: "/notificaciones",
+            icon: Bell,
+          },
+          {
+            label: "Por usuario",
+            path: "/notificaciones/usuarios",
+            icon: Users,
+          },
+        ],
       },
     ],
   }),

@@ -112,8 +112,7 @@ export const AppBreadcrumb = () => {
       label = "Leads";
     }
 
-    if (!label && currentApp) {
-      // Search in app navLinks
+    if (currentApp) {
       const allLinks: NavLink[] = [];
       currentApp.navLinks.forEach(item => {
         if (isNavGroup(item)) {

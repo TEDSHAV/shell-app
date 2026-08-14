@@ -1,23 +1,24 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Code2, Github, ExternalLink, BookOpen, Terminal, Bell } from "lucide-react";
+import { Code2, Github, ExternalLink, BookOpen, Terminal, Bell, Users } from "lucide-react";
 import { isTedMember } from "@/actions/ted";
-import { getAllDepartments } from "@/actions/directory";
-import { PasswordResetCard } from "@/components/admin/PasswordResetCard";
-import { CreateUserCard } from "@/components/admin/CreateUserCard";
 
 export const dynamic = "force-dynamic";
 
 export default async function TedPage() {
-  const [allowed, departments] = await Promise.all([
-    isTedMember(),
-    getAllDepartments(),
-  ]);
+  const allowed = await isTedMember();
   if (!allowed) {
     redirect("/dashboard");
   }
 
   const resources = [
+    {
+      icon: Users,
+      title: "Manejo de usuarios",
+      description: "Crear cuentas nuevas y restablecer contraseñas.",
+      href: "/ted/usuarios",
+      external: false,
+    },
     {
       icon: Bell,
       title: "Notificaciones",
@@ -109,11 +110,6 @@ export default async function TedPage() {
             </Link>
           );
         })}
-      </div>
-
-      <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <CreateUserCard departments={departments} />
-        <PasswordResetCard />
       </div>
     </div>
   );

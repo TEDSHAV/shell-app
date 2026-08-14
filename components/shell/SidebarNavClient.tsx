@@ -22,6 +22,38 @@ function isNavGroup(item: NavLink | NavGroup): item is NavGroup {
   return "groupLabel" in item;
 }
 
+function flatten_nav_paths(app: AppConfig): string[] {
+  const paths: string[] = [];
+  for (const item of app.navLinks) {
+    const links = isNavGroup(item) ? item.links : [item];
+    for (const link of links) {
+      paths.push(
+        link.href ??
+          `${app.basePath}${link.path === "/" ? "" : link.path}`,
+      );
+    }
+  }
+  return paths;
+}
+
+function path_matches(pathname: string, full_path: string): boolean {
+  return pathname === full_path || pathname.startsWith(`${full_path}/`);
+}
+
+function is_nav_path_active(
+  pathname: string,
+  full_path: string,
+  all_paths: string[],
+): boolean {
+  if (!path_matches(pathname, full_path)) return false;
+  return !all_paths.some(
+    (other) =>
+      other !== full_path &&
+      other.length > full_path.length &&
+      path_matches(pathname, other),
+  );
+}
+
 function resolve_reportes_department(
   pathname: string,
 ): "negocios" | "marketing" | null {
@@ -179,16 +211,17 @@ export function SidebarNavClient({
 
   const sidebar_theme_style = get_sidebar_nav_style(currentApp.brandColor);
 
+  const nav_paths = flatten_nav_paths(currentApp);
+
   const renderNavLink = (link: NavLink) => {
     const fullPath =
       link.href ??
       `${currentApp.basePath}${link.path === "/" ? "" : link.path}`;
-    const isActive = link.href
-      ? pathname === link.href || pathname.startsWith(`${link.href}/`)
-      : link.path === "/"
+    const isActive =
+      link.path === "/" && !link.href
         ? pathname === currentApp.basePath ||
           pathname === currentApp.basePath + "/"
-        : pathname.startsWith(fullPath);
+        : is_nav_path_active(pathname, fullPath, nav_paths);
 
     const external = opens_in_new_tab(currentApp);
     const externalHref = external
