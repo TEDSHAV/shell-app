@@ -4,6 +4,8 @@ export type OsiCostVisibilityConfigRow = {
   formato: OsiCostVisibilityFormato;
   allowed_role_slugs: string[];
   allowed_departamento_ids: number[];
+  allowed_user_ids: number[];
+  denied_user_ids: number[];
   default_public_cost_mask: Record<string, boolean>;
   default_hide_monetary: boolean;
   /** Solo servicios_tecnicos: días por defecto en seguimiento de garantía (ej. 15 → "15 días"). */
@@ -13,9 +15,32 @@ export type OsiCostVisibilityConfigRow = {
 export type OsiCostVisibilityUserContext = {
   role: string | null;
   role_slugs?: string[];
+  app_roles?: Record<string, string>;
+  usuario_id?: number | null;
   departamento_id: number | null;
   permission_slugs?: string[];
 };
+
+export type ParsedAppRoleEntry = {
+  app_slug: string | null;
+  role_slug: string;
+};
+
+export function to_app_role_key(app_slug: string, role_slug: string): string {
+  return `${app_slug.trim().toLowerCase()}:${role_slug.trim().toLowerCase()}`;
+}
+
+export function parse_app_role_key(value: string): ParsedAppRoleEntry {
+  const trimmed = value.trim();
+  const colon = trimmed.indexOf(":");
+  if (colon > 0) {
+    return {
+      app_slug: trimmed.slice(0, colon).toLowerCase(),
+      role_slug: trimmed.slice(colon + 1).toLowerCase(),
+    };
+  }
+  return { app_slug: null, role_slug: trimmed.toLowerCase() };
+}
 
 function normalize_role_slug(value: string | null | undefined): string {
   return String(value ?? "")
@@ -23,6 +48,17 @@ function normalize_role_slug(value: string | null | undefined): string {
     .toLowerCase()
     .replace(/[:\s]+/g, "_")
     .replace(/_+/g, "_");
+}
+
+function role_slug_matches(
+  allowed_role: string,
+  candidate_role: string,
+): boolean {
+  if (!allowed_role || !candidate_role) return false;
+  if (allowed_role === candidate_role) return true;
+  return (
+    candidate_role.includes(allowed_role) || allowed_role.includes(candidate_role)
+  );
 }
 
 function parse_json_string_array(value: unknown): string[] {
@@ -69,6 +105,8 @@ export function parse_osi_cost_visibility_row(
     allowed_departamento_ids: parse_json_number_array(
       row.allowed_departamento_ids,
     ),
+    allowed_user_ids: parse_json_number_array(row.allowed_user_ids),
+    denied_user_ids: parse_json_number_array(row.denied_user_ids),
     default_public_cost_mask: parse_mask_record(row.default_public_cost_mask),
     default_hide_monetary: Boolean(row.default_hide_monetary),
     default_st_garantia_dias:
@@ -83,23 +121,29 @@ function role_matches_allowed(
   allowed_role_slugs: string[],
 ): boolean {
   if (allowed_role_slugs.length === 0) return false;
-  const normalized_allowed = allowed_role_slugs.map(normalize_role_slug);
-  const candidates = [
-    ctx.role,
-    ...(ctx.role_slugs ?? []),
-  ].map(normalize_role_slug);
-  for (const candidate of candidates) {
-    if (!candidate) continue;
-    if (normalized_allowed.includes(candidate)) return true;
-    if (
-      normalized_allowed.some(
-        (allowed) =>
-          candidate.includes(allowed) || allowed.includes(candidate),
-      )
-    ) {
-      return true;
+
+  const flat_candidates = [ctx.role, ...(ctx.role_slugs ?? [])]
+    .map(normalize_role_slug)
+    .filter((value) => value.length > 0);
+
+  for (const raw_allowed of allowed_role_slugs) {
+    const parsed = parse_app_role_key(raw_allowed);
+    const normalized_role = normalize_role_slug(parsed.role_slug);
+
+    if (parsed.app_slug && ctx.app_roles) {
+      const app_role = normalize_role_slug(ctx.app_roles[parsed.app_slug]);
+      if (role_slug_matches(normalized_role, app_role)) {
+        return true;
+      }
+    }
+
+    for (const candidate of flat_candidates) {
+      if (role_slug_matches(normalized_role, candidate)) {
+        return true;
+      }
     }
   }
+
   return false;
 }
 
@@ -124,7 +168,25 @@ export function user_can_reveal_osi_costs(
     );
   }
 
-  if (role_matches_allowed(ctx, config.allowed_role_slugs)) return true;
+  const usuario_id = ctx.usuario_id;
+
+  if (role_matches_allowed(ctx, config.allowed_role_slugs)) {
+    if (
+      usuario_id == null ||
+      usuario_id <= 0 ||
+      !config.denied_user_ids.includes(usuario_id)
+    ) {
+      return true;
+    }
+  }
+
+  if (
+    usuario_id != null &&
+    usuario_id > 0 &&
+    config.allowed_user_ids.includes(usuario_id)
+  ) {
+    return true;
+  }
 
   const deptId = ctx.departamento_id;
   if (
@@ -132,6 +194,13 @@ export function user_can_reveal_osi_costs(
     deptId > 0 &&
     config.allowed_departamento_ids.includes(deptId)
   ) {
+    if (
+      usuario_id != null &&
+      usuario_id > 0 &&
+      config.denied_user_ids.includes(usuario_id)
+    ) {
+      return false;
+    }
     return true;
   }
 

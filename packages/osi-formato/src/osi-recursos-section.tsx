@@ -560,20 +560,14 @@ export function OsiStRecursosBlocks({
   const slice = layout.consolidado;
   const logistica_mask_hidden = is_hidden("logistica_unit_cost");
   const hospedaje_mask_hidden = is_hidden("hospedaje_unit_cost");
-  const impresion_mask_hidden = is_hidden("costo_impresion_material");
   const otros_mask_hidden = is_hidden("costo_otros");
-  const bateria_mask_hidden = is_hidden("costo_bateria");
   const traslado_mask = is_hidden("costo_traslado");
 
   const costo_logistica_view = logistica_mask_hidden
     ? 0
     : slice.costoLogisticaComida;
   const costo_hospedaje_view = hospedaje_mask_hidden ? 0 : slice.costoHospedaje;
-  const costo_bateria_view = bateria_mask_hidden ? 0 : slice.costoBateria;
   const costo_otros_view = otros_mask_hidden ? 0 : slice.costoOtros;
-  const costo_impresion_material_view = impresion_mask_hidden
-    ? 0
-    : slice.costoImpresionMaterial;
   const dias_logistica = slice.diasLogisticaFacilitador;
   const dias_hospedaje = slice.diasHospedajeFacilitador;
   const st_totals = compute_st_recursos_totals({
@@ -592,8 +586,6 @@ export function OsiStRecursosBlocks({
   const bateria_si = slice.bateriaIncluida;
   const st_traslados_list = slice.stTraslados;
   const otros_texto = String(slice.stOtrosTexto ?? "").trim();
-  const garantia_texto =
-    String(slice.stSeguimientoGarantia ?? "").trim() || "15 días";
 
   const row_cell_class = "align-top p-1 w-1/3";
   const inner_table_class =
@@ -614,6 +606,14 @@ export function OsiStRecursosBlocks({
                 <td className={row_cell_class}>
                   <table className={inner_table_class}>
                     <tbody>
+                      <tr>
+                        <th
+                          colSpan={3}
+                          className="bg-slate-100 osi-label-md px-1 py-0.5"
+                        >
+                          PLANIFICACIÓN
+                        </th>
+                      </tr>
                       <tr>
                         <th className="bg-slate-100 osi-label-sm px-1 py-0.5">
                           CAMPO
@@ -732,14 +732,6 @@ export function OsiStRecursosBlocks({
                         </td>
                       </tr>
                       <tr>
-                        <td className="osi-doc-value text-center">
-                          {format_money_or_dash(
-                            costo_bateria_view,
-                            bateria_mask_hidden || !bateria_si,
-                          )}
-                        </td>
-                      </tr>
-                      <tr>
                         <th className="bg-slate-100 osi-label-md px-1 py-0.5">
                           IMPRESIÓN DE MATERIAL
                         </th>
@@ -747,14 +739,6 @@ export function OsiStRecursosBlocks({
                       <tr>
                         <td className="osi-doc-value text-center font-bold py-1">
                           {format_osi_si_no(impresion_si)}
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="osi-doc-value text-center">
-                          {format_money_or_dash(
-                            costo_impresion_material_view,
-                            impresion_mask_hidden,
-                          )}
                         </td>
                       </tr>
                     </tbody>
@@ -766,50 +750,22 @@ export function OsiStRecursosBlocks({
                   <table className={inner_table_class}>
                     <tbody>
                       <tr>
-                        <td className="w-1/2 align-top p-1">
-                          <table className={inner_table_class}>
-                            <tbody>
-                              <tr>
-                                <th className="bg-slate-100 osi-label-md px-2 py-0.5 text-left">
-                                  OTROS
-                                </th>
-                              </tr>
-                              <tr>
-                                <td className="osi-doc-value !text-left px-2 py-1 align-top min-h-8">
-                                  {otros_texto.length > 0 ? (
-                                    <OsiInlineRichText content={otros_texto} />
-                                  ) : (
-                                    "N/A"
-                                  )}
-                                  {!otros_mask_hidden && costo_otros_view > 0 ? (
-                                    <div className="mt-1 text-center font-semibold">
-                                      {format_money_or_dash(costo_otros_view, false)}
-                                    </div>
-                                  ) : null}
-                                </td>
-                              </tr>
-                            </tbody>
-                          </table>
-                        </td>
-                        <td className="w-1/2 align-top p-1">
-                          <table className={inner_table_class}>
-                            <tbody>
-                              <tr>
-                                <th className="bg-slate-100 osi-label-md px-2 py-0.5 text-left">
-                                  SEGUIMIENTO DE DÍAS DE GARANTÍA
-                                </th>
-                              </tr>
-                              <tr>
-                                <td className="osi-doc-value !text-left px-2 py-1 align-top min-h-8">
-                                  {garantia_texto.length > 0 ? (
-                                    <OsiInlineRichText content={garantia_texto} />
-                                  ) : (
-                                    "—"
-                                  )}
-                                </td>
-                              </tr>
-                            </tbody>
-                          </table>
+                        <th className="bg-slate-100 osi-label-md px-2 py-0.5 text-left">
+                          OTROS
+                        </th>
+                      </tr>
+                      <tr>
+                        <td className="osi-doc-value !text-left px-2 py-1 align-top min-h-8">
+                          {otros_texto.length > 0 ? (
+                            <OsiInlineRichText content={otros_texto} />
+                          ) : (
+                            "N/A"
+                          )}
+                          {!otros_mask_hidden && costo_otros_view > 0 ? (
+                            <div className="mt-1 text-center font-semibold">
+                              {format_money_or_dash(costo_otros_view, false)}
+                            </div>
+                          ) : null}
                         </td>
                       </tr>
                     </tbody>

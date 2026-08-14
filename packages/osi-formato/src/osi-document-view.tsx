@@ -5,6 +5,7 @@ import { useEffect, useRef } from "react";
 import { cn } from "./utils/cn";
 import { formatCalendarDayEsVe, formatTimeAmPmEsVe } from "./utils/calendar-date";
 import type { OsiStFechasServicioSlice } from "./st-fechas-document";
+import { build_st_fechas_ejecutadas_vacias } from "./st-fechas-document";
 import { merged_content_to_display_html, RICH_HTML_CONTENT_CLASS } from "./rich-html";
 import type { OsiStServicioLine } from "./osi-preview-data";
 import { type OsiDocumentAssets, type OsiPreviewData } from "./osi-preview-data";
@@ -28,13 +29,13 @@ import {
 /** Fixed header metadata (CÓDIGO / FECHA / REVISIÓN / PÁGINA block). */
 const OSI_FORM_META_CAP = {
   codigo: "RG-NEG-003",
-  fecha: "12/08/2026",
+  fecha: "14/08/2026",
   revision: "1",
 } as const;
 
 const OSI_FORM_META_ST = {
   codigo: "RG-NEG-004",
-  fecha: "12/08/2026",
+  fecha: "14/08/2026",
   revision: "1",
 } as const;
 
@@ -246,35 +247,55 @@ function format_st_fecha_celda(
   return formatCalendarDayEsVe(value);
 }
 
+function format_st_reunion_pre_inicio(
+  fecha: string | null | undefined,
+  hora: string | null | undefined,
+  vacio: boolean,
+): string {
+  if (vacio) return "— —";
+  const fecha_txt = String(fecha ?? "").trim()
+    ? formatCalendarDayEsVe(fecha)
+    : "";
+  const hora_txt = String(hora ?? "").trim()
+    ? formatTimeAmPmEsVe(hora)
+    : "";
+  if (!fecha_txt && !hora_txt) return "— —";
+  if (fecha_txt && hora_txt) return `${fecha_txt} ${hora_txt}`;
+  return fecha_txt || hora_txt;
+}
+
 function OsiStFechasCategoriaTable({
-  titulo,
   fechas,
   vacio,
   highlight,
+  hora_fallback,
 }: {
-  titulo: string;
   fechas: OsiStFechasServicioSlice;
   vacio: boolean;
   highlight?: boolean;
+  hora_fallback?: string | null;
 }) {
   const inner_class =
     "w-full border-collapse [&_td]:border [&_td]:border-black [&_th]:border [&_th]:border-black";
   const row_class = highlight ? "bg-amber-50 ring-2 ring-amber-300 ring-inset" : "";
+  const reunion_hora =
+    String(fechas.reunionPreInicioHora ?? "").trim() ||
+    String(hora_fallback ?? "").trim() ||
+    null;
 
   return (
     <table className={inner_class}>
       <tbody>
-        <tr>
-          <th colSpan={3} className="bg-slate-100 px-1 py-0.5 text-left text-[11px]">
-            {titulo}
-          </th>
-        </tr>
         <tr className={row_class}>
           <th className="px-1 py-0.5 text-left text-[10px] font-normal">
-            REUNIÓN PRE-PROYECTO
+            REUNIÓN PRE-INICIO
           </th>
           <td colSpan={2} className="px-1 py-0.5 text-[11px]">
-            {format_st_fecha_celda(fechas.reunionPreProyecto, vacio)}
+            {format_st_reunion_pre_inicio(
+              fechas.reunionPreProyecto,
+              reunion_hora,
+              vacio,
+            )}
           </td>
         </tr>
         <tr>
@@ -325,6 +346,31 @@ function OsiStFechasCategoriaTable({
             {format_st_fecha_celda(fechas.diasRevision.fin, vacio)}
           </td>
         </tr>
+        <tr>
+          <th className="px-1 py-0.5 text-left text-[10px] font-normal">
+            FECHA ENTREGA
+          </th>
+          <td colSpan={2} className="px-1 py-0.5 text-[11px]">
+            {/* Por ahora siempre en blanco hasta definir fuente de fecha entrega. */}
+            {format_st_fecha_celda(null, true)}
+          </td>
+        </tr>
+        <tr>
+          <th className="px-1 py-0.5 text-left text-[10px] font-normal">
+            DÍAS DE GARANTÍA
+          </th>
+          <th className="px-1 py-0.5 text-[10px] font-normal">INICIO</th>
+          <th className="px-1 py-0.5 text-[10px] font-normal">FIN</th>
+        </tr>
+        <tr>
+          <td className="px-1 py-0.5 text-[10px] text-muted-foreground"> </td>
+          <td className="px-1 py-0.5 text-[11px]">
+            {format_st_fecha_celda(null, true)}
+          </td>
+          <td className="px-1 py-0.5 text-[11px]">
+            {format_st_fecha_celda(null, true)}
+          </td>
+        </tr>
       </tbody>
     </table>
   );
@@ -335,11 +381,13 @@ function OsiStFechasServicioRows({
   ejecutadas,
   servicio_ejecutado,
   highlight,
+  hora_fallback,
 }: {
   planificadas: OsiStFechasServicioSlice;
   ejecutadas: OsiStFechasServicioSlice;
   servicio_ejecutado: boolean;
   highlight?: boolean;
+  hora_fallback?: string | null;
 }) {
   return (
     <>
@@ -360,17 +408,17 @@ function OsiStFechasServicioRows({
           )}
         >
           <OsiStFechasCategoriaTable
-            titulo="PLANIFICACIÓN"
             fechas={planificadas}
             vacio={false}
             highlight={highlight}
+            hora_fallback={hora_fallback}
           />
         </td>
         <td colSpan={3} className="align-top p-1">
           <OsiStFechasCategoriaTable
-            titulo="EJECUCIÓN"
             fechas={ejecutadas}
             vacio={!servicio_ejecutado}
+            hora_fallback={hora_fallback}
           />
         </td>
       </tr>
@@ -1214,23 +1262,22 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
                 />
                 <OsiStFechasServicioRows
                   planificadas={
-                    data.stFechasPlanificadas ?? {
-                      reunionPreProyecto: null,
-                      diasCampo: { inicio: null, fin: null },
-                      diasInforme: { inicio: null, fin: null },
-                      diasRevision: { inicio: null, fin: null },
-                    }
+                    data.stFechasPlanificadas ??
+                    build_st_fechas_ejecutadas_vacias()
                   }
                   ejecutadas={
-                    data.stFechasEjecutadas ?? {
-                      reunionPreProyecto: null,
-                      diasCampo: { inicio: null, fin: null },
-                      diasInforme: { inicio: null, fin: null },
-                      diasRevision: { inicio: null, fin: null },
-                    }
+                    data.stFechasEjecutadas ??
+                    build_st_fechas_ejecutadas_vacias()
                   }
                   servicio_ejecutado={Boolean(data.stServicioEjecutado)}
                   highlight={hl.fechaServicio}
+                  hora_fallback={
+                    data.horaInicioServicio ||
+                    data.sesionesProgramadas?.find((s) =>
+                      String(s.hora_inicio ?? "").trim(),
+                    )?.hora_inicio ||
+                    null
+                  }
                 />
               </>
             )}

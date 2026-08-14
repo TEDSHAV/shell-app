@@ -1,11 +1,14 @@
 export {
+  parse_app_role_key,
   parse_osi_cost_visibility_row,
+  to_app_role_key,
   user_can_reveal_osi_costs,
 } from "./osi-cost-visibility";
 export type {
   OsiCostVisibilityConfigRow,
   OsiCostVisibilityFormato,
   OsiCostVisibilityUserContext,
+  ParsedAppRoleEntry,
 } from "./osi-cost-visibility";
 export {
   has_cap_cierre_certificados_step,
@@ -15,16 +18,32 @@ export {
   resolve_osi_estatus_document_label,
   resolve_show_cierre_section,
 } from "./osi-status-display";
+export {
+  count_sesiones_programadas,
+  osi_recursos_were_persisted,
+  resolve_osi_horas_count,
+  resolve_osi_override_number,
+  resolve_osi_participantes_count,
+  resolve_osi_sesiones_count,
+  resolve_osi_st_engineering_value,
+} from "./operational-display";
 export { formatCalendarDayEsVe, formatTimeAmPmEsVe } from "./utils/calendar-date";
 export {
+  add_calendar_days_iso,
   build_st_fechas_ejecutadas_vacias,
   build_st_fechas_planificadas,
+  build_st_fechas_servicio,
+  build_st_garantia_rango,
   format_osi_st_garantia_default,
   has_st_sesiones_ejecutadas,
+  normalize_st_garantia_dias,
   resolve_osi_st_garantia_display,
+  resolve_st_fecha_entrega,
   resolve_st_fecha_reunion_pre_proyecto,
+  resolve_st_hora_reunion_pre_inicio,
 } from "./st-fechas-document";
 export type {
+  BuildStFechasServicioParams,
   OsiStFechaRango,
   OsiStFechasServicioSlice,
 } from "./st-fechas-document";

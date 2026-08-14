@@ -3,9 +3,11 @@ import type {
   OsiRecursosSesionPreview,
 } from "./osi-preview-data";
 import {
+  osi_recursos_were_persisted,
   resolve_osi_horas_count,
   resolve_osi_participantes_count,
   resolve_osi_sesiones_count,
+  resolve_osi_st_engineering_value,
 } from "./operational-display";
 import { formatOsiSecuencialNro } from "./secuencial-display";
 import { parse_st_traslados_json } from "./st-recursos-types";
@@ -17,9 +19,10 @@ import {
 } from "./osi-status-display";
 import {
   build_st_fechas_ejecutadas_vacias,
-  build_st_fechas_planificadas,
+  build_st_fechas_servicio,
   resolve_osi_st_garantia_display,
   resolve_st_fecha_reunion_pre_proyecto,
+  resolve_st_hora_reunion_pre_inicio,
 } from "./st-fechas-document";
 
 type GenericRow = Record<string, unknown>;
@@ -74,8 +77,14 @@ function to_sessions(
     if (!fecha) continue;
     result.push({
       fecha,
-      hora_inicio: typeof row.hora_inicio === "string" ? row.hora_inicio : null,
-      hora_fin: typeof row.hora_fin === "string" ? row.hora_fin : null,
+      hora_inicio:
+        row.hora_inicio == null || row.hora_inicio === ""
+          ? null
+          : String(row.hora_inicio).trim() || null,
+      hora_fin:
+        row.hora_fin == null || row.hora_fin === ""
+          ? null
+          : String(row.hora_fin).trim() || null,
     });
   }
   return result;
@@ -256,6 +265,7 @@ export function build_osi_preview_data(input: BuildOsiPreviewInput): OsiPreviewD
   const st_monetary_public_view = input.st_monetary_public_view !== false;
 
   const is_capacitacion = resolve_is_capacitacion(view_row);
+  const recursos_persistidos = osi_recursos_were_persisted(view_row);
   const hide_st_monetary =
     !is_capacitacion &&
     (!can_reveal_st_monetary || st_monetary_public_view);
@@ -370,7 +380,12 @@ export function build_osi_preview_data(input: BuildOsiPreviewInput): OsiPreviewD
     const stored = to_num(view_row.dias_logistica_facilitador);
     if (stored > 0) return stored;
     if (!is_capacitacion) {
-      return to_num(view_row.st_dias_campo) || to_num(view_row.cantidad_dias_campo);
+      if (recursos_persistidos) return 0;
+      return resolve_osi_st_engineering_value(
+        view_row.st_dias_campo,
+        view_row.cantidad_dias_campo,
+        false,
+      );
     }
     return 0;
   })();
@@ -379,7 +394,12 @@ export function build_osi_preview_data(input: BuildOsiPreviewInput): OsiPreviewD
     const stored = to_num(view_row.dias_hospedaje_facilitador);
     if (stored > 0) return stored;
     if (!is_capacitacion) {
-      return to_num(view_row.st_dias_campo) || to_num(view_row.cantidad_dias_campo);
+      if (recursos_persistidos) return 0;
+      return resolve_osi_st_engineering_value(
+        view_row.st_dias_campo,
+        view_row.cantidad_dias_campo,
+        false,
+      );
     }
     return 0;
   })();
@@ -414,11 +434,22 @@ export function build_osi_preview_data(input: BuildOsiPreviewInput): OsiPreviewD
     to_str(view_row.fecha_inicio_real),
     sesiones_programadas_exec,
   );
-  const st_fechas_planificadas = build_st_fechas_planificadas(
-    reunion_pre_proyecto,
+  const reunion_pre_inicio_hora = resolve_st_hora_reunion_pre_inicio(
+    to_str(view_row.hora_inicio_servicio),
+    sesiones_programadas_exec,
   );
+  const st_fechas_planificadas = build_st_fechas_servicio({
+    reunion_iso: reunion_pre_proyecto,
+    reunion_hora: reunion_pre_inicio_hora,
+  });
   const st_servicio_ejecutado =
     to_num(view_row.id_estatus) === OSI_PREVIEW_ESTATUS.EJECUTADO;
+  const st_fechas_ejecutadas = st_servicio_ejecutado
+    ? build_st_fechas_servicio({
+        reunion_iso: reunion_pre_proyecto,
+        reunion_hora: reunion_pre_inicio_hora,
+      })
+    : build_st_fechas_ejecutadas_vacias();
 
   return {
     nroOsi: formatOsiSecuencialNro(view_row.nro_osi),
@@ -499,24 +530,36 @@ export function build_osi_preview_data(input: BuildOsiPreviewInput): OsiPreviewD
     audiovisuales: Boolean(view_row.requiere_audiovisuales),
     isCapacitacion: is_capacitacion,
     stServicios: st_servicios_preview,
-    stDiasCampo: to_num(view_row.st_dias_campo) || to_num(view_row.cantidad_dias_campo),
-    stDiasInforme:
-      to_num(view_row.st_dias_informe) || to_num(view_row.cantidad_dias_informe),
-    stDiasRevision:
-      to_num(view_row.st_dias_revision) ||
-      to_num(view_row.cantidad_dias_revision_interna),
-    stAnalistas: to_num(view_row.st_analistas) || to_num(view_row.cantidad_analistas),
+    stDiasCampo: resolve_osi_st_engineering_value(
+      view_row.st_dias_campo,
+      view_row.cantidad_dias_campo,
+      recursos_persistidos,
+    ),
+    stDiasInforme: resolve_osi_st_engineering_value(
+      view_row.st_dias_informe,
+      view_row.cantidad_dias_informe,
+      recursos_persistidos,
+    ),
+    stDiasRevision: resolve_osi_st_engineering_value(
+      view_row.st_dias_revision,
+      view_row.cantidad_dias_revision_interna,
+      recursos_persistidos,
+    ),
+    stAnalistas: resolve_osi_st_engineering_value(
+      view_row.st_analistas,
+      view_row.cantidad_analistas,
+      recursos_persistidos,
+    ),
     stOtrosTexto: to_str(view_row.st_otros_texto) || null,
     stSeguimientoGarantia: st_garantia_display,
     stFechasPlanificadas: is_capacitacion ? undefined : st_fechas_planificadas,
-    stFechasEjecutadas: is_capacitacion
-      ? undefined
-      : build_st_fechas_ejecutadas_vacias(),
+    stFechasEjecutadas: is_capacitacion ? undefined : st_fechas_ejecutadas,
     stServicioEjecutado: is_capacitacion ? undefined : st_servicio_ejecutado,
-    stLogisticaRecursos:
-      to_num(view_row.st_logistica_recursos) ||
-      to_num(view_row.st_analistas) ||
-      to_num(view_row.cantidad_analistas),
+    stLogisticaRecursos: recursos_persistidos
+      ? to_num(view_row.st_logistica_recursos)
+      : to_num(view_row.st_logistica_recursos) ||
+        to_num(view_row.st_analistas) ||
+        to_num(view_row.cantidad_analistas),
     stEnvioFactura: to_num(view_row.st_envio_factura),
     stEnvioMateriales: to_num(view_row.st_envio_materiales),
     stTraslados: st_traslados,
