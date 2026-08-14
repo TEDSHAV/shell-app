@@ -42,7 +42,6 @@ export function NotificationsBell() {
         "id, title, body, link_path, read_at, created_at, priority, app_slug, event_key",
       )
       .eq("recipient_id_auth", uid)
-      .order("read_at", { ascending: true, nullsFirst: true })
       .order("created_at", { ascending: false })
       .limit(10);
 

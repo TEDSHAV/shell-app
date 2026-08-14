@@ -70,10 +70,7 @@ export default function NotificationsPage() {
           dataQuery = dataQuery.is("read_at", null);
         }
 
-        // Add ordering
-        dataQuery = dataQuery
-          .order("read_at", { ascending: true, nullsFirst: true })
-          .order("created_at", { ascending: false });
+        dataQuery = dataQuery.order("created_at", { ascending: false });
 
         // Add pagination range
         const from = (pageNum - 1) * PAGE_SIZE;
