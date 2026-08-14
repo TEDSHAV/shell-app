@@ -59,8 +59,29 @@ export function strip_legacy_osi_concat_markers(value: string): string {
   return value
     .replace(/\s*\|\s*ADICIONAL OSI:\s*/gi, "\n\n")
     .replace(/\s*\|\s*OBS\.\s*EJECUCIÓN:\s*/gi, "\n\n")
+    .replace(/\s*\|\s*OSI:\s*/gi, "\n\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+const OSI_OBS_PIPE_SPLIT_RE =
+  /\s*\|\s*(?:OBS\.\s*EJECUCIÓN|ADICIONAL\s+OSI|OSI)\s*:\s*/gi;
+
+/** Conserva solo la nota real de solicitud si el campo fue reinyectado con totales. */
+export function extract_osi_solicitud_observacion_text(
+  value: string | null | undefined,
+): string {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  if (!/\|\s*(?:OBS\.\s*EJECUCIÓN|ADICIONAL\s+OSI|OSI)\s*:/i.test(raw)) {
+    return strip_legacy_osi_concat_markers(raw);
+  }
+  const parts = raw
+    .split(OSI_OBS_PIPE_SPLIT_RE)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (parts.length === 0) return "";
+  return strip_legacy_osi_concat_markers(parts[parts.length - 1] ?? "");
 }
 
 export function merged_content_to_display_html(value: string): string {

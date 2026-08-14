@@ -1,10 +1,11 @@
-import { strip_legacy_osi_concat_markers } from "./rich-html";
-
-const OBS_EJECUCION_PIPE_RE = /\s*\|\s*OBS\.\s*EJECUCIÓN:\s*/i;
+import {
+  extract_osi_solicitud_observacion_text,
+  strip_legacy_osi_concat_markers,
+} from "./rich-html";
 
 export type OsiObservacionDocumentItem = {
   servicio?: string;
-  etiqueta: string;
+  etiqueta: "SOLPED" | "OSI";
   contenido: string;
   maskKey?: string;
 };
@@ -13,18 +14,34 @@ function normalize_observacion_text(value: string | null | undefined): string {
   return strip_legacy_osi_concat_markers(String(value ?? "").trim());
 }
 
+/** Delimitadores de vista (`| OSI:`) + legados (`OBS. EJECUCIÓN` / `ADICIONAL OSI`). */
+const OBS_PIPE_SPLIT_RE =
+  /\s*\|\s*(?:OBS\.\s*EJECUCIÓN|ADICIONAL\s+OSI|OSI)\s*:\s*/i;
+
 function split_observaciones_legacy_pipe(value: string): {
   solped: string;
-  obs_ejecucion: string | null;
+  osi: string | null;
 } {
-  const match = value.match(OBS_EJECUCION_PIPE_RE);
+  const match = value.match(OBS_PIPE_SPLIT_RE);
   if (!match || match.index === undefined) {
-    return { solped: value.trim(), obs_ejecucion: null };
+    return { solped: value.trim(), osi: null };
   }
   return {
     solped: value.slice(0, match.index).trim(),
-    obs_ejecucion: value.slice(match.index + match[0].length).trim(),
+    osi: value.slice(match.index + match[0].length).trim(),
   };
+}
+
+function push_unique_obs_item(
+  items: OsiObservacionDocumentItem[],
+  item: OsiObservacionDocumentItem,
+): void {
+  const exists = items.some(
+    (current) =>
+      current.etiqueta === item.etiqueta &&
+      current.contenido === item.contenido,
+  );
+  if (!exists) items.push(item);
 }
 
 export function build_osi_observaciones_document_items(params: {
@@ -51,52 +68,40 @@ export function build_osi_observaciones_document_items(params: {
   }
 
   if (items.length === 0) {
-    const solped_raw = normalize_observacion_text(params.observacionesSolped);
+    const solped_raw = String(params.observacionesSolped ?? "").trim();
     if (solped_raw) {
       const split = split_observaciones_legacy_pipe(solped_raw);
       if (split.solped) {
         items.push({
           etiqueta: "SOLPED",
-          contenido: split.solped,
+          contenido: normalize_observacion_text(split.solped),
           maskKey: "osi_content_hidden:obs:base",
         });
       }
-      if (split.obs_ejecucion) {
-        items.push({
-          etiqueta: "OBS. EJECUCIÓN",
-          contenido: split.obs_ejecucion,
+      if (split.osi) {
+        push_unique_obs_item(items, {
+          etiqueta: "OSI",
+          contenido: extract_osi_solicitud_observacion_text(split.osi),
         });
       }
     }
   }
 
   if (!params.hideOsiSolicitud) {
-    const obs_solicitud = normalize_observacion_text(
+    const obs_solicitud = extract_osi_solicitud_observacion_text(
       params.observacionesOsiSolicitud,
     );
     if (obs_solicitud) {
-      const split = split_observaciones_legacy_pipe(obs_solicitud);
-      const candidatos = [split.solped, split.obs_ejecucion].filter(
-        (value): value is string => Boolean(value),
-      );
-      for (const contenido of candidatos) {
-        const exists = items.some(
-          (item) =>
-            item.etiqueta === "OBS. EJECUCIÓN" && item.contenido === contenido,
-        );
-        if (!exists) {
-          items.push({
-            etiqueta: "OBS. EJECUCIÓN",
-            contenido,
-          });
-        }
-      }
+      push_unique_obs_item(items, {
+        etiqueta: "OSI",
+        contenido: obs_solicitud,
+      });
     }
   }
 
   const obs_emision = normalize_observacion_text(params.observacionesOsi);
   if (obs_emision) {
-    items.push({
+    push_unique_obs_item(items, {
       etiqueta: "OSI",
       contenido: obs_emision,
     });
@@ -104,3 +109,5 @@ export function build_osi_observaciones_document_items(params: {
 
   return items;
 }
+
+export { extract_osi_solicitud_observacion_text };

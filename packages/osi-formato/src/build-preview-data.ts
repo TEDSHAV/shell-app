@@ -24,6 +24,7 @@ import {
   resolve_st_fecha_reunion_pre_proyecto,
   resolve_st_hora_reunion_pre_inicio,
 } from "./st-fechas-document";
+import { extract_osi_solicitud_observacion_text } from "./rich-html";
 
 type GenericRow = Record<string, unknown>;
 
@@ -502,7 +503,9 @@ export function build_osi_preview_data(input: BuildOsiPreviewInput): OsiPreviewD
     pretensionesSolped: to_str(view_row.pretenciones_cliente),
     pretensionesOsi: null,
     observacionesSolped: to_str(view_row.observaciones_cliente),
-    observacionesOsiSolicitud: to_str(osi_base_row?.observaciones_adicionales_osi),
+    observacionesOsiSolicitud: extract_osi_solicitud_observacion_text(
+      to_str(osi_base_row?.observaciones_adicionales_osi),
+    ) || null,
     observacionesOsi: to_str(
       osi_base_row?.pretenciones_adicionales_osi ??
         view_row.pretenciones_adicionales_osi,

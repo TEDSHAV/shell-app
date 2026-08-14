@@ -18,6 +18,7 @@ export default async function TedPage() {
       description: "Crear cuentas nuevas y restablecer contraseñas.",
       href: "/ted/usuarios",
       external: false,
+      disabled: false,
     },
     {
       icon: Bell,
@@ -26,6 +27,7 @@ export default async function TedPage() {
         "Catálogo de eventos notify y configuración de destinatarios por app.",
       href: "/ted/notificaciones",
       external: false,
+      disabled: false,
     },
     {
       icon: Github,
@@ -33,6 +35,7 @@ export default async function TedPage() {
       description: "Acceso a los repositorios de la organización.",
       href: process.env.NEXT_PUBLIC_TED_GITHUB_URL || "#",
       external: true,
+      disabled: true,
     },
     {
       icon: BookOpen,
@@ -40,6 +43,7 @@ export default async function TedPage() {
       description: "Guías, convenciones y manuales del equipo.",
       href: process.env.NEXT_PUBLIC_TED_DOCS_URL || "#",
       external: true,
+      disabled: true,
     },
     {
       icon: Terminal,
@@ -47,6 +51,7 @@ export default async function TedPage() {
       description: "Accesos rápidos a herramientas y entornos.",
       href: process.env.NEXT_PUBLIC_TED_TOOLS_URL || "#",
       external: true,
+      disabled: true,
     },
   ];
 
@@ -71,17 +76,39 @@ export default async function TedPage() {
           const Icon = r.icon;
           const content = (
             <>
-              <div className="absolute inset-x-0 top-0 h-1 rounded-t-xl bg-gradient-to-r from-indigo-600 to-violet-500" />
+              <div
+                className={
+                  r.disabled
+                    ? "absolute inset-x-0 top-0 h-1 rounded-t-xl bg-slate-200"
+                    : "absolute inset-x-0 top-0 h-1 rounded-t-xl bg-gradient-to-r from-indigo-600 to-violet-500"
+                }
+              />
               <div className="flex items-start justify-between">
-                <div className="p-2.5 rounded-lg bg-indigo-50 text-indigo-600">
+                <div
+                  className={
+                    r.disabled
+                      ? "p-2.5 rounded-lg bg-slate-100 text-slate-400"
+                      : "p-2.5 rounded-lg bg-indigo-50 text-indigo-600"
+                  }
+                >
                   <Icon className="h-5 w-5" />
                 </div>
-                {r.external && (
+                {r.disabled ? (
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md">
+                    Próximamente
+                  </span>
+                ) : r.external ? (
                   <ExternalLink className="h-4 w-4 text-muted-foreground/0 group-hover:text-muted-foreground transition-all" />
-                )}
+                ) : null}
               </div>
               <div>
-                <h2 className="font-semibold text-foreground text-base">
+                <h2
+                  className={
+                    r.disabled
+                      ? "font-semibold text-slate-400 text-base"
+                      : "font-semibold text-foreground text-base"
+                  }
+                >
                   {r.title}
                 </h2>
                 <p className="mt-0.5 text-sm text-muted-foreground">
@@ -91,8 +118,17 @@ export default async function TedPage() {
             </>
           );
 
-          const className =
-            "group relative flex flex-col gap-4 p-6 pt-7 rounded-xl border border-border bg-white hover:bg-accent/40 hover:border-border/80 transition-all duration-150 overflow-hidden";
+          const className = r.disabled
+            ? "relative flex flex-col gap-4 p-6 pt-7 rounded-xl border border-border/60 bg-slate-50/80 overflow-hidden opacity-70 cursor-not-allowed"
+            : "group relative flex flex-col gap-4 p-6 pt-7 rounded-xl border border-border bg-white hover:bg-accent/40 hover:border-border/80 transition-all duration-150 overflow-hidden";
+
+          if (r.disabled) {
+            return (
+              <div key={r.title} className={className} aria-disabled="true">
+                {content}
+              </div>
+            );
+          }
 
           return r.external ? (
             <a
