@@ -1,20 +1,14 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import {
-  ArrowLeft,
-  Bell,
-  BellOff,
-  ChevronDown,
-  Info,
-  Search,
-  User,
-} from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, Bell, BellOff, Info, Save, Search, User } from "lucide-react";
 
-import { setUserEventSubscription } from "@/actions/notification-admin";
+import { setUserEventSubscriptions } from "@/actions/notification-admin";
+import { SubscriptionCollapsibleBlock } from "@/components/admin/notifications/subscription-collapsible-block";
 import { UserSubscriptionAppGroup } from "@/components/admin/notifications/user-subscription-app-group";
-import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   build_user_subscription_summary,
@@ -53,56 +47,9 @@ type NotificationUserSubscriptionsProps = {
   inbox_by_auth_id: InboxSummariesByAuthId;
 };
 
-function CollapsibleBlock({
-  title,
-  count,
-  default_open,
-  icon: Icon,
-  tone = "default",
-  children,
-}: {
-  title: string;
-  count: number;
-  default_open: boolean;
-  icon: typeof Bell;
-  tone?: "default" | "muted";
-  children: React.ReactNode;
-}) {
-  const [open, set_open] = useState(default_open);
-
-  if (count === 0) return null;
-
-  return (
-    <section
-      className={cn(
-        "overflow-hidden rounded-xl border shadow-sm",
-        tone === "muted" ? "border-border/60 bg-muted/10" : "border-border/80 bg-card",
-      )}
-    >
-      <button
-        type="button"
-        onClick={() => set_open((v) => !v)}
-        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-muted/30"
-      >
-        <div className="flex items-center gap-2">
-          <Icon className="h-4 w-4 text-muted-foreground" />
-          <h2 className="text-sm font-semibold">{title}</h2>
-          <Badge variant="secondary">{count}</Badge>
-        </div>
-        <ChevronDown
-          className={cn(
-            "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
-            open && "rotate-180",
-          )}
-        />
-      </button>
-      {open ? (
-        <div className="space-y-3 border-t border-border/70 px-4 py-3">
-          {children}
-        </div>
-      ) : null}
-    </section>
-  );
+function event_key_from_override(key: string): { app_slug: string; event_key: string } {
+  const sep = key.indexOf(":");
+  return { app_slug: key.slice(0, sep), event_key: key.slice(sep + 1) };
 }
 
 export function NotificationUserSubscriptions({
@@ -116,8 +63,9 @@ export function NotificationUserSubscriptions({
   permission_members,
   inbox_by_auth_id,
 }: NotificationUserSubscriptionsProps) {
+  const router = useRouter();
   const [search, set_search] = useState("");
-  const [pending_key, set_pending_key] = useState<string | null>(null);
+  const [overrides, set_overrides] = useState<Record<string, boolean>>({});
   const [message, set_message] = useState<string | null>(null);
   const [is_pending, start_transition] = useTransition();
 
@@ -145,6 +93,28 @@ export function NotificationUserSubscriptions({
     ],
   );
 
+  const original_by_key = useMemo(() => {
+    const map = new Map<string, boolean>();
+    for (const row of summary.rows) {
+      map.set(`${row.app_slug}:${row.event_key}`, row.subscribed);
+    }
+    return map;
+  }, [summary.rows]);
+
+  useEffect(() => {
+    set_overrides((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      for (const [key, enabled] of Object.entries(next)) {
+        if (original_by_key.get(key) === enabled) {
+          delete next[key];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [original_by_key]);
+
   const partition = useMemo(
     () => partition_user_subscription_rows(summary.rows),
     [summary.rows],
@@ -154,6 +124,12 @@ export function NotificationUserSubscriptions({
     () => group_subscription_partition(partition),
     [partition],
   );
+
+  const dirty_changes = useMemo(() => {
+    return Object.entries(overrides)
+      .filter(([key, enabled]) => original_by_key.get(key) !== enabled)
+      .map(([key, enabled]) => ({ ...event_key_from_override(key), enabled }));
+  }, [overrides, original_by_key]);
 
   const query = search.trim().toLowerCase();
 
@@ -190,28 +166,29 @@ export function NotificationUserSubscriptions({
 
   const handle_toggle = (app_slug: string, event_key: string, enabled: boolean) => {
     const key = `${app_slug}:${event_key}`;
-    set_pending_key(key);
+    set_message(null);
+    set_overrides((prev) => ({ ...prev, [key]: enabled }));
+  };
+
+  const handle_save = () => {
+    if (dirty_changes.length === 0) return;
     set_message(null);
     start_transition(async () => {
-      const result = await setUserEventSubscription({
+      const result = await setUserEventSubscriptions({
         usuario_id: user.id,
-        app_slug,
-        event_key,
-        enabled,
+        changes: dirty_changes,
       });
-      set_pending_key(null);
-      set_message(
-        result.success
-          ? enabled
-            ? "Aviso agregado para esta persona."
-            : "Aviso quitado para esta persona."
-          : (result.error ?? "No se pudo actualizar."),
-      );
+      if (result.success) {
+        set_message("Cambios guardados.");
+        router.refresh();
+      } else {
+        set_message(result.error ?? "No se pudo guardar.");
+      }
     });
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 pb-24">
       <div className="space-y-2">
         <Link
           href={`${NOTIFY_ADMIN_BASE}/usuarios`}
@@ -257,8 +234,7 @@ export function NotificationUserSubscriptions({
           </ul>
         ) : (
           <p className="mt-2 text-sm text-muted-foreground">
-            No tiene avisos fijos asignados. Puedes agregar alguno abajo o revisar el
-            catálogo por evento.
+            No tiene avisos fijos asignados. Marca avisos abajo y guarda los cambios.
           </p>
         )}
       </div>
@@ -277,7 +253,7 @@ export function NotificationUserSubscriptions({
         <p
           className={cn(
             "rounded-lg border px-3 py-2 text-sm",
-            message.includes("agregado") || message.includes("quitado")
+            message.includes("guardados")
               ? "border-green-200 bg-green-50 text-green-800"
               : "border-red-200 bg-red-50 text-red-800",
           )}
@@ -296,7 +272,7 @@ export function NotificationUserSubscriptions({
         />
       </div>
 
-      <CollapsibleBlock
+      <SubscriptionCollapsibleBlock
         title="Recibe estos avisos"
         count={receives_filtered.length}
         default_open
@@ -313,15 +289,16 @@ export function NotificationUserSubscriptions({
               group={entry.group}
               rows={entry.rows}
               default_open={index === 0}
-              pending_key={pending_key}
+              pending_key={null}
               is_pending={is_pending}
+              overrides={overrides}
               on_toggle={handle_toggle}
             />
           ))
         )}
-      </CollapsibleBlock>
+      </SubscriptionCollapsibleBlock>
 
-      <CollapsibleBlock
+      <SubscriptionCollapsibleBlock
         title="No recibe"
         count={not_receives_filtered.length}
         default_open={partition.receives.length > 0 ? false : true}
@@ -341,13 +318,31 @@ export function NotificationUserSubscriptions({
               group={entry.group}
               rows={entry.rows}
               default_open={index === 0}
-              pending_key={pending_key}
+              pending_key={null}
               is_pending={is_pending}
+              overrides={overrides}
               on_toggle={handle_toggle}
             />
           ))
         )}
-      </CollapsibleBlock>
+      </SubscriptionCollapsibleBlock>
+
+      <div className="sticky bottom-4 z-20 flex flex-col gap-3 rounded-xl border border-border/80 bg-card/95 p-4 shadow-lg backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm text-muted-foreground">
+          {dirty_changes.length === 0
+            ? "Marca o desmarca avisos y pulsa guardar para aplicarlos."
+            : `${dirty_changes.length} cambio${dirty_changes.length === 1 ? "" : "s"} sin guardar`}
+        </p>
+        <Button
+          type="button"
+          disabled={is_pending || dirty_changes.length === 0}
+          className="min-w-[180px]"
+          onClick={handle_save}
+        >
+          <Save className="mr-2 h-4 w-4" />
+          {is_pending ? "Guardando…" : "Guardar cambios"}
+        </Button>
+      </div>
     </div>
   );
 }

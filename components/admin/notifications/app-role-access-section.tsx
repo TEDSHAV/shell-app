@@ -168,9 +168,10 @@ export function AppRoleAccessSection({
                           key={role_key}
                           className="rounded-lg border border-border/70 bg-background p-3"
                         >
-                          <label className="flex items-center gap-3 cursor-pointer">
+                          <div className="flex items-center gap-3">
                             <Checkbox
                               checked={checked}
+                              onClick={(event) => event.stopPropagation()}
                               onCheckedChange={() =>
                                 on_draft_change({
                                   ...draft,
@@ -182,17 +183,32 @@ export function AppRoleAccessSection({
                                 })
                               }
                             />
-                            <div className="flex items-center gap-2">
-                              <Shield className="h-4 w-4 text-muted-foreground" />
-                              <span className="text-sm font-medium">{role.role_nombre}</span>
-                              <span className="text-xs text-muted-foreground">
-                                ({role.role_slug})
-                              </span>
-                            </div>
-                            <Badge variant="outline" className="ml-auto text-[10px]">
-                              {members.length} miembros
-                            </Badge>
-                          </label>
+                            <button
+                              type="button"
+                              className="flex flex-1 items-center gap-2 text-left"
+                              onClick={() =>
+                                on_draft_change({
+                                  ...draft,
+                                  selected_role_keys: toggle_role_selection(
+                                    group.app_slug,
+                                    role.role_slug,
+                                    selected_role_keys,
+                                  ),
+                                })
+                              }
+                            >
+                              <div className="flex items-center gap-2">
+                                <Shield className="h-4 w-4 text-muted-foreground" />
+                                <span className="text-sm font-medium">{role.role_nombre}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  ({role.role_slug})
+                                </span>
+                              </div>
+                              <Badge variant="outline" className="ml-auto text-[10px]">
+                                {members.length} miembros
+                              </Badge>
+                            </button>
+                          </div>
 
                           {members.length > 0 ? (
                             <ul className="mt-3 ml-7 grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">

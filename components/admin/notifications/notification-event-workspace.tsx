@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   AppWindow,
   ChevronDown,
@@ -77,6 +78,7 @@ export function NotificationEventWorkspace({
   );
   const [saving, set_saving] = useState(false);
   const [message, set_message] = useState<string | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
     set_draft(draft_from_event_and_config(event, config));
@@ -127,6 +129,7 @@ export function NotificationEventWorkspace({
     set_saving(false);
     if (result.success) {
       set_message("Configuración guardada.");
+      router.refresh();
     } else {
       set_message(result.error ?? "No se pudo guardar.");
     }
@@ -298,7 +301,7 @@ export function NotificationEventWorkspace({
           ) : null}
         </div>
 
-        <div className="flex flex-col gap-3 border-t border-border/70 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+        <div className="sticky bottom-0 z-10 flex flex-col gap-3 border-t border-border/70 bg-card/95 px-4 py-3 backdrop-blur sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <button
             type="button"
             onClick={() => set_show_metadata((v) => !v)}
@@ -309,15 +312,20 @@ export function NotificationEventWorkspace({
             />
             {show_metadata ? "Ocultar datos del catálogo" : "Editar título y notas del evento"}
           </button>
-          <Button
-            type="button"
-            disabled={saving}
-            className="min-w-[180px]"
-            onClick={() => void handle_save()}
-          >
-            <Save className="mr-2 h-4 w-4" />
-            {saving ? "Guardando…" : "Guardar destinatarios"}
-          </Button>
+          <div className="flex flex-col items-stretch gap-1 sm:items-end">
+            <p className="text-xs text-muted-foreground">
+              Marca roles, permisos o personas y guarda para aplicarlos.
+            </p>
+            <Button
+              type="button"
+              disabled={saving}
+              className="min-w-[180px]"
+              onClick={() => void handle_save()}
+            >
+              <Save className="mr-2 h-4 w-4" />
+              {saving ? "Guardando…" : "Guardar destinatarios"}
+            </Button>
+          </div>
         </div>
 
         {show_metadata ? (

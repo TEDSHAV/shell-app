@@ -449,71 +449,108 @@ export async function listAllNotificationRecipientConfigs(): Promise<
     .filter((row): row is NotificationRecipientConfigRow => row !== null);
 }
 
+export type UserEventSubscriptionChange = {
+  app_slug: string;
+  event_key: string;
+  enabled: boolean;
+};
+
 export async function setUserEventSubscription(input: {
   usuario_id: number;
   app_slug: string;
   event_key: string;
   enabled: boolean;
 }): Promise<{ success: boolean; error?: string }> {
+  return setUserEventSubscriptions({
+    usuario_id: input.usuario_id,
+    changes: [
+      {
+        app_slug: input.app_slug,
+        event_key: input.event_key,
+        enabled: input.enabled,
+      },
+    ],
+  });
+}
+
+export async function setUserEventSubscriptions(input: {
+  usuario_id: number;
+  changes: UserEventSubscriptionChange[];
+}): Promise<{ success: boolean; error?: string }> {
   try {
     await assertCanManageNotificationAdmin();
-    const supabase = await createAdminClient();
+    if (input.changes.length === 0) {
+      return { success: true };
+    }
 
-    const [detail, users, role_members, permission_members] = await Promise.all([
-      getNotificationEventDetail(input.app_slug, input.event_key),
+    const supabase = await createAdminClient();
+    const [users, role_members, permission_members] = await Promise.all([
       listNotificationUsers(),
       listNotificationAppRoleMembers(),
       listNotificationPermissionMembers(),
     ]);
-
-    if (!detail.event) {
-      return { success: false, error: "Evento no encontrado" };
-    }
 
     const user = users.find((u) => u.id === input.usuario_id);
     if (!user) {
       return { success: false, error: "Usuario no encontrado" };
     }
 
-    const draft = draft_from_event_and_config(detail.event, detail.config);
-    const next_draft = set_user_event_subscription(
-      user,
-      draft,
-      role_members,
-      permission_members,
-      input.enabled,
-    );
-
     const updated_by = await get_current_auth_id();
     const now = new Date().toISOString();
 
-    const { error } = await supabase
-      .schema("notify")
-      .from("event_recipient_config")
-      .upsert({
-        app_slug: input.app_slug,
-        event_key: input.event_key,
-        allowed_role_slugs: role_keys_to_slugs(next_draft.selected_role_keys),
-        allowed_permission_slugs: next_draft.allowed_permission_slugs,
-        allowed_departamento_ids: next_draft.allowed_departamento_ids,
-        allowed_user_ids: next_draft.allowed_user_ids,
-        denied_user_ids: next_draft.denied_user_ids,
-        special_rules: next_draft.special_rules,
-        notes: next_draft.notes || null,
-        updated_at: now,
-        updated_by,
-      });
+    for (const change of input.changes) {
+      const detail = await getNotificationEventDetail(
+        change.app_slug,
+        change.event_key,
+      );
+      if (!detail.event) {
+        return {
+          success: false,
+          error: `Evento no encontrado: ${change.app_slug}/${change.event_key}`,
+        };
+      }
 
-    if (error) {
-      console.error("[setUserEventSubscription]", error);
-      return { success: false, error: "No se pudo actualizar la suscripción" };
+      const draft = draft_from_event_and_config(detail.event, detail.config);
+      const next_draft = set_user_event_subscription(
+        user,
+        draft,
+        role_members,
+        permission_members,
+        change.enabled,
+      );
+
+      const { error } = await supabase
+        .schema("notify")
+        .from("event_recipient_config")
+        .upsert(
+          {
+            app_slug: change.app_slug,
+            event_key: change.event_key,
+            allowed_role_slugs: role_keys_to_slugs(next_draft.selected_role_keys),
+            allowed_permission_slugs: next_draft.allowed_permission_slugs,
+            allowed_departamento_ids: next_draft.allowed_departamento_ids,
+            allowed_user_ids: next_draft.allowed_user_ids,
+            denied_user_ids: next_draft.denied_user_ids,
+            special_rules: next_draft.special_rules,
+            notes: next_draft.notes || null,
+            updated_at: now,
+            updated_by,
+          },
+          { onConflict: "app_slug,event_key" },
+        );
+
+      if (error) {
+        console.error("[setUserEventSubscriptions]", error);
+        return { success: false, error: "No se pudo actualizar la suscripción" };
+      }
+
+      revalidate_notification_paths(change.app_slug, change.event_key);
     }
 
-    revalidate_notification_paths(input.app_slug, input.event_key);
     revalidatePath(`${NOTIFY_ADMIN_BASE}/usuarios/${input.usuario_id}`);
     return { success: true };
   } catch (err) {
-    console.error("[setUserEventSubscription]", err);
+    console.error("[setUserEventSubscriptions]", err);
     return {
       success: false,
       error: err instanceof Error ? err.message : "Error inesperado",
@@ -556,19 +593,22 @@ export async function updateNotificationEventConfig(
     const { error: config_error } = await supabase
       .schema("notify")
       .from("event_recipient_config")
-      .upsert({
-        app_slug: parsed.app_slug,
-        event_key: parsed.event_key,
-        allowed_role_slugs: parsed.allowed_role_slugs,
-        allowed_permission_slugs: parsed.allowed_permission_slugs,
-        allowed_departamento_ids: parsed.allowed_departamento_ids,
-        allowed_user_ids: parsed.allowed_user_ids,
-        denied_user_ids: parsed.denied_user_ids,
-        special_rules: parsed.special_rules,
-        notes: parsed.notes || null,
-        updated_at: now,
-        updated_by,
-      });
+      .upsert(
+        {
+          app_slug: parsed.app_slug,
+          event_key: parsed.event_key,
+          allowed_role_slugs: parsed.allowed_role_slugs,
+          allowed_permission_slugs: parsed.allowed_permission_slugs,
+          allowed_departamento_ids: parsed.allowed_departamento_ids,
+          allowed_user_ids: parsed.allowed_user_ids,
+          denied_user_ids: parsed.denied_user_ids,
+          special_rules: parsed.special_rules,
+          notes: parsed.notes || null,
+          updated_at: now,
+          updated_by,
+        },
+        { onConflict: "app_slug,event_key" },
+      );
 
     if (config_error) {
       console.error("[updateNotificationEventConfig] config:", config_error);

@@ -48,6 +48,7 @@ export function PermissionsAccessSection({
         <h3 className="text-sm font-semibold">Permisos authprisma</h3>
         <p className="text-xs text-muted-foreground mt-1">
           Criterio usado por la mayoría de triggers SQL vía fan_out_by_permissions.
+          Los cambios no se aplican hasta pulsar Guardar destinatarios.
         </p>
         <Badge variant="secondary" className="mt-2">
           {draft.allowed_permission_slugs.length} seleccionados
@@ -68,13 +69,23 @@ export function PermissionsAccessSection({
         {filtered.map((perm) => {
           const checked = draft.allowed_permission_slugs.includes(perm.slug);
           return (
-            <label
+            <div
               key={perm.slug}
+              role="button"
+              tabIndex={0}
+              onClick={() => toggle_permission(perm.slug)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  toggle_permission(perm.slug);
+                }
+              }}
               className="flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-muted/30"
             >
               <Checkbox
                 className="mt-0.5"
                 checked={checked}
+                onClick={(event) => event.stopPropagation()}
                 onCheckedChange={() => toggle_permission(perm.slug)}
               />
               <div className="min-w-0">
@@ -86,7 +97,7 @@ export function PermissionsAccessSection({
                   <p className="text-xs text-muted-foreground mt-1">{perm.descripcion}</p>
                 ) : null}
               </div>
-            </label>
+            </div>
           );
         })}
       </div>

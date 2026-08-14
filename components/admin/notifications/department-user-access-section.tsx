@@ -181,8 +181,33 @@ export function DepartmentUserAccessSection({
                         const has_access = snap?.has_access ?? false;
                         const excluded = snap?.excluded ?? false;
                         return (
-                          <label
+                          <div
                             key={user.id}
+                            role="button"
+                            tabIndex={0}
+                            onClick={() =>
+                              on_draft_change(
+                                toggle_user_access(
+                                  user,
+                                  draft,
+                                  role_members,
+                                  permission_members,
+                                ),
+                              )
+                            }
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter" || event.key === " ") {
+                                event.preventDefault();
+                                on_draft_change(
+                                  toggle_user_access(
+                                    user,
+                                    draft,
+                                    role_members,
+                                    permission_members,
+                                  ),
+                                );
+                              }
+                            }}
                             className={cn(
                               "flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-3 transition-colors",
                               excluded
@@ -195,6 +220,7 @@ export function DepartmentUserAccessSection({
                             <Checkbox
                               className="mt-1"
                               checked={has_access}
+                              onClick={(event) => event.stopPropagation()}
                               onCheckedChange={() =>
                                 on_draft_change(
                                   toggle_user_access(
@@ -236,7 +262,7 @@ export function DepartmentUserAccessSection({
                                 </div>
                               ) : null}
                             </div>
-                          </label>
+                          </div>
                         );
                       })}
                     </div>

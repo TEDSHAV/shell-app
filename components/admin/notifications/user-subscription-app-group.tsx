@@ -11,6 +11,8 @@ import { cn } from "@/lib/utils";
 
 type SubscriptionRowProps = {
   row: UserEventSubscriptionRow;
+  checked: boolean;
+  dirty: boolean;
   busy: boolean;
   brand_color: string;
   on_toggle: (enabled: boolean) => void;
@@ -18,6 +20,8 @@ type SubscriptionRowProps = {
 
 function SubscriptionRow({
   row,
+  checked,
+  dirty,
   busy,
   brand_color,
   on_toggle,
@@ -26,14 +30,19 @@ function SubscriptionRow({
     <div
       className={cn(
         "flex flex-col gap-3 rounded-lg border px-4 py-3 sm:flex-row sm:items-center sm:justify-between",
-        row.subscribed
-          ? "border-primary/25 bg-primary/[0.03]"
-          : "border-border/70 bg-background",
+        dirty
+          ? "border-amber-300 bg-amber-50/70"
+          : row.subscribed
+            ? "border-primary/25 bg-primary/[0.03]"
+            : "border-border/70 bg-background",
       )}
     >
       <div className="min-w-0 flex-1 space-y-1">
         <div className="flex flex-wrap items-center gap-2">
-          <p className="font-medium" style={{ color: row.subscribed ? brand_color : undefined }}>
+          <p
+            className="font-medium"
+            style={{ color: row.subscribed && !dirty ? brand_color : undefined }}
+          >
             {row.title}
           </p>
           {!row.is_active ? (
@@ -44,6 +53,11 @@ function SubscriptionRow({
           {row.conditional && !row.subscribed ? (
             <Badge variant="outline" className="text-[10px]">
               Solo en el evento
+            </Badge>
+          ) : null}
+          {dirty ? (
+            <Badge variant="outline" className="border-amber-300 text-[10px] text-amber-800">
+              {checked ? "Se añadirá al guardar" : "Se quitará al guardar"}
             </Badge>
           ) : null}
         </div>
@@ -57,13 +71,13 @@ function SubscriptionRow({
       <label className="flex shrink-0 cursor-pointer items-center gap-2 sm:pl-4">
         <input
           type="checkbox"
-          checked={row.subscribed}
+          checked={checked}
           disabled={busy}
           onChange={(event) => on_toggle(event.target.checked)}
           className="h-4 w-4 rounded border-input"
         />
         <span className="text-sm font-medium w-[4.5rem]">
-          {row.subscribed ? "Recibe" : "No"}
+          {checked ? "Recibe" : "No"}
         </span>
       </label>
     </div>
@@ -76,6 +90,7 @@ type UserSubscriptionAppGroupProps = {
   default_open?: boolean;
   pending_key: string | null;
   is_pending: boolean;
+  overrides?: Record<string, boolean>;
   on_toggle: (app_slug: string, event_key: string, enabled: boolean) => void;
 };
 
@@ -85,6 +100,7 @@ export function UserSubscriptionAppGroup({
   default_open = false,
   pending_key,
   is_pending,
+  overrides = {},
   on_toggle,
 }: UserSubscriptionAppGroupProps) {
   const [open, set_open] = useState(default_open);
@@ -145,12 +161,17 @@ export function UserSubscriptionAppGroup({
         >
           {rows.map((row) => {
             const key = `${row.app_slug}:${row.event_key}`;
+            const has_override = Object.prototype.hasOwnProperty.call(overrides, key);
+            const checked = has_override ? overrides[key] : row.subscribed;
+            const dirty = has_override && overrides[key] !== row.subscribed;
             return (
               <SubscriptionRow
                 key={key}
                 row={row}
+                checked={checked}
+                dirty={dirty}
                 brand_color={group.brand_color}
-                busy={is_pending && pending_key === key}
+                busy={is_pending}
                 on_toggle={(enabled) =>
                   on_toggle(row.app_slug, row.event_key, enabled)
                 }

@@ -81,16 +81,26 @@ export function SpecialRulesSection({
 
           const checked = draft.special_rules[rule_key] === true;
           return (
-            <label
+            <div
               key={rule_key}
+              role="button"
+              tabIndex={0}
+              onClick={() => toggle_boolean_rule(rule_key)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  toggle_boolean_rule(rule_key);
+                }
+              }}
               className="flex items-center gap-3 rounded-lg border border-border/80 bg-card px-4 py-3 cursor-pointer"
             >
               <Checkbox
                 checked={checked}
+                onClick={(event) => event.stopPropagation()}
                 onCheckedChange={() => toggle_boolean_rule(rule_key)}
               />
               <span className="text-sm">{special_rule_label(rule_key)}</span>
-            </label>
+            </div>
           );
         })}
       </div>

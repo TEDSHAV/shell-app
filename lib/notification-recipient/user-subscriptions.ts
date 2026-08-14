@@ -46,15 +46,8 @@ export function set_user_event_subscription(
   permission_members: PermissionMembersByKey,
   enabled: boolean,
 ): RecipientConfigDraft {
-  const snap = compute_user_access_snapshot(
-    user,
-    draft,
-    role_members,
-    permission_members,
-  );
-
   if (enabled) {
-    let next = {
+    let next: RecipientConfigDraft = {
       ...draft,
       denied_user_ids: draft.denied_user_ids.filter((id) => id !== user.id),
     };
@@ -73,21 +66,23 @@ export function set_user_event_subscription(
     return next;
   }
 
-  if (snap.manual) {
-    return {
-      ...draft,
-      allowed_user_ids: draft.allowed_user_ids.filter((id) => id !== user.id),
+  let next: RecipientConfigDraft = {
+    ...draft,
+    allowed_user_ids: draft.allowed_user_ids.filter((id) => id !== user.id),
+  };
+  const after_remove = compute_user_access_snapshot(
+    user,
+    next,
+    role_members,
+    permission_members,
+  );
+  if (after_remove.has_access && !next.denied_user_ids.includes(user.id)) {
+    next = {
+      ...next,
+      denied_user_ids: [...next.denied_user_ids, user.id],
     };
   }
-
-  if (!draft.denied_user_ids.includes(user.id)) {
-    return {
-      ...draft,
-      denied_user_ids: [...draft.denied_user_ids, user.id],
-    };
-  }
-
-  return draft;
+  return next;
 }
 
 export type BuildUserSubscriptionRowInput = {

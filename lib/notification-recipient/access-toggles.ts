@@ -11,6 +11,7 @@ import type {
   RecipientConfigDraft,
   UserAccessSnapshot,
 } from "@/lib/notification-recipient/types";
+import { set_user_event_subscription } from "@/lib/notification-recipient/user-subscriptions";
 
 export function get_department_effective_tri_state(
   group: DepartmentGroup,
@@ -71,42 +72,11 @@ export function toggle_user_access(
     role_members,
     permission_members,
   );
-  const has_implicit =
-    snap.via_role_keys.length > 0 ||
-    snap.via_permission_slugs.length > 0 ||
-    snap.via_department ||
-    snap.manual;
-
-  if (snap.manual) {
-    return {
-      ...draft,
-      allowed_user_ids: draft.allowed_user_ids.filter((id) => id !== user.id),
-    };
-  }
-
-  if (
-    snap.via_role_keys.length > 0 ||
-    snap.via_permission_slugs.length > 0 ||
-    snap.via_department
-  ) {
-    if (snap.excluded) {
-      return {
-        ...draft,
-        denied_user_ids: draft.denied_user_ids.filter((id) => id !== user.id),
-      };
-    }
-    return {
-      ...draft,
-      denied_user_ids: [...draft.denied_user_ids, user.id],
-    };
-  }
-
-  if (!has_implicit) {
-    return {
-      ...draft,
-      allowed_user_ids: [...draft.allowed_user_ids, user.id],
-    };
-  }
-
-  return draft;
+  return set_user_event_subscription(
+    user,
+    draft,
+    role_members,
+    permission_members,
+    !snap.has_access,
+  );
 }
