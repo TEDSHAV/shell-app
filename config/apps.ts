@@ -269,12 +269,6 @@ export const apps: AppConfig[] = [
             requiredPermissions: ["finance:ecc:read"],
           },
           {
-            label: "Catálogo de costos",
-            path: "/ingenieria/catalogo-costos",
-            icon: BookOpen,
-            requiredPermissions: ["finance:catalogo:access"],
-          },
-          {
             label: "Presupuestos",
             path: "/ingenieria/presupuestos",
             icon: Receipt,
@@ -286,11 +280,28 @@ export const apps: AppConfig[] = [
             icon: FileCheck,
             requiredPermissions: ["finance:osi:edit"],
           },
+        ],
+      },
+      {
+        groupLabel: "Configuración",
+        links: [
           {
-            label: "Configurar costos OSI",
+            label: "Configuración OSI",
             path: "/ingenieria/osi-visibilidad-costos",
-            icon: Shield,
+            icon: FileCheck,
             requiredRoles: ["admin", "superadmin"],
+          },
+          {
+            label: "Configuración Presupuestos",
+            path: "/ingenieria/configuracion-presupuestos",
+            icon: Receipt,
+            requiredPermissions: ["finance:presupuestos:config"],
+          },
+          {
+            label: "Catálogo de costos",
+            path: "/ingenieria/catalogo-costos",
+            icon: BookOpen,
+            requiredPermissions: ["finance:catalogo:access"],
           },
         ],
       },
