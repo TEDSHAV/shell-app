@@ -3,14 +3,18 @@ import type { InboxNotification } from "@/types/notifications";
 
 const SCAP_APP_SLUG = "scapacitacion";
 
-function scap_osi_preview_href(link_path: string): string | null {
-  const match = link_path.match(
-    /\/(?:ingenieria|scapacitacion)\/osi\/preview\/(\d+)/,
-  );
+const SCAP_OSI_PREVIEW_LINK_RE =
+  /\/(?:ingenieria\/|scapacitacion\/)?osi\/preview\/(\d+)/;
+
+/**
+ * SCap OSI preview lives in Gestión but should open under Capacitación in Shell.
+ */
+function capacitacion_osi_preview_href(link_path: string): string | null {
+  const match = link_path.match(SCAP_OSI_PREVIEW_LINK_RE);
   if (!match) {
     return null;
   }
-  return `/negocios/scapacitacion/osi/preview/${match[1]}`;
+  return `/capacitacion/osi/preview/${match[1]}`;
 }
 
 /**
@@ -24,9 +28,9 @@ export function resolve_notification_href(
   }
 
   if (notification.app_slug === SCAP_APP_SLUG) {
-    const scap_href = scap_osi_preview_href(notification.link_path);
-    if (scap_href) {
-      return scap_href;
+    const cap_href = capacitacion_osi_preview_href(notification.link_path);
+    if (cap_href) {
+      return cap_href;
     }
   }
 
@@ -35,20 +39,6 @@ export function resolve_notification_href(
 
   if (app && !target.startsWith(app.basePath)) {
     target = `${app.basePath}${target}`;
-  }
-
-  if (target.includes("/capacitacion/scapacitacion")) {
-    target = target.replace(
-      "/capacitacion/scapacitacion",
-      "/negocios/scapacitacion",
-    );
-  }
-
-  if (target.includes("/capacitacion/ingenieria/osi/preview/")) {
-    target = target.replace(
-      "/capacitacion/ingenieria/osi/preview/",
-      "/negocios/scapacitacion/osi/preview/",
-    );
   }
 
   return target;

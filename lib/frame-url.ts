@@ -1,6 +1,23 @@
 import { getAppById } from "@/config/apps";
 import { build_tickets_frame_url } from "@/lib/tickets-form-url";
 
+const SCAP_OSI_PREVIEW_PATH_RE =
+  /^(?:scapacitacion\/)?osi\/preview\/\d+(?:\/.*)?$/;
+
+function is_capacitacion_scap_osi_preview_path(subPath?: string): boolean {
+  const normalized = subPath?.replace(/^\//, "") ?? "";
+  return SCAP_OSI_PREVIEW_PATH_RE.test(normalized);
+}
+
+/** Gestion hosts SCap OSI preview at /scapacitacion/osi/preview/:id */
+function gestion_scap_osi_preview_path(subPath?: string): string {
+  const normalized = subPath?.replace(/^\//, "") ?? "";
+  if (normalized.startsWith("scapacitacion/")) {
+    return `/${normalized}`;
+  }
+  return `/scapacitacion/${normalized}`;
+}
+
 export function buildFrameUrl(appId: string, subPath?: string): string {
   const app = getAppById(appId);
   if (!app) {
@@ -13,6 +30,18 @@ export function buildFrameUrl(appId: string, subPath?: string): string {
 
   if (app.embedMode === "native") {
     throw new Error(`App ${appId} is native and does not have a frame URL`);
+  }
+
+  if (
+    appId === "capacitacion" &&
+    is_capacitacion_scap_osi_preview_path(subPath)
+  ) {
+    const negocios = getAppById("negocios");
+    if (!negocios?.upstreamUrl) {
+      throw new Error("Negocios upstream URL is not configured");
+    }
+    const gestionPath = gestion_scap_osi_preview_path(subPath);
+    return `${negocios.upstreamUrl}${gestionPath}?shell=1`;
   }
 
   const normalized = subPath?.replace(/^\//, "") ?? "";

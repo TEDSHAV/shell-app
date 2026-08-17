@@ -33,6 +33,8 @@ const SEGMENT_LABELS: Record<string, string> = {
   cierres: "Administración de cierres",
   manual: "Manual",
   "gestion-osi": "Gestión de OSI",
+  osi: "OSI",
+  preview: "Vista previa",
   "planificacion-servicios": "Planificación de Servicios",
   inventario: "Inventario",
   drive: "Drive",
