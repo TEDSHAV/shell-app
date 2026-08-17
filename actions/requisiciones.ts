@@ -1250,12 +1250,14 @@ export async function getAllRequisiciones(isAdmin?: boolean) {
 
   // 5) Coordinador history: externas the current user approved/rejected as coordinador
   //    (or lider fallback — coordinador_por is set in both paths).
-  if (isCoord && historyUsuarioId) {
+  //    NOTE: coordinador_por is a UUID column (stores auth uid), unlike lider_por
+  //    which is int4 (stores usuarios.id). Filter by the auth UUID here.
+  if (isCoord && userId) {
     const { data: coordHistory, error: histErr } = await supabase
       .from("requisiciones")
       .select(SELECT_RELATIONS)
       .eq("tipo_solicitud", "Externo")
-      .eq("coordinador_por", historyUsuarioId)
+      .eq("coordinador_por", userId)
       .in("coordinador_estatus", ["aprobada", "rechazada"])
       .is("deleted_at", null)
       .order("id", { ascending: false });
@@ -1377,7 +1379,7 @@ export async function setRequisicionEstatus(
       .select(`
         created_by,
         tipo_solicitud,
-        v_osi_formato_completo (nro_osi)
+        v_osi_formato_completo!left (nro_osi)
       `)
       .eq("id", id)
       .single();
@@ -1409,7 +1411,6 @@ export async function approveRequisicionByCoordinador(id: number) {
   const supabase = await createClient();
   const userResponse = await supabase.auth.getUser();
   const userId = userResponse.data.user?.id || null;
-  const usuarioId = await getCurrentUserUsuarioId();
 
   const admin = await createAdminClient();
 
@@ -1418,14 +1419,14 @@ export async function approveRequisicionByCoordinador(id: number) {
   let fetchError: any;
   ({ data: existing, error: fetchError } = await admin
     .from("requisiciones")
-    .select("tipo_solicitud, coordinador_estatus, solicitante, created_by, departamento, v_osi_formato_completo (nro_osi)")
+    .select("tipo_solicitud, coordinador_estatus, solicitante, created_by, departamento, v_osi_formato_completo!left (nro_osi)")
     .eq("id", id)
     .single());
 
   if (fetchError && (fetchError.message || "").includes("column") && (fetchError.message || "").includes("does not exist")) {
     const fallback = await admin
       .from("requisiciones")
-      .select("tipo_solicitud, solicitante, created_by, v_osi_formato_completo (nro_osi)")
+      .select("tipo_solicitud, solicitante, created_by, v_osi_formato_completo!left (nro_osi)")
       .eq("id", id)
       .single();
     existing = fallback.data;
@@ -1456,11 +1457,13 @@ export async function approveRequisicionByCoordinador(id: number) {
   }
 
   // Try updating with new columns; fall back to just notifying admin if they don't exist.
+  // NOTE: coordinador_por is a UUID column (stores auth uid), unlike lider_por
+  // which is int4 (stores usuarios.id). Use the auth UUID here.
   const { error } = await admin
     .from("requisiciones")
     .update({
       coordinador_estatus: "aprobada",
-      coordinador_por: usuarioId,
+      coordinador_por: userId,
       coordinador_at: new Date().toISOString(),
     })
     .eq("id", id);
@@ -1489,7 +1492,6 @@ export async function rejectRequisicionByCoordinador(id: number, motivo: string)
   const supabase = await createClient();
   const userResponse = await supabase.auth.getUser();
   const userId = userResponse.data.user?.id || null;
-  const usuarioId = await getCurrentUserUsuarioId();
 
   const admin = await createAdminClient();
 
@@ -1498,14 +1500,14 @@ export async function rejectRequisicionByCoordinador(id: number, motivo: string)
   let fetchError: any;
   ({ data: existing, error: fetchError } = await admin
     .from("requisiciones")
-    .select("tipo_solicitud, coordinador_estatus, solicitante, created_by, departamento, v_osi_formato_completo (nro_osi)")
+    .select("tipo_solicitud, coordinador_estatus, solicitante, created_by, departamento, v_osi_formato_completo!left (nro_osi)")
     .eq("id", id)
     .single());
 
   if (fetchError && (fetchError.message || "").includes("column") && (fetchError.message || "").includes("does not exist")) {
     const fallback = await admin
       .from("requisiciones")
-      .select("tipo_solicitud, solicitante, created_by, v_osi_formato_completo (nro_osi)")
+      .select("tipo_solicitud, solicitante, created_by, v_osi_formato_completo!left (nro_osi)")
       .eq("id", id)
       .single();
     existing = fallback.data;
@@ -1536,11 +1538,13 @@ export async function rejectRequisicionByCoordinador(id: number, motivo: string)
   }
 
   // Try updating with new columns; fall back to just notifying creator if they don't exist.
+  // NOTE: coordinador_por is a UUID column (stores auth uid), unlike lider_por
+  // which is int4 (stores usuarios.id). Use the auth UUID here.
   const { error } = await admin
     .from("requisiciones")
     .update({
       coordinador_estatus: "rechazada",
-      coordinador_por: usuarioId,
+      coordinador_por: userId,
       coordinador_at: new Date().toISOString(),
       motivo_rechazo_coordinador: motivo.trim(),
     })
@@ -1576,14 +1580,14 @@ export async function approveRequisicionByLider(id: number) {
   let fetchError: any;
   ({ data: existing, error: fetchError } = await admin
     .from("requisiciones")
-    .select("tipo_solicitud, lider_estatus, solicitante, created_by, departamento, v_osi_formato_completo (nro_osi)")
+    .select("tipo_solicitud, lider_estatus, solicitante, created_by, departamento, v_osi_formato_completo!left (nro_osi)")
     .eq("id", id)
     .single());
 
   if (fetchError && (fetchError.message || "").includes("column") && (fetchError.message || "").includes("does not exist")) {
     const fallback = await admin
       .from("requisiciones")
-      .select("tipo_solicitud, solicitante, created_by, v_osi_formato_completo (nro_osi)")
+      .select("tipo_solicitud, solicitante, created_by, v_osi_formato_completo!left (nro_osi)")
       .eq("id", id)
       .single();
     existing = fallback.data;
@@ -1651,14 +1655,14 @@ export async function rejectRequisicionByLider(id: number, motivo: string) {
   let fetchError: any;
   ({ data: existing, error: fetchError } = await admin
     .from("requisiciones")
-    .select("tipo_solicitud, lider_estatus, solicitante, created_by, departamento, v_osi_formato_completo (nro_osi)")
+    .select("tipo_solicitud, lider_estatus, solicitante, created_by, departamento, v_osi_formato_completo!left (nro_osi)")
     .eq("id", id)
     .single());
 
   if (fetchError && (fetchError.message || "").includes("column") && (fetchError.message || "").includes("does not exist")) {
     const fallback = await admin
       .from("requisiciones")
-      .select("tipo_solicitud, solicitante, created_by, v_osi_formato_completo (nro_osi)")
+      .select("tipo_solicitud, solicitante, created_by, v_osi_formato_completo!left (nro_osi)")
       .eq("id", id)
       .single();
     existing = fallback.data;
@@ -1739,14 +1743,14 @@ export async function updateRequisicionByApprover(
   let fetchError: any;
   ({ data: existing, error: fetchError } = await admin
     .from("requisiciones")
-    .select("tipo_solicitud, estatus_admin, lider_estatus, coordinador_estatus, departamento, created_by, original_snapshot, aprobador_edito, additional_items, observaciones_compras, prioridad, corresponde_a, fecha_solicitud, solicitante, gerencia_solicitante, tipo_servicio, id_sesion, cant_traslado, cant_impresion, cant_honorarios, cant_informe_final, dias_traslado, costo_traslado, impresion_total, honorarios_horas, honorarios_costo_hora, honorarios_total, informe_final_total, facilitador, cod_facilitador, cedula_facilitador, rif_facilitador, telefono_facilitador, banco, nro_cuenta, osi_fixed_items")
+    .select("tipo_solicitud, estatus_admin, lider_estatus, coordinador_estatus, departamento, created_by, original_snapshot, aprobador_edito, additional_items, observaciones_compras, prioridad, corresponde_a, fecha_solicitud, solicitante, gerencia_solicitante, tipo_servicio, id_sesion, cant_traslado, cant_impresion, cant_honorarios, cant_informe_final, dias_traslado, costo_traslado, impresion_total, honorarios_total, informe_final_total, facilitador, cod_facilitador, cedula_facilitador, rif_facilitador, telefono_facilitador, banco, nro_cuenta, osi_fixed_items")
     .eq("id", id)
     .single());
 
   if (fetchError && (fetchError.message || "").includes("column") && (fetchError.message || "").includes("does not exist")) {
     const fallback = await admin
       .from("requisiciones")
-      .select("tipo_solicitud, estatus_admin, departamento, created_by, additional_items, observaciones_compras, prioridad, corresponde_a, fecha_solicitud, solicitante, gerencia_solicitante, tipo_servicio, id_sesion, cant_traslado, cant_impresion, cant_honorarios, cant_informe_final, dias_traslado, costo_traslado, impresion_total, honorarios_horas, honorarios_costo_hora, honorarios_total, informe_final_total, facilitador, cod_facilitador, cedula_facilitador, rif_facilitador, telefono_facilitador, banco, nro_cuenta, osi_fixed_items")
+      .select("tipo_solicitud, estatus_admin, departamento, created_by, additional_items, observaciones_compras, prioridad, corresponde_a, fecha_solicitud, solicitante, gerencia_solicitante, tipo_servicio, id_sesion, cant_traslado, cant_impresion, cant_honorarios, cant_informe_final, dias_traslado, costo_traslado, impresion_total, honorarios_total, informe_final_total, facilitador, cod_facilitador, cedula_facilitador, rif_facilitador, telefono_facilitador, banco, nro_cuenta, osi_fixed_items")
       .eq("id", id)
       .single();
     existing = fallback.data;
@@ -2044,7 +2048,7 @@ export async function saveVerificacionProgress(requisicionId: number) {
       additional_items,
       osi_fixed_items,
       tipo_solicitud,
-      v_osi_formato_completo (nro_osi)
+      v_osi_formato_completo!left (nro_osi)
     `)
     .eq("id", requisicionId)
     .single();
@@ -2341,7 +2345,7 @@ export async function acknowledgeRequisicionReceipt(id: number) {
   // Fetch the requisicion to verify ownership and status
   const { data: req, error: fetchError } = await supabase
     .from("requisiciones")
-    .select("created_by, estatus_admin, acuse_recibido, procesada_por, tipo_solicitud, v_osi_formato_completo (nro_osi)")
+    .select("created_by, estatus_admin, acuse_recibido, procesada_por, tipo_solicitud, v_osi_formato_completo!left (nro_osi)")
     .eq("id", id)
     .single();
 
