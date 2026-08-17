@@ -9,6 +9,7 @@ import { InboxNotification } from "@/types";
 import { markAsRead, markAllAsRead } from "@/actions/notifications";
 import { getAppByDbSlug } from "@/config/apps";
 import { get_app_dot_style, get_app_pill_style } from "@/lib/app-theme";
+import { resolve_notification_href } from "@/lib/resolve-notification-href";
 
 export function NotificationsBell() {
   const [notifications, setNotifications] = useState<InboxNotification[]>([]);
@@ -132,23 +133,8 @@ export function NotificationsBell() {
         ),
       );
     }
-    if (notification.link_path) {
-      const app = getAppByDbSlug(notification.app_slug);
-      let target = notification.link_path;
-
-      if (app && !target.startsWith(app.basePath)) {
-        target = `${app.basePath}${target}`;
-      }
-
-      // Special case: Notifications that point to scapacitacion through the shell
-      // should always use the /negocios prefix to ensure correct iframe routing
-      if (target.includes("/capacitacion/scapacitacion")) {
-        target = target.replace(
-          "/capacitacion/scapacitacion",
-          "/negocios/scapacitacion",
-        );
-      }
-
+    const target = resolve_notification_href(notification);
+    if (target) {
       router.push(target);
       setOpen(false);
     }
