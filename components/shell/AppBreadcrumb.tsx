@@ -122,8 +122,10 @@ export const AppBreadcrumb = () => {
         }
       });
 
-      const foundLink = allLinks.find(link => {
-        const fullLinkPath = `${currentApp.basePath}${link.path === "/" ? "" : link.path}`;
+      const foundLink = allLinks.find((link) => {
+        const fullLinkPath =
+          link.href ??
+          `${currentApp.basePath}${link.path === "/" ? "" : link.path}`;
         return fullLinkPath === href;
       });
 
