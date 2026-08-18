@@ -65,6 +65,14 @@ export default function ConsultaOSIClient({ canChangeStatus, canHideForClient, c
   // --- Client-side page cache (stale-while-revalidate) ---
   const cacheRef = useRef<Map<CacheKey, CacheEntry>>(new Map());
   const filtersLoadedRef = useRef(false);
+  // Monotonic id for the latest in-flight fetch. Only the most recent request
+  // is allowed to clear loading/fetching in its finally — earlier cancelled
+  // requests must NOT touch loading state, otherwise a cancelled request can
+  // leave `loading` stuck true (its finally was skipped) or flip it false while
+  // a newer request is still pending.
+  const latestReqIdRef = useRef(0);
+  // Scroll container ref so we can scroll to top on page change.
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const getCached = useCallback((key: CacheKey): CacheEntry | null => {
     const entry = cacheRef.current.get(key);
@@ -86,6 +94,12 @@ export default function ConsultaOSIClient({ canChangeStatus, canHideForClient, c
     const key = cacheKey(filters, currentPage, itemsPerPage);
     const cached = getCached(key);
     if (cached) {
+      // No-op if the cached entry is identical to what's already displayed —
+      // avoids spurious re-renders and prevents clobbering newer state.
+      const sameData =
+        cached.osis === osis && cached.totalCount === totalCount;
+      if (sameData) return;
+
       setOsis(cached.osis);
       setTotalCount(cached.totalCount);
       // If fresh, we can skip the fetch entirely — clear all loading states.
@@ -101,6 +115,7 @@ export default function ConsultaOSIClient({ canChangeStatus, canHideForClient, c
   // --- Async fetch: runs after paint, only if data is stale or missing ---
   useEffect(() => {
     let cancelled = false;
+    const reqId = ++latestReqIdRef.current;
 
     const key = cacheKey(filters, currentPage, itemsPerPage);
     const cached = getCached(key);
@@ -165,7 +180,11 @@ export default function ConsultaOSIClient({ canChangeStatus, canHideForClient, c
       } catch (error) {
         console.error("Error loading OSI data:", error);
       } finally {
-        if (!cancelled) {
+        // Only the latest request is allowed to clear loading state. A
+        // cancelled earlier request would otherwise either skip this finally
+        // (leaving loading stuck) or flip it false while a newer request is
+        // still pending.
+        if (!cancelled && reqId === latestReqIdRef.current) {
           setLoading(false);
           setFetching(false);
           setLoadingFilters(false);
@@ -207,18 +226,40 @@ export default function ConsultaOSIClient({ canChangeStatus, canHideForClient, c
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage, totalCount, itemsPerPage, filters]);
 
+  // --- Clamp currentPage to a valid range when the result set shrinks ---
+  // e.g. applying a filter that reduces total pages below the current page.
+  useEffect(() => {
+    if (totalCount === 0) return;
+    const totalPages = Math.ceil(totalCount / itemsPerPage);
+    if (totalPages > 0 && currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    } else if (currentPage < 1) {
+      setCurrentPage(1);
+    }
+  }, [totalCount, itemsPerPage, currentPage]);
+
   const handleFiltersChange = useCallback((newFilters: OSIListFilters) => {
     setFilters(newFilters);
     setCurrentPage(1);
   }, []);
 
   const handlePageChange = useCallback((page: number) => {
-    setCurrentPage(page);
-  }, []);
+    setCurrentPage((prev) => {
+      const total = Math.ceil(totalCount / itemsPerPage);
+      const clamped = Math.max(1, Math.min(total || 1, page));
+      // Scroll the table container to the top so the user sees the start of
+      // the new page instead of staying scrolled down.
+      if (clamped !== prev && scrollRef.current) {
+        scrollRef.current.scrollTo({ top: 0, behavior: "smooth" });
+      }
+      return clamped;
+    });
+  }, [totalCount, itemsPerPage]);
 
   const handleItemsPerPageChange = useCallback((newItemsPerPage: number) => {
     setItemsPerPage(newItemsPerPage);
     setCurrentPage(1);
+    if (scrollRef.current) scrollRef.current.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
 
   const handleCommentsClick = useCallback((osi: OSIListItem) => {
@@ -328,7 +369,7 @@ export default function ConsultaOSIClient({ canChangeStatus, canHideForClient, c
 
   return (
     <div className="relative h-full min-h-0">
-      <div className="h-full overflow-auto p-4 sm:p-6">
+      <div ref={scrollRef} className="h-full overflow-auto p-4 sm:p-6">
         <div className="mb-4">
           <h1 className="text-xl font-bold text-gray-900">Consulta de OSIs</h1>
           <p className="mt-0.5 text-sm text-gray-600">
@@ -372,6 +413,7 @@ export default function ConsultaOSIClient({ canChangeStatus, canHideForClient, c
             onPageChange={handlePageChange}
             onItemsPerPageChange={handleItemsPerPageChange}
             loading={loading}
+            fetching={fetching}
           />
         </div>
       </div>
