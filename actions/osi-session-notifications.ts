@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { fanOutNotifyByConfig } from "@/lib/notification-recipient/runtime-resolve";
 import { isAdminOsiConfigMode } from "@/lib/notification-recipient/runtime-mode";
 
-const APP_SLUG = "capacitacion";
+const APP_SLUG = "scapacitacion";
 const EVENT_KEY = "session_status_changed";
 
 const LEGACY_SPECIFIC_RECIPIENT_IDS = [
@@ -84,6 +84,11 @@ async function legacyNotifySessionStatusChange(params: {
     title,
     body,
     link_path: `/consulta-osi/preview/${osiId}`,
+    metadata: {
+      id_osi: osiId,
+      nro_osi: nroOsi,
+      session_number: sessionNumber,
+    },
     dedupe_key: `session:${osiId}:${sessionNumber}:status:${Date.now()}`,
     priority: 2,
   }));
@@ -133,6 +138,11 @@ export async function notifySessionStatusChange(params: {
       title,
       body,
       linkPath: `/consulta-osi/preview/${osiId}`,
+      metadata: {
+        id_osi: osiId,
+        nro_osi: nroOsi,
+        session_number: sessionNumber,
+      },
       dedupeKey: `session:${osiId}:${sessionNumber}:status:${Date.now()}`,
       priority: 2,
       context: {
