@@ -285,6 +285,17 @@ export default function RequisicionPdfDocument({
     .map((ro) => osiLookup?.get(ro.id_osi) || `#${ro.id_osi}`)
     .join(", ");
 
+  // Document-control header: revision/fecha are properties of the form template
+  // itself, NOT of the individual requisicion. procesada_at is used ONLY to
+  // decide which revision a given PDF should display (already issued under
+  // rev.00 vs. new under rev.01) — it is NOT printed as the FECHA.
+  const REV01_CUTOVER = "2026-08-20T00:00:00.000Z";
+  const isOldRevision =
+    !!record.procesada_at &&
+    new Date(record.procesada_at).getTime() < new Date(REV01_CUTOVER).getTime();
+  const revisionLabel = isOldRevision ? "00" : "01";
+  const fechaRevision = isOldRevision ? "12/06/2026" : "20/08/2026";
+
   return (
     <Document>
       <Page size="A4" style={styles.page}>
@@ -292,9 +303,9 @@ export default function RequisicionPdfDocument({
           <Image style={styles.logo} src="/pdf/sha-logo.png" />
           <Text style={styles.title}>REQUISICIÓN</Text>
           <View style={styles.metaBox}>
-            <Text>CÓDIGO SHA-RG-ADM-003</Text>
-            <Text>FECHA {new Date().toLocaleDateString()}</Text>
-            <Text>REVISIÓN 00</Text>
+            <Text>CÓDIGO RG-ADM-003</Text>
+            <Text>FECHA {fechaRevision}</Text>
+            <Text>REVISIÓN {revisionLabel}</Text>
             <Text>PÁGINA 1 de 1</Text>
           </View>
         </View>
