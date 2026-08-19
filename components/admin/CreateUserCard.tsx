@@ -8,24 +8,45 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import type { Department } from "@/types/directory";
-import { createUser } from "@/actions/admin-users";
+import { createUser, type AppRoleOption } from "@/actions/admin-users";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LENGTH = 8;
 
 interface CreateUserCardProps {
   departments: Department[];
+  appRoles: AppRoleOption[];
 }
 
-export function CreateUserCard({ departments }: CreateUserCardProps) {
+export function CreateUserCard({ departments, appRoles }: CreateUserCardProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [nombre, setNombre] = useState("");
   const [departamento, setDepartamento] = useState<string>("");
+  const [selectedAppId, setSelectedAppId] = useState<string>("");
+  const [selectedRoleId, setSelectedRoleId] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  // Unique apps derived from the flat appRoles list, preserving sort order.
+  const apps = (() => {
+    const seen = new Set<number>();
+    const out: { id: number; nombre: string }[] = [];
+    for (const r of appRoles) {
+      if (!seen.has(r.app_id)) {
+        seen.add(r.app_id);
+        out.push({ id: r.app_id, nombre: r.app_nombre });
+      }
+    }
+    return out;
+  })();
+
+  // Roles filtered by the selected app.
+  const rolesForApp = selectedAppId
+    ? appRoles.filter((r) => r.app_id === Number(selectedAppId))
+    : [];
 
   const resetState = () => {
     setError(null);
@@ -61,6 +82,10 @@ export function CreateUserCard({ departments }: CreateUserCardProps) {
         password,
         nombre_apellido: nombre.trim(),
         departamento: departamento ? Number(departamento) : null,
+        app_role:
+          selectedAppId && selectedRoleId
+            ? { app_id: Number(selectedAppId), role_id: Number(selectedRoleId) }
+            : undefined,
       });
       if (result.error) {
         setError(result.error);
@@ -71,6 +96,8 @@ export function CreateUserCard({ departments }: CreateUserCardProps) {
         setConfirmPassword("");
         setNombre("");
         setDepartamento("");
+        setSelectedAppId("");
+        setSelectedRoleId("");
       }
     } catch {
       setError("Error inesperado al crear el usuario.");
@@ -172,6 +199,60 @@ export function CreateUserCard({ departments }: CreateUserCardProps) {
               </option>
             ))}
           </select>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label
+              htmlFor="cu-app"
+              className="block text-xs font-medium text-muted-foreground mb-1"
+            >
+              Aplicación (opcional)
+            </label>
+            <select
+              id="cu-app"
+              value={selectedAppId}
+              onChange={(e) => {
+                setSelectedAppId(e.target.value);
+                setSelectedRoleId("");
+                resetState();
+              }}
+              className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+              disabled={loading || apps.length === 0}
+            >
+              <option value="">Sin rol de aplicación</option>
+              {apps.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.nombre}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label
+              htmlFor="cu-role"
+              className="block text-xs font-medium text-muted-foreground mb-1"
+            >
+              Rol
+            </label>
+            <select
+              id="cu-role"
+              value={selectedRoleId}
+              onChange={(e) => {
+                setSelectedRoleId(e.target.value);
+                resetState();
+              }}
+              className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+              disabled={loading || !selectedAppId}
+            >
+              <option value="">Selecciona un rol</option>
+              {rolesForApp.map((r) => (
+                <option key={r.role_id} value={r.role_id}>
+                  {r.role_nombre}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
