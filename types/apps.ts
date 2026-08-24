@@ -16,6 +16,8 @@ export interface NavGroup {
   links: NavLink[];
   /** When set, sidebar shows this group only for that reportes department. */
   department?: "negocios" | "marketing";
+  /** Optional icon for the group header (used by collapsible rendering). */
+  icon?: LucideIcon;
 }
 
 /** CSS color values derived from brandColor (not Tailwind class names). */

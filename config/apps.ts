@@ -558,6 +558,7 @@ export const apps: AppConfig[] = [
       },
       {
         groupLabel: "Planificación y Ejecución",
+        icon: Calendar,
         links: [
           {
             label: "Seguimiento de Servicios",
@@ -575,6 +576,7 @@ export const apps: AppConfig[] = [
       },
       {
         groupLabel: "Requisiciones",
+        icon: ClipboardList,
         links: [
           {
             label: "Mis Requisiciones",
@@ -592,6 +594,7 @@ export const apps: AppConfig[] = [
       },
       {
         groupLabel: "Reportes",
+        icon: BarChart2,
         links: [
           {
             label: "KPI",
@@ -609,6 +612,7 @@ export const apps: AppConfig[] = [
       },
       {
         groupLabel: "Certificados",
+        icon: Award,
         links: [
           {
             label: "Generación",
@@ -626,6 +630,7 @@ export const apps: AppConfig[] = [
       },
       {
         groupLabel: "Cursos",
+        icon: BookOpen,
         links: [
           {
             label: "Gestión",
@@ -643,6 +648,7 @@ export const apps: AppConfig[] = [
       },
       {
         groupLabel: "Facilitadores",
+        icon: Users,
         links: [
           {
             label: "Gestión",
@@ -666,6 +672,7 @@ export const apps: AppConfig[] = [
       },
       {
         groupLabel: "Configuración",
+        icon: Settings,
         links: [
           {
             label: "Configuración",

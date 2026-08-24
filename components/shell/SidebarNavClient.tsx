@@ -384,6 +384,7 @@ export function SidebarNavClient({
           // in-app PWANavDrawer behavior). Other apps keep static headers.
           if (isCapacitacionApp) {
             const isExpanded = expandedGroups.has(item.groupLabel);
+            const GroupIcon = item.icon;
             return (
               <div key={group_key}>
                 <button
@@ -394,14 +395,19 @@ export function SidebarNavClient({
                     isCollapsed && "justify-center",
                   )}
                 >
-                  <span
-                    className={cn(
-                      "truncate",
-                      isCollapsed && "hidden",
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    {GroupIcon && (
+                      <GroupIcon className="h-4 w-4 flex-shrink-0" />
                     )}
-                  >
-                    {item.groupLabel}
-                  </span>
+                    <span
+                      className={cn(
+                        "truncate",
+                        isCollapsed && "hidden",
+                      )}
+                    >
+                      {item.groupLabel}
+                    </span>
+                  </div>
                   <ChevronDown
                     className={cn(
                       "w-4 h-4 transition-transform flex-shrink-0 text-slate-400",
@@ -409,9 +415,6 @@ export function SidebarNavClient({
                       isCollapsed && "hidden",
                     )}
                   />
-                  {isCollapsed && (
-                    <ChevronRight className="w-4 h-4 flex-shrink-0 text-slate-400" />
-                  )}
                 </button>
                 {isExpanded &&
                   !isCollapsed && (
