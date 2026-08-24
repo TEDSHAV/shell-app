@@ -5237,6 +5237,7 @@ export type Database = {
           estatus_admin: string | null
           facilitador: string | null
           fecha_solicitud: string | null
+          fecha_revision: string
           gerencia_solicitante: string | null
           honorarios_total: number | null
           id: number
@@ -5261,6 +5262,7 @@ export type Database = {
           procesada_at: string | null
           procesada_por: string | null
           rif_facilitador: string | null
+          revision: string
           solicitante: string | null
           telefono_facilitador: string | null
           tipo_servicio: string | null
@@ -5293,6 +5295,7 @@ export type Database = {
           estatus_admin?: string | null
           facilitador?: string | null
           fecha_solicitud?: string | null
+          fecha_revision?: string
           gerencia_solicitante?: string | null
           honorarios_total?: number | null
           id?: number
@@ -5317,6 +5320,7 @@ export type Database = {
           procesada_at?: string | null
           procesada_por?: string | null
           rif_facilitador?: string | null
+          revision?: string
           solicitante?: string | null
           telefono_facilitador?: string | null
           tipo_servicio?: string | null
@@ -5349,6 +5353,7 @@ export type Database = {
           estatus_admin?: string | null
           facilitador?: string | null
           fecha_solicitud?: string | null
+          fecha_revision?: string
           gerencia_solicitante?: string | null
           honorarios_total?: number | null
           id?: number
@@ -5373,6 +5378,7 @@ export type Database = {
           procesada_at?: string | null
           procesada_por?: string | null
           rif_facilitador?: string | null
+          revision?: string
           solicitante?: string | null
           telefono_facilitador?: string | null
           tipo_servicio?: string | null

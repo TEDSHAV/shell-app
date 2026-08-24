@@ -285,16 +285,26 @@ export default function RequisicionPdfDocument({
     .map((ro) => osiLookup?.get(ro.id_osi) || `#${ro.id_osi}`)
     .join(", ");
 
-  // Document-control header: revision/fecha are properties of the form template
-  // itself, NOT of the individual requisicion. procesada_at is used ONLY to
-  // decide which revision a given PDF should display (already issued under
-  // rev.00 vs. new under rev.01) — it is NOT printed as the FECHA.
+  // Document-control header: revision/fecha are now persisted per-row
+  // (backfilled once via SQL migration based on created_at). Fall back to
+  // the old procesada_at-based derivation only if the columns are missing
+  // (e.g. migration not yet applied in this environment).
   const REV01_CUTOVER = "2026-08-20T00:00:00.000Z";
-  const isOldRevision =
-    !!record.procesada_at &&
-    new Date(record.procesada_at).getTime() < new Date(REV01_CUTOVER).getTime();
-  const revisionLabel = isOldRevision ? "00" : "01";
-  const fechaRevision = isOldRevision ? "12/06/2026" : "20/08/2026";
+  const persistedRevision = record.revision as string | undefined;
+  const persistedFecha = record.fecha_revision as string | undefined;
+
+  let revisionLabel: string;
+  let fechaRevision: string;
+  if (persistedRevision && persistedFecha) {
+    revisionLabel = persistedRevision;
+    fechaRevision = persistedFecha;
+  } else {
+    const isOldRevision =
+      !!record.procesada_at &&
+      new Date(record.procesada_at).getTime() < new Date(REV01_CUTOVER).getTime();
+    revisionLabel = isOldRevision ? "00" : "01";
+    fechaRevision = isOldRevision ? "12/06/2026" : "20/08/2026";
+  }
 
   return (
     <Document>
