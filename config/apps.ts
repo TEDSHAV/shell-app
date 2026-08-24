@@ -551,6 +551,12 @@ export const apps: AppConfig[] = [
         requiredPermissions: ["scapacitacion:all:access"],
       },
       {
+        label: "Consulta de OSIs",
+        path: "/consulta-osi",
+        href: "/consulta-osi",
+        icon: Search,
+      },
+      {
         groupLabel: "Planificación y Ejecución",
         links: [
           {
@@ -668,12 +674,6 @@ export const apps: AppConfig[] = [
             requiredPermissions: ["scapacitacion:all:access"],
           },
         ],
-      },
-      {
-        label: "Consulta de OSIs",
-        path: "/consulta-osi",
-        href: "/consulta-osi",
-        icon: Search,
       },
     ],
   }),

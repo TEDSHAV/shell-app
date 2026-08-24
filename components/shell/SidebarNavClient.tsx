@@ -90,6 +90,24 @@ export function SidebarNavClient({
   const { onClose } = useMobileSidebar();
   const { isCollapsed } = useSidebarCollapse();
 
+  // Collapsible group state — used only for the capacitacion app to match its
+  // in-app PWANavDrawer dropdown behavior. Other apps keep static headers.
+  const isCapacitacionApp = currentApp?.id === "capacitacion";
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
+    new Set(),
+  );
+  const toggleGroup = (label: string) => {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(label)) {
+        next.delete(label);
+      } else {
+        next.add(label);
+      }
+      return next;
+    });
+  };
+
   const homeLink = (
     <Link
       href="/dashboard"
@@ -361,6 +379,50 @@ export function SidebarNavClient({
         if (isNavGroup(item)) {
           const isFirstGroup = index === 0;
           const group_key = `${item.department ?? "all"}-${item.groupLabel}-${index}`;
+
+          // Capacitacion app: render as collapsible dropdown (matches the
+          // in-app PWANavDrawer behavior). Other apps keep static headers.
+          if (isCapacitacionApp) {
+            const isExpanded = expandedGroups.has(item.groupLabel);
+            return (
+              <div key={group_key}>
+                <button
+                  onClick={() => toggleGroup(item.groupLabel)}
+                  title={item.groupLabel}
+                  className={cn(
+                    "w-full flex items-center justify-between px-3 py-2 text-sm font-medium rounded-md transition-colors text-slate-600 hover:text-slate-900 hover:bg-slate-100",
+                    isCollapsed && "justify-center",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "truncate",
+                      isCollapsed && "hidden",
+                    )}
+                  >
+                    {item.groupLabel}
+                  </span>
+                  <ChevronDown
+                    className={cn(
+                      "w-4 h-4 transition-transform flex-shrink-0 text-slate-400",
+                      isExpanded && "rotate-180",
+                      isCollapsed && "hidden",
+                    )}
+                  />
+                  {isCollapsed && (
+                    <ChevronRight className="w-4 h-4 flex-shrink-0 text-slate-400" />
+                  )}
+                </button>
+                {isExpanded &&
+                  !isCollapsed && (
+                    <div className="ml-2 border-l border-slate-200 pl-2 space-y-1 mt-1">
+                      {item.links.map((link) => renderNavLink(link))}
+                    </div>
+                  )}
+              </div>
+            );
+          }
+
           return (
             <div key={group_key}>
               {isCollapsed ? (
