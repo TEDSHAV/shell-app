@@ -54,6 +54,12 @@ export function resolve_notification_href(
     return notification.link_path;
   }
 
+  // Tareas vive en app Shell `/tareas` (mismo dbSlug sgestion que Negocios).
+  // No prefijar con `/negocios` vía getAppByDbSlug.
+  if (notification.link_path.startsWith("/tareas")) {
+    return notification.link_path;
+  }
+
   if (notification.app_slug === SCAP_APP_SLUG) {
     const cap_href = capacitacion_osi_preview_href(notification.link_path);
     if (cap_href) {
