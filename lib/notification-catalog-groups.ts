@@ -46,12 +46,20 @@ const MARKETING_EVENT_KEYS = new Set([
   "coverage_assigned",
 ]);
 
+/** Utilidades sgestion que se agrupan en General (no flujo Negocios). */
+const GENERAL_SGESION_EVENT_KEYS = new Set([
+  "task_due_today",
+  "user_reminder",
+  "scheduled_reminder",
+  "comment_mention",
+]);
+
 export const NOTIFICATION_CATALOG_GROUPS: NotificationCatalogGroupMeta[] = [
   {
     id: "negocios",
     label: "Negocios",
     description:
-      "Flujo comercial-operativo: ECC, presupuestos, OSI, SOLPED, tareas y recordatorios del día a día.",
+      "Flujo comercial-operativo: ECC, presupuestos, OSI, SOLPED y avisos del pipeline.",
     icon: Briefcase,
     brand_color: "#159714",
     accent_class: "bg-[#159714]/10 text-[#159714]",
@@ -87,7 +95,7 @@ export const NOTIFICATION_CATALOG_GROUPS: NotificationCatalogGroupMeta[] = [
     id: "general",
     label: "General",
     description:
-      "Notificaciones transversales de Shell: consulta OSI y avisos compartidos entre apps.",
+      "Utilidades Shell y avisos transversales: tareas, comentarios, recordatorios y consulta OSI.",
     icon: Layers,
     brand_color: "#7c3aed",
     accent_class: "bg-[#7c3aed]/10 text-[#7c3aed]",
@@ -120,6 +128,7 @@ export function resolve_catalog_group(event: {
   }
   if (event.app_slug === "sgestion") {
     if (MARKETING_EVENT_KEYS.has(event.event_key)) return "marketing";
+    if (GENERAL_SGESION_EVENT_KEYS.has(event.event_key)) return "general";
     return "negocios";
   }
   return "negocios";

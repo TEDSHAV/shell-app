@@ -42,6 +42,8 @@ import {
   Layers,
   Bell,
   UserPlus,
+  FileStack,
+  LayoutGrid,
 } from "lucide-react";
 import { build_app_config } from "@/lib/app-theme";
 import { get_tickets_form_base_url } from "@/lib/tickets-form-url";
@@ -77,6 +79,22 @@ const administracionNavGroup: NavGroup = {
       label: "Nueva Requisición",
       path: "/create",
       icon: FilePlus2,
+    },
+  ],
+};
+
+const administracionFacturacionNavGroup: NavGroup = {
+  groupLabel: "Facturación",
+  links: [
+    {
+      label: "Facturación",
+      path: "/facturacion",
+      href: "/negocios/facturacion",
+      icon: Landmark,
+      requiredPermissions: [
+        "admin:facturacion:access",
+        "finance:facturacion:access",
+      ],
     },
   ],
 };
@@ -228,6 +246,15 @@ export const apps: AppConfig[] = [
             requiredPermissions: ["sales:solpeds:access"],
           },
           {
+            label: "Facturación",
+            path: "/facturacion",
+            icon: Landmark,
+            requiredPermissions: [
+              "finance:facturacion:access",
+              "finance:facturacion:create",
+            ],
+          },
+          {
             label: "OSI",
             path: "/pipeline/osi",
             icon: FileCheck,
@@ -275,6 +302,15 @@ export const apps: AppConfig[] = [
             requiredPermissions: ["finance:presupuestos:access"],
           },
           {
+            label: "Facturación",
+            path: "/facturacion",
+            icon: Landmark,
+            requiredPermissions: [
+              "finance:facturacion:access",
+              "finance:facturacion:create",
+            ],
+          },
+          {
             label: "OSI",
             path: "/ingenieria/osi",
             icon: FileCheck,
@@ -296,6 +332,12 @@ export const apps: AppConfig[] = [
             path: "/ingenieria/configuracion-presupuestos",
             icon: Receipt,
             requiredPermissions: ["finance:presupuestos:config"],
+          },
+          {
+            label: "Configuración Facturación",
+            path: "/facturacion/configuracion",
+            icon: Landmark,
+            requiredPermissions: ["finance:facturacion:config"],
           },
           {
             label: "Catálogo de costos",
@@ -524,7 +566,7 @@ export const apps: AppConfig[] = [
     embedMode: "native",
     groupId: "procesos-de-apoyo",
     dashboardOrder: 1,
-    navLinks: [administracionNavGroup],
+    navLinks: [administracionNavGroup, administracionFacturacionNavGroup],
   }),
   build_app_config({
     id: "capacitacion",
@@ -541,129 +583,132 @@ export const apps: AppConfig[] = [
     embedMode: "shell",
     groupId: "procesos-medulares",
     navLinks: [
-      { label: "Dashboard", path: "/", icon: LayoutDashboard },
       {
-        groupLabel: "Cursos y Planificación",
+        label: "Dashboard",
+        path: "/",
+        icon: LayoutDashboard,
+        requiredPermissions: ["scapacitacion:all:access"],
+      },
+      {
+        label: "Consulta de OSIs",
+        path: "/consulta-osi",
+        href: "/consulta-osi",
+        icon: Search,
+      },
+      {
+        groupLabel: "Planificación y Ejecución",
+        icon: Calendar,
         links: [
           {
-            label: "Gestión de cursos",
-            path: "/dashboard/capacitacion/gestion-cursos",
-            icon: BookOpen,
-            requiredPermissions: ["scapacitacion:all:access"],
-          },
-          {
-            label: "Planificación de servicios",
-            path: "/dashboard/capacitacion/planificacion-servicios",
+            label: "Seguimiento de Servicios",
+            path: "/dashboard/capacitacion/seguimiento-servicios",
             icon: Calendar,
             requiredPermissions: ["scapacitacion:all:access"],
           },
           {
-            label: "Nuevos Servicios",
-            path: "/nuevo-servicio",
-            href: "/nuevo-servicio",
+            label: "Gestión OSIs",
+            path: "/dashboard/capacitacion/gestion-osi",
+            icon: ClipboardList,
+            requiredPermissions: ["scapacitacion:all:access"],
+          },
+        ],
+      },
+      {
+        groupLabel: "Requisiciones",
+        icon: ClipboardList,
+        links: [
+          {
+            label: "Mis Requisiciones",
+            path: "/dashboard/capacitacion/requisiciones",
             icon: ClipboardList,
             requiredPermissions: ["scapacitacion:all:access"],
           },
           {
-            label: "Control de secuencia",
-            path: "/dashboard/capacitacion/configuracion/secuencias-control",
-            icon: ListOrdered,
-            requiredPermissions: ["scapacitacion:all:access"],
-          },
-          {
-            label: "Gestión de OSI",
-            path: "/dashboard/capacitacion/gestion-osi",
-            icon: FileCheck,
-            requiredPermissions: ["scapacitacion:all:access"],
-          },
-          {
-            label: "Consulta de OSIs",
-            path: "/consulta-osi",
-            href: "/consulta-osi",
-            icon: Search,
-          },
-        ],
-      },
-      {
-        groupLabel: "Participantes",
-        links: [
-          {
-            label: "Consulta de participantes",
-            path: "/dashboard/capacitacion/consulta-participantes",
-            icon: Search,
-            requiredPermissions: ["scapacitacion:all:access"],
-          },
-        ],
-      },
-      {
-        groupLabel: "Facilitadores",
-        links: [
-          {
-            label: "Gestión de facilitadores",
-            path: "/dashboard/capacitacion/gestion-de-facilitadores",
-            icon: UserCheck,
-            requiredPermissions: ["scapacitacion:all:access"],
-          },
-          {
-            label: "Gestión de firmas",
-            path: "/dashboard/capacitacion/gestion-de-firmas",
-            icon: PenLine,
-            requiredPermissions: ["scapacitacion:all:access"],
-          },
-        ],
-      },
-      {
-        groupLabel: "Certificados",
-        links: [
-          {
-            label: "Gestión de certificados",
-            path: "/dashboard/capacitacion/gestion-certificados",
-            icon: Award,
-            requiredPermissions: ["scapacitacion:all:access"],
-          },
-          {
-            label: "Generación de certificados",
-            path: "/dashboard/capacitacion/generacion-certificado",
+            label: "Nueva Requisición",
+            path: "/dashboard/capacitacion/requisiciones/create",
             icon: FilePlus2,
             requiredPermissions: ["scapacitacion:all:access"],
           },
         ],
       },
       {
-        groupLabel: "Plantillas",
+        groupLabel: "Reportes",
+        icon: BarChart2,
         links: [
           {
-            label: "Gestión de plantillas de cursos",
-            path: "/dashboard/capacitacion/gestion-plantillas-cursos",
-            icon: ClipboardList,
+            label: "KPI",
+            path: "/dashboard/capacitacion/reportes",
+            icon: BarChart2,
             requiredPermissions: ["scapacitacion:all:access"],
           },
           {
-            label: "Plantillas de certificados",
-            path: "/dashboard/capacitacion/plantillas-certificados",
-            icon: LayoutTemplate,
-            requiredPermissions: ["scapacitacion:all:access"],
-          },
-          {
-            label: "Plantillas de carnets",
-            path: "/dashboard/capacitacion/plantillas-carnets",
-            icon: CreditCard,
+            label: "Indicadores",
+            path: "/dashboard/capacitacion/indicadores",
+            icon: Gauge,
             requiredPermissions: ["scapacitacion:all:access"],
           },
         ],
       },
       {
-        groupLabel: "Análisis",
+        groupLabel: "Certificados",
+        icon: Award,
         links: [
           {
-            label: "Reportes",
-            path: "/dashboard/capacitacion/reportes",
-            icon: BarChart2,
+            label: "Generación",
+            path: "/dashboard/capacitacion/generacion-certificado",
+            icon: Award,
+            requiredPermissions: ["scapacitacion:all:access"],
+          },
+          {
+            label: "Gestión",
+            path: "/dashboard/capacitacion/gestion-certificados",
+            icon: FileStack,
             requiredPermissions: ["scapacitacion:all:access"],
           },
         ],
       },
-      ...[requisicionesNavGroup],
+      {
+        groupLabel: "Cursos",
+        icon: BookOpen,
+        links: [
+          {
+            label: "Gestión",
+            path: "/dashboard/capacitacion/gestion-cursos",
+            icon: BookOpen,
+            requiredPermissions: ["scapacitacion:all:access"],
+          },
+          {
+            label: "Plantillas",
+            path: "/dashboard/capacitacion/gestion-plantillas-cursos",
+            icon: LayoutGrid,
+            requiredPermissions: ["scapacitacion:all:access"],
+          },
+        ],
+      },
+      {
+        groupLabel: "Facilitadores",
+        icon: Users,
+        links: [
+          {
+            label: "Gestión",
+            path: "/dashboard/capacitacion/gestion-de-facilitadores",
+            icon: Users,
+            requiredPermissions: ["scapacitacion:all:access"],
+          },
+          {
+            label: "Firmas",
+            path: "/dashboard/capacitacion/gestion-de-firmas",
+            icon: PenLine,
+            requiredPermissions: ["scapacitacion:all:access"],
+          },
+          {
+            label: "Asignaciones y Credenciales",
+            path: "/dashboard/capacitacion/gestion-asignaciones",
+            icon: KeyRound,
+            requiredPermissions: ["scapacitacion:all:access"],
+          },
+        ],
+      },
     ],
   }),
   build_app_config({

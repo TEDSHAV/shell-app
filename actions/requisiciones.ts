@@ -662,6 +662,9 @@ export async function createRequisicionRecord(
     // by the gerencia lider (no coordinador) skip approval (null). Externas
     // never use lider_estatus.
     lider_estatus: isInterna && needsLiderApproval ? "pendiente" : null,
+    // Locked at creation: rev.01 / 20/08/2026 for all new requisiciones.
+    revision: "01",
+    fecha_revision: "20/08/2026",
   };
 
   const fullRecord = { ...baseRecord, ...newColumns, original_snapshot: buildRequisicionSnapshot({ ...baseRecord, ...newColumns }) };

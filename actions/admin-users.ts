@@ -1,6 +1,6 @@
 "use server";
 
-import { createAdminClient } from "@/lib/supabase/server";
+import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { isTedMember } from "@/actions/ted";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -10,6 +10,83 @@ export interface CreateUserResult {
   success?: boolean;
   error?: string;
   userId?: string;
+}
+
+export interface AppRoleOption {
+  app_id: number;
+  app_slug: string;
+  app_nombre: string;
+  role_id: number;
+  role_slug: string;
+  role_nombre: string;
+}
+
+/**
+ * Fetches all apps and their roles from the `authprisma` schema.
+ *
+ * Returns a flat list of `{ app_id, app_slug, app_nombre, role_id, role_slug,
+ * role_nombre }` rows, sorted by app name then role name. Used by the TED
+ * user-creation form to populate the app + role dropdowns.
+ */
+export async function getAllAppRoles(): Promise<AppRoleOption[]> {
+  try {
+    // Use the regular cookie-based client, not the admin client. The service
+    // role key lacks USAGE permission on the authprisma schema, but the
+    // authenticated client has access via RLS policies (same pattern as
+    // actions/apps.ts → getAppRoles / getUserRolesByApp).
+    const supabase = await createClient();
+
+    const { data: apps, error: appsError } = await supabase
+      .schema("authprisma")
+      .from("apps")
+      .select("id, slug, nombre")
+      .order("nombre", { ascending: true });
+    if (appsError) {
+      console.error("[getAllAppRoles] apps query error:", appsError);
+      return [];
+    }
+    if (!apps) return [];
+
+    const { data: roles, error: rolesError } = await supabase
+      .schema("authprisma")
+      .from("roles")
+      .select("id, slug, nombre, app_id")
+      .order("nombre", { ascending: true });
+    if (rolesError) {
+      console.error("[getAllAppRoles] roles query error:", rolesError);
+      return [];
+    }
+    if (!roles) return [];
+
+    const appMap = new Map(
+      (apps as Array<{ id: bigint; slug: string; nombre: string | null }>).map(
+        (a) => [Number(a.id), a],
+      ),
+    );
+
+    return (roles as Array<{
+      id: bigint;
+      slug: string;
+      nombre: string | null;
+      app_id: bigint;
+    }>)
+      .map((r) => {
+        const app = appMap.get(Number(r.app_id));
+        if (!app) return null;
+        return {
+          app_id: Number(r.app_id),
+          app_slug: app.slug,
+          app_nombre: app.nombre ?? app.slug,
+          role_id: Number(r.id),
+          role_slug: r.slug,
+          role_nombre: r.nombre ?? r.slug,
+        };
+      })
+      .filter((x): x is AppRoleOption => x !== null);
+  } catch (err) {
+    console.error("[getAllAppRoles] Unexpected error:", err);
+    return [];
+  }
 }
 
 /**
@@ -28,6 +105,7 @@ export async function createUser(
     password: string;
     nombre_apellido: string;
     departamento: number | null;
+    app_role?: { app_id: number; role_id: number };
   },
 ): Promise<CreateUserResult> {
   try {
@@ -84,7 +162,7 @@ export async function createUser(
     const authUserId = authData.user.id;
 
     // --- Insert usuarios row ---
-    const { error: usuarioError } = await admin
+    const { data: newUsuario, error: usuarioError } = await admin
       .from("usuarios")
       .insert({
         id_auth: authUserId,
@@ -92,9 +170,11 @@ export async function createUser(
         nombre_apellido,
         departamento: input.departamento ?? null,
         esta_activo: true,
-      });
+      })
+      .select("id")
+      .single();
 
-    if (usuarioError) {
+    if (usuarioError || !newUsuario) {
       // Best-effort cleanup: remove the auth user if the usuarios insert failed,
       // so we don't leave an orphaned auth account.
       console.error(
@@ -103,8 +183,36 @@ export async function createUser(
       );
       await admin.auth.admin.deleteUser(authUserId);
       return {
-        error: `Error al crear el registro de usuario: ${usuarioError.message}`,
+        error: `Error al crear el registro de usuario: ${usuarioError?.message ?? "unknown"}`,
       };
+    }
+
+    // --- Insert app role (optional) ---
+    // Links the new user to an app + role in authprisma.user_app_roles so the
+    // shell sidebar shows the corresponding app links. A user can only have one
+    // role per app (unique(usuario_id, app_id) constraint).
+    //
+    // Uses the regular cookie-based client (not admin) because the service role
+    // key lacks USAGE permission on the authprisma schema. The caller is an
+    // authenticated TED member, so RLS policies allow the insert.
+    if (input.app_role) {
+      const supabase = await createClient();
+      const { error: roleError } = await supabase
+        .schema("authprisma")
+        .from("user_app_roles")
+        .insert({
+          usuario_id: newUsuario.id,
+          app_id: input.app_role.app_id,
+          role_id: input.app_role.role_id,
+        });
+      if (roleError) {
+        // Don't roll back — the user is already created and can log in.
+        // The role can be fixed manually in the authprisma tables.
+        console.warn(
+          "[createUser] Error inserting user_app_roles (user was created):",
+          roleError,
+        );
+      }
     }
 
     return { success: true, userId: authUserId };
