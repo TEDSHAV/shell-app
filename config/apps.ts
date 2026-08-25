@@ -44,7 +44,6 @@ import {
   UserPlus,
   FileStack,
   LayoutGrid,
-  Settings,
 } from "lucide-react";
 import { build_app_config } from "@/lib/app-theme";
 import { get_tickets_form_base_url } from "@/lib/tickets-form-url";
@@ -666,18 +665,6 @@ export const apps: AppConfig[] = [
             label: "Asignaciones y Credenciales",
             path: "/dashboard/capacitacion/gestion-asignaciones",
             icon: KeyRound,
-            requiredPermissions: ["scapacitacion:all:access"],
-          },
-        ],
-      },
-      {
-        groupLabel: "Configuración",
-        icon: Settings,
-        links: [
-          {
-            label: "Configuración",
-            path: "/dashboard/capacitacion/configuracion/feriados",
-            icon: Settings,
             requiredPermissions: ["scapacitacion:all:access"],
           },
         ],
