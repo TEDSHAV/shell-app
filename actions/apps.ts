@@ -103,21 +103,47 @@ export async function getUserRole(): Promise<string> {
   return role;
 }
 
-export const getUserPermissionsByApp = cache(async (): Promise<Record<string, string[]>> => {
+/**
+ * Cached per-request lookup of the current user's `usuarios` row.
+ *
+ * Both `getUserRolesByApp` and `getUserPermissionsByApp` need the `usuarios.id`
+ * for the authenticated user. Previously each did its own `auth.getUser()`
+ * (network call) + `usuarios` query, duplicating work when the sidebar rendered
+ * both in the same request. Extracting the shared lookup here means the
+ * `getUser()` call and `usuarios` query happen at most once per request.
+ *
+ * Also selects `esta_activo` so the shell layout can block deactivated users
+ * without an extra query (piggybacks on this cached lookup).
+ */
+export const getUsuarioRecord = cache(async (): Promise<{
+  id: number;
+  esta_activo: boolean | null;
+} | null> => {
   try {
     const supabase = await createClient();
 
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return {};
+    if (!user) return null;
 
-    const { data: usuario, error: usuarioError } = await supabase
+    const { data: usuario, error } = await supabase
       .from("usuarios")
-      .select("id")
+      .select("id, esta_activo")
       .eq("id_auth", user.id)
       .single();
 
-    if (usuarioError || !usuario) return {};
+    if (error || !usuario) return null;
+    return usuario as { id: number; esta_activo: boolean | null };
+  } catch {
+    return null;
+  }
+});
 
+export const getUserPermissionsByApp = cache(async (): Promise<Record<string, string[]>> => {
+  try {
+    const usuario = await getUsuarioRecord();
+    if (!usuario) return {};
+
+    const supabase = await createClient();
     const { data: rows, error } = await supabase
       .rpc("get_user_permissions_by_app", { p_usuario_id: usuario.id });
 
@@ -137,18 +163,10 @@ export const getUserPermissionsByApp = cache(async (): Promise<Record<string, st
 
 export const getUserRolesByApp = cache(async (): Promise<Record<string, string>> => {
   try {
+    const usuario = await getUsuarioRecord();
+    if (!usuario) return {};
+
     const supabase = await createClient();
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return {};
-
-    const { data: usuario, error: usuarioError } = await supabase
-      .from("usuarios")
-      .select("id")
-      .eq("id_auth", user.id)
-      .single();
-
-    if (usuarioError || !usuario) return {};
 
     const { data: userAppRoles, error: rolesError } = await supabase
       .schema("authprisma")

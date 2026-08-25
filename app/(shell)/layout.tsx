@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ShellProvider } from "@/components/shell/ShellProvider";
 import { hasEnvVars } from "@/lib/utils";
-import { getUserRolesByApp, getUserRoleFromRoles } from "@/actions/apps";
+import { getUserRolesByApp, getUserRoleFromRoles, getUsuarioRecord } from "@/actions/apps";
 
 export default async function ShellLayout({
   children,
@@ -26,6 +26,15 @@ export default async function ShellLayout({
     }
 
     userEmail = data.claims.email as string | undefined;
+
+    // Block deactivated users (usuarios.esta_activo === false).
+    // getUsuarioRecord() is cached per request and shared with getUserRolesByApp,
+    // so this adds zero extra queries on the hot path.
+    const usuario = await getUsuarioRecord();
+    if (usuario && usuario.esta_activo === false) {
+      await supabase.auth.signOut().catch(() => {});
+      redirect("/auth/login");
+    }
 
     // Check claims for user_role first (avoids DB call when present)
     const claimsRole = (data.claims.user_role as string) ??

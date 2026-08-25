@@ -3,17 +3,19 @@ import Link from "next/link";
 import { ArrowLeft, Users } from "lucide-react";
 import { isTedMember } from "@/actions/ted";
 import { getAllDepartments } from "@/actions/directory";
-import { getAllAppRoles } from "@/actions/admin-users";
+import { getAllAppRoles, getAllUsersAdmin } from "@/actions/admin-users";
 import { PasswordResetCard } from "@/components/admin/PasswordResetCard";
 import { CreateUserCard } from "@/components/admin/CreateUserCard";
+import { ToggleUserActiveCard } from "@/components/admin/ToggleUserActiveCard";
 
 export const dynamic = "force-dynamic";
 
 export default async function TedUsuariosPage() {
-  const [allowed, departments, appRoles] = await Promise.all([
+  const [allowed, departments, appRoles, usersResult] = await Promise.all([
     isTedMember(),
     getAllDepartments(),
     getAllAppRoles(),
+    getAllUsersAdmin(),
   ]);
   if (!allowed) {
     redirect("/dashboard");
@@ -38,7 +40,7 @@ export default async function TedUsuariosPage() {
               Manejo de usuarios
             </h1>
             <p className="mt-0.5 text-sm text-muted-foreground">
-              Crear cuentas nuevas y restablecer contraseñas.
+              Crear cuentas nuevas, restablecer contraseñas y activar/desactivar usuarios.
             </p>
           </div>
         </div>
@@ -47,6 +49,10 @@ export default async function TedUsuariosPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <CreateUserCard departments={departments} appRoles={appRoles} />
         <PasswordResetCard />
+      </div>
+
+      <div className="mt-6">
+        <ToggleUserActiveCard users={usersResult.data ?? []} />
       </div>
     </div>
   );

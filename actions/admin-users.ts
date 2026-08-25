@@ -221,3 +221,123 @@ export async function createUser(
     return { error: "Error inesperado al crear el usuario." };
   }
 }
+
+export interface AdminUserRow {
+  id: number;
+  nombre_apellido: string;
+  email_corporativo: string | null;
+  esta_activo: boolean | null;
+  id_auth: string | null;
+}
+
+/**
+ * Returns all users from the `usuarios` table for the TED admin toggle UI.
+ * Restricted to TED members (programmers).
+ */
+export async function getAllUsersAdmin(): Promise<{
+  data?: AdminUserRow[];
+  error?: string;
+}> {
+  try {
+    const allowed = await isTedMember();
+    if (!allowed) {
+      return { error: "No tienes permisos para realizar esta acción." };
+    }
+
+    const admin = await createAdminClient();
+    const { data, error } = await admin
+      .from("usuarios")
+      .select("id, nombre_apellido, email_corporativo, esta_activo, id_auth")
+      .order("nombre_apellido", { ascending: true });
+
+    if (error) {
+      console.error("[getAllUsersAdmin] query error:", error);
+      return { error: error.message };
+    }
+
+    return { data: (data as AdminUserRow[]) || [] };
+  } catch (err) {
+    console.error("[getAllUsersAdmin] Unexpected error:", err);
+    return { error: "Error inesperado al listar usuarios." };
+  }
+}
+
+/**
+ * Toggles a user's `esta_activo` flag and syncs the Supabase Auth ban status.
+ *
+ * When deactivating (`isActive = false`):
+ *   - Sets `usuarios.esta_activo = false`
+ *   - Bans the auth user via `ban_duration` (100-year duration) so their JWT
+ *     is invalidated at the next refresh and they can't log in again.
+ *
+ * When reactivating (`isActive = true`):
+ *   - Sets `usuarios.esta_activo = true`
+ *   - Lifts the Supabase Auth ban (`ban_duration = 'none'`).
+ *
+ * Restricted to TED members. If `id_auth` is null (legacy row), only the DB
+ * flag is flipped — the Supabase ban is skipped.
+ */
+export async function setUserActiveStatus(
+  input: { usuarioId: number; isActive: boolean },
+): Promise<{ success?: boolean; error?: string }> {
+  try {
+    const allowed = await isTedMember();
+    if (!allowed) {
+      return { error: "No tienes permisos para realizar esta acción." };
+    }
+
+    const admin = await createAdminClient();
+
+    // Fetch the current row to get id_auth
+    const { data: usuario, error: fetchError } = await admin
+      .from("usuarios")
+      .select("id_auth, esta_activo")
+      .eq("id", input.usuarioId)
+      .single();
+
+    if (fetchError || !usuario) {
+      console.error("[setUserActiveStatus] fetch error:", fetchError);
+      return { error: "Usuario no encontrado." };
+    }
+
+    // No-op if already in the desired state
+    if (usuario.esta_activo === input.isActive) {
+      return { success: true };
+    }
+
+    // Flip the DB flag
+    const { error: updateError } = await admin
+      .from("usuarios")
+      .update({ esta_activo: input.isActive })
+      .eq("id", input.usuarioId);
+
+    if (updateError) {
+      console.error("[setUserActiveStatus] update error:", updateError);
+      return { error: updateError.message };
+    }
+
+    // Sync Supabase Auth ban (skip if no id_auth — legacy row)
+    if (usuario.id_auth) {
+      const banValue = input.isActive ? "none" : "876000h";
+
+      const { error: banError } = await admin.auth.admin.updateUserById(
+        usuario.id_auth,
+        { ban_duration: banValue },
+      );
+
+      if (banError) {
+        // Don't fail the whole operation — the DB flag is already flipped,
+        // which is the primary enforcement mechanism (shell layout check).
+        console.warn(
+          "[setUserActiveStatus] Supabase ban sync failed (DB flag was updated):",
+          banError,
+        );
+      }
+    }
+
+    return { success: true };
+  } catch (err) {
+    console.error("[setUserActiveStatus] Unexpected error:", err);
+    return { error: "Error inesperado al actualizar el estado del usuario." };
+  }
+}

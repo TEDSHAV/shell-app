@@ -1,6 +1,6 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { sign_out_best_effort } from "@/lib/auth/safe-sign-out";
 import { redirect } from "next/navigation";
 
@@ -29,13 +29,28 @@ export async function signInAction(state: { error: string } | null, formData: Fo
     createClient()
   ]);
   
-  const { error } = await supabase.auth.signInWithPassword({
+  const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
   });
 
   if (error) {
     return { error: error.message };
+  }
+
+  // Block deactivated users (usuarios.esta_activo === false).
+  // Uses data.user.id from the sign-in response directly (not getUsuarioRecord)
+  // to avoid any cookie-timing dependency in server actions.
+  const admin = await createAdminClient();
+  const { data: usuario } = await admin
+    .from("usuarios")
+    .select("esta_activo")
+    .eq("id_auth", data.user.id)
+    .single();
+
+  if (usuario?.esta_activo === false) {
+    await supabase.auth.signOut().catch(() => {});
+    return { error: "Tu cuenta está inactiva. Contacta al administrador." };
   }
 
   redirect("/dashboard");
