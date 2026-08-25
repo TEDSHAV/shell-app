@@ -59,7 +59,7 @@ export const NOTIFICATION_CATALOG_GROUPS: NotificationCatalogGroupMeta[] = [
     id: "negocios",
     label: "Negocios",
     description:
-      "Flujo comercial-operativo: ECC, presupuestos, OSI, SOLPED y avisos del pipeline.",
+      "Flujo comercial-operativo: ECC, presupuestos, OSI, SOLPED, facturación Finanzas y solicitud de aprobación al líder.",
     icon: Briefcase,
     brand_color: "#159714",
     accent_class: "bg-[#159714]/10 text-[#159714]",
@@ -86,7 +86,7 @@ export const NOTIFICATION_CATALOG_GROUPS: NotificationCatalogGroupMeta[] = [
     id: "administracion",
     label: "Administración",
     description:
-      "Requisiciones internas, aprobaciones de líderes/coordinadores y avisos administrativos.",
+      "Requisiciones internas, aprobaciones de líderes/coordinadores, emisión/anulación fiscal (admin:facturacion) y avisos administrativos.",
     icon: Shield,
     brand_color: "#4F46E5",
     accent_class: "bg-[#4F46E5]/10 text-[#4F46E5]",
