@@ -16,6 +16,11 @@ const SERVICIOS_URL =
   process.env.NEXT_PUBLIC_SERVICIOS_URL ||
   "https://st.shadevenezuela.com.ve";
 
+const CALIDAD_URL =
+  process.env.CALIDAD_INTERNAL_URL ||
+  process.env.NEXT_PUBLIC_CALIDAD_URL ||
+  "https://calidad.shadevenezuela.com.ve";
+
 const nextConfig: NextConfig = {
   output: "standalone",
   transpilePackages: ["@sha/osi-formato"],
@@ -44,6 +49,14 @@ const nextConfig: NextConfig = {
       {
         source: "/servicios-tecnicos/api/:path*",
         destination: `${SERVICIOS_URL}/api/:path*`,
+      },
+      {
+        source: "/calidad/_next/:path*",
+        destination: `${CALIDAD_URL}/_next/:path*`,
+      },
+      {
+        source: "/calidad/api/:path*",
+        destination: `${CALIDAD_URL}/api/:path*`,
       },
     ];
   },

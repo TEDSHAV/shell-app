@@ -672,6 +672,41 @@ export const apps: AppConfig[] = [
     ],
   }),
   build_app_config({
+    id: "calidad",
+    dbSlug: "scalidad",
+    name: "Calidad",
+    description: "Documentos y procedimientos de calidad",
+    basePath: "/calidad",
+    dashboardOrder: 3,
+    upstreamUrl:
+      process.env.NEXT_PUBLIC_CALIDAD_URL ||
+      "https://calidad.shadevenezuela.com.ve",
+    icon: Shield,
+    brandColor: "#0EA5E9",
+    embedMode: "shell",
+    groupId: "procesos-de-apoyo",
+    navLinks: [
+      {
+        label: "Inicio",
+        path: "/",
+        icon: LayoutDashboard,
+        requiredPermissions: ["scalidad:all:access"],
+      },
+      {
+        label: "Documentos",
+        path: "/dashboard/calidad/documentos",
+        icon: FileText,
+        requiredPermissions: ["scalidad:all:access"],
+      },
+      {
+        label: "Gestión (Calidad)",
+        path: "/dashboard/calidad/admin",
+        icon: Shield,
+        requiredPermissions: ["scalidad:all:access"],
+      },
+    ],
+  }),
+  build_app_config({
     id: "tareas",
     dbSlug: "sgestion",
     name: "Tareas",
