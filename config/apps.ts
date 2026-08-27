@@ -672,41 +672,6 @@ export const apps: AppConfig[] = [
     ],
   }),
   build_app_config({
-    id: "calidad",
-    dbSlug: "scalidad",
-    name: "Calidad",
-    description: "Documentos y procedimientos de calidad",
-    basePath: "/calidad",
-    dashboardOrder: 3,
-    upstreamUrl:
-      process.env.NEXT_PUBLIC_CALIDAD_URL ||
-      "https://calidad.shadevenezuela.com.ve",
-    icon: Shield,
-    brandColor: "#0EA5E9",
-    embedMode: "shell",
-    groupId: "procesos-de-apoyo",
-    navLinks: [
-      {
-        label: "Inicio",
-        path: "/",
-        icon: LayoutDashboard,
-        requiredPermissions: ["scalidad:all:access"],
-      },
-      {
-        label: "Documentos",
-        path: "/dashboard/calidad/documentos",
-        icon: FileText,
-        requiredPermissions: ["scalidad:all:access"],
-      },
-      {
-        label: "Gestión (Calidad)",
-        path: "/dashboard/calidad/admin",
-        icon: Shield,
-        requiredPermissions: ["scalidad:all:access"],
-      },
-    ],
-  }),
-  build_app_config({
     id: "tareas",
     dbSlug: "sgestion",
     name: "Tareas",
@@ -852,16 +817,39 @@ export const apps: AppConfig[] = [
   }),
   // Placeholders: módulos visibles en dashboard para completar el mapa de procesos
   build_app_config({
-    id: "sistema-integrado-gestion",
+    id: "calidad",
+    dbSlug: "scalidad",
     name: "Sistema Integrado de Gestión",
     description: "Políticas, manuales y control de procesos corporativos",
-    basePath: "#",
+    basePath: "/calidad",
+    dashboardOrder: 1,
+    upstreamUrl:
+      process.env.NEXT_PUBLIC_CALIDAD_URL ||
+      "https://calidad.shadevenezuela.com.ve",
     icon: Landmark,
     brandColor: "#1e3a5f",
-    embedMode: "native",
+    embedMode: "shell",
     groupId: "procesos-estrategicos",
-    dashboardOrder: 1,
-    navLinks: [],
+    navLinks: [
+      {
+        label: "Inicio",
+        path: "/",
+        icon: LayoutDashboard,
+        requiredPermissions: ["scalidad:all:access"],
+      },
+      {
+        label: "Documentos",
+        path: "/dashboard/calidad/documentos",
+        icon: FileText,
+        requiredPermissions: ["scalidad:all:access"],
+      },
+      {
+        label: "Gestión (Calidad)",
+        path: "/dashboard/calidad/admin",
+        icon: Shield,
+        requiredPermissions: ["scalidad:all:access"],
+      },
+    ],
   }),
   build_app_config({
     id: "direccion",
