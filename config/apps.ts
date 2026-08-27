@@ -246,6 +246,15 @@ export const apps: AppConfig[] = [
             requiredPermissions: ["sales:solpeds:access"],
           },
           {
+            label: "Prefacturas",
+            path: "/facturacion/prefactura",
+            icon: FileStack,
+            requiredPermissions: [
+              "finance:facturacion:access",
+              "finance:facturacion:create",
+            ],
+          },
+          {
             label: "Facturación",
             path: "/facturacion",
             icon: Landmark,
@@ -300,6 +309,15 @@ export const apps: AppConfig[] = [
             path: "/ingenieria/presupuestos",
             icon: Receipt,
             requiredPermissions: ["finance:presupuestos:access"],
+          },
+          {
+            label: "Prefacturas",
+            path: "/facturacion/prefactura",
+            icon: FileStack,
+            requiredPermissions: [
+              "finance:facturacion:access",
+              "finance:facturacion:create",
+            ],
           },
           {
             label: "Facturación",
