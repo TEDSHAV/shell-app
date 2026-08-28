@@ -88,8 +88,8 @@ const administracionFacturacionNavGroup: NavGroup = {
   links: [
     {
       label: "Facturación",
+      // Ruta bajo Administración (/requisiciones/facturacion); embebe UI de Negocios.
       path: "/facturacion",
-      href: "/negocios/facturacion",
       icon: Landmark,
       requiredPermissions: [
         "admin:facturacion:access",

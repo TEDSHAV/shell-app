@@ -60,18 +60,24 @@ export function resolve_notification_href(
     return notification.link_path;
   }
 
-  // Facturación admin (sadministracion): path absoluto bajo Negocios mientras
-  // la UI de emisión viva allí.
+  // Facturación admin (sadministracion): abrir bajo Administración en Shell
+  // (/requisiciones/facturacion), que embebe la UI de Negocios.
   if (
     notification.app_slug === "sadministracion" &&
     (notification.event_key.startsWith("factura_") ||
       notification.link_path.includes("/facturacion"))
   ) {
-    if (notification.link_path.startsWith("/negocios")) {
+    if (notification.link_path.startsWith("/requisiciones/facturacion")) {
       return notification.link_path;
     }
+    if (notification.link_path.startsWith("/negocios/facturacion")) {
+      return notification.link_path.replace(
+        "/negocios/facturacion",
+        "/requisiciones/facturacion",
+      );
+    }
     if (notification.link_path.startsWith("/facturacion")) {
-      return `/negocios${notification.link_path}`;
+      return `/requisiciones${notification.link_path}`;
     }
   }
 
