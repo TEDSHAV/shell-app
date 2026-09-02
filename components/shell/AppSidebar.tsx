@@ -17,6 +17,15 @@ export async function AppSidebar() {
     if (dbPerms[dbSlug]) {
       userPermsByApp[app.id] = dbPerms[dbSlug];
     }
+    // Administración: Requisiciones (sgestion) + emisión fiscal (sadministracion).
+    if (app.id === "administracion") {
+      const merged = new Set<string>([
+        ...(dbPerms.sgestion ?? []),
+        ...(dbPerms.sadministracion ?? []),
+        ...(userPermsByApp[app.id] ?? []),
+      ]);
+      userPermsByApp[app.id] = [...merged];
+    }
   }
 
   return <SidebarNavClient userPermsByApp={userPermsByApp} userRolesByApp={userRolesByApp} globalRole={globalRole} canAccessConsultaOSI={canAccessOSI} />;

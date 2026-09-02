@@ -83,6 +83,22 @@ const administracionNavGroup: NavGroup = {
   ],
 };
 
+const administracionFacturacionNavGroup: NavGroup = {
+  groupLabel: "Facturación",
+  links: [
+    {
+      label: "Facturación",
+      // Ruta bajo Administración (/requisiciones/facturacion); embebe UI de Negocios.
+      path: "/facturacion",
+      icon: Landmark,
+      requiredPermissions: [
+        "admin:facturacion:access",
+        "finance:facturacion:access",
+      ],
+    },
+  ],
+};
+
 export const appGroups: AppGroupConfig[] = [
   {
     id: "procesos-estrategicos",
@@ -230,6 +246,24 @@ export const apps: AppConfig[] = [
             requiredPermissions: ["sales:solpeds:access"],
           },
           {
+            label: "Prefacturas",
+            path: "/facturacion/prefactura",
+            icon: FileStack,
+            requiredPermissions: [
+              "finance:facturacion:access",
+              "finance:facturacion:create",
+            ],
+          },
+          {
+            label: "Facturación",
+            path: "/facturacion",
+            icon: Landmark,
+            requiredPermissions: [
+              "finance:facturacion:access",
+              "finance:facturacion:create",
+            ],
+          },
+          {
             label: "OSI",
             path: "/pipeline/osi",
             icon: FileCheck,
@@ -277,6 +311,24 @@ export const apps: AppConfig[] = [
             requiredPermissions: ["finance:presupuestos:access"],
           },
           {
+            label: "Prefacturas",
+            path: "/facturacion/prefactura",
+            icon: FileStack,
+            requiredPermissions: [
+              "finance:facturacion:access",
+              "finance:facturacion:create",
+            ],
+          },
+          {
+            label: "Facturación",
+            path: "/facturacion",
+            icon: Landmark,
+            requiredPermissions: [
+              "finance:facturacion:access",
+              "finance:facturacion:create",
+            ],
+          },
+          {
             label: "OSI",
             path: "/ingenieria/osi",
             icon: FileCheck,
@@ -298,6 +350,12 @@ export const apps: AppConfig[] = [
             path: "/ingenieria/configuracion-presupuestos",
             icon: Receipt,
             requiredPermissions: ["finance:presupuestos:config"],
+          },
+          {
+            label: "Configuración Facturación",
+            path: "/facturacion/configuracion",
+            icon: Landmark,
+            requiredPermissions: ["finance:facturacion:config"],
           },
           {
             label: "Catálogo de costos",
@@ -526,7 +584,7 @@ export const apps: AppConfig[] = [
     embedMode: "native",
     groupId: "procesos-de-apoyo",
     dashboardOrder: 1,
-    navLinks: [administracionNavGroup],
+    navLinks: [administracionNavGroup, administracionFacturacionNavGroup],
   }),
   build_app_config({
     id: "capacitacion",

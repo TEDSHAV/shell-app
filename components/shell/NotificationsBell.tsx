@@ -10,6 +10,7 @@ import { markAsRead, markAllAsRead } from "@/actions/notifications";
 import { getAppByDbSlug } from "@/config/apps";
 import { get_app_dot_style, get_app_pill_style } from "@/lib/app-theme";
 import { resolve_notification_href } from "@/lib/resolve-notification-href";
+import { useNotifyInboxRealtime } from "@/lib/use-notify-inbox-realtime";
 
 export function NotificationsBell() {
   const [notifications, setNotifications] = useState<InboxNotification[]>([]);
@@ -26,7 +27,6 @@ export function NotificationsBell() {
   const fetchNotifications = useCallback(async (uid: string) => {
     const supabase = createClient();
 
-    // Get total count
     const { count } = await supabase
       .schema("notify")
       .from("inbox")
@@ -35,12 +35,11 @@ export function NotificationsBell() {
 
     if (count !== null) setTotalCount(count);
 
-    // Fetch limited notifications
     const { data } = await supabase
       .schema("notify")
       .from("inbox")
       .select(
-        "id, title, body, link_path, read_at, created_at, priority, app_slug, event_key",
+        "id, title, body, link_path, read_at, created_at, priority, app_slug, event_key, recipient_id_auth",
       )
       .eq("recipient_id_auth", uid)
       .order("created_at", { ascending: false })
@@ -49,6 +48,33 @@ export function NotificationsBell() {
     if (data) setNotifications(data as InboxNotification[]);
     setLoading(false);
   }, []);
+
+  const refresh = useCallback(() => {
+    if (!userId) return;
+    return fetchNotifications(userId);
+  }, [userId, fetchNotifications]);
+
+  const handleRealtimeInsert = useCallback((row: InboxNotification) => {
+    setNotifications((prev) => {
+      if (prev.some((n) => n.id === row.id)) return prev;
+      return [row, ...prev].slice(0, 10);
+    });
+    setTotalCount((prev) => prev + 1);
+  }, []);
+
+  const handleRealtimeUpdate = useCallback((row: InboxNotification) => {
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === row.id ? { ...n, ...row } : n)),
+    );
+  }, []);
+
+  useNotifyInboxRealtime({
+    userId,
+    channelName: "notify-inbox-bell",
+    onRefresh: refresh,
+    onInsert: handleRealtimeInsert,
+    onUpdate: handleRealtimeUpdate,
+  });
 
   useEffect(() => {
     const init = async () => {
@@ -64,44 +90,10 @@ export function NotificationsBell() {
   }, [fetchNotifications]);
 
   useEffect(() => {
-    if (!userId) return;
-
-    const supabase = createClient();
-    const channel = supabase
-      .channel("notify-inbox-changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "notify",
-          table: "inbox",
-          filter: `recipient_id_auth=eq.${userId}`,
-        },
-        (payload: { new: InboxNotification }) => {
-          setNotifications((prev) => [payload.new, ...prev]);
-          setTotalCount((prev) => prev + 1);
-        },
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "notify",
-          table: "inbox",
-          filter: `recipient_id_auth=eq.${userId}`,
-        },
-        (payload: { new: InboxNotification }) => {
-          setNotifications((prev) =>
-            prev.map((n) => (n.id === payload.new.id ? payload.new : n)),
-          );
-        },
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [userId]);
+    if (open && userId) {
+      void fetchNotifications(userId);
+    }
+  }, [open, userId, fetchNotifications]);
 
   useEffect(() => {
     const mouseHandler = (e: MouseEvent) => {
@@ -177,7 +169,6 @@ export function NotificationsBell() {
           onKeyDown={(e) => e.key === "Escape" && setOpen(false)}
           className="absolute right-0 mt-1 w-[340px] rounded-xl border border-gray-200 bg-white shadow-xl z-50 overflow-hidden outline-none"
         >
-          {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-100">
             <div className="flex items-center gap-2">
               <Bell className="h-3.5 w-3.5 text-gray-400" />
@@ -203,7 +194,6 @@ export function NotificationsBell() {
             )}
           </div>
 
-          {/* Body */}
           <div className="max-h-[440px] overflow-y-auto divide-y divide-gray-100">
             {loading ? (
               <div className="flex items-center justify-center py-10">
@@ -231,7 +221,6 @@ export function NotificationsBell() {
                       isUnread && "bg-blue-50/40",
                     )}
                   >
-                    {/* Left: app color bar */}
                     <div
                       className="mt-1 flex-shrink-0 w-1 self-stretch rounded-full bg-gray-200"
                       style={
@@ -242,7 +231,6 @@ export function NotificationsBell() {
                     />
 
                     <div className="flex-1 min-w-0">
-                      {/* App pill + timestamp row */}
                       <div className="flex items-center justify-between gap-2 mb-1.5">
                         {originApp ? (
                           <span
@@ -267,7 +255,6 @@ export function NotificationsBell() {
                         </span>
                       </div>
 
-                      {/* Title */}
                       <p
                         className={cn(
                           "text-xs leading-snug",
@@ -279,7 +266,6 @@ export function NotificationsBell() {
                         {n.title}
                       </p>
 
-                      {/* Body */}
                       {n.body && (
                         <p className="text-[11px] text-gray-400 line-clamp-2 mt-0.5 leading-relaxed">
                           {n.body}
@@ -287,7 +273,6 @@ export function NotificationsBell() {
                       )}
                     </div>
 
-                    {/* Unread dot */}
                     {isUnread && (
                       <span
                         className={cn(
@@ -307,7 +292,6 @@ export function NotificationsBell() {
             )}
           </div>
 
-          {/* Footer */}
           {!loading && notifications.length > 0 && (
             <div className="border-t border-gray-100 bg-gray-50 px-4 py-2">
               <button

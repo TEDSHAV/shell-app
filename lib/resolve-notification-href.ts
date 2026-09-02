@@ -60,6 +60,27 @@ export function resolve_notification_href(
     return notification.link_path;
   }
 
+  // Facturación admin (sadministracion): abrir bajo Administración en Shell
+  // (/requisiciones/facturacion), que embebe la UI de Negocios.
+  if (
+    notification.app_slug === "sadministracion" &&
+    (notification.event_key.startsWith("factura_") ||
+      notification.link_path.includes("/facturacion"))
+  ) {
+    if (notification.link_path.startsWith("/requisiciones/facturacion")) {
+      return notification.link_path;
+    }
+    if (notification.link_path.startsWith("/negocios/facturacion")) {
+      return notification.link_path.replace(
+        "/negocios/facturacion",
+        "/requisiciones/facturacion",
+      );
+    }
+    if (notification.link_path.startsWith("/facturacion")) {
+      return `/requisiciones${notification.link_path}`;
+    }
+  }
+
   if (notification.app_slug === SCAP_APP_SLUG) {
     const cap_href = capacitacion_osi_preview_href(notification.link_path);
     if (cap_href) {
