@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   Bell,
@@ -17,6 +17,7 @@ import { markAsRead, markAllAsRead } from "@/actions/notifications";
 import { getAppByDbSlug } from "@/config/apps";
 import { get_app_dot_style, get_app_pill_style } from "@/lib/app-theme";
 import { resolve_notification_href } from "@/lib/resolve-notification-href";
+import { useNotifyInboxRealtime } from "@/lib/use-notify-inbox-realtime";
 
 const PAGE_SIZE = 20;
 
@@ -32,6 +33,21 @@ export default function NotificationsPage() {
   const [selectedNotification, setSelectedNotification] =
     useState<InboxNotification | null>(null);
   const router = useRouter();
+  const filterUnreadOnlyRef = useRef(filterUnreadOnly);
+  const pageRef = useRef(page);
+  const notificationsRef = useRef(notifications);
+
+  useEffect(() => {
+    filterUnreadOnlyRef.current = filterUnreadOnly;
+  }, [filterUnreadOnly]);
+
+  useEffect(() => {
+    pageRef.current = page;
+  }, [page]);
+
+  useEffect(() => {
+    notificationsRef.current = notifications;
+  }, [notifications]);
 
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
   const unreadCount = notifications.filter((n) => !n.read_at).length;
@@ -41,16 +57,7 @@ export default function NotificationsPage() {
       try {
         const supabase = createClient();
         setError(null);
-        console.log(
-          "Fetching notifications for user:",
-          uid,
-          "page:",
-          pageNum,
-          "unreadOnly:",
-          unreadOnly,
-        );
 
-        // Build the query
         let countQuery = supabase
           .schema("notify")
           .from("inbox")
@@ -61,11 +68,10 @@ export default function NotificationsPage() {
           .schema("notify")
           .from("inbox")
           .select(
-            "id, title, body, link_path, read_at, created_at, priority, app_slug, event_key",
+            "id, title, body, link_path, read_at, created_at, priority, app_slug, event_key, recipient_id_auth",
           )
           .eq("recipient_id_auth", uid);
 
-        // Add read_at filter only if unreadOnly is true
         if (unreadOnly) {
           countQuery = countQuery.is("read_at", null);
           dataQuery = dataQuery.is("read_at", null);
@@ -73,15 +79,12 @@ export default function NotificationsPage() {
 
         dataQuery = dataQuery.order("created_at", { ascending: false });
 
-        // Add pagination range
         const from = (pageNum - 1) * PAGE_SIZE;
         const to = from + PAGE_SIZE - 1;
         dataQuery = dataQuery.range(from, to);
 
-        // Get total count
         const { count, error: countError } = await countQuery;
 
-        // Fetch global unread count independently of filter
         const { count: unreadCountResult, error: unreadError } = await supabase
           .schema("notify")
           .from("inbox")
@@ -96,19 +99,16 @@ export default function NotificationsPage() {
           return;
         }
 
-        console.log("Total count:", count, "Global unread:", unreadCountResult);
         if (count !== null) setTotalCount(count);
         if (unreadCountResult !== null) setGlobalUnreadCount(unreadCountResult);
 
-        // Fetch notifications data
         const { data, error: dataError } = await dataQuery;
 
         if (dataError) {
           console.error("Error fetching notifications:", dataError);
           setError("Error al cargar notificaciones");
-        } else {
-          console.log("Fetched notifications:", data?.length);
-          if (data) setNotifications(data as InboxNotification[]);
+        } else if (data) {
+          setNotifications(data as InboxNotification[]);
         }
         setLoading(false);
       } catch (err) {
@@ -119,6 +119,59 @@ export default function NotificationsPage() {
     },
     [],
   );
+
+  const refresh = useCallback(() => {
+    if (!userId) return;
+    return fetchNotifications(
+      userId,
+      pageRef.current,
+      filterUnreadOnlyRef.current,
+    );
+  }, [userId, fetchNotifications]);
+
+  const handleRealtimeInsert = useCallback((row: InboxNotification) => {
+    if (filterUnreadOnlyRef.current && row.read_at) return;
+
+    setNotifications((prev) => {
+      if (prev.some((n) => n.id === row.id)) return prev;
+      // Only prepend live on first page; otherwise counts still update.
+      if (pageRef.current !== 1) return prev;
+      return [row, ...prev].slice(0, PAGE_SIZE);
+    });
+    setTotalCount((prev) => prev + 1);
+    if (!row.read_at) {
+      setGlobalUnreadCount((prev) => prev + 1);
+    }
+  }, []);
+
+  const handleRealtimeUpdate = useCallback((row: InboxNotification) => {
+    const existing = notificationsRef.current.find((n) => n.id === row.id);
+    if (existing) {
+      const wasUnread = !existing.read_at;
+      const isUnread = !row.read_at;
+      if (wasUnread && !isUnread) {
+        setGlobalUnreadCount((c) => Math.max(0, c - 1));
+      } else if (!wasUnread && isUnread) {
+        setGlobalUnreadCount((c) => c + 1);
+      }
+    }
+
+    setNotifications((prev) => {
+      if (!prev.some((n) => n.id === row.id)) return prev;
+      if (filterUnreadOnlyRef.current && row.read_at) {
+        return prev.filter((n) => n.id !== row.id);
+      }
+      return prev.map((n) => (n.id === row.id ? { ...n, ...row } : n));
+    });
+  }, []);
+
+  useNotifyInboxRealtime({
+    userId,
+    channelName: "notify-inbox-page",
+    onRefresh: refresh,
+    onInsert: handleRealtimeInsert,
+    onUpdate: handleRealtimeUpdate,
+  });
 
   useEffect(() => {
     const init = async () => {
@@ -135,47 +188,6 @@ export default function NotificationsPage() {
     };
     init();
   }, [fetchNotifications, page, filterUnreadOnly]);
-
-  useEffect(() => {
-    if (!userId) return;
-
-    const supabase = createClient();
-    const channel = supabase
-      .channel("notify-inbox-changes-page")
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "notify",
-          table: "inbox",
-          filter: `recipient_id_auth=eq.${userId}`,
-        },
-        (payload: { new: InboxNotification }) => {
-          setNotifications((prev) => [payload.new, ...prev]);
-          setTotalCount((prev) => prev + 1);
-          setGlobalUnreadCount((prev) => prev + 1);
-        },
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "notify",
-          table: "inbox",
-          filter: `recipient_id_auth=eq.${userId}`,
-        },
-        (payload: { new: InboxNotification }) => {
-          setNotifications((prev) =>
-            prev.map((n) => (n.id === payload.new.id ? payload.new : n)),
-          );
-        },
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [userId]);
 
   const handleNotificationClick = async (notification: InboxNotification) => {
     setSelectedNotification(notification);
