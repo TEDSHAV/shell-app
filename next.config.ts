@@ -21,6 +21,11 @@ const CALIDAD_URL =
   process.env.NEXT_PUBLIC_CALIDAD_URL ||
   "https://calidad.shadevenezuela.com.ve";
 
+const RH_URL =
+  process.env.RH_INTERNAL_URL ||
+  process.env.NEXT_PUBLIC_RH_URL ||
+  "https://rh.shadevenezuela.com.ve";
+
 const nextConfig: NextConfig = {
   output: "standalone",
   transpilePackages: ["@sha/osi-formato"],
@@ -57,6 +62,14 @@ const nextConfig: NextConfig = {
       {
         source: "/calidad/api/:path*",
         destination: `${CALIDAD_URL}/api/:path*`,
+      },
+      {
+        source: "/recursos-humanos/_next/:path*",
+        destination: `${RH_URL}/_next/:path*`,
+      },
+      {
+        source: "/recursos-humanos/api/:path*",
+        destination: `${RH_URL}/api/:path*`,
       },
     ];
   },

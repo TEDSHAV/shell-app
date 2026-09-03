@@ -923,15 +923,38 @@ export const apps: AppConfig[] = [
   }),
   build_app_config({
     id: "recursos-humanos",
+    dbSlug: "srh",
     name: "Recursos Humanos",
     description: "Gestión de talento, asistencia y colaboradores",
-    basePath: "#",
+    basePath: "/recursos-humanos",
+    dashboardOrder: 3,
+    upstreamUrl:
+      process.env.NEXT_PUBLIC_RH_URL ||
+      "https://rh.shadevenezuela.com.ve",
     icon: Users,
     brandColor: "#f97316",
-    embedMode: "native",
+    embedMode: "shell",
     groupId: "procesos-de-apoyo",
-    dashboardOrder: 3,
-    navLinks: [],
+    navLinks: [
+      {
+        label: "Inicio",
+        path: "/",
+        icon: LayoutDashboard,
+        requiredPermissions: ["srh:all:access"],
+      },
+      {
+        label: "Solicitudes",
+        path: "/dashboard/rh/solicitudes",
+        icon: UserPlus,
+        requiredPermissions: ["srh:all:access"],
+      },
+      {
+        label: "Directorio",
+        path: "/dashboard/rh/directorio",
+        icon: Users,
+        requiredPermissions: ["srh:all:access"],
+      },
+    ],
   }),
   build_app_config({
     id: "gestion-ambiental",
