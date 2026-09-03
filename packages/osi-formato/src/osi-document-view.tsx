@@ -4,6 +4,11 @@
 import { useEffect, useRef } from "react";
 import { cn } from "./utils/cn";
 import { formatCalendarDayEsVe, formatTimeAmPmEsVe } from "./utils/calendar-date";
+import {
+  map_sesiones_planificadas_dia_hora,
+  OSI_FECHA_POR_PLANIFICAR_LABEL,
+  resolve_osi_sesiones_documento_count,
+} from "./osi-session-slots";
 import type { OsiStFechasServicioSlice } from "./st-fechas-document";
 import { build_st_fechas_ejecutadas_vacias } from "./st-fechas-document";
 import { merged_content_to_display_html, RICH_HTML_CONTENT_CLASS } from "./rich-html";
@@ -194,25 +199,6 @@ function OsiObservacionesRows({
       </tr>
     </>
   );
-}
-
-function map_sesiones_dia_hora(
-  sessions:
-    | Array<{
-        fecha: string;
-        hora_inicio?: string | null;
-        hora_fin?: string | null;
-      }>
-    | undefined,
-): Array<{ fecha: string; hora: string }> {
-  return (sessions ?? [])
-    .filter((session) => typeof session?.fecha === "string" && session.fecha.trim())
-    .map((session) => ({
-      fecha: session.fecha,
-      hora: formatTimeAmPmEsVe(
-        session.hora_inicio || session.hora_fin || null,
-      ),
-    }));
 }
 
 function map_sesiones_ejecutada_dia_hora(
@@ -448,9 +434,11 @@ function OsiSesionesDiaHoraTable({
           sessions.map((session, idx) => (
             <tr key={`${session.fecha}-${idx}`}>
               <td className="border-b border-black px-1 py-0.5 text-[12px]">
-                {session.fecha
-                  ? formatCalendarDayEsVe(session.fecha)
-                  : "—"}
+                {session.fecha === OSI_FECHA_POR_PLANIFICAR_LABEL
+                  ? session.fecha
+                  : session.fecha
+                    ? formatCalendarDayEsVe(session.fecha)
+                    : "—"}
               </td>
               <td className="border-b border-black px-1 py-0.5 text-right text-[12px]">
                 {session.hora}
@@ -805,9 +793,13 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
     "py-2 text-center text-[12px] font-bold text-[#002b5c] bg-slate-200";
   const section_text_black_class =
     "py-2 text-center text-[12px] font-bold text-black bg-slate-200";
-  const sesiones = Array.isArray(data.sesionesProgramadas)
-    ? data.sesionesProgramadas.filter((s) => typeof s?.fecha === "string" && s.fecha)
+  const sesiones_programadas_raw = Array.isArray(data.sesionesProgramadas)
+    ? data.sesionesProgramadas
     : [];
+  const sesionesDoc = resolve_osi_sesiones_documento_count({
+    sesiones_solped: data.sesionesSolped,
+    sesiones_programadas: sesiones_programadas_raw,
+  });
   const hl = data.previewHighlights ?? {};
   const is_public_view = Boolean(data.isPublicView);
   const hide_st_monetary = Boolean(data.hideStMonetary);
@@ -819,20 +811,6 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
     data.participantesDocumento != null && data.participantesDocumento >= 0
       ? data.participantesDocumento
       : data.participantesMaxSolped;
-  const sesiones_programadas_raw = Array.isArray(data.sesionesProgramadas)
-    ? data.sesionesProgramadas
-    : [];
-  const sesiones_con_fecha = sesiones_programadas_raw.filter(
-    (s) => typeof s?.fecha === "string" && String(s.fecha).trim(),
-  ).length;
-  const sesionesDoc =
-    sesiones.length > 0
-      ? sesiones.length
-      : sesiones_con_fecha > 0
-        ? sesiones_con_fecha
-        : data.sesionesSolped != null && data.sesionesSolped > 0
-          ? data.sesionesSolped
-          : null;
   const form_meta = data.isCapacitacion ? OSI_FORM_META_CAP : OSI_FORM_META_ST;
   const cellHl = (on: boolean | undefined) =>
     on ? "bg-amber-50 ring-2 ring-amber-300 ring-inset" : "";
@@ -883,8 +861,9 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
     (item) => !item.maskKey || !content_hidden(item.maskKey),
   );
 
-  const sesiones_fecha_planificada_detalle = map_sesiones_dia_hora(
+  const sesiones_fecha_planificada_detalle = map_sesiones_planificadas_dia_hora(
     data.sesionesFechaPlanificada ?? data.sesionesProgramadas,
+    sesionesDoc ?? undefined,
   );
   const sesiones_fecha_ejecutada_detalle = map_sesiones_ejecutada_dia_hora(
     data.sesionesFechaEjecutada,

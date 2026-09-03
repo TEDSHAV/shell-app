@@ -19,6 +19,15 @@ export {
   resolve_show_cierre_section,
 } from "./osi-status-display";
 export {
+  count_osi_session_slots,
+  map_sesiones_planificadas_dia_hora,
+  OSI_FECHA_POR_PLANIFICAR_LABEL,
+  pad_osi_session_slots,
+  parse_osi_session_slots,
+  resolve_osi_sesiones_documento_count,
+} from "./osi-session-slots";
+export type { OsiSessionSlotRow } from "./osi-session-slots";
+export {
   count_sesiones_programadas,
   osi_recursos_were_persisted,
   resolve_osi_horas_count,

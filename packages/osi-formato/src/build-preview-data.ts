@@ -25,6 +25,11 @@ import {
   resolve_st_hora_reunion_pre_inicio,
 } from "./st-fechas-document";
 import { extract_osi_solicitud_observacion_text } from "./rich-html";
+import {
+  parse_osi_session_slots,
+  pad_osi_session_slots,
+  resolve_osi_sesiones_documento_count,
+} from "./osi-session-slots";
 
 type GenericRow = Record<string, unknown>;
 
@@ -64,31 +69,8 @@ function to_text(value: unknown): string | null {
 
 function to_sessions(
   value: unknown,
-): Array<{ fecha: string; hora_inicio?: string | null; hora_fin?: string | null }> {
-  if (!Array.isArray(value)) return [];
-  const result: Array<{
-    fecha: string;
-    hora_inicio?: string | null;
-    hora_fin?: string | null;
-  }> = [];
-  for (const item of value) {
-    if (!item || typeof item !== "object") continue;
-    const row = item as Record<string, unknown>;
-    const fecha = typeof row.fecha === "string" ? row.fecha : "";
-    if (!fecha) continue;
-    result.push({
-      fecha,
-      hora_inicio:
-        row.hora_inicio == null || row.hora_inicio === ""
-          ? null
-          : String(row.hora_inicio).trim() || null,
-      hora_fin:
-        row.hora_fin == null || row.hora_fin === ""
-          ? null
-          : String(row.hora_fin).trim() || null,
-    });
-  }
-  return result;
+): ReturnType<typeof parse_osi_session_slots> {
+  return parse_osi_session_slots(value);
 }
 
 function format_date_for_doc(value: unknown): string {
@@ -214,22 +196,6 @@ function build_detalle_servicio(params: {
   );
 }
 
-function build_default_sessions(
-  count: number,
-  seed: Array<{ fecha: string; hora_inicio?: string | null; hora_fin?: string | null }>,
-): Array<{ fecha: string; hora_inicio: string; hora_fin: string }> {
-  const rows: Array<{ fecha: string; hora_inicio: string; hora_fin: string }> = [];
-  for (let i = 0; i < Math.max(0, count); i += 1) {
-    const base = seed[i];
-    rows.push({
-      fecha: base?.fecha ?? "",
-      hora_inicio: base?.hora_inicio ?? "",
-      hora_fin: base?.hora_fin ?? "",
-    });
-  }
-  return rows;
-}
-
 function resolve_is_capacitacion(view_row: GenericRow): boolean {
   const tipo = String(view_row.tipo_servicio ?? "").toLowerCase();
   if (
@@ -309,25 +275,35 @@ export function build_osi_preview_data(input: BuildOsiPreviewInput): OsiPreviewD
 
   const sesiones_programadas_exec = to_sessions(view_row.sesiones_programadas);
   const sesiones_fecha_sugerida = sesiones_programadas_exec;
+  const sesiones_target_count = Math.max(
+    sesiones,
+    sesiones_contrato,
+    sesiones_programadas_exec.length,
+  );
 
   const osi_sesiones_rows = Array.isArray(input.osi_sesiones)
     ? input.osi_sesiones
     : [];
-  const sesiones_fecha_planificada: ReturnType<typeof to_sessions> =
-    osi_sesiones_rows.length > 0
-      ? osi_sesiones_rows
-          .map((row) => {
-            const fecha = typeof row.fecha === "string" ? row.fecha : "";
-            if (!fecha) return null;
-            return {
-              fecha,
-              hora_inicio:
-                typeof row.hora_inicio === "string" ? row.hora_inicio : null,
-              hora_fin: null,
-            };
-          })
-          .filter((item): item is NonNullable<typeof item> => item !== null)
-      : sesiones_programadas_exec;
+  let sesiones_fecha_planificada = pad_osi_session_slots(
+    sesiones_programadas_exec,
+    sesiones_target_count,
+  );
+  if (osi_sesiones_rows.length > 0) {
+    sesiones_fecha_planificada = sesiones_fecha_planificada.map((slot, index) => {
+      const db_row = osi_sesiones_rows[index];
+      if (!db_row || typeof db_row !== "object") return slot;
+      const fecha_db =
+        typeof db_row.fecha === "string" ? db_row.fecha.trim() : "";
+      return {
+        fecha: fecha_db || slot.fecha,
+        hora_inicio:
+          typeof db_row.hora_inicio === "string"
+            ? db_row.hora_inicio
+            : slot.hora_inicio,
+        hora_fin: slot.hora_fin ?? null,
+      };
+    });
+  }
 
   const sesiones_fecha_ejecutada: ReturnType<typeof to_sessions> =
     osi_sesiones_rows.map((row) => ({
@@ -340,11 +316,14 @@ export function build_osi_preview_data(input: BuildOsiPreviewInput): OsiPreviewD
   const sesiones_exec_st = is_capacitacion
     ? sesiones_programadas_exec
     : sesiones_programadas_exec.slice(0, 1);
-  const sesiones_exec_normalizadas = build_default_sessions(
-    is_capacitacion ? sesiones : 1,
+  const sesiones_exec_normalizadas = pad_osi_session_slots(
     sesiones_exec_st,
+    is_capacitacion ? sesiones_target_count : 1,
   );
-  const sesiones_contrato_normalizadas = build_default_sessions(sesiones_contrato, []);
+  const sesiones_contrato_normalizadas = pad_osi_session_slots(
+    [],
+    sesiones_contrato,
+  );
 
   const direccion_contrato = to_str(view_row.direccion_ejecucion) ?? "";
   const direccion_real = to_str(view_row.direccion_ejecucion_real);
@@ -490,12 +469,11 @@ export function build_osi_preview_data(input: BuildOsiPreviewInput): OsiPreviewD
     sesionesProgramadas: sesiones_exec_normalizadas,
     participantesMaxSolped: to_num(view_row.participantes_max_solped) || null,
     horasAcademicasSolped: to_num(view_row.horas_academicas_solped) || null,
-    sesionesSolped:
-      sesiones_exec_normalizadas.length > 0
-        ? sesiones_exec_normalizadas.length
-        : sesiones > 0
-          ? sesiones
-          : null,
+    sesionesSolped: resolve_osi_sesiones_documento_count({
+      sesiones_solped: sesiones_contrato,
+      sesiones_programadas: sesiones_exec_normalizadas,
+      sesiones_ejecucion: view_row.sesiones_ejecucion,
+    }),
     participantesDocumento: participantes,
     previewHighlights: preview_highlights,
     pretensionesTotales: to_str(view_row.pretensiones_totales),

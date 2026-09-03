@@ -1,4 +1,5 @@
 import { OSI_PREVIEW_ESTATUS } from "./osi-status-display";
+import { count_osi_session_slots } from "./osi-session-slots";
 
 export function count_sesiones_programadas(value: unknown): number {
   if (!Array.isArray(value)) return 0;
@@ -63,11 +64,19 @@ export function resolve_osi_sesiones_count(
     recursos_persistidos,
   );
   if (row.sesiones_ejecucion !== null && row.sesiones_ejecucion !== undefined) {
-    return from_column;
+    return Math.max(
+      from_column,
+      count_osi_session_slots(row.sesiones_programadas),
+      Number(solped_sesiones) || 0,
+    );
   }
+  const slot_count = count_osi_session_slots(row.sesiones_programadas);
   const from_programadas = count_sesiones_programadas(row.sesiones_programadas);
-  if (from_programadas > 0) return from_programadas;
-  return Number(solped_sesiones) || 0;
+  return Math.max(
+    slot_count,
+    from_programadas,
+    Number(solped_sesiones) || 0,
+  );
 }
 
 export function resolve_osi_participantes_count(
