@@ -60,6 +60,17 @@ export function resolve_notification_href(
     return notification.link_path;
   }
 
+  // RH (srh): TED route is shell-native (/ted/*), RH module routes are
+  // embedded under /recursos-humanos in the shell.
+  if (notification.app_slug === "srh") {
+    if (notification.link_path.startsWith("/ted/")) {
+      return notification.link_path;
+    }
+    if (notification.link_path.startsWith("/dashboard/")) {
+      return `/recursos-humanos${notification.link_path.replace(/^\/dashboard/, "")}`;
+    }
+  }
+
   // Facturación admin (sadministracion): abrir bajo Administración en Shell
   // (/requisiciones/facturacion), que embebe la UI de Negocios.
   if (

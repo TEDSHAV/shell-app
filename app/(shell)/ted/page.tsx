@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Code2, Github, ExternalLink, BookOpen, Terminal, Bell, Users } from "lucide-react";
+import { Code2, Github, ExternalLink, BookOpen, Terminal, Bell, Users, UserPlus } from "lucide-react";
 import { isTedMember } from "@/actions/ted";
 
 export const dynamic = "force-dynamic";
@@ -17,6 +17,15 @@ export default async function TedPage() {
       title: "Manejo de usuarios",
       description: "Crear cuentas nuevas y restablecer contraseñas.",
       href: "/ted/usuarios",
+      external: false,
+      disabled: false,
+    },
+    {
+      icon: UserPlus,
+      title: "Solicitudes RRHH",
+      description:
+        "Solicitudes de creación de usuarios y emails corporativos enviadas desde Recursos Humanos.",
+      href: "/ted/rh-solicitudes",
       external: false,
       disabled: false,
     },
