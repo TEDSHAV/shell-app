@@ -1,11 +1,26 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createAdminClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 
 const APP_SLUG = "srh";
 
 type SolicitudEstado = "pendiente" | "en_proceso" | "completada" | "rechazada";
+
+/**
+ * Build a specific notification body based on what was requested.
+ */
+function buildCompletionBody(
+  nombreApellido: string,
+  solicitarEmail: boolean,
+  solicitarFirmaEmail: boolean,
+): string {
+  const parts: string[] = [];
+  if (solicitarEmail) parts.push("el usuario y el email corporativo");
+  else if (solicitarFirmaEmail) parts.push("el usuario y la firma de email");
+  else parts.push("el usuario");
+  return `Tu solicitud para crear ${parts.join(", ")} para ${nombreApellido} ha sido completada por TED.`;
+}
 
 /**
  * TED updates the status of an RH solicitud from the shell's TED page.
@@ -32,15 +47,16 @@ export async function updateRhSolicitudStatus(
   }
 
   try {
-    const supabase = await createAdminClient();
+    // Use cookie client to get the current user (for procesado_por)
+    const cookieClient = await createClient();
+    const admin = await createAdminClient();
 
-    // Get the current user's usuario id (for procesado_por)
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await cookieClient.auth.getUser();
     let procesadoPor: number | null = null;
     if (user) {
-      const { data: userData } = await supabase
+      const { data: userData } = await admin
         .from("usuarios")
         .select("id")
         .eq("id_auth", user.id)
@@ -61,7 +77,7 @@ export async function updateRhSolicitudStatus(
       updateData.procesado_por = procesadoPor;
     }
 
-    const { error: updateError } = await supabase
+    const { error: updateError } = await admin
       .from("rh_solicitudes")
       .update(updateData)
       .eq("id", id);
@@ -75,38 +91,54 @@ export async function updateRhSolicitudStatus(
     // to completada or rechazada
     if (estado === "completada" || estado === "rechazada") {
       try {
-        const { data: solicitud } = await supabase
+        const { data: solicitud, error: solError } = await admin
           .from("rh_solicitudes")
-          .select("solicitado_por, nombre_apellido")
+          .select("solicitado_por, nombre_apellido, solicitar_email, solicitar_firma_email")
           .eq("id", id)
           .maybeSingle();
 
-        if (solicitud?.solicitado_por) {
-          const { data: solicitante } = await supabase
+        if (solError || !solicitud) {
+          console.error("[updateRhSolicitudStatus] Could not fetch solicitud:", solError);
+          revalidatePath("/ted/rh-solicitudes");
+          return { success: true };
+        }
+
+        if (solicitud.solicitado_por) {
+          const { data: solicitante, error: solicError } = await admin
             .from("usuarios")
             .select("id_auth")
             .eq("id", solicitud.solicitado_por)
             .maybeSingle();
 
-          if (solicitante?.id_auth) {
-            const eventKey =
-              estado === "rechazada"
-                ? "rh_solicitud_rechazada"
-                : "rh_solicitud_completada";
+          if (solicError || !solicitante?.id_auth) {
+            console.warn("[updateRhSolicitudStatus] Could not resolve solicitante id_auth:", solicError);
+            revalidatePath("/ted/rh-solicitudes");
+            return { success: true };
+          }
 
-            const title =
-              estado === "rechazada"
-                ? "Solicitud de Usuario Rechazada"
-                : "Solicitud de Usuario Completada";
+          const isRechazada = estado === "rechazada";
+          const eventKey = isRechazada
+            ? "rh_solicitud_rechazada"
+            : "rh_solicitud_completada";
 
-            const body =
-              estado === "rechazada"
-                ? notas?.trim()
-                  ? `Tu solicitud para crear el usuario ${solicitud.nombre_apellido} ha sido rechazada por TED. Motivo: ${notas.trim()}`
-                  : `Tu solicitud para crear el usuario ${solicitud.nombre_apellido} ha sido rechazada por TED.`
-                : `Tu solicitud para crear el usuario ${solicitud.nombre_apellido} ha sido completada por TED. El usuario ya ha sido creado en el sistema.`;
+          const title = isRechazada
+            ? "Solicitud de Usuario Rechazada"
+            : "Solicitud de Usuario Completada";
 
-            await supabase.schema("notify").from("inbox").insert({
+          const body = isRechazada
+            ? notas?.trim()
+              ? `Tu solicitud para ${solicitud.nombre_apellido} ha sido rechazada por TED. Motivo: ${notas.trim()}`
+              : `Tu solicitud para ${solicitud.nombre_apellido} ha sido rechazada por TED.`
+            : buildCompletionBody(
+                solicitud.nombre_apellido,
+                solicitud.solicitar_email,
+                solicitud.solicitar_firma_email,
+              );
+
+          const { error: insertError } = await admin
+            .schema("notify")
+            .from("inbox")
+            .insert({
               app_slug: APP_SLUG,
               event_key: eventKey,
               recipient_id_auth: solicitante.id_auth,
@@ -116,11 +148,18 @@ export async function updateRhSolicitudStatus(
               metadata: {
                 solicitud_id: id,
                 nombre_apellido: solicitud.nombre_apellido,
-                is_rechazada: estado === "rechazada",
+                is_rechazada: isRechazada,
+                solicitar_email: solicitud.solicitar_email,
+                solicitar_firma_email: solicitud.solicitar_firma_email,
               },
-              dedupe_key: `rh_solicitud:${id}:${estado === "rechazada" ? "rechazada" : "completada"}:${Date.now()}`,
+              dedupe_key: `rh_solicitud:${id}:${isRechazada ? "rechazada" : "completada"}:${Date.now()}`,
               priority: 2,
             });
+
+          if (insertError) {
+            console.error("[updateRhSolicitudStatus] Notify insert error:", insertError);
+          } else {
+            console.log(`[updateRhSolicitudStatus] Notified solicitante for solicitud ${id} (${estado})`);
           }
         }
       } catch (notifErr) {
