@@ -108,13 +108,21 @@ export function SidebarNavClient({
     });
   };
 
+  const home_href =
+    currentApp?.id === "negocios" ? currentApp.basePath : "/dashboard";
+  const home_active =
+    currentApp?.id === "negocios"
+      ? pathname === currentApp.basePath ||
+        pathname === `${currentApp.basePath}/`
+      : pathname === "/dashboard";
+
   const homeLink = (
     <Link
-      href="/dashboard"
+      href={home_href}
       onClick={onClose}
       className={cn(
         "flex items-center gap-2.5 px-3 py-2 rounded-md text-sm font-medium transition-all sidebar-link",
-        pathname === "/dashboard"
+        home_active
           ? "bg-blue-50 text-blue-700 font-semibold"
           : "text-slate-600 hover:text-slate-900 hover:bg-slate-100",
         isCollapsed ? "justify-center" : "",
