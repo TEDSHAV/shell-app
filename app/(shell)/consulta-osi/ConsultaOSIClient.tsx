@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useLayoutEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import type {
   OSIListFilters,
   OSIListItem,
@@ -18,6 +19,8 @@ interface ConsultaOSIClientProps {
   canChangeStatus: boolean;
   canHideForClient: boolean;
   canToggleAttachment: boolean;
+  isDev?: boolean;
+  initialNroOsi?: string;
 }
 
 // Cache key for a (filters, page, itemsPerPage) combination.
@@ -38,13 +41,15 @@ function cacheKey(filters: OSIListFilters, page: number, itemsPerPage: number): 
   return JSON.stringify({ ...filters, page, itemsPerPage });
 }
 
-export default function ConsultaOSIClient({ canChangeStatus, canHideForClient, canToggleAttachment }: ConsultaOSIClientProps) {
+export default function ConsultaOSIClient({ canChangeStatus, canHideForClient, canToggleAttachment, isDev, initialNroOsi }: ConsultaOSIClientProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [fetching, setFetching] = useState(false);
   const [osis, setOsis] = useState<OSIListItem[]>([]);
   const [totalCount, setTotalCount] = useState(0);
-  const [filters, setFilters] = useState<OSIListFilters>({});
+  const [filters, setFilters] = useState<OSIListFilters>(
+    initialNroOsi ? { nroOsi: initialNroOsi } : {}
+  );
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
 
@@ -371,10 +376,23 @@ export default function ConsultaOSIClient({ canChangeStatus, canHideForClient, c
     <div className="relative h-full min-h-0">
       <div ref={scrollRef} className="h-full overflow-auto p-4 sm:p-6">
         <div className="mb-4">
-          <h1 className="text-xl font-bold text-gray-900">Consulta de OSIs</h1>
-          <p className="mt-0.5 text-sm text-gray-600">
-            Visualiza y monitorea las Órdenes de Servicio Interna
-          </p>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">Consulta de OSIs</h1>
+              <p className="mt-0.5 text-sm text-gray-600">
+                Visualiza y monitorea las Órdenes de Servicio Interna
+              </p>
+            </div>
+            {isDev && (
+              <Link
+                href="/consulta-osi/backfill-ejecutadas"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-dashed border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors whitespace-nowrap"
+                title="Herramienta de desarrollo: marcar OSIs antiguas como ejecutadas"
+              >
+                ⚙ Backfill ejecutadas
+              </Link>
+            )}
+          </div>
         </div>
 
         <OSIFilters
