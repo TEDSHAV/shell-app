@@ -23,6 +23,7 @@ export default async function ConsultaOSIPage({
   }
 
   const params = await searchParams;
+  const initialNroOsi = typeof params.nro_osi === "string" ? params.nro_osi : undefined;
 
   return (
     <ConsultaOSIClient
@@ -30,7 +31,7 @@ export default async function ConsultaOSIPage({
       canHideForClient={canHideForClient}
       canToggleAttachment={canToggleAttachment}
       isDev={process.env.NODE_ENV !== "production"}
-      initialNroOsi={typeof params.nro_osi === "string" ? params.nro_osi : undefined}
+      initialNroOsi={initialNroOsi}
     />
   );
 }
