@@ -134,10 +134,27 @@ export const appGroups: AppGroupConfig[] = [
 ];
 
 /** Apps visibles en header/sidebar del home de Shell, en este orden. */
-export const HOME_NAV_APP_IDS = ["reportes", "tickets", "osis"] as const;
+export const HOME_NAV_APP_IDS = ["manual", "reportes", "tickets", "osis"] as const;
 export const HOME_NAV_GROUP_IDS = ["utilidades"] as const;
 
 export const apps: AppConfig[] = [
+  build_app_config({
+    id: "manual",
+    name: "Manual",
+    description: "Guía del sistema, roles y manuals por aplicación",
+    basePath: "/manual",
+    icon: BookOpen,
+    brandColor: "#0C3F69",
+    embedMode: "native",
+    hiddenFromDashboard: true,
+    navLinks: [
+      {
+        label: "Guía general",
+        path: "/",
+        icon: BookOpen,
+      },
+    ],
+  }),
   build_app_config({
     id: "negocios",
     dbSlug: "sgestion",

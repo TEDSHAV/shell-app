@@ -48,11 +48,12 @@ export default async function TedPage() {
     },
     {
       icon: BookOpen,
-      title: "Documentación interna",
-      description: "Guías, convenciones y manuales del equipo.",
-      href: process.env.NEXT_PUBLIC_TED_DOCS_URL || "#",
-      external: true,
-      disabled: true,
+      title: "Manual del sistema",
+      description:
+        "Guía general, roles por aplicación y acceso a los manuals de cada app.",
+      href: "/manual",
+      external: false,
+      disabled: false,
     },
     {
       icon: Terminal,
