@@ -4,7 +4,15 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, ChevronDown, ChevronRight, FileCheck } from "lucide-react";
 import { useState } from "react";
-import { apps, appGroups, getAppByPath, HOME_NAV_APP_IDS, HOME_NAV_GROUP_IDS } from "@/config/apps";
+import {
+  apps,
+  appGroups,
+  getAppByPath,
+  get_header_group_id,
+  HOME_NAV_APP_IDS,
+  HOME_NAV_GROUP_IDS,
+  sort_header_group_apps,
+} from "@/config/apps";
 import { prefetchFramePath } from "@/lib/frame-url";
 import {
   get_app_icon_style,
@@ -54,6 +62,37 @@ function is_nav_path_active(
   );
 }
 
+function group_has_active_link(
+  group: NavGroup,
+  pathname: string,
+  app: AppConfig,
+  nav_paths: string[],
+): boolean {
+  return group.links.some((link) => {
+    const full_path =
+      link.href ??
+      `${app.basePath}${link.path === "/" ? "" : link.path}`;
+    if (link.path === "/" && !link.href) {
+      return (
+        pathname === app.basePath || pathname === `${app.basePath}/`
+      );
+    }
+    return is_nav_path_active(pathname, full_path, nav_paths);
+  });
+}
+
+function is_group_collapsible(
+  group: NavGroup,
+  visible_labels: Set<string>,
+): boolean {
+  if (group.collapsible === "always") return true;
+  if (group.collapsible === "when-peer") {
+    const peers = group.peerGroupLabels ?? [];
+    return peers.filter((label) => visible_labels.has(label)).length >= 2;
+  }
+  return false;
+}
+
 function resolve_reportes_department(
   pathname: string,
 ): "negocios" | "marketing" | null {
@@ -90,22 +129,11 @@ export function SidebarNavClient({
   const { onClose } = useMobileSidebar();
   const { isCollapsed } = useSidebarCollapse();
 
-  // Collapsible group state — used only for the capacitacion app to match its
-  // in-app PWANavDrawer dropdown behavior. Other apps keep static headers.
-  const isCapacitacionApp = currentApp?.id === "capacitacion";
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
-    new Set(),
+  const [group_toggles, set_group_toggles] = useState<Record<string, boolean>>(
+    {},
   );
-  const toggleGroup = (label: string) => {
-    setExpandedGroups((prev) => {
-      const next = new Set(prev);
-      if (next.has(label)) {
-        next.delete(label);
-      } else {
-        next.add(label);
-      }
-      return next;
-    });
+  const toggleGroup = (label: string, next_open: boolean) => {
+    set_group_toggles((prev) => ({ ...prev, [label]: next_open }));
   };
 
   const home_href =
@@ -160,10 +188,11 @@ export function SidebarNavClient({
       apps.find((app) => app.id === id),
     ).filter((app): app is AppConfig => !!app && canAccessApp(app));
     const groupMap = new Map<string, AppConfig[]>();
-    for (const app of apps.filter((a) => a.groupId && canAccessApp(a))) {
-      const existing = groupMap.get(app.groupId!) ?? [];
+    for (const app of apps.filter((a) => get_header_group_id(a) && canAccessApp(a))) {
+      const header_group_id = get_header_group_id(app)!;
+      const existing = groupMap.get(header_group_id) ?? [];
       existing.push(app);
-      groupMap.set(app.groupId!, existing);
+      groupMap.set(header_group_id, existing);
     }
 
     return (
@@ -218,8 +247,11 @@ export function SidebarNavClient({
         })}
         {HOME_NAV_GROUP_IDS.map((groupId) => {
           const group = appGroups.find((g) => g.id === groupId);
-          const groupApps = groupMap.get(groupId);
-          if (!group || !groupApps?.length) return null;
+          const groupApps = sort_header_group_apps(
+            groupId,
+            groupMap.get(groupId) ?? [],
+          );
+          if (!group || !groupApps.length) return null;
           return (
             <GroupedSidebarItem
               key={group.id}
@@ -360,6 +392,10 @@ export function SidebarNavClient({
       return canAccess(item);
     });
 
+  const visible_group_labels = new Set(
+    filteredItems.filter(isNavGroup).map((group) => group.groupLabel),
+  );
+
   return (
     <nav
       className="sidebar-app-themed flex-1 overflow-y-auto py-4 px-3 space-y-1 sidebar-scrollbar"
@@ -387,16 +423,22 @@ export function SidebarNavClient({
         if (isNavGroup(item)) {
           const isFirstGroup = index === 0;
           const group_key = `${item.department ?? "all"}-${item.groupLabel}-${index}`;
+          const collapsible = is_group_collapsible(item, visible_group_labels);
+          const has_active = group_has_active_link(
+            item,
+            pathname,
+            currentApp,
+            nav_paths,
+          );
+          const isExpanded =
+            group_toggles[item.groupLabel] ?? has_active;
 
-          // Capacitacion app: render as collapsible dropdown (matches the
-          // in-app PWANavDrawer behavior). Other apps keep static headers.
-          if (isCapacitacionApp) {
-            const isExpanded = expandedGroups.has(item.groupLabel);
+          if (collapsible) {
             const GroupIcon = item.icon;
             return (
               <div key={group_key}>
                 <button
-                  onClick={() => toggleGroup(item.groupLabel)}
+                  onClick={() => toggleGroup(item.groupLabel, !isExpanded)}
                   title={item.groupLabel}
                   className={cn(
                     "w-full flex items-center justify-between px-3 py-2 text-sm font-medium rounded-md transition-colors text-slate-600 hover:text-slate-900 hover:bg-slate-100",
@@ -489,7 +531,7 @@ function GroupedSidebarItem({
               target="_blank"
               rel="noopener noreferrer"
               className={cn(default_link_class, "justify-center")}
-              title={isCollapsed ? app.name : undefined}
+              title={isCollapsed ? (app.headerLabel ?? app.name) : undefined}
             >
               <app.icon className="h-4 w-4 shrink-0" style={appIconStyle} />
             </a>
@@ -499,7 +541,7 @@ function GroupedSidebarItem({
               href={app.basePath}
               onClick={onClose}
               className={cn(default_link_class, "justify-center")}
-              title={app.name}
+              title={app.headerLabel ?? app.name}
             >
               <app.icon className="h-4 w-4 shrink-0" style={appIconStyle} />
             </Link>
@@ -545,7 +587,7 @@ function GroupedSidebarItem({
                 )}
               >
                 <app.icon className="h-3.5 w-3.5 shrink-0" style={appIconStyle} />
-                {app.name}
+                {app.headerLabel ?? app.name}
               </a>
             ) : (
               <Link
@@ -558,7 +600,7 @@ function GroupedSidebarItem({
                 )}
               >
                 <app.icon className="h-3.5 w-3.5 shrink-0" style={appIconStyle} />
-                {app.name}
+                {app.headerLabel ?? app.name}
               </Link>
             );
           })}

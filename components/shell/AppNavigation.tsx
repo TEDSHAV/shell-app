@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
 import { ChevronDown } from "lucide-react";
-import { apps, appGroups, HOME_NAV_APP_IDS, HOME_NAV_GROUP_IDS } from "@/config/apps";
+import { apps, appGroups, get_header_group_id, HOME_NAV_APP_IDS, HOME_NAV_GROUP_IDS, sort_header_group_apps } from "@/config/apps";
 import { canAccessConsultaOSI } from "@/actions/osi";
 import { AppConfig, AppGroupConfig } from "@/types";
 import {
@@ -39,10 +39,11 @@ export const AppNavigation = ({ userRolesByApp = {}, globalRole }: AppNavigation
     can_access_shell_app(app, userRolesByApp, globalRole);
 
   const groupMap = new Map<string, AppConfig[]>();
-  for (const app of apps.filter((a) => a.groupId && canAccessApp(a))) {
-    const existing = groupMap.get(app.groupId!) ?? [];
+  for (const app of apps.filter((a) => get_header_group_id(a) && canAccessApp(a))) {
+    const header_group_id = get_header_group_id(app)!;
+    const existing = groupMap.get(header_group_id) ?? [];
     existing.push(app);
-    groupMap.set(app.groupId!, existing);
+    groupMap.set(header_group_id, existing);
   }
 
   const homeNavApps = HOME_NAV_APP_IDS.map((id) =>
@@ -96,8 +97,11 @@ export const AppNavigation = ({ userRolesByApp = {}, globalRole }: AppNavigation
       })}
       {HOME_NAV_GROUP_IDS.map((groupId) => {
         const group = appGroups.find((g) => g.id === groupId);
-        const groupApps = groupMap.get(groupId);
-        if (!group || !groupApps?.length) return null;
+        const groupApps = sort_header_group_apps(
+          groupId,
+          groupMap.get(groupId) ?? [],
+        );
+        if (!group || !groupApps.length) return null;
         return (
           <GroupedNavDropdown
             key={group.id}
@@ -172,7 +176,7 @@ function GroupedNavDropdown({
                 className="flex items-center gap-2 px-3 py-1.5 text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors"
               >
                 <app.icon className="h-3.5 w-3.5" style={appIconStyle} />
-                {app.name}
+                {app.headerLabel ?? app.name}
               </a>
             ) : (
               <Link
@@ -186,7 +190,7 @@ function GroupedNavDropdown({
                 )}
               >
                 <app.icon className="h-3.5 w-3.5" style={appIconStyle} />
-                {app.name}
+                {app.headerLabel ?? app.name}
               </Link>
             );
           })}

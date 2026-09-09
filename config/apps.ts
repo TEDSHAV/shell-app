@@ -44,6 +44,7 @@ import {
   UserPlus,
   FileStack,
   LayoutGrid,
+  Settings,
 } from "lucide-react";
 import { build_app_config } from "@/lib/app-theme";
 import { get_tickets_form_base_url } from "@/lib/tickets-form-url";
@@ -137,6 +138,33 @@ export const appGroups: AppGroupConfig[] = [
 export const HOME_NAV_APP_IDS = ["manual", "reportes", "tickets", "osis"] as const;
 export const HOME_NAV_GROUP_IDS = ["utilidades"] as const;
 
+/** Orden del desplegable Utilidades (header y sidebar de inicio). */
+export const UTILIDADES_HEADER_APP_IDS = [
+  "tareas",
+  "comentarios",
+  "drive",
+  "inventario",
+  "directorio",
+  "administracion",
+] as const;
+
+export function get_header_group_id(app: AppConfig): string | undefined {
+  return app.headerGroupId ?? app.groupId;
+}
+
+export function sort_header_group_apps(
+  groupId: string,
+  groupApps: AppConfig[],
+): AppConfig[] {
+  if (groupId !== "utilidades") return groupApps;
+  const order = UTILIDADES_HEADER_APP_IDS as readonly string[];
+  return [...groupApps].sort((a, b) => {
+    const ia = order.indexOf(a.id);
+    const ib = order.indexOf(b.id);
+    return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+  });
+}
+
 export const apps: AppConfig[] = [
   build_app_config({
     id: "manual",
@@ -172,6 +200,8 @@ export const apps: AppConfig[] = [
     navLinks: [
       {
         groupLabel: "Directorio",
+        icon: Building2,
+        collapsible: "always",
         links: [
           {
             label: "Empresas",
@@ -197,10 +227,17 @@ export const apps: AppConfig[] = [
             icon: UserCheck,
             requiredPermissions: ["directorio:manage"],
           },
+          {
+            label: "Manual",
+            path: "/manual",
+            icon: BookOpen,
+          },
         ],
       },
       {
         groupLabel: "Actividad",
+        icon: SquareCheckBig,
+        collapsible: "always",
         links: [
           {
             label: "Tareas",
@@ -214,10 +251,20 @@ export const apps: AppConfig[] = [
             href: "/comentarios",
             icon: MessageSquare,
           },
+          {
+            label: "Credenciales de clientes",
+            path: "/credenciales-clientes",
+            href: "/credenciales-clientes",
+            icon: KeyRound,
+            requiredPermissions: ["clientes:cuentas:manage"],
+          },
         ],
       },
       {
         groupLabel: "Pipeline",
+        icon: GitBranch,
+        collapsible: "when-peer",
+        peerGroupLabels: ["Pipeline", "Ingeniería de costos"],
         links: [
           {
             label: "Pipeline",
@@ -295,19 +342,10 @@ export const apps: AppConfig[] = [
         ],
       },
       {
-        groupLabel: "Gestión clientes",
-        links: [
-          {
-            label: "Credenciales de clientes",
-            path: "/credenciales-clientes",
-            href: "/credenciales-clientes",
-            icon: KeyRound,
-            requiredPermissions: ["clientes:cuentas:manage"],
-          },
-        ],
-      },
-      {
         groupLabel: "Ingeniería de costos",
+        icon: Calculator,
+        collapsible: "when-peer",
+        peerGroupLabels: ["Pipeline", "Ingeniería de costos"],
         links: [
           {
             label: "Tratos",
@@ -355,6 +393,8 @@ export const apps: AppConfig[] = [
       },
       {
         groupLabel: "Configuración",
+        icon: Settings,
+        collapsible: "always",
         links: [
           {
             label: "Configuración OSI",
@@ -384,6 +424,8 @@ export const apps: AppConfig[] = [
       },
       {
         groupLabel: "Reportes",
+        icon: BarChart2,
+        collapsible: "always",
         links: [
           {
             label: "Indicador Presupuesto",
@@ -419,7 +461,6 @@ export const apps: AppConfig[] = [
           },
         ],
       },
-      ...[requisicionesNavGroup],
     ],
   }),
   build_app_config({
@@ -600,6 +641,8 @@ export const apps: AppConfig[] = [
     brandColor: "#4F46E5",
     embedMode: "native",
     groupId: "procesos-de-apoyo",
+    headerGroupId: "utilidades",
+    headerLabel: "Requisiciones",
     dashboardOrder: 1,
     navLinks: [administracionNavGroup, administracionFacturacionNavGroup],
   }),
@@ -633,6 +676,7 @@ export const apps: AppConfig[] = [
       {
         groupLabel: "Planificación y Ejecución",
         icon: Calendar,
+        collapsible: "always",
         links: [
           {
             label: "Seguimiento de Servicios",
@@ -651,6 +695,7 @@ export const apps: AppConfig[] = [
       {
         groupLabel: "Requisiciones",
         icon: ClipboardList,
+        collapsible: "always",
         links: [
           {
             label: "Mis Requisiciones",
@@ -669,6 +714,7 @@ export const apps: AppConfig[] = [
       {
         groupLabel: "Reportes",
         icon: BarChart2,
+        collapsible: "always",
         links: [
           {
             label: "KPI",
@@ -687,6 +733,7 @@ export const apps: AppConfig[] = [
       {
         groupLabel: "Certificados",
         icon: Award,
+        collapsible: "always",
         links: [
           {
             label: "Generación",
@@ -705,6 +752,7 @@ export const apps: AppConfig[] = [
       {
         groupLabel: "Cursos",
         icon: BookOpen,
+        collapsible: "always",
         links: [
           {
             label: "Gestión",
@@ -723,6 +771,7 @@ export const apps: AppConfig[] = [
       {
         groupLabel: "Facilitadores",
         icon: Users,
+        collapsible: "always",
         links: [
           {
             label: "Gestión",

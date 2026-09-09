@@ -11,6 +11,8 @@ export interface NavLink {
   href?: string;
 }
 
+export type NavGroupCollapsible = "always" | "when-peer";
+
 export interface NavGroup {
   groupLabel: string;
   links: NavLink[];
@@ -18,6 +20,14 @@ export interface NavGroup {
   department?: "negocios" | "marketing";
   /** Optional icon for the group header (used by collapsible rendering). */
   icon?: LucideIcon;
+  /**
+   * `always`: dropdown like Capacitación.
+   * `when-peer`: dropdown only if another listed peer group is also visible.
+   * Omit for a flat category header.
+   */
+  collapsible?: NavGroupCollapsible;
+  /** Peer group labels used with `collapsible: "when-peer"`. */
+  peerGroupLabels?: string[];
 }
 
 /** CSS color values derived from brandColor (not Tailwind class names). */
@@ -55,6 +65,10 @@ export interface AppConfig {
   navLinks: (NavLink | NavGroup)[];
   requiredRoles?: string[];
   groupId?: string;
+  /** Header/home utilidades grouping; defaults to `groupId`. */
+  headerGroupId?: string;
+  /** Label in the header dropdown; defaults to `name`. */
+  headerLabel?: string;
   hiddenFromDashboard?: boolean;
   dashboardOrder?: number;
 }
