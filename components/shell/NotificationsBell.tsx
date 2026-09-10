@@ -27,24 +27,20 @@ export function NotificationsBell() {
   const fetchNotifications = useCallback(async (uid: string) => {
     const supabase = createClient();
 
-    const { count } = await supabase
-      .schema("notify")
-      .from("inbox")
-      .select("*", { count: "exact", head: true })
-      .eq("recipient_id_auth", uid);
-
-    if (count !== null) setTotalCount(count);
-
-    const { data } = await supabase
+    // Single request: PostgREST returns count alongside the limited rows,
+    // avoiding a second round-trip per refresh.
+    const { data, count } = await supabase
       .schema("notify")
       .from("inbox")
       .select(
         "id, title, body, link_path, read_at, created_at, priority, app_slug, event_key, recipient_id_auth",
+        { count: "exact" },
       )
       .eq("recipient_id_auth", uid)
       .order("created_at", { ascending: false })
       .limit(10);
 
+    if (count !== null) setTotalCount(count);
     if (data) setNotifications(data as InboxNotification[]);
     setLoading(false);
   }, []);
