@@ -71,4 +71,10 @@ export interface AppConfig {
   headerLabel?: string;
   hiddenFromDashboard?: boolean;
   dashboardOrder?: number;
+  /**
+   * Sub-path to load when the shell navigates to the app's basePath with no
+   * explicit sub-path (e.g. clicking "Capacitación" in the sidebar). Avoids
+   * a client-side redirect inside the iframe that causes a double-load flicker.
+   */
+  defaultSubPath?: string;
 }

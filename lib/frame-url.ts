@@ -45,21 +45,22 @@ export function buildFrameUrl(appId: string, subPath?: string): string {
   }
 
   const normalized = subPath?.replace(/^\//, "") ?? "";
+  const effective = normalized.length > 0 ? normalized : (app.defaultSubPath ?? "");
   const path =
     appId === "reportes"
-      ? normalized.length > 0
-        ? `/reportes/${normalized}`
+      ? effective.length > 0
+        ? `/reportes/${effective}`
         : "/reportes"
       : appId === "tareas"
-        ? normalized.length > 0
-          ? `/${normalized}`
+        ? effective.length > 0
+          ? `/${effective}`
           : "/tareas"
         : appId === "comentarios"
-          ? normalized.length > 0
-            ? `/${normalized}`
+          ? effective.length > 0
+            ? `/${effective}`
             : "/comentarios"
-          : normalized.length > 0
-            ? `/${normalized}`
+          : effective.length > 0
+            ? `/${effective}`
             : "";
 
   if (app.embedMode === "raw") {

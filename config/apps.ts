@@ -653,6 +653,7 @@ export const apps: AppConfig[] = [
     description: "Plataforma de formación y aprendizaje",
     basePath: "/capacitacion",
     dashboardOrder: 2,
+    defaultSubPath: "dashboard/capacitacion",
     upstreamUrl:
       process.env.NEXT_PUBLIC_CAPACITACION_URL ||
       "https://capacitacion.shadevenezuela.com.ve",
