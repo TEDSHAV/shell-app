@@ -114,7 +114,8 @@ function RequisicionFormContent({
 
   // Build a map of id_osi → OSISesion[] from the osi_sesion table.
   // Used as a fallback when v_osi_formato_completo.desglose_recursos_sesiones
-  // is empty (which happens when no recursos are assigned per session).
+  // (from getAllOSIsForRequisiciones) is empty (which happens when no recursos
+  // are assigned per session).
   const osiSessionsMap = useMemo(() => {
     const map = new Map<number, OSISesion[]>();
     for (const s of osiSessions) {

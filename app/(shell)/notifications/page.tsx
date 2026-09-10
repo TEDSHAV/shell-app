@@ -58,22 +58,26 @@ export default function NotificationsPage() {
         const supabase = createClient();
         setError(null);
 
-        let countQuery = supabase
+        // Unread count is a separate filter condition, so it stays its own
+        // lightweight head-only request. The total count + data are combined
+        // into a single request (count: exact returns count alongside rows).
+        const unreadCountPromise = supabase
           .schema("notify")
           .from("inbox")
           .select("*", { count: "exact", head: true })
-          .eq("recipient_id_auth", uid);
+          .eq("recipient_id_auth", uid)
+          .is("read_at", null);
 
         let dataQuery = supabase
           .schema("notify")
           .from("inbox")
           .select(
             "id, title, body, link_path, read_at, created_at, priority, app_slug, event_key, recipient_id_auth",
+            { count: "exact" },
           )
           .eq("recipient_id_auth", uid);
 
         if (unreadOnly) {
-          countQuery = countQuery.is("read_at", null);
           dataQuery = dataQuery.is("read_at", null);
         }
 
@@ -83,26 +87,15 @@ export default function NotificationsPage() {
         const to = from + PAGE_SIZE - 1;
         dataQuery = dataQuery.range(from, to);
 
-        const { count, error: countError } = await countQuery;
+        const [{ count: unreadCountResult, error: unreadError }, { data, count, error: dataError }] =
+          await Promise.all([unreadCountPromise, dataQuery]);
 
-        const { count: unreadCountResult, error: unreadError } = await supabase
-          .schema("notify")
-          .from("inbox")
-          .select("*", { count: "exact", head: true })
-          .eq("recipient_id_auth", uid)
-          .is("read_at", null);
-
-        if (countError || unreadError) {
-          console.error("Error fetching counts:", countError || unreadError);
+        if (unreadError) {
+          console.error("Error fetching unread count:", unreadError);
           setError("Error al cargar notificaciones");
           setLoading(false);
           return;
         }
-
-        if (count !== null) setTotalCount(count);
-        if (unreadCountResult !== null) setGlobalUnreadCount(unreadCountResult);
-
-        const { data, error: dataError } = await dataQuery;
 
         if (dataError) {
           console.error("Error fetching notifications:", dataError);
@@ -110,6 +103,9 @@ export default function NotificationsPage() {
         } else if (data) {
           setNotifications(data as InboxNotification[]);
         }
+
+        if (count !== null) setTotalCount(count);
+        if (unreadCountResult !== null) setGlobalUnreadCount(unreadCountResult);
         setLoading(false);
       } catch (err) {
         console.error("Unexpected error:", err);
