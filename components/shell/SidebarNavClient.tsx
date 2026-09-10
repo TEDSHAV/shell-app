@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { Home, ChevronDown, ChevronRight, FileCheck } from "lucide-react";
 import { useState } from "react";
 import {
@@ -25,6 +24,11 @@ import { can_access_shell_app } from "@/lib/shell-app-access";
 import { useMobileSidebar } from "./MobileSidebarContext";
 import { useSidebarCollapse } from "./Sidebar";
 import { NavLink, NavGroup, AppConfig, AppGroupConfig } from "@/types";
+import {
+  is_modified_click,
+  navigate_shell_iframe_href,
+  use_shell_pathname,
+} from "@/lib/shell-iframe-nav";
 
 function isNavGroup(item: NavLink | NavGroup): item is NavGroup {
   return "groupLabel" in item;
@@ -124,7 +128,7 @@ export function SidebarNavClient({
   globalRole,
   canAccessConsultaOSI,
 }: SidebarNavClientProps) {
-  const pathname = usePathname();
+  const pathname = use_shell_pathname();
   const currentApp = getAppByPath(pathname);
   const { onClose } = useMobileSidebar();
   const { isCollapsed } = useSidebarCollapse();
@@ -147,7 +151,18 @@ export function SidebarNavClient({
   const homeLink = (
     <Link
       href={home_href}
-      onClick={onClose}
+      prefetch={false}
+      onClick={(event) => {
+        onClose();
+        if (
+          currentApp &&
+          uses_iframe_in_shell(currentApp) &&
+          !is_modified_click(event)
+        ) {
+          event.preventDefault();
+          navigate_shell_iframe_href(home_href);
+        }
+      }}
       className={cn(
         "flex items-center gap-2.5 px-3 py-2 rounded-md text-sm font-medium transition-all sidebar-link",
         home_active
@@ -318,7 +333,14 @@ export function SidebarNavClient({
       <Link
         key={link.path}
         href={fullPath || currentApp.basePath}
-        onClick={onClose}
+        prefetch={false}
+        onClick={(event) => {
+          onClose();
+          if (link.href || !uses_iframe_in_shell(currentApp)) return;
+          if (is_modified_click(event)) return;
+          event.preventDefault();
+          navigate_shell_iframe_href(fullPath || currentApp.basePath);
+        }}
         onMouseEnter={prefetchFrame}
         onFocus={prefetchFrame}
         className={link_class}

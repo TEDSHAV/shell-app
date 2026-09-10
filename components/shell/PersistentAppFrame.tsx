@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { usePathname } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { getAppById } from "@/config/apps";
 import { buildFrameUrl } from "@/lib/frame-url";
+import { use_shell_pathname } from "@/lib/shell-iframe-nav";
 
 const MAX_CACHED_FRAMES = 6;
 
@@ -18,7 +18,7 @@ function getSubPath(pathname: string, basePath: string): string {
 }
 
 export function PersistentAppFrame({ appId }: PersistentAppFrameProps) {
-  const pathname = usePathname();
+  const pathname = use_shell_pathname();
   const app = getAppById(appId)!;
 
   const subPath = useMemo(
