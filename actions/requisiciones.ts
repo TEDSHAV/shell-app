@@ -990,7 +990,6 @@ export async function updateRequisicionRecord(
 // Get requisitions for list view.
 // Administración (admin/superadmin) sees all records; regular users only their own.
 export async function getAllRequisiciones(isAdmin?: boolean) {
-  const t0 = Date.now();
   const supabase = await createClient();
   const userResponse = await supabase.auth.getUser();
   const userId = userResponse.data.user?.id;
@@ -1000,8 +999,6 @@ export async function getAllRequisiciones(isAdmin?: boolean) {
   if (isAdmin === undefined) {
     isAdmin = await isRequisicionesAdmin();
   }
-
-  console.log(`[getAllRequisiciones] start — userId=${userId} isAdmin=${isAdmin}`);
 
   let query = supabase
     .from("requisiciones")
@@ -1067,7 +1064,6 @@ export async function getAllRequisiciones(isAdmin?: boolean) {
       console.error("Error fetching requisiciones:", error);
       return [];
     }
-    console.log(`[getAllRequisiciones] admin path — ${data?.length || 0} records in ${Date.now() - t0}ms`);
     return data;
   }
 
@@ -1102,7 +1098,6 @@ export async function getAllRequisiciones(isAdmin?: boolean) {
     console.error("Error fetching requisiciones:", ownError);
     return [];
   }
-  console.log(`[getAllRequisiciones] ownData — ${ownData?.length || 0} records in ${Date.now() - t0}ms`);
 
   // --- Approval queues for non-admin users ---
   // Liders see pending internas from their gerencia (awaiting their approval).
@@ -1163,7 +1158,6 @@ export async function getAllRequisiciones(isAdmin?: boolean) {
         console.error("[getAllRequisiciones] Error fetching pending internas for lider:", pendingErr);
       } else {
         addPending(pendingInternas);
-        console.log(`[getAllRequisiciones] lider pending internas — ${pendingInternas?.length || 0} from ${deptNames.length} depts`);
       }
     }
   }
@@ -1188,7 +1182,6 @@ export async function getAllRequisiciones(isAdmin?: boolean) {
       console.error("[getAllRequisiciones] Error fetching pending externas for coordinador:", pendingErr);
     } else {
       addPending(pendingExternas);
-      console.log(`[getAllRequisiciones] coordinador pending externas — ${pendingExternas?.length || 0} from ${coordDepts.length} depts`);
     }
   }
 
@@ -1212,7 +1205,6 @@ export async function getAllRequisiciones(isAdmin?: boolean) {
         console.error("[getAllRequisiciones] Error fetching pending externas for lider fallback:", pendingErr);
       } else {
         addPending(pendingExternas);
-        console.log(`[getAllRequisiciones] lider-fallback pending externas — ${pendingExternas?.length || 0} from ${noCoordDeptNames.length} depts`);
       }
     }
   }
@@ -1253,7 +1245,6 @@ export async function getAllRequisiciones(isAdmin?: boolean) {
       console.error("[getAllRequisiciones] Error fetching lider history:", histErr);
     } else {
       addHistory(liderHistory);
-      console.log(`[getAllRequisiciones] lider history — ${liderHistory?.length || 0} records`);
     }
   }
 
@@ -1276,12 +1267,10 @@ export async function getAllRequisiciones(isAdmin?: boolean) {
       console.error("[getAllRequisiciones] Error fetching coordinador history:", histErr);
     } else {
       addHistory(coordHistory);
-      console.log(`[getAllRequisiciones] coordinador history — ${coordHistory?.length || 0} records`);
     }
   }
 
   merged.sort((a: any, b: any) => b.id - a.id);
-  console.log(`[getAllRequisiciones] DONE — ${merged.length} total merged records in ${Date.now() - t0}ms`);
   return merged;
 }
 

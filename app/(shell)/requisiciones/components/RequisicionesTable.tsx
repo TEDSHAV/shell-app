@@ -61,14 +61,6 @@ export default function RequisicionesTable({
 }) {
   const [filters, setFilters] = useState<RequisicionFilters>(EMPTY_FILTERS);
 
-  // Diagnostic: log records prop identity changes to detect unnecessary re-renders
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const ids = records.map((r) => r.id).join(",");
-      console.log(`[RequisicionesTable] records prop changed — count=${records.length} ids=${ids.slice(0, 200)}`);
-    }
-  }, [records]);
-
   // "Historial" tab is only shown to non-admin liders/coordinadors so they can
   // see requisiciones they've already approved/rejected (tagged with
   // _isApprovalHistory by getAllRequisiciones).
@@ -199,12 +191,6 @@ export default function RequisicionesTable({
       if (sa !== sb) return sa - sb;
       return (b.id || 0) - (a.id || 0);
     });
-
-    // Diagnostic: log sort order to detect jumping
-    if (typeof window !== "undefined") {
-      const summary = result.slice(0, 10).map((r) => `#${r.id}:${r.estatus_admin || "pendiente"}`).join(" > ");
-      console.log(`[RequisicionesTable] filtered=${result.length}/${records.length} tab=${filters.tab} top=${summary}`);
-    }
 
     return result;
   }, [records, filters, osiLookup]);

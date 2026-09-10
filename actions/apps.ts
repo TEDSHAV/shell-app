@@ -114,10 +114,13 @@ export async function getUserRole(): Promise<string> {
  *
  * Also selects `esta_activo` so the shell layout can block deactivated users
  * without an extra query (piggybacks on this cached lookup).
+ * Selects `departamento` so canAccessConsultaOSI / isTedMember can resolve the
+ * department FK without re-querying `usuarios`.
  */
 export const getUsuarioRecord = cache(async (): Promise<{
   id: number;
   esta_activo: boolean | null;
+  departamento: number | null;
 } | null> => {
   try {
     const supabase = await createClient();
@@ -127,12 +130,40 @@ export const getUsuarioRecord = cache(async (): Promise<{
 
     const { data: usuario, error } = await supabase
       .from("usuarios")
-      .select("id, esta_activo")
+      .select("id, esta_activo, departamento")
       .eq("id_auth", user.id)
       .single();
 
     if (error || !usuario) return null;
-    return usuario as { id: number; esta_activo: boolean | null };
+    return usuario as { id: number; esta_activo: boolean | null; departamento: number | null };
+  } catch {
+    return null;
+  }
+});
+
+/**
+ * Cached per-request lookup of the current user's department name
+ * (departamentos.nombre) resolved via the usuarios.departamento FK.
+ *
+ * Shared by canAccessConsultaOSI (actions/osi.ts) and isTedMember
+ * (actions/ted.ts) so they don't each re-fetch auth.getUser + usuarios +
+ * departamentos. Depends on getUsuarioRecord for the cached usuario row,
+ * so the only new query is the single departamentos lookup.
+ */
+export const getUsuarioDepartamento = cache(async (): Promise<string | null> => {
+  try {
+    const usuario = await getUsuarioRecord();
+    if (!usuario || usuario.departamento == null) return null;
+
+    const supabase = await createClient();
+    const { data: depto, error } = await supabase
+      .from("departamentos")
+      .select("nombre")
+      .eq("id", usuario.departamento)
+      .single();
+
+    if (error || !depto) return null;
+    return depto.nombre ?? null;
   } catch {
     return null;
   }

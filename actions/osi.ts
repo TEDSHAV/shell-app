@@ -8,6 +8,7 @@ import {
   getUserRole,
   getUserRolesByApp,
   getUserPermissionsByApp,
+  getUsuarioDepartamento,
 } from "@/actions/apps";
 import type { BuildOsiPreviewInput } from "@sha/osi-formato";
 import {
@@ -601,35 +602,20 @@ export type OSIAccessFilter = "all" | "capacitacion" | "servicios_tecnicos" | "o
 
 const getCachedUserOSIAccessFilter = cache(async (): Promise<OSIAccessFilter> => {
   try {
-    const supabase = await createClient();
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return "none";
-
-    const { data: claimsData } = await supabase.auth.getClaims();
-    const globalRole = (
-      claimsData?.claims?.user_role as string
-    )?.toLowerCase();
+    // Use the shared cached role lookup instead of a separate auth.getClaims()
+    // call. getUserRole already checks claims first (no DB call) and only
+    // falls back to getUserRolesByApp (cached via getUsuarioRecord) when
+    // claims are absent.
+    const globalRole = (await getUserRole())?.toLowerCase();
 
     if (globalRole === "superadmin") return "all";
 
-    const { data: usuario } = await supabase
-      .from("usuarios")
-      .select("departamento")
-      .eq("id_auth", user.id)
-      .single();
+    // Use the shared cached departamento lookup instead of re-fetching
+    // auth.getUser + usuarios + departamentos (3 redundant calls).
+    const deptName = await getUsuarioDepartamento();
+    if (!deptName) return "none";
 
-    if (!usuario?.departamento) return "none";
-
-    const { data: depto } = await supabase
-      .from("departamentos")
-      .select("nombre")
-      .eq("id", usuario.departamento)
-      .single();
-
-    if (!depto?.nombre) return "none";
-
-    const deptUpper = depto.nombre.toUpperCase();
+    const deptUpper = deptName.toUpperCase();
 
     if (deptUpper.includes("CAPACITACION")) return "capacitacion";
     if (deptUpper.includes("SERVICIOS TECNICOS") || deptUpper.includes("SERVICIO TECNICO")) return "servicios_tecnicos";
