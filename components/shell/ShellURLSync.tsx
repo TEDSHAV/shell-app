@@ -54,7 +54,8 @@ export function ShellURLSync() {
             : path_str.startsWith("/")
               ? `/facturacion${path_str}`
               : `/facturacion/${path_str}`;
-          const newBrowserPath = `/requisiciones${fact_path}`;
+          const factPathOnly = fact_path.split("?")[0];
+          const newBrowserPath = `/requisiciones${factPathOnly}`;
           if (window.location.pathname !== newBrowserPath) {
             window.history.replaceState(null, "", newBrowserPath);
             window.dispatchEvent(new CustomEvent("shell-url-change"));
@@ -68,7 +69,14 @@ export function ShellURLSync() {
           // Construct the new browser URL
           // If the app is hosted at /capacitacion and internal path is /dashboard/x
           // We want the browser to show /capacitacion/dashboard/x
-          const newBrowserPath = `${app.basePath}${path}`;
+          //
+          // Strip the query string (e.g. ?shell=1) from the iframe's path before
+          // constructing the browser URL. window.location.pathname never includes
+          // query params, so including them in newBrowserPath would cause the
+          // equality check to always fail — which creates a replaceState loop
+          // when multiple cached iframes fire their URLSync messages.
+          const pathOnly = String(path ?? "").split("?")[0];
+          const newBrowserPath = `${app.basePath}${pathOnly}`;
 
           if (window.location.pathname !== newBrowserPath) {
             // Update the URL without reloading or triggering a full Next.js navigation
