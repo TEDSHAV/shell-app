@@ -6,7 +6,6 @@ import {
   getRequisicionRecord,
   isRequisicionesAdmin,
   getAllOsiSessions,
-  canPlaceInterna,
   isRequisicionesLider,
 } from "@/actions/requisiciones";
 import RequisicionForm from "../../components/RequisicionForm";
@@ -67,10 +66,7 @@ export default async function EditRequisicionPage({
       : "Aprobada por el Coordinador (pendiente por Administración)";
   }
 
-  const [canPlaceInternaFlag, isLiderFlag] = await Promise.all([
-    canPlaceInterna(userDept),
-    isRequisicionesLider(),
-  ]);
+  const isLiderFlag = await isRequisicionesLider();
 
   return (
     <div className="p-4 sm:p-8">
@@ -98,7 +94,6 @@ export default async function EditRequisicionPage({
         lockReason={lockReason}
         banks={banks}
         osiSessions={osiSessions}
-        canPlaceInterna={canPlaceInternaFlag}
         isLider={isLiderFlag}
       />
     </div>

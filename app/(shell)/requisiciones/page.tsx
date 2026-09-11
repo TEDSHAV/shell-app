@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { getAllRequisiciones, isRequisicionesAdmin, isCurrentUserCapacitacion, getOsiNumbersForLookup, getCoordinatedDepartments, getDepartmentsInLedGerencias, getCoordinatorlessDepartmentsInLedGerencias } from "@/actions/requisiciones";
+import { getAllRequisiciones, isRequisicionesAdmin, isCurrentUserCapacitacion, getOsiNumbersForLookup, getCoordinatedDepartments, getDepartmentsInLedGerencias } from "@/actions/requisiciones";
 import RequisicionesTable from "./components/RequisicionesTable";
 import { FilePlus2 } from "lucide-react";
 
@@ -16,12 +16,7 @@ export default async function RequisicionesPage() {
   // different department than the one they coordinate/lead).
   const coordinadorDepts = isAdminView ? [] : await getCoordinatedDepartments();
   const isCoordinador = coordinadorDepts.length > 0;
-  const [liderDepts, liderFallbackDepts] = isAdminView
-    ? [[], []]
-    : await Promise.all([
-        getDepartmentsInLedGerencias(),
-        getCoordinatorlessDepartmentsInLedGerencias(),
-      ]);
+  const liderDepts = isAdminView ? [] : await getDepartmentsInLedGerencias();
   const isLider = liderDepts.length > 0;
   const [records, osiPairs] = await Promise.all([
     getAllRequisiciones(isAdminView),
@@ -39,7 +34,7 @@ export default async function RequisicionesPage() {
     (r: any) => r.tipo_solicitud === "Interno" && r.lider_estatus === "pendiente"
   ).length;
   const pendingCoordinadorCount = (records || []).filter(
-    (r: any) => r.tipo_solicitud === "Externo" && r.coordinador_estatus === "pendiente"
+    (r: any) => r.tipo_solicitud === "Interno" && r.coordinador_estatus === "pendiente"
   ).length;
   const pendingApprovalCount = pendingLiderCount + pendingCoordinadorCount;
 
@@ -76,7 +71,6 @@ export default async function RequisicionesPage() {
         coordinadorDepts={coordinadorDepts}
         isLider={isLider}
         liderDepts={liderDepts}
-        liderFallbackDepts={liderFallbackDepts}
       />
     </div>
   );

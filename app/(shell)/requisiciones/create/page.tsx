@@ -4,7 +4,6 @@ import {
   getCurrentUser,
   getBanksForDropdown,
   getAllOsiSessions,
-  canPlaceInterna,
   isRequisicionesLider,
 } from "@/actions/requisiciones";
 import RequisicionForm from "../components/RequisicionForm";
@@ -24,10 +23,7 @@ export default async function CreateRequisicionPage() {
 
   const userDept = userData?.departamentos?.nombre || "";
   const userGerencia = userData?.departamentos?.gerencia || "";
-  const [canPlaceInternaFlag, isLiderFlag] = await Promise.all([
-    canPlaceInterna(userDept),
-    isRequisicionesLider(),
-  ]);
+  const isLiderFlag = await isRequisicionesLider();
 
   return (
     <div className="p-4 sm:p-8">
@@ -43,7 +39,6 @@ export default async function CreateRequisicionPage() {
         userGerencia={userGerencia}
         banks={banks}
         osiSessions={osiSessions}
-        canPlaceInterna={canPlaceInternaFlag}
         isLider={isLiderFlag}
       />
     </div>
