@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react";
 import { getAppById } from "@/config/apps";
 import { buildFrameUrl } from "@/lib/frame-url";
 import { use_shell_pathname } from "@/lib/shell-iframe-nav";
+import { setActiveFrameWindow } from "@/lib/active-frame-window";
 
 const MAX_CACHED_FRAMES = 6;
 
@@ -60,6 +61,14 @@ export function PersistentAppFrame({ appId }: PersistentAppFrameProps) {
     [activeSrc],
   );
 
+  // Track the active iframe's contentWindow so ShellURLSync can filter
+  // IFRAME_NAVIGATION messages from background/cached iframes. The ref
+  // callback runs during React's commit phase, before any effects or
+  // message events, so the active window is set before URLSync can fire.
+  const setActiveRef = useCallback((el: HTMLIFrameElement | null) => {
+    setActiveFrameWindow(el?.contentWindow ?? null);
+  }, []);
+
   return (
     <div className="relative flex-1 min-h-0 h-full w-full overflow-hidden">
       {cachedSrcs.map((src) => {
@@ -68,6 +77,7 @@ export function PersistentAppFrame({ appId }: PersistentAppFrameProps) {
           <iframe
             key={src}
             src={src}
+            ref={isActive ? setActiveRef : undefined}
             title={app.name}
             className="absolute inset-0 h-full w-full border-0"
             style={{

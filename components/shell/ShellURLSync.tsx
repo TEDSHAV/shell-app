@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { apps } from "@/config/apps";
+import { getActiveFrameWindow } from "@/lib/active-frame-window";
 
 const ADMIN_FACTURACION_PREFIX = "/requisiciones/facturacion";
 
@@ -66,6 +67,15 @@ export function ShellURLSync() {
         const app = apps.find((a) => a.id === appId);
 
         if (app) {
+          // Ignore IFRAME_NAVIGATION from background/cached iframes.
+          // Only the active iframe should drive the browser URL — background
+          // iframes that finish loading after the user navigated away would
+          // otherwise jump the URL back to their page.
+          const activeWindow = getActiveFrameWindow();
+          if (activeWindow && event.source !== activeWindow) {
+            return;
+          }
+
           // Construct the new browser URL
           // If the app is hosted at /capacitacion and internal path is /dashboard/x
           // We want the browser to show /capacitacion/dashboard/x

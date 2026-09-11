@@ -664,7 +664,7 @@ export const apps: AppConfig[] = [
     navLinks: [
       {
         label: "Dashboard",
-        path: "/dashboard/capacitacion",
+        path: "/",
         icon: LayoutDashboard,
         requiredPermissions: ["scapacitacion:all:access"],
       },
@@ -958,7 +958,7 @@ export const apps: AppConfig[] = [
     navLinks: [
       {
         label: "Inicio",
-        path: "/dashboard/calidad",
+        path: "/",
         icon: LayoutDashboard,
         requiredPermissions: ["scalidad:all:access"],
       },
@@ -1005,7 +1005,7 @@ export const apps: AppConfig[] = [
     navLinks: [
       {
         label: "Inicio",
-        path: "/dashboard/rh",
+        path: "/",
         icon: LayoutDashboard,
         requiredPermissions: ["srh:all:access"],
       },
