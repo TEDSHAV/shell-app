@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+
 export default function CapacitacionPage() {
-  return null;
+  redirect("/capacitacion/dashboard/capacitacion");
 }

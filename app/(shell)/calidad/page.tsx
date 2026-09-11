@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+
 export default function CalidadPage() {
-  return null;
+  redirect("/calidad/dashboard/calidad");
 }

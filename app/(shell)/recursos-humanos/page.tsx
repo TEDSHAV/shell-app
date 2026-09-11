@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+
 export default function RecursosHumanosPage() {
-  return null;
+  redirect("/recursos-humanos/dashboard/rh");
 }
