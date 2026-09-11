@@ -404,7 +404,7 @@ export const apps: AppConfig[] = [
         links: [
           {
             label: "Configuración OSI",
-            path: "/ingenieria/osi-visibilidad-costos",
+            path: "/ingenieria/configuracion-osi",
             icon: FileCheck,
             requiredRoles: ["admin", "superadmin"],
           },
