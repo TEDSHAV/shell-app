@@ -24,7 +24,7 @@ export default async function TedPage() {
       icon: UserPlus,
       title: "Solicitudes RRHH",
       description:
-        "Solicitudes de creación de usuarios y emails corporativos enviadas desde Recursos Humanos.",
+        "Solicitudes de creación, desactivación, reactivación, restablecimiento de contraseña, cambio de email y permisos enviadas desde Recursos Humanos.",
       href: "/ted/rh-solicitudes",
       external: false,
       disabled: false,

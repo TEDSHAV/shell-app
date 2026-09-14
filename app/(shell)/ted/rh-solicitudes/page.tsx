@@ -8,9 +8,17 @@ import { RhSolicitudesTedClient } from "./RhSolicitudesTedClient";
 export const dynamic = "force-dynamic";
 
 type SolicitudEstado = "pendiente" | "en_proceso" | "completada" | "rechazada";
+type SolicitudTipo =
+  | "creacion"
+  | "desactivacion"
+  | "reactivacion"
+  | "restablecer_contrasena"
+  | "cambio_email"
+  | "cambio_permisos";
 
 type RhSolicitudRow = {
   id: number;
+  tipo: SolicitudTipo;
   nombre_apellido: string;
   cedula: string | null;
   cargo: string | null;
@@ -22,11 +30,20 @@ type RhSolicitudRow = {
   notas: string | null;
   solicitado_por: number | null;
   procesado_por: number | null;
+  usuario_id: number | null;
+  valor_nuevo: string | null;
   created_at: string;
   updated_at: string;
   solicitado_por_usuario: { nombre_apellido: string } | null;
   procesado_por_usuario: { nombre_apellido: string } | null;
   departamentos: { nombre: string } | null;
+  usuario: {
+    nombre_apellido: string;
+    email_corporativo: string | null;
+    esta_activo: boolean | null;
+    departamento: number | null;
+    departamentos: { nombre: string } | null;
+  } | null;
 };
 
 export default async function TedRhSolicitudesPage() {
@@ -43,7 +60,8 @@ export default async function TedRhSolicitudesPage() {
       *,
       solicitado_por_usuario:usuarios!rh_solicitudes_solicitado_por_fkey(nombre_apellido),
       procesado_por_usuario:usuarios!rh_solicitudes_procesado_por_fkey(nombre_apellido),
-      departamentos!rh_solicitudes_departamento_fkey(nombre)
+      departamentos!rh_solicitudes_departamento_fkey(nombre),
+      usuario:usuarios!rh_solicitudes_usuario_id_fkey(nombre_apellido, email_corporativo, esta_activo, departamento, departamentos!usuarios_departamento_fkey(nombre))
     `)
     .order("created_at", { ascending: false });
 
@@ -72,7 +90,9 @@ export default async function TedRhSolicitudesPage() {
               Solicitudes de Usuarios (RRHH)
             </h1>
             <p className="mt-0.5 text-sm text-muted-foreground">
-              Solicitudes de creación de usuarios y emails corporativos enviadas desde Recursos Humanos.
+              Solicitudes de creación, desactivación, reactivación,
+              restablecimiento de contraseña, cambio de email y permisos
+              enviadas desde Recursos Humanos.
             </p>
           </div>
         </div>

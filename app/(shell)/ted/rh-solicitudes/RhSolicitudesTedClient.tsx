@@ -11,13 +11,22 @@ import {
   User,
   FileText,
   Loader2,
+  AlertCircle,
 } from "lucide-react";
 import { updateRhSolicitudStatus } from "@/app/actions/ted-rh-solicitudes";
 
 type SolicitudEstado = "pendiente" | "en_proceso" | "completada" | "rechazada";
+type SolicitudTipo =
+  | "creacion"
+  | "desactivacion"
+  | "reactivacion"
+  | "restablecer_contrasena"
+  | "cambio_email"
+  | "cambio_permisos";
 
 type RhSolicitudRow = {
   id: number;
+  tipo: SolicitudTipo;
   nombre_apellido: string;
   cedula: string | null;
   cargo: string | null;
@@ -29,19 +38,39 @@ type RhSolicitudRow = {
   notas: string | null;
   solicitado_por: number | null;
   procesado_por: number | null;
+  usuario_id: number | null;
+  valor_nuevo: string | null;
   created_at: string;
   updated_at: string;
   solicitado_por_usuario: { nombre_apellido: string } | null;
   procesado_por_usuario: { nombre_apellido: string } | null;
   departamentos: { nombre: string } | null;
+  usuario: {
+    nombre_apellido: string;
+    email_corporativo: string | null;
+    esta_activo: boolean | null;
+    departamento: number | null;
+    departamentos: { nombre: string } | null;
+  } | null;
 };
 
 type TabKey = "pendientes" | "completadas" | "rechazadas";
+type TipoFilter = "todos" | SolicitudTipo;
 
 const TAB_CONFIG: { key: TabKey; label: string; estados: SolicitudEstado[] }[] = [
   { key: "pendientes", label: "Pendientes", estados: ["pendiente", "en_proceso"] },
   { key: "completadas", label: "Completadas", estados: ["completada"] },
   { key: "rechazadas", label: "Rechazadas", estados: ["rechazada"] },
+];
+
+const TIPO_FILTERS: { key: TipoFilter; label: string }[] = [
+  { key: "todos", label: "Todos los tipos" },
+  { key: "creacion", label: "Creación" },
+  { key: "desactivacion", label: "Desactivación" },
+  { key: "reactivacion", label: "Reactivación" },
+  { key: "restablecer_contrasena", label: "Contraseña" },
+  { key: "cambio_email", label: "Email" },
+  { key: "cambio_permisos", label: "Permisos" },
 ];
 
 const ESTADO_BADGE: Record<SolicitudEstado, string> = {
@@ -56,6 +85,24 @@ const ESTADO_LABEL: Record<SolicitudEstado, string> = {
   en_proceso: "En proceso",
   completada: "Completada",
   rechazada: "Rechazada",
+};
+
+const TIPO_BADGE: Record<SolicitudTipo, string> = {
+  creacion: "bg-orange-100 text-orange-700",
+  desactivacion: "bg-red-100 text-red-700",
+  reactivacion: "bg-emerald-100 text-emerald-700",
+  restablecer_contrasena: "bg-amber-100 text-amber-700",
+  cambio_email: "bg-sky-100 text-sky-700",
+  cambio_permisos: "bg-violet-100 text-violet-700",
+};
+
+const TIPO_LABEL: Record<SolicitudTipo, string> = {
+  creacion: "Creación",
+  desactivacion: "Desactivación",
+  reactivacion: "Reactivación",
+  restablecer_contrasena: "Contraseña",
+  cambio_email: "Email",
+  cambio_permisos: "Permisos",
 };
 
 function formatDate(iso: string): string {
@@ -75,15 +122,19 @@ export function RhSolicitudesTedClient({
   solicitudes: RhSolicitudRow[];
 }) {
   const [activeTab, setActiveTab] = useState<TabKey>("pendientes");
+  const [tipoFilter, setTipoFilter] = useState<TipoFilter>("todos");
   const [rejectingId, setRejectingId] = useState<number | null>(null);
   const [rejectMotivo, setRejectMotivo] = useState("");
   const [pendingId, setPendingId] = useState<number | null>(null);
+  const [execError, setExecError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const tabConfig = TAB_CONFIG.find((t) => t.key === activeTab)!;
-  const filtered = solicitudes.filter((s) =>
-    tabConfig.estados.includes(s.estado),
-  );
+  const filtered = solicitudes.filter((s) => {
+    if (!tabConfig.estados.includes(s.estado)) return false;
+    if (tipoFilter !== "todos" && s.tipo !== tipoFilter) return false;
+    return true;
+  });
 
   const counts: Record<TabKey, number> = {
     pendientes: solicitudes.filter((s) =>
@@ -95,10 +146,13 @@ export function RhSolicitudesTedClient({
 
   function handleComplete(id: number) {
     setPendingId(id);
+    setExecError(null);
     startTransition(async () => {
       const result = await updateRhSolicitudStatus(id, "completada");
       if (!result.success) {
-        alert(result.error || "Error al completar la solicitud");
+        setExecError(result.error || "Error al completar la solicitud");
+      } else {
+        setExecError(null);
       }
       setPendingId(null);
     });
@@ -106,6 +160,7 @@ export function RhSolicitudesTedClient({
 
   function handleReject(id: number) {
     setPendingId(id);
+    setExecError(null);
     startTransition(async () => {
       const result = await updateRhSolicitudStatus(
         id,
@@ -113,10 +168,11 @@ export function RhSolicitudesTedClient({
         rejectMotivo.trim() || null,
       );
       if (!result.success) {
-        alert(result.error || "Error al rechazar la solicitud");
+        setExecError(result.error || "Error al rechazar la solicitud");
+      } else {
+        setRejectingId(null);
+        setRejectMotivo("");
       }
-      setRejectingId(null);
-      setRejectMotivo("");
       setPendingId(null);
     });
   }
@@ -151,11 +207,35 @@ export function RhSolicitudesTedClient({
         ))}
       </div>
 
+      {/* Tipo filter */}
+      <select
+        value={tipoFilter}
+        onChange={(e) => setTipoFilter(e.target.value as TipoFilter)}
+        className="px-3 py-1.5 border border-border rounded-lg text-sm bg-white text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+      >
+        {TIPO_FILTERS.map((t) => (
+          <option key={t.key} value={t.key}>
+            {t.label}
+          </option>
+        ))}
+      </select>
+
+      {/* Execution error banner */}
+      {execError && (
+        <div className="flex items-start gap-2 rounded-lg bg-red-50 border border-red-200 p-3">
+          <AlertCircle className="h-4 w-4 text-red-600 mt-0.5 shrink-0" />
+          <p className="text-xs text-red-700">{execError}</p>
+        </div>
+      )}
+
       {/* Content */}
       {filtered.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">
           <FileText className="h-12 w-12 mx-auto mb-3 opacity-30" />
-          <p className="text-sm">No hay solicitudes {tabConfig.label.toLowerCase()}.</p>
+          <p className="text-sm">
+            No hay solicitudes {tabConfig.label.toLowerCase()}
+            {tipoFilter !== "todos" ? ` de tipo ${TIPO_FILTERS.find((t) => t.key === tipoFilter)?.label.toLowerCase()}` : ""}.
+          </p>
         </div>
       ) : (
         <div className="grid gap-4">
@@ -168,6 +248,11 @@ export function RhSolicitudesTedClient({
                 <div className="flex-1 min-w-0 space-y-3">
                   {/* Header */}
                   <div className="flex items-center gap-3 flex-wrap">
+                    <span
+                      className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${TIPO_BADGE[s.tipo]}`}
+                    >
+                      {TIPO_LABEL[s.tipo]}
+                    </span>
                     <h3 className="font-semibold text-foreground text-base">
                       {s.nombre_apellido}
                     </h3>
@@ -176,13 +261,13 @@ export function RhSolicitudesTedClient({
                     >
                       {ESTADO_LABEL[s.estado]}
                     </span>
-                    {s.solicitar_email && (
+                    {s.tipo === "creacion" && s.solicitar_email && (
                       <span className="inline-flex items-center gap-1 text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-md">
                         <Mail className="h-3 w-3" />
                         Email
                       </span>
                     )}
-                    {s.solicitar_firma_email && (
+                    {s.tipo === "creacion" && s.solicitar_firma_email && (
                       <span className="inline-flex items-center gap-1 text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-md">
                         <Mail className="h-3 w-3" />
                         Firma
@@ -192,29 +277,71 @@ export function RhSolicitudesTedClient({
 
                   {/* Details grid */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-sm">
-                    {s.cargo && (
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <User className="h-4 w-4 shrink-0" />
-                        <span>{s.cargo}</span>
-                      </div>
-                    )}
-                    {s.departamentos?.nombre && (
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <Building2 className="h-4 w-4 shrink-0" />
-                        <span>{s.departamentos.nombre}</span>
-                      </div>
-                    )}
-                    {s.telefono && (
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <Phone className="h-4 w-4 shrink-0" />
-                        <span>{s.telefono}</span>
-                      </div>
-                    )}
-                    {s.cedula && (
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <FileText className="h-4 w-4 shrink-0" />
-                        <span>CI: {s.cedula}</span>
-                      </div>
+                    {s.tipo === "creacion" ? (
+                      <>
+                        {s.cargo && (
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <User className="h-4 w-4 shrink-0" />
+                            <span>{s.cargo}</span>
+                          </div>
+                        )}
+                        {s.departamentos?.nombre && (
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <Building2 className="h-4 w-4 shrink-0" />
+                            <span>{s.departamentos.nombre}</span>
+                          </div>
+                        )}
+                        {s.telefono && (
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <Phone className="h-4 w-4 shrink-0" />
+                            <span>{s.telefono}</span>
+                          </div>
+                        )}
+                        {s.cedula && (
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <FileText className="h-4 w-4 shrink-0" />
+                            <span>CI: {s.cedula}</span>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        {s.usuario?.email_corporativo && (
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <Mail className="h-4 w-4 shrink-0" />
+                            <span>{s.usuario.email_corporativo}</span>
+                          </div>
+                        )}
+                        {s.usuario?.departamentos?.nombre && (
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <Building2 className="h-4 w-4 shrink-0" />
+                            <span>{s.usuario.departamentos.nombre}</span>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <User className="h-4 w-4 shrink-0" />
+                          <span>
+                            Estado: {s.usuario?.esta_activo === false ? "Inactivo" : "Activo"}
+                          </span>
+                        </div>
+                        {s.tipo === "cambio_email" && s.valor_nuevo && (
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <Mail className="h-4 w-4 shrink-0" />
+                            <span>Nuevo: {s.valor_nuevo}</span>
+                          </div>
+                        )}
+                        {s.tipo === "cambio_permisos" && s.valor_nuevo && (
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <FileText className="h-4 w-4 shrink-0" />
+                            <span>
+                              {s.valor_nuevo.split(":")[1] === "conceder"
+                                ? "Conceder"
+                                : "Revocar"}{" "}
+                              — {s.valor_nuevo.split(":")[0]}
+                            </span>
+                          </div>
+                        )}
+                      </>
                     )}
                     {s.solicitado_por_usuario?.nombre_apellido && (
                       <div className="flex items-center gap-2 text-muted-foreground">
@@ -296,7 +423,7 @@ export function RhSolicitudesTedClient({
                           ) : (
                             <Check className="h-4 w-4" />
                           )}
-                          Completar
+                          {s.tipo === "creacion" ? "Completar" : "Completar y ejecutar"}
                         </button>
                         <button
                           onClick={() => setRejectingId(s.id)}
