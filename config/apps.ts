@@ -874,6 +874,7 @@ export const apps: AppConfig[] = [
     name: "Servicios Técnicos",
     description: "Gestión de servicios técnicos y control de equipos",
     basePath: "/servicios-tecnicos",
+    defaultSubPath: "dashboard",
     upstreamUrl:
       process.env.NEXT_PUBLIC_SERVICIOS_URL ||
       "https://st.shadevenezuela.com.ve",
@@ -883,16 +884,15 @@ export const apps: AppConfig[] = [
     groupId: "procesos-medulares",
     dashboardOrder: 3,
     navLinks: [
-      { label: "Dashboard", path: "/", icon: LayoutDashboard },
+      { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
+      {
+        label: "Diseño y Desarrollo de Servicios",
+        path: "/dashboard/nuevos-servicios",
+        icon: ClipboardList,
+      },
       { label: "Control de Calibración", path: "/dashboard/control-calibracion", icon: Gauge },
       { label: "Entrada y Salida de Equipos", path: "/dashboard/entrada-salida-equipos", icon: ArrowLeftRight },
       { label: "Formulario de Novedades", path: "/dashboard/formulario-novedades", icon: FileText },
-      {
-        label: "Nuevos Servicios",
-        path: "/nuevo-servicio",
-        href: "/nuevo-servicio",
-        icon: ClipboardList,
-      },
       ...[requisicionesNavGroup],
     ],
   }),
