@@ -12,6 +12,9 @@ import {
   FileText,
   Loader2,
   AlertCircle,
+  Calendar,
+  MapPin,
+  FileCheck,
 } from "lucide-react";
 import { updateRhSolicitudStatus } from "@/app/actions/ted-rh-solicitudes";
 
@@ -34,6 +37,13 @@ type RhSolicitudRow = {
   telefono: string | null;
   solicitar_email: boolean;
   solicitar_firma_email: boolean;
+  tipo_contrato?: string | null;
+  regimen_contrato?: string | null;
+  duracion_cantidad?: number | null;
+  duracion_unidad?: string | null;
+  duracion_contrato_texto?: string | null;
+  direccion?: string | null;
+  fecha_ingreso?: string | null;
   estado: SolicitudEstado;
   notas: string | null;
   solicitado_por: number | null;
@@ -291,6 +301,21 @@ export function RhSolicitudesTedClient({
                             <span>{s.departamentos.nombre}</span>
                           </div>
                         )}
+                        {s.fecha_ingreso && (
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <Calendar className="h-4 w-4 shrink-0" />
+                            <span>Ingreso: {s.fecha_ingreso}</span>
+                          </div>
+                        )}
+                        {s.tipo_contrato && (
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <FileCheck className="h-4 w-4 shrink-0" />
+                            <span>
+                              Contrato {s.tipo_contrato === "interno" ? "Interno" : "Externo"}
+                              {s.duracion_contrato_texto ? ` (${s.duracion_contrato_texto})` : ""}
+                            </span>
+                          </div>
+                        )}
                         {s.telefono && (
                           <div className="flex items-center gap-2 text-muted-foreground">
                             <Phone className="h-4 w-4 shrink-0" />
@@ -301,6 +326,12 @@ export function RhSolicitudesTedClient({
                           <div className="flex items-center gap-2 text-muted-foreground">
                             <FileText className="h-4 w-4 shrink-0" />
                             <span>CI: {s.cedula}</span>
+                          </div>
+                        )}
+                        {s.direccion && (
+                          <div className="flex items-center gap-2 text-muted-foreground sm:col-span-2">
+                            <MapPin className="h-4 w-4 shrink-0" />
+                            <span>{s.direccion}</span>
                           </div>
                         )}
                       </>
