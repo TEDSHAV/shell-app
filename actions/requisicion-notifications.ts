@@ -9,9 +9,45 @@ import {
   legacyNotifyCoordinadorOfPendingExterna,
   legacyNotifyLiderOfPendingInterna,
 } from "@/lib/notification-recipient/requisicion-notifications-legacy";
-import { resolveInternaApprovalGerencia } from "@/lib/requisiciones-gerencia";
+import { resolveInternaApprovalGerencia, isServiciosTecnicosDept } from "@/lib/requisiciones-gerencia";
 
 const APP_SLUG = "administracion";
+const ST_APP_ID = 5;
+
+async function getStAppLiderAuthIds(
+  supabase: Awaited<ReturnType<typeof createAdminClient>>,
+): Promise<string[]> {
+  const { data: role } = await supabase
+    .schema("authprisma")
+    .from("roles")
+    .select("id")
+    .eq("app_id", ST_APP_ID)
+    .eq("slug", "lider")
+    .maybeSingle();
+  if (!role?.id) return [];
+
+  const { data: assignments } = await supabase
+    .schema("authprisma")
+    .from("user_app_roles")
+    .select("usuario_id")
+    .eq("app_id", ST_APP_ID)
+    .eq("role_id", role.id);
+  const usuarioIds = (assignments || [])
+    .map((row: { usuario_id: number }) => row.usuario_id)
+    .filter(Boolean);
+  if (usuarioIds.length === 0) return [];
+
+  const { data: users } = await supabase
+    .from("usuarios")
+    .select("id_auth")
+    .in("id", usuarioIds)
+    .not("id_auth", "is", null);
+  return [...new Set(
+    (users || [])
+      .map((u: { id_auth: string | null }) => u.id_auth)
+      .filter((id): id is string => Boolean(id)),
+  )];
+}
 
 export async function notifyAdminsOfNewRequisicion(
   requisicionId: number,
@@ -101,6 +137,16 @@ export async function notifyLiderOfPendingInterna(
       context.recipient_auth_ids = [lider.id_auth];
     } else {
       context.departamento_nombre = departamentoName;
+    }
+
+    if (isServiciosTecnicosDept(departamentoName)) {
+      const stLideres = await getStAppLiderAuthIds(supabase);
+      if (stLideres.length > 0) {
+        const existing = Array.isArray(context.recipient_auth_ids)
+          ? (context.recipient_auth_ids as string[])
+          : [];
+        context.recipient_auth_ids = [...new Set([...existing, ...stLideres])];
+      }
     }
 
     await fanOutNotifyByConfig(supabase, {

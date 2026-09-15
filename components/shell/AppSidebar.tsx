@@ -1,14 +1,16 @@
 import { getUserPermissionsByApp, getUserRolesByApp, getUserRole } from "@/actions/apps";
 import { canAccessConsultaOSI } from "@/actions/osi";
+import { canAccessRequisicionesGestion } from "@/actions/requisiciones";
 import { SidebarNavClient } from "./SidebarNavClient";
 import { apps } from "@/config/apps";
 
 export async function AppSidebar() {
-  const [dbPerms, userRolesByApp, globalRole, canAccessOSI] = await Promise.all([
+  const [dbPerms, userRolesByApp, globalRole, canAccessOSI, canAccessGestion] = await Promise.all([
     getUserPermissionsByApp(),
     getUserRolesByApp(),
     getUserRole(),
     canAccessConsultaOSI(),
+    canAccessRequisicionesGestion(),
   ]);
 
   const userPermsByApp: Record<string, string[]> = {};
@@ -28,5 +30,5 @@ export async function AppSidebar() {
     }
   }
 
-  return <SidebarNavClient userPermsByApp={userPermsByApp} userRolesByApp={userRolesByApp} globalRole={globalRole} canAccessConsultaOSI={canAccessOSI} />;
+  return <SidebarNavClient userPermsByApp={userPermsByApp} userRolesByApp={userRolesByApp} globalRole={globalRole} canAccessConsultaOSI={canAccessOSI} canAccessRequisicionesGestion={canAccessGestion} />;
 }

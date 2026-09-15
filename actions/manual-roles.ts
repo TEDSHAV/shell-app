@@ -51,6 +51,8 @@ const ROLE_BLURB: Record<string, string> = {
     "Ejecuta órdenes de servicio en campo. Permisos específicos se asignan en la app de ST.",
   "st:coordinador":
     "Coordina la ejecución de OSI en Servicios Técnicos.",
+  "st:lider":
+    "Lidera Servicios Técnicos y aprueba requisiciones de ese departamento.",
   "scalidad:analista":
     "Acceso al módulo de Calidad para el control de procesos.",
   "scalidad:superadmin":

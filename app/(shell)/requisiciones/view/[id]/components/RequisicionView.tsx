@@ -83,9 +83,7 @@ export default function RequisicionView({
   // The lider can approve/reject internas whose departamento belongs to one of the
   // gerencias they lead (legacy records without departamento allow any lider; the
   // server action re-checks either way).
-  const liderDeptMatches = isLider && (
-    record.departamento ? deptInList(record.departamento, liderDepts) : true
-  );
+  const liderDeptMatches = isLider && deptInList(record.departamento, liderDepts);
   const canLiderAct = isLiderPendiente && liderDeptMatches;
 
   // --- Coordinador approval state (internas only) ---
@@ -95,11 +93,7 @@ export default function RequisicionView({
   const isCoordinadorRechazada = isGeneralMode && coordinadorEstatus === "rechazada";
   // A coordinador can only approve/reject internas of the departments they coordinate.
   // Fallback: if record.departamento is null (legacy record), allow any coordinador.
-  const coordinadorDeptMatches = isCoordinador && (
-    record.departamento
-      ? deptInList(record.departamento, coordinadorDepts)
-      : true
-  );
+  const coordinadorDeptMatches = isCoordinador && deptInList(record.departamento, coordinadorDepts);
   const canCoordinadorAct = isCoordinadorPendiente && coordinadorDeptMatches;
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [coordinadorRejectOpen, setCoordinadorRejectOpen] = useState(false);

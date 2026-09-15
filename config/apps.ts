@@ -60,6 +60,13 @@ const requisicionesNavGroup: NavGroup = {
       icon: ListOrdered,
     },
     {
+      label: "Gestión de Requisiciones",
+      path: "/gestion",
+      href: "/requisiciones/gestion",
+      icon: ClipboardList,
+      requiresRequisicionesGestion: true,
+    },
+    {
       label: "Nueva Requisición",
       path: "/create",
       href: "/requisiciones/create",
@@ -75,6 +82,12 @@ const administracionNavGroup: NavGroup = {
       label: "Mis Requisiciones",
       path: "/",
       icon: ListOrdered,
+    },
+    {
+      label: "Gestión de Requisiciones",
+      path: "/gestion",
+      icon: ClipboardList,
+      requiresRequisicionesGestion: true,
     },
     {
       label: "Nueva Requisición",

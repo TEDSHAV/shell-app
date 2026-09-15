@@ -117,6 +117,7 @@ interface SidebarNavClientProps {
   userRolesByApp: Record<string, string>;
   globalRole?: string;
   canAccessConsultaOSI?: boolean;
+  canAccessRequisicionesGestion?: boolean;
 }
 
 const default_link_class =
@@ -127,6 +128,7 @@ export function SidebarNavClient({
   userRolesByApp,
   globalRole,
   canAccessConsultaOSI,
+  canAccessRequisicionesGestion = false,
 }: SidebarNavClientProps) {
   const pathname = use_shell_pathname();
   const currentApp = getAppByPath(pathname);
@@ -357,6 +359,9 @@ export function SidebarNavClient({
 
   const canAccess = (link: NavLink): boolean => {
     if (link.href === "/consulta-osi" && !canAccessConsultaOSI) {
+      return false;
+    }
+    if (link.requiresRequisicionesGestion && !canAccessRequisicionesGestion) {
       return false;
     }
     const lowerRole = userRole?.toLowerCase() || globalRole?.toLowerCase();

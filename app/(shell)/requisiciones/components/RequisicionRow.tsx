@@ -63,9 +63,7 @@ export default function RequisicionRow({
   // any lider; the server action re-checks ownership either way.
   const liderEstatus = record.lider_estatus as string | null | undefined;
   const isLiderPendiente = isInterna && liderEstatus === "pendiente";
-  const liderDeptMatches = isLider && (
-    record.departamento ? deptInList(record.departamento, liderDepts) : true
-  );
+  const liderDeptMatches = isLider && deptInList(record.departamento, liderDepts);
   const canLiderAct = isLiderPendiente && liderDeptMatches && !isAdminView;
 
   const handleLiderApprove = async () => {
@@ -97,12 +95,8 @@ export default function RequisicionRow({
   // placed by an analyst. Externas have no approval gate.
   const coordinadorEstatus = record.coordinador_estatus as string | null | undefined;
   const isCoordinadorPendiente = isInterna && coordinadorEstatus === "pendiente";
-  const coordinadorDeptMatches = isCoordinador && (
-    record.departamento
-      ? deptInList(record.departamento, coordinadorDepts)
-      : true // fallback: if departamento is null (legacy), allow any coordinador
-  );
-  const canCoordinadorAct = isCoordinadorPendiente && coordinadorDeptMatches && !isAdminView;
+  const coordinadorDeptMatches = isCoordinador && deptInList(record.departamento, coordinadorDepts);
+  const canCoordinadorAct = isCoordinadorPendiente && coordinadorDeptMatches;
 
   const handleCoordinadorApprove = async () => {
     setIsUpdating(true);

@@ -9,6 +9,8 @@ export interface NavLink {
   excludeRoles?: string[];
   /** Ruta absoluta en Shell (p. ej. /requisiciones) sin prefijo de la app actual */
   href?: string;
+  /** Gestión de requisiciones: admin de dpto. o líder/coordinador. */
+  requiresRequisicionesGestion?: boolean;
 }
 
 export type NavGroupCollapsible = "always" | "when-peer";

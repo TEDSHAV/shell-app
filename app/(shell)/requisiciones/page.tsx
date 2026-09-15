@@ -1,25 +1,31 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { getAllRequisiciones, isRequisicionesAdmin, isCurrentUserCapacitacion, getOsiNumbersForLookup, getCoordinatedDepartments, getDepartmentsInLedGerencias } from "@/actions/requisiciones";
+import {
+  getOwnRequisiciones,
+  getAllRequisiciones,
+  isRequisicionesAdmin,
+  isCurrentUserCapacitacion,
+  getOsiNumbersForLookup,
+  getCoordinatedDepartments,
+  getDepartmentsInLedGerencias,
+} from "@/actions/requisiciones";
 import RequisicionesTable from "./components/RequisicionesTable";
 import { FilePlus2 } from "lucide-react";
 
 export const metadata = {
-  title: "Requisiciones | PRISMA",
+  title: "Mis Requisiciones | PRISMA",
 };
 
 export default async function RequisicionesPage() {
   const isAdminView = await isRequisicionesAdmin();
-  const isCapacitacionView = !isAdminView && await isCurrentUserCapacitacion();
-  // Approval scope is resolved from departamentos.coordinador / gerencias.lider,
-  // never from the user's own department (a coordinador/lider may belong to a
-  // different department than the one they coordinate/lead).
+  const isCapacitacionView = !isAdminView && (await isCurrentUserCapacitacion());
   const coordinadorDepts = isAdminView ? [] : await getCoordinatedDepartments();
   const isCoordinador = coordinadorDepts.length > 0;
   const liderDepts = isAdminView ? [] : await getDepartmentsInLedGerencias();
   const isLider = liderDepts.length > 0;
+
   const [records, osiPairs] = await Promise.all([
-    getAllRequisiciones(isAdminView),
+    isAdminView ? getOwnRequisiciones() : getAllRequisiciones(false),
     getOsiNumbersForLookup(),
   ]);
 
@@ -30,24 +36,22 @@ export default async function RequisicionesPage() {
     }
   });
 
-  const pendingLiderCount = (records || []).filter(
-    (r: any) => r.tipo_solicitud === "Interno" && r.lider_estatus === "pendiente"
+  const pendingApprovalCount = (records || []).filter(
+    (r: any) =>
+      (r.tipo_solicitud === "Interno" && r.lider_estatus === "pendiente") ||
+      r.coordinador_estatus === "pendiente",
   ).length;
-  const pendingCoordinadorCount = (records || []).filter(
-    (r: any) => r.tipo_solicitud === "Interno" && r.coordinador_estatus === "pendiente"
-  ).length;
-  const pendingApprovalCount = pendingLiderCount + pendingCoordinadorCount;
 
   return (
     <div className="p-4 sm:p-8">
       <div className="mb-8 flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
-            {isAdminView ? "Gestión de Requisiciones" : "Mis Requisiciones"}
+            Mis Requisiciones
           </h1>
           <p className="mt-1 text-sm text-gray-600">
             {isAdminView
-              ? "Listado de todas las requisiciones recibidas por Administración."
+              ? "Listado de las solicitudes de requisición que has creado."
               : (isLider || isCoordinador) && pendingApprovalCount > 0
                 ? `Tienes ${pendingApprovalCount} requisición${pendingApprovalCount !== 1 ? "es" : ""} pendiente${pendingApprovalCount !== 1 ? "s" : ""} por aprobar.`
                 : isCapacitacionView
@@ -65,7 +69,8 @@ export default async function RequisicionesPage() {
 
       <RequisicionesTable
         records={records || []}
-        isAdminView={isAdminView}
+        isAdminView={false}
+        listMode="own"
         osiLookup={osiLookup}
         isCoordinador={isCoordinador}
         coordinadorDepts={coordinadorDepts}

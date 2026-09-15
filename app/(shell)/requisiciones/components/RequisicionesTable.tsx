@@ -43,6 +43,7 @@ function isInterna(record: any): boolean {
 export default function RequisicionesTable({
   records,
   isAdminView,
+  listMode = "own",
   osiLookup,
   isCoordinador = false,
   coordinadorDepts = [],
@@ -51,6 +52,7 @@ export default function RequisicionesTable({
 }: {
   records: any[];
   isAdminView: boolean;
+  listMode?: "own" | "gestion";
   osiLookup?: Map<number, string>;
   isCoordinador?: boolean;
   coordinadorDepts?: string[];
@@ -68,11 +70,11 @@ export default function RequisicionesTable({
       { key: "internas", label: "Internas" },
       { key: "externas", label: "Externas" },
     ];
-    if (!isAdminView && (isLider || isCoordinador)) {
+    if (listMode !== "gestion" && (isLider || isCoordinador)) {
       base.push({ key: "historial", label: "Historial" });
     }
     return base;
-  }, [isAdminView, isLider, isCoordinador]);
+  }, [listMode, isLider, isCoordinador]);
 
   // Normalize a department name: trim, replace underscores/hyphens with spaces,
   // collapse whitespace, and title-case. This deduplicates variants like
@@ -304,7 +306,7 @@ export default function RequisicionesTable({
           </Select>
         </div>
 
-        {isAdminView && (
+        {(listMode === "gestion" || isLider) && (
           <div className="flex flex-col gap-1">
             <span className="text-[11px] font-medium text-gray-500 uppercase">Departamento</span>
             <Select
@@ -468,8 +470,8 @@ export default function RequisicionesTable({
                     {filtered.length === 0 && records.length === 0 ? (
                       <div className="flex flex-col items-center gap-2">
                         <p>
-                          {isAdminView
-                            ? "No hay requisiciones registradas todavía."
+                          {listMode === "gestion"
+                            ? "No hay requisiciones en esta bandeja todavía."
                             : "No has creado ninguna requisición todavía."}
                         </p>
                         <Link href="/requisiciones/create">
