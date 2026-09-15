@@ -15,20 +15,23 @@ import {
   isAdministracionDept,
 } from "@/lib/requisiciones-gerencia";
 
+import { REQUISICION_COORDINADOR_ROLES } from "@/lib/requisiciones-approver-roles";
+
 const APP_SLUG = "administracion";
 const ST_APP_ID = 5;
 const SADMINISTRACION_APP_ID = 4;
 
-async function getAppLiderAuthIds(
+async function getAppRoleAuthIds(
   supabase: Awaited<ReturnType<typeof createAdminClient>>,
   appId: number,
+  roleSlug: string,
 ): Promise<string[]> {
   const { data: role } = await supabase
     .schema("authprisma")
     .from("roles")
     .select("id")
     .eq("app_id", appId)
-    .eq("slug", "lider")
+    .eq("slug", roleSlug)
     .maybeSingle();
   if (!role?.id) return [];
 
@@ -147,11 +150,11 @@ export async function notifyLiderOfPendingInterna(
 
     const extraLiderAuthIds: string[] = [];
     if (isServiciosTecnicosDept(departamentoName)) {
-      extraLiderAuthIds.push(...(await getAppLiderAuthIds(supabase, ST_APP_ID)));
+      extraLiderAuthIds.push(...(await getAppRoleAuthIds(supabase, ST_APP_ID, "lider")));
     }
     if (isAdministracionDept(departamentoName)) {
       extraLiderAuthIds.push(
-        ...(await getAppLiderAuthIds(supabase, SADMINISTRACION_APP_ID)),
+        ...(await getAppRoleAuthIds(supabase, SADMINISTRACION_APP_ID, "lider")),
       );
     }
     if (extraLiderAuthIds.length > 0) {
@@ -193,37 +196,26 @@ export async function notifyCoordinadorOfPendingExterna(
       return;
     }
 
-    const { data: dept, error: deptError } = await supabase
-      .from("departamentos")
-      .select("coordinador, gerencia, gerencias!departamentos_gerencia_fkey(lider)")
-      .ilike("nombre", departamentoName)
-      .maybeSingle();
-
-    if (deptError || !dept) {
-      console.error(
-        "[notifyCoordinadorOfPendingExterna] Could not resolve department:",
-        deptError,
-      );
-      return;
+    const extraCoordAuthIds: string[] = [];
+    for (const entry of REQUISICION_COORDINADOR_ROLES) {
+      if (entry.matchesDept(departamentoName)) {
+        extraCoordAuthIds.push(
+          ...(await getAppRoleAuthIds(supabase, entry.appId, entry.roleSlug)),
+        );
+      }
     }
-
-    const isFallback = !dept.coordinador;
-    const title = isFallback
-      ? "Requisición Externa Pendiente de Aprobación (Lider)"
-      : "Requisición Externa Pendiente de Aprobación (Coordinador)";
-    const body = isFallback
-      ? `${solicitanteName} ha creado una requisición externa que requiere su aprobación como Lider (el departamento no tiene coordinador asignado).`
-      : `${solicitanteName} ha creado una requisición externa que requiere su aprobación como Coordinador del departamento.`;
+    const uniqueCoordIds = [...new Set(extraCoordAuthIds)];
+    if (uniqueCoordIds.length === 0) return;
 
     await fanOutNotifyByConfig(supabase, {
       appSlug: APP_SLUG,
       eventKey: "requisicion_pending_coordinador",
-      title,
-      body,
+      title: "Requisición Pendiente de Aprobación (Coordinador)",
+      body: `${solicitanteName} ha creado una requisición interna que requiere su aprobación como Coordinador.`,
       linkPath: `/requisiciones/view/${requisicionId}`,
       dedupeKey: `requisicion:${requisicionId}:pending_coordinador`,
       priority: 2,
-      context: { departamento_nombre: departamentoName },
+      context: { recipient_auth_ids: uniqueCoordIds },
     });
   } catch (err) {
     console.error("[notifyCoordinadorOfPendingExterna] Unexpected error:", err);

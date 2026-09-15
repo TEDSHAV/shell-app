@@ -11,13 +11,7 @@ import { CheckCircle2, XCircle, Undo2, Clock, AlertTriangle, CalendarClock, Copy
 import MotivoModal from "../../../components/MotivoModal";
 import ApproverDiff from "./ApproverDiff";
 import { formatDate } from "@/lib/utils";
-
-// Exact, case-insensitive department name match (trimmed).
-function deptInList(deptName: string | null | undefined, list: string[]): boolean {
-  if (!deptName) return false;
-  const target = deptName.trim().toLowerCase();
-  return list.some((d) => d.trim().toLowerCase() === target);
-}
+import { deptInList, isLiderGatePending, skipsCoordinadorGate } from "@/lib/requisiciones-gerencia";
 
 export default function RequisicionView({
   record,
@@ -35,7 +29,7 @@ export default function RequisicionView({
   osiLookup?: Map<number, string>,
   isAdminView?: boolean,
   isCoordinador?: boolean,
-  /** Departments the current user coordinates (departamentos.coordinador). */
+  /** Departments covered by the viewer's authprisma coordinador role. */
   coordinadorDepts?: string[],
   isLider?: boolean,
   /** All departments inside the gerencia(s) the current user leads. */
@@ -77,7 +71,8 @@ export default function RequisicionView({
   );
   // --- Lider approval state (internas only) ---
   const liderEstatus = record.lider_estatus as "pendiente" | "aprobada" | "rechazada" | null | undefined;
-  const isLiderPendiente = isGeneralMode && liderEstatus === "pendiente";
+  const coordinadorEstatus = record.coordinador_estatus as "pendiente" | "aprobada" | "rechazada" | null | undefined;
+  const isLiderPendiente = isGeneralMode && isLiderGatePending(record);
   const isLiderAprobada = isGeneralMode && liderEstatus === "aprobada";
   const isLiderRechazada = isGeneralMode && liderEstatus === "rechazada";
   // The lider can approve/reject internas whose departamento belongs to one of the
@@ -87,14 +82,17 @@ export default function RequisicionView({
   const canLiderAct = isLiderPendiente && liderDeptMatches;
 
   // --- Coordinador approval state (internas only) ---
-  const coordinadorEstatus = record.coordinador_estatus as "pendiente" | "aprobada" | "rechazada" | null | undefined;
   const isCoordinadorPendiente = isGeneralMode && coordinadorEstatus === "pendiente";
   const isCoordinadorAprobada = isGeneralMode && coordinadorEstatus === "aprobada";
   const isCoordinadorRechazada = isGeneralMode && coordinadorEstatus === "rechazada";
   // A coordinador can only approve/reject internas of the departments they coordinate.
   // Fallback: if record.departamento is null (legacy record), allow any coordinador.
   const coordinadorDeptMatches = isCoordinador && deptInList(record.departamento, coordinadorDepts);
-  const canCoordinadorAct = isCoordinadorPendiente && coordinadorDeptMatches;
+  const canCoordinadorAct =
+    isCoordinadorPendiente &&
+    coordinadorDeptMatches &&
+    !record._isOwn &&
+    !skipsCoordinadorGate(record);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [coordinadorRejectOpen, setCoordinadorRejectOpen] = useState(false);
   const [liderRejectOpen, setLiderRejectOpen] = useState(false);

@@ -27,8 +27,7 @@ export default async function ViewRequisicionPage({
     getRequisicionRecord(parseInt(id)),
     isRequisicionesAdmin(),
     getBanksForDropdown(),
-    // Approval scope comes from departamentos.coordinador / gerencias.lider, not
-    // from the user's own department.
+    // Approval scope comes from authprisma coordinador roles / gerencias.lider.
     getCoordinatedDepartments(),
     getDepartmentsInLedGerencias(),
   ]);

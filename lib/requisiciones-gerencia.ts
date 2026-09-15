@@ -57,14 +57,24 @@ export function isAdministracionDept(deptName: string | null | undefined): boole
   return (deptName || "").trim().toLowerCase().includes("admin");
 }
 
+export function normalizeDeptKey(deptName: string | null | undefined): string {
+  return (deptName || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
+}
+
 export function deptNameInList(
   deptName: string | null | undefined,
   list: string[],
 ): boolean {
   if (!deptName) return false;
-  const target = deptName.trim().toLowerCase();
-  return list.some((d) => d.trim().toLowerCase() === target);
+  const target = normalizeDeptKey(deptName);
+  return list.some((d) => normalizeDeptKey(d) === target);
 }
+
+export const deptInList = deptNameInList;
 
 function isInternaRecord(record: {
   tipo_solicitud?: string | null;
@@ -76,27 +86,50 @@ function isInternaRecord(record: {
   );
 }
 
-// True when the current user can approve this row (lider or coordinador gate).
+type ApproverRecordFlags = {
+  tipo_solicitud?: string | null;
+  id_osi?: unknown;
+  departamento?: string | null;
+  lider_estatus?: string | null;
+  coordinador_estatus?: string | null;
+  _isApprovalHistory?: boolean;
+  _isOwn?: boolean;
+  _creatorIsDeptCoordinador?: boolean;
+  _deptHasCoordinador?: boolean;
+};
+
+export function skipsCoordinadorGate(record: ApproverRecordFlags): boolean {
+  if (record._creatorIsDeptCoordinador) return true;
+  if (record._deptHasCoordinador === false) return true;
+  return false;
+}
+
+export function isLiderGatePending(record: ApproverRecordFlags): boolean {
+  if (!isInternaRecord(record)) return false;
+  if (record.lider_estatus === "aprobada" || record.lider_estatus === "rechazada") {
+    return false;
+  }
+  if (record.lider_estatus === "pendiente") return true;
+  if (skipsCoordinadorGate(record) && record.coordinador_estatus !== "rechazada") {
+    return true;
+  }
+  return false;
+}
+
 export function isPendingForCurrentApprover(
-  record: {
-    tipo_solicitud?: string | null;
-    id_osi?: unknown;
-    departamento?: string | null;
-    lider_estatus?: string | null;
-    coordinador_estatus?: string | null;
-    _isApprovalHistory?: boolean;
-  },
+  record: ApproverRecordFlags,
   liderDepts: string[],
   coordinadorDepts: string[],
 ): boolean {
   if (record._isApprovalHistory) return false;
   if (!isInternaRecord(record)) return false;
   if (
-    record.lider_estatus === "pendiente" &&
+    isLiderGatePending(record) &&
     deptNameInList(record.departamento, liderDepts)
   ) {
     return true;
   }
+  if (record._isOwn || skipsCoordinadorGate(record)) return false;
   if (
     record.coordinador_estatus === "pendiente" &&
     deptNameInList(record.departamento, coordinadorDepts)

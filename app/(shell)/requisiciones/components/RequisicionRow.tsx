@@ -8,15 +8,8 @@ import { deleteRequisicionRecord, setRequisicionEstatus, markAllItemsVerificadas
 import { Eye, Edit, Trash2, Lock, CheckCircle2, Undo2, XCircle, CalendarClock, AlertTriangle, PackageCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/utils";
-import { mapGerenciaSolicitante, getRequisicionDisplayDate } from "@/lib/requisiciones-gerencia";
+import { mapGerenciaSolicitante, getRequisicionDisplayDate, deptInList, isLiderGatePending, skipsCoordinadorGate } from "@/lib/requisiciones-gerencia";
 import MotivoModal from "./MotivoModal";
-
-// Exact, case-insensitive department name match (trimmed).
-function deptInList(deptName: string | null | undefined, list: string[]): boolean {
-  if (!deptName) return false;
-  const target = deptName.trim().toLowerCase();
-  return list.some((d) => d.trim().toLowerCase() === target);
-}
 
 export default function RequisicionRow({
   record,
@@ -31,7 +24,7 @@ export default function RequisicionRow({
   isAdminView?: boolean;
   osiLookup?: Map<number, string>;
   isCoordinador?: boolean;
-  /** Departments the current user coordinates (departamentos.coordinador). */
+  /** Departments covered by the viewer's authprisma coordinador role. */
   coordinadorDepts?: string[];
   isLider?: boolean;
   /** All departments inside the gerencia(s) the current user leads. */
@@ -62,7 +55,8 @@ export default function RequisicionRow({
   // gerencias they lead. Legacy records without departamento fall back to allowing
   // any lider; the server action re-checks ownership either way.
   const liderEstatus = record.lider_estatus as string | null | undefined;
-  const isLiderPendiente = isInterna && liderEstatus === "pendiente";
+  const coordinadorEstatus = record.coordinador_estatus as string | null | undefined;
+  const isLiderPendiente = isInterna && isLiderGatePending(record);
   const liderDeptMatches = isLider && deptInList(record.departamento, liderDepts);
   const canLiderAct = isLiderPendiente && liderDeptMatches && !isAdminView;
 
@@ -91,12 +85,13 @@ export default function RequisicionRow({
   };
 
   // --- Coordinador approval: internas pending coordinador approval. ---
-  // The coordinador of the requisicion's department can approve/reject internas
-  // placed by an analyst. Externas have no approval gate.
-  const coordinadorEstatus = record.coordinador_estatus as string | null | undefined;
   const isCoordinadorPendiente = isInterna && coordinadorEstatus === "pendiente";
   const coordinadorDeptMatches = isCoordinador && deptInList(record.departamento, coordinadorDepts);
-  const canCoordinadorAct = isCoordinadorPendiente && coordinadorDeptMatches;
+  const canCoordinadorAct =
+    isCoordinadorPendiente &&
+    coordinadorDeptMatches &&
+    !record._isOwn &&
+    !skipsCoordinadorGate(record);
 
   const handleCoordinadorApprove = async () => {
     setIsUpdating(true);
