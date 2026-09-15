@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { apps } from "@/config/apps";
 import { getActiveFrameWindow } from "@/lib/active-frame-window";
+import { setActiveFramePath } from "@/lib/active-frame-path";
 
 const ADMIN_FACTURACION_PREFIX = "/requisiciones/facturacion";
 
@@ -87,6 +88,12 @@ export function ShellURLSync() {
           // when multiple cached iframes fire their URLSync messages.
           const pathOnly = String(path ?? "").split("?")[0];
           const newBrowserPath = `${app.basePath}${pathOnly}`;
+
+          // Record the active iframe's logical current path so
+          // PersistentAppFrame can detect that this URL change came
+          // from inside the iframe (no new iframe needed) rather than
+          // from a shell-initiated navigation (sidebar/breadcrumb).
+          setActiveFramePath(pathOnly);
 
           if (window.location.pathname !== newBrowserPath) {
             // Update the URL without reloading or triggering a full Next.js navigation

@@ -2,10 +2,15 @@
 
 import Link from "next/link";
 import { ChevronRight, Home } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, type MouseEvent } from "react";
 import { usePathname } from "next/navigation";
 import { getAppByPath } from "@/config/apps";
 import { NavLink, NavGroup } from "@/types";
+import {
+  is_modified_click,
+  navigate_shell_iframe_href,
+} from "@/lib/shell-iframe-nav";
+import { uses_iframe_in_shell } from "@/lib/app-theme";
 
 const SEGMENT_LABELS: Record<string, string> = {
   dashboard: "Inicio",
@@ -206,6 +211,14 @@ export const AppBreadcrumb = () => {
     return { label, href, isLast };
   });
 
+  const handleCrumbClick = (event: MouseEvent<HTMLAnchorElement>, href: string) => {
+    if (is_modified_click(event)) return;
+    if (currentApp && uses_iframe_in_shell(currentApp)) {
+      event.preventDefault();
+      navigate_shell_iframe_href(href);
+    }
+  };
+
   return (
     <nav aria-label="Breadcrumb" className="flex items-center text-sm overflow-hidden">
       <ol className="flex items-center gap-2 whitespace-nowrap">
@@ -227,21 +240,13 @@ export const AppBreadcrumb = () => {
                 {crumb.label}
               </span>
             ) : (
-              crumb.href === currentApp?.basePath ? (
-                <a
-                  href={crumb.href}
-                  className="text-slate-400 hover:text-blue-600 transition-colors truncate max-w-[100px] sm:max-w-[200px]"
-                >
-                  {crumb.label}
-                </a>
-              ) : (
-                <Link
-                  href={crumb.href}
-                  className="text-slate-400 hover:text-blue-600 transition-colors truncate max-w-[100px] sm:max-w-[200px]"
-                >
-                  {crumb.label}
-                </Link>
-              )
+              <Link
+                href={crumb.href}
+                onClick={(event) => handleCrumbClick(event, crumb.href)}
+                className="text-slate-400 hover:text-blue-600 transition-colors truncate max-w-[100px] sm:max-w-[200px]"
+              >
+                {crumb.label}
+              </Link>
             )}
           </li>
         ))}
