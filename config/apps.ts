@@ -1001,6 +1001,7 @@ export const apps: AppConfig[] = [
     description: "Gestión de talento, asistencia y colaboradores",
     basePath: "/recursos-humanos",
     dashboardOrder: 3,
+    defaultSubPath: "dashboard/rh",
     upstreamUrl:
       process.env.NEXT_PUBLIC_RH_URL ||
       "https://rh.shadevenezuela.com.ve",

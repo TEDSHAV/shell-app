@@ -57,6 +57,10 @@ const SEGMENT_LABELS: Record<string, string> = {
   "entrada-salida-equipos": "Entrada y Salida de Equipos",
   "formulario-novedades": "Formulario de Novedades",
   "nuevo-servicio": "Nuevos Servicios",
+  "recursos-humanos": "Recursos Humanos",
+  solicitudes: "Solicitudes",
+  nueva: "Nueva solicitud",
+  directorio: "Directorio",
 };
 
 function isNavGroup(item: NavLink | NavGroup): item is NavGroup {
@@ -99,13 +103,59 @@ export const AppBreadcrumb = () => {
     );
   }
 
-  const segments = currentPathname.split("/").filter(Boolean);
-  
+  const rawSegments = currentPathname.split("/").filter(Boolean);
+
+  // If inside an embedded app with a defaultSubPath (e.g. "dashboard/rh" or "dashboard/capacitacion"),
+  // collapse the internal prefix segments so they don't produce dummy "Inicio" or 404 breadcrumbs.
+  const segmentsToProcess: { segment: string; href: string }[] = [];
+
+  if (currentApp && currentPathname.startsWith(currentApp.basePath)) {
+    const appBaseSegments = currentApp.basePath.split("/").filter(Boolean);
+    const subSegments = rawSegments.slice(appBaseSegments.length);
+    const defaultSubSegments = (currentApp.defaultSubPath ?? "")
+      .split("/")
+      .filter(Boolean);
+
+    // App's base breadcrumb (e.g. Recursos Humanos)
+    segmentsToProcess.push({
+      segment: appBaseSegments[appBaseSegments.length - 1],
+      href: currentApp.basePath,
+    });
+
+    const startsWithDefaultSub =
+      defaultSubSegments.length > 0 &&
+      defaultSubSegments.every((seg, i) => subSegments[i] === seg);
+
+    const remainingSubSegments = startsWithDefaultSub
+      ? subSegments.slice(defaultSubSegments.length)
+      : subSegments;
+
+    let cumulativePath = startsWithDefaultSub
+      ? `${currentApp.basePath}/${defaultSubSegments.join("/")}`
+      : currentApp.basePath;
+
+    for (const sub of remainingSubSegments) {
+      cumulativePath += `/${sub}`;
+      segmentsToProcess.push({
+        segment: sub,
+        href: cumulativePath,
+      });
+    }
+  } else {
+    let currentHref = "";
+    for (const seg of rawSegments) {
+      currentHref += `/${seg}`;
+      segmentsToProcess.push({
+        segment: seg,
+        href: currentHref,
+      });
+    }
+  }
+
   // Build crumbs
-  const crumbs = segments.map((segment, index) => {
-    const href = "/" + segments.slice(0, index + 1).join("/");
-    const isLast = index === segments.length - 1;
-    
+  const crumbs = segmentsToProcess.map(({ segment, href }, index) => {
+    const isLast = index === segmentsToProcess.length - 1;
+
     // Try to find label
     let label = SEGMENT_LABELS[segment];
 
@@ -116,9 +166,12 @@ export const AppBreadcrumb = () => {
       label = "Leads";
     }
 
-    if (currentApp) {
+    // When referencing the app root, use the application's proper display name
+    if (currentApp && href === currentApp.basePath) {
+      label = currentApp.headerLabel ?? currentApp.name;
+    } else if (currentApp) {
       const allLinks: NavLink[] = [];
-      currentApp.navLinks.forEach(item => {
+      currentApp.navLinks.forEach((item) => {
         if (isNavGroup(item)) {
           allLinks.push(...item.links);
         } else {
