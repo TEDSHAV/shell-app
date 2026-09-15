@@ -11,6 +11,7 @@ import {
 } from "@/actions/requisiciones";
 import RequisicionesTable from "./components/RequisicionesTable";
 import { FilePlus2 } from "lucide-react";
+import { isPendingForCurrentApprover } from "@/lib/requisiciones-gerencia";
 
 export const metadata = {
   title: "Mis Requisiciones | PRISMA",
@@ -36,10 +37,8 @@ export default async function RequisicionesPage() {
     }
   });
 
-  const pendingApprovalCount = (records || []).filter(
-    (r: any) =>
-      (r.tipo_solicitud === "Interno" && r.lider_estatus === "pendiente") ||
-      r.coordinador_estatus === "pendiente",
+  const pendingApprovalCount = (records || []).filter((r: any) =>
+    isPendingForCurrentApprover(r, liderDepts, coordinadorDepts),
   ).length;
 
   return (
@@ -53,7 +52,11 @@ export default async function RequisicionesPage() {
             {isAdminView
               ? "Listado de las solicitudes de requisición que has creado."
               : (isLider || isCoordinador) && pendingApprovalCount > 0
-                ? `Tienes ${pendingApprovalCount} requisición${pendingApprovalCount !== 1 ? "es" : ""} pendiente${pendingApprovalCount !== 1 ? "s" : ""} por aprobar.`
+                ? `Tienes ${pendingApprovalCount} ${
+                    pendingApprovalCount === 1
+                      ? "requisición pendiente"
+                      : "requisiciones pendientes"
+                  } por aprobar.`
                 : isCapacitacionView
                   ? "Listado de las requisiciones creadas por el departamento de Capacitación."
                   : "Listado de todas las solicitudes de requisición que has creado."}

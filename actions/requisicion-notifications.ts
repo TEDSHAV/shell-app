@@ -9,19 +9,25 @@ import {
   legacyNotifyCoordinadorOfPendingExterna,
   legacyNotifyLiderOfPendingInterna,
 } from "@/lib/notification-recipient/requisicion-notifications-legacy";
-import { resolveInternaApprovalGerencia, isServiciosTecnicosDept } from "@/lib/requisiciones-gerencia";
+import {
+  resolveInternaApprovalGerencia,
+  isServiciosTecnicosDept,
+  isAdministracionDept,
+} from "@/lib/requisiciones-gerencia";
 
 const APP_SLUG = "administracion";
 const ST_APP_ID = 5;
+const SADMINISTRACION_APP_ID = 4;
 
-async function getStAppLiderAuthIds(
+async function getAppLiderAuthIds(
   supabase: Awaited<ReturnType<typeof createAdminClient>>,
+  appId: number,
 ): Promise<string[]> {
   const { data: role } = await supabase
     .schema("authprisma")
     .from("roles")
     .select("id")
-    .eq("app_id", ST_APP_ID)
+    .eq("app_id", appId)
     .eq("slug", "lider")
     .maybeSingle();
   if (!role?.id) return [];
@@ -30,7 +36,7 @@ async function getStAppLiderAuthIds(
     .schema("authprisma")
     .from("user_app_roles")
     .select("usuario_id")
-    .eq("app_id", ST_APP_ID)
+    .eq("app_id", appId)
     .eq("role_id", role.id);
   const usuarioIds = (assignments || [])
     .map((row: { usuario_id: number }) => row.usuario_id)
@@ -139,14 +145,20 @@ export async function notifyLiderOfPendingInterna(
       context.departamento_nombre = departamentoName;
     }
 
+    const extraLiderAuthIds: string[] = [];
     if (isServiciosTecnicosDept(departamentoName)) {
-      const stLideres = await getStAppLiderAuthIds(supabase);
-      if (stLideres.length > 0) {
-        const existing = Array.isArray(context.recipient_auth_ids)
-          ? (context.recipient_auth_ids as string[])
-          : [];
-        context.recipient_auth_ids = [...new Set([...existing, ...stLideres])];
-      }
+      extraLiderAuthIds.push(...(await getAppLiderAuthIds(supabase, ST_APP_ID)));
+    }
+    if (isAdministracionDept(departamentoName)) {
+      extraLiderAuthIds.push(
+        ...(await getAppLiderAuthIds(supabase, SADMINISTRACION_APP_ID)),
+      );
+    }
+    if (extraLiderAuthIds.length > 0) {
+      const existing = Array.isArray(context.recipient_auth_ids)
+        ? (context.recipient_auth_ids as string[])
+        : [];
+      context.recipient_auth_ids = [...new Set([...existing, ...extraLiderAuthIds])];
     }
 
     await fanOutNotifyByConfig(supabase, {

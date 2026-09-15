@@ -52,6 +52,60 @@ export function isServiciosTecnicosDept(deptName: string | null | undefined): bo
   return d.includes("servicios") && d.includes("tecnic");
 }
 
+// True when the department is Administración (name contains "admin").
+export function isAdministracionDept(deptName: string | null | undefined): boolean {
+  return (deptName || "").trim().toLowerCase().includes("admin");
+}
+
+export function deptNameInList(
+  deptName: string | null | undefined,
+  list: string[],
+): boolean {
+  if (!deptName) return false;
+  const target = deptName.trim().toLowerCase();
+  return list.some((d) => d.trim().toLowerCase() === target);
+}
+
+function isInternaRecord(record: {
+  tipo_solicitud?: string | null;
+  id_osi?: unknown;
+}): boolean {
+  return (
+    record.tipo_solicitud === "Interno" ||
+    (!record.tipo_solicitud && !record.id_osi)
+  );
+}
+
+// True when the current user can approve this row (lider or coordinador gate).
+export function isPendingForCurrentApprover(
+  record: {
+    tipo_solicitud?: string | null;
+    id_osi?: unknown;
+    departamento?: string | null;
+    lider_estatus?: string | null;
+    coordinador_estatus?: string | null;
+    _isApprovalHistory?: boolean;
+  },
+  liderDepts: string[],
+  coordinadorDepts: string[],
+): boolean {
+  if (record._isApprovalHistory) return false;
+  if (!isInternaRecord(record)) return false;
+  if (
+    record.lider_estatus === "pendiente" &&
+    deptNameInList(record.departamento, liderDepts)
+  ) {
+    return true;
+  }
+  if (
+    record.coordinador_estatus === "pendiente" &&
+    deptNameInList(record.departamento, coordinadorDepts)
+  ) {
+    return true;
+  }
+  return false;
+}
+
 // ---------------------------------------------------------------------------
 // TEMPORARY WORKAROUND — interna approval routing override.
 //

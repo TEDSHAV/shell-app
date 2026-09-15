@@ -27,6 +27,7 @@ import { getUsdToVesRate } from "@/lib/exchange-rate";
 import {
   isCapacitacionDept,
   isServiciosTecnicosDept,
+  isAdministracionDept,
   resolveInternaApprovalGerencia,
 } from "@/lib/requisiciones-gerencia";
 import { getUserRolesByApp } from "@/actions/apps";
@@ -202,14 +203,23 @@ export const isStAppLider = cache(async (): Promise<boolean> => {
   }
 });
 
-async function isUsuarioStAppLider(usuarioId: number): Promise<boolean> {
+export const isSadministracionAppLider = cache(async (): Promise<boolean> => {
+  try {
+    const roles = await getUserRolesByApp();
+    return roles.sadministracion?.toLowerCase() === "lider";
+  } catch {
+    return false;
+  }
+});
+
+async function isUsuarioAppLider(usuarioId: number, appId: number): Promise<boolean> {
   try {
     const admin = await createAdminClient();
     const { data: role } = await admin
       .schema("authprisma")
       .from("roles")
       .select("id")
-      .eq("app_id", 5)
+      .eq("app_id", appId)
       .eq("slug", "lider")
       .maybeSingle();
     if (!role?.id) return false;
@@ -218,13 +228,35 @@ async function isUsuarioStAppLider(usuarioId: number): Promise<boolean> {
       .from("user_app_roles")
       .select("id")
       .eq("usuario_id", usuarioId)
-      .eq("app_id", 5)
+      .eq("app_id", appId)
       .eq("role_id", role.id)
       .maybeSingle();
     return Boolean(assignment);
   } catch {
     return false;
   }
+}
+
+async function isUsuarioStAppLider(usuarioId: number): Promise<boolean> {
+  return isUsuarioAppLider(usuarioId, 5);
+}
+
+async function isUsuarioSadministracionAppLider(usuarioId: number): Promise<boolean> {
+  return isUsuarioAppLider(usuarioId, 4);
+}
+
+async function matchesAppScopedLiderDept(
+  deptName: string | null | undefined,
+): Promise<boolean | null> {
+  if (!deptName) return false;
+  const [st, admin] = await Promise.all([
+    isStAppLider(),
+    isSadministracionAppLider(),
+  ]);
+  if (!st && !admin) return null;
+  if (st && isServiciosTecnicosDept(deptName)) return true;
+  if (admin && isAdministracionDept(deptName)) return true;
+  return false;
 }
 
 export const isLiderForGerencia = cache(async (gerenciaName: string | null | undefined): Promise<boolean> => {
@@ -248,7 +280,8 @@ export const isLiderForGerencia = cache(async (gerenciaName: string | null | und
 // department belongs to (departamentos.gerencia → gerencias.nombre).
 export const isLiderForDepartmentGerencia = cache(async (deptName: string | null | undefined): Promise<boolean> => {
   if (!deptName) return false;
-  if (await isStAppLider()) return isServiciosTecnicosDept(deptName);
+  const scoped = await matchesAppScopedLiderDept(deptName);
+  if (scoped !== null) return scoped;
   try {
     const supabase = await createAdminClient();
     const { data: dept } = await supabase
@@ -270,7 +303,8 @@ export const isLiderForDepartmentGerencia = cache(async (deptName: string | null
 // isLiderForDepartmentGerencia.
 export const isLiderForInternaApproval = cache(async (deptName: string | null | undefined): Promise<boolean> => {
   if (!deptName) return false;
-  if (await isStAppLider()) return isServiciosTecnicosDept(deptName);
+  const scoped = await matchesAppScopedLiderDept(deptName);
+  if (scoped !== null) return scoped;
   const overrideGerencia = resolveInternaApprovalGerencia(deptName);
   if (overrideGerencia) return isLiderForGerencia(overrideGerencia);
   return isLiderForDepartmentGerencia(deptName);
@@ -362,7 +396,11 @@ export const getLedGerencias = cache(async (): Promise<string[]> => {
 // interna routing override is applied — overridden departments are removed from
 // their natural gerencia's lider and added to the lider of their target gerencia.
 export const getDepartmentsInLedGerencias = cache(async (): Promise<string[]> => {
-  if (await isStAppLider()) {
+  const [st, admin] = await Promise.all([
+    isStAppLider(),
+    isSadministracionAppLider(),
+  ]);
+  if (st || admin) {
     try {
       const supabase = await createAdminClient();
       const { data, error } = await supabase.from("departamentos").select("nombre");
@@ -372,7 +410,12 @@ export const getDepartmentsInLedGerencias = cache(async (): Promise<string[]> =>
       }
       return (data || [])
         .map((d: { nombre: string | null }) => d.nombre)
-        .filter((n): n is string => Boolean(n) && isServiciosTecnicosDept(n));
+        .filter(
+          (n): n is string =>
+            Boolean(n) &&
+            ((st && isServiciosTecnicosDept(n)) ||
+              (admin && isAdministracionDept(n))),
+        );
     } catch {
       return [];
     }
@@ -1493,6 +1536,12 @@ export async function approveRequisicionByCoordinador(id: number) {
       }
       if (!creatorIsLider && isServiciosTecnicosDept(existing.departamento)) {
         creatorIsLider = await isUsuarioStAppLider(creatorUsuarioId);
+      }
+      if (
+        !creatorIsLider &&
+        isAdministracionDept(existing.departamento)
+      ) {
+        creatorIsLider = await isUsuarioSadministracionAppLider(creatorUsuarioId);
       }
     }
   }

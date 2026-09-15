@@ -13,7 +13,11 @@ import {
 } from "@/components/ui/select";
 import { RequisicionFilters, EstatusAdmin } from "@/types/requisiciones";
 import RequisicionRow from "./RequisicionRow";
-import { mapGerenciaSolicitante, getRequisicionDisplayDate } from "@/lib/requisiciones-gerencia";
+import {
+  mapGerenciaSolicitante,
+  getRequisicionDisplayDate,
+  isPendingForCurrentApprover,
+} from "@/lib/requisiciones-gerencia";
 import { Search, X, ChevronLeft, ChevronRight } from "lucide-react";
 
 const PAGE_SIZE_OPTIONS = [10, 30, 50];
@@ -59,7 +63,11 @@ export default function RequisicionesTable({
   isLider?: boolean;
   liderDepts?: string[];
 }) {
-  const [filters, setFilters] = useState<RequisicionFilters>(EMPTY_FILTERS);
+  const showApproverTabs = listMode !== "gestion" && (isLider || isCoordinador);
+  const [filters, setFilters] = useState<RequisicionFilters>(() => ({
+    ...EMPTY_FILTERS,
+    tab: showApproverTabs ? "por_aprobar" : "todas",
+  }));
 
   // "Historial" tab is only shown to non-admin liders/coordinadors so they can
   // see requisiciones they've already approved/rejected (tagged with
@@ -67,14 +75,19 @@ export default function RequisicionesTable({
   const tabs = useMemo(() => {
     const base: { key: RequisicionFilters["tab"]; label: string }[] = [
       { key: "todas", label: "Todas" },
+    ];
+    if (showApproverTabs) {
+      base.push({ key: "por_aprobar", label: "Por aprobar" });
+    }
+    base.push(
       { key: "internas", label: "Internas" },
       { key: "externas", label: "Externas" },
-    ];
-    if (listMode !== "gestion" && (isLider || isCoordinador)) {
+    );
+    if (showApproverTabs) {
       base.push({ key: "historial", label: "Historial" });
     }
     return base;
-  }, [listMode, isLider, isCoordinador]);
+  }, [showApproverTabs]);
 
   // Normalize a department name: trim, replace underscores/hyphens with spaces,
   // collapse whitespace, and title-case. This deduplicates variants like
@@ -126,6 +139,12 @@ export default function RequisicionesTable({
       if (filters.tab === "internas" && !isInterna(r)) return false;
       if (filters.tab === "externas" && isInterna(r)) return false;
       if (filters.tab === "historial" && !r._isApprovalHistory) return false;
+      if (
+        filters.tab === "por_aprobar" &&
+        !isPendingForCurrentApprover(r, liderDepts, coordinadorDepts)
+      ) {
+        return false;
+      }
 
       if (
         filters.gerencia &&
@@ -193,7 +212,7 @@ export default function RequisicionesTable({
     });
 
     return result;
-  }, [records, filters, osiLookup]);
+  }, [records, filters, osiLookup, liderDepts, coordinadorDepts]);
 
   const [pageSize, setPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
@@ -208,11 +227,14 @@ export default function RequisicionesTable({
   const counts = useMemo(
     () => ({
       todas: records.length,
+      por_aprobar: records.filter((r) =>
+        isPendingForCurrentApprover(r, liderDepts, coordinadorDepts),
+      ).length,
       internas: records.filter(isInterna).length,
       externas: records.filter((r) => !isInterna(r)).length,
       historial: records.filter((r) => r._isApprovalHistory).length,
     }),
-    [records],
+    [records, liderDepts, coordinadorDepts],
   );
 
   const hasActiveFilters =
