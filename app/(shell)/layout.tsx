@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ShellProvider } from "@/components/shell/ShellProvider";
 import { hasEnvVars } from "@/lib/utils";
-import { getUserRolesByApp, getUserRoleFromRoles, getUsuarioRecord } from "@/actions/apps";
+import { getClaims, getUserRolesByApp, getUserRoleFromRoles, getUsuarioRecord } from "@/actions/apps";
 
 export default async function ShellLayout({
   children,
@@ -18,8 +18,7 @@ export default async function ShellLayout({
   let globalRole: string | undefined;
 
   if (hasEnvVars) {
-    const supabase = await createClient();
-    const { data, error } = await supabase.auth.getClaims();
+    const { data, error } = await getClaims();
 
     if (error || !data?.claims) {
       redirect("/auth/login");
@@ -32,6 +31,7 @@ export default async function ShellLayout({
     // so this adds zero extra queries on the hot path.
     const usuario = await getUsuarioRecord();
     if (usuario && usuario.esta_activo === false) {
+      const supabase = await createClient();
       await supabase.auth.signOut().catch(() => {});
       redirect("/auth/login");
     }

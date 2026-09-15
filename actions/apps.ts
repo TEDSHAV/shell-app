@@ -4,6 +4,20 @@ import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { buildFrameUrl } from "@/lib/frame-url";
 
+/**
+ * Cached per-request `auth.getClaims()` lookup.
+ *
+ * The shell layout, sidebar (via getUserRole), and dashboard page all need
+ * the authenticated user's claims. Without this shared cache, each caller
+ * creates its own Supabase client and calls getClaims() independently —
+ * 3 network round-trips per request just for JWT validation. React cache()
+ * deduplicates these into a single call per request.
+ */
+export const getClaims = cache(async () => {
+  const supabase = await createClient();
+  return supabase.auth.getClaims();
+});
+
 export async function getFrameUrl(
   appId: string,
   subPath?: string,
@@ -78,14 +92,13 @@ export async function getUserRoleFromRoles(appRoles: Record<string, string>): Pr
   return "user";
 }
 
-export async function getUserRole(): Promise<string> {
-  const supabase = await createClient();
-  const { data } = await supabase.auth.getClaims();
-  
+export const getUserRole = cache(async (): Promise<string> => {
+  const { data } = await getClaims();
+
   if (data?.claims) {
     const role = (data.claims.user_role as string) ??
       (data.claims.app_metadata as Record<string, string> | undefined)?.role;
-    
+
     if (role) {
       console.log("[getUserRole] Found role in claims:", role);
       return role;
@@ -101,7 +114,7 @@ export async function getUserRole(): Promise<string> {
     console.log("[getUserRole] No administrative role found, defaulting to user");
   }
   return role;
-}
+});
 
 /**
  * Cached per-request lookup of the current user's `usuarios` row.
