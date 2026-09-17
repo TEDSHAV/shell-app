@@ -1,6 +1,16 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Code2, Github, ExternalLink, BookOpen, Terminal, Bell, Users, UserPlus } from "lucide-react";
+import {
+  Code2,
+  Github,
+  ExternalLink,
+  BookOpen,
+  Terminal,
+  Bell,
+  Users,
+  UserPlus,
+  LayoutList,
+} from "lucide-react";
 import { isTedMember } from "@/actions/ted";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +22,15 @@ export default async function TedPage() {
   }
 
   const resources = [
+    {
+      icon: LayoutList,
+      title: "Planificación",
+      description:
+        "Consola de módulos Prisma: progreso, tareas y entregables.",
+      href: "/ted/planificacion",
+      external: false,
+      disabled: false,
+    },
     {
       icon: Users,
       title: "Manejo de usuarios",

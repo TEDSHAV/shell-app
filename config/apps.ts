@@ -37,6 +37,7 @@ import {
   KeyRound,
   SquareCheckBig,
   MessageSquare,
+  LayoutList,
   Shield,
   Code2,
   Layers,
@@ -1078,6 +1079,16 @@ export const apps: AppConfig[] = [
     groupId: "procesos-de-apoyo",
     dashboardOrder: 6,
     navLinks: [
+      {
+        groupLabel: "Planificación",
+        links: [
+          {
+            label: "Módulos",
+            path: "/planificacion",
+            icon: LayoutList,
+          },
+        ],
+      },
       {
         groupLabel: "Usuarios",
         links: [
