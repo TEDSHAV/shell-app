@@ -1,7 +1,11 @@
 "use client";
 
-import type { ExcelModuloRole } from "../lib/excel-plan";
-import { fold_label } from "../lib/excel-plan";
+import {
+  HANG_APP_GENERAL_MODULE,
+  HANG_GENERAL_APP,
+  fold_label,
+  type ExcelModuloRole,
+} from "../lib/excel-plan";
 import { SearchSelect } from "./search-select";
 
 export function ExcelRoleTable({
@@ -39,14 +43,21 @@ export function ExcelRoleTable({
           {groups.map((group) => {
             const key = fold_label(group.label);
             const role = roles[key] ?? { as: "modulo", parent_modulo: "" };
+            const hang_value =
+              role.as === "tarea" && !(role.parent_modulo ?? "").trim()
+                ? HANG_APP_GENERAL_MODULE
+                : role.parent_modulo;
             const parents = parent_options.filter(
               (name) => fold_label(name) !== key,
             );
             const already = existing_modulos.filter(
-              (name) => fold_label(name) !== key,
+              (name) =>
+                fold_label(name) !== key &&
+                fold_label(name) !== fold_label("General"),
             );
             const from_excel = parents.filter(
               (name) =>
+                fold_label(name) !== fold_label("General") &&
                 !already.some((item) => fold_label(item) === fold_label(name)),
             );
             return (
@@ -80,7 +91,8 @@ export function ExcelRoleTable({
                       onChange={() =>
                         on_change(group.label, {
                           as: "tarea",
-                          parent_modulo: role.parent_modulo,
+                          parent_modulo:
+                            role.parent_modulo || HANG_APP_GENERAL_MODULE,
                         })
                       }
                     />
@@ -90,8 +102,8 @@ export function ExcelRoleTable({
                 <td className="px-2 py-2">
                   {role.as === "tarea" ? (
                     <SearchSelect
-                      value={role.parent_modulo}
-                      placeholder="App General"
+                      value={hang_value}
+                      placeholder="Dónde colgar"
                       onChange={(parent_modulo) =>
                         on_change(group.label, {
                           as: "tarea",
@@ -100,9 +112,14 @@ export function ExcelRoleTable({
                       }
                       options={[
                         {
-                          value: "",
+                          value: HANG_APP_GENERAL_MODULE,
+                          label: "Módulo General de la app ligada",
+                          group: "Sin módulo específico",
+                        },
+                        {
+                          value: HANG_GENERAL_APP,
                           label: "App General",
-                          group: "Por defecto",
+                          group: "Sin módulo específico",
                         },
                         ...already.map((name) => ({
                           value: name,

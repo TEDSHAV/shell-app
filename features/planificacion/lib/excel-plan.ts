@@ -5,6 +5,8 @@ import type { PlanOrigen } from "./types";
 
 export const EXCEL_PLAN_MAX_ROWS = 500;
 export const GENERAL_FALLBACK_MODULO = GENERAL_PLAN_APP.nombre;
+export const HANG_GENERAL_APP = "__hang_general_app__";
+export const HANG_APP_GENERAL_MODULE = "__hang_app_general_module__";
 
 export type ExcelPlanKind = "create" | "duplicate" | "error";
 
@@ -31,6 +33,7 @@ export type ExcelPlanRow = {
   fecha_fin: string | null;
   app_ids: number[];
   hang_on_general: boolean;
+  hang_on_app_module: boolean;
 };
 
 export type ExcelModuloRole = {
@@ -67,9 +70,16 @@ function compact_label(value: string): string {
 const APP_ALIASES: Record<string, string> = {
   general: "general",
   transversal: "general",
+  global: "general",
   admin: "administracion",
   administracion: "administracion",
   mkt: "marketing",
+  rrhh: "recursos-humanos",
+  rh: "recursos-humanos",
+  sig: "calidad",
+  st: "servicios-tecnicos",
+  soportetecnico: "servicios-tecnicos",
+  soporte: "servicios-tecnicos",
 };
 
 export function split_app_hints(hint: string): string[] {
@@ -79,19 +89,31 @@ export function split_app_hints(hint: string): string[] {
     .filter(Boolean);
 }
 
+function app_acronym(nombre: string): string {
+  return fold(nombre)
+    .split(" ")
+    .filter(
+      (word) =>
+        word && !["de", "del", "la", "el", "los", "las", "y", "e"].includes(word),
+    )
+    .map((word) => word[0] ?? "")
+    .join("");
+}
+
 export function match_plan_app(
   hint: string,
   apps: Array<{ id: number; nombre: string; slug: string }>,
 ): number | null {
   const packed = compact_label(hint);
   if (!packed) return null;
-  const alias = APP_ALIASES[packed] ?? packed;
+  const alias = compact_label(APP_ALIASES[packed] ?? packed);
   const exact = apps.find((app) => {
     const names = [
       compact_label(app.nombre),
       compact_label(app.slug),
       fold(app.nombre),
       fold(app.slug),
+      app_acronym(app.nombre),
     ];
     return names.includes(packed) || names.includes(alias);
   });
@@ -186,7 +208,13 @@ function map_header(raw: string): string | null {
   if (key === "id") return "id";
   if (key === "modulo") return "modulo";
   if (key.includes("tarea") || key.includes("feature")) return "tarea";
-  if (key.includes("origen") || key.includes("contexto")) return "origen";
+  if (
+    key.includes("origen") ||
+    key.includes("contexto") ||
+    key.includes("categoria")
+  ) {
+    return "origen";
+  }
   if (key === "estado") return "estado";
   if (key.includes("entregable")) return "entregable";
   if (key === "app" || key === "apps" || key.includes("aplicacion")) {
@@ -310,7 +338,7 @@ export function classify_excel_rows(matrix: unknown[][]): ExcelPlanRow[] {
     fecha_fin: header.indexOf("fecha_fin"),
     fecha: header.indexOf("fecha"),
   };
-  if (idx.modulo < 0 || idx.tarea < 0) {
+  if (idx.tarea < 0) {
     return [
       {
         row: 1,
@@ -328,7 +356,7 @@ export function classify_excel_rows(matrix: unknown[][]): ExcelPlanRow[] {
         entregable_ruta: null,
         warning: null,
         error:
-          "Faltan columnas Módulo y Tarea / Feature. Usa la plantilla del plan.",
+          "Falta la columna Tarea / Feature. El módulo es opcional: si no viene, se usa la APP.",
         kind: "error",
         modulo_existe: false,
         excel_app: "",
@@ -336,6 +364,7 @@ export function classify_excel_rows(matrix: unknown[][]): ExcelPlanRow[] {
         fecha_fin: null,
         app_ids: [],
         hang_on_general: false,
+        hang_on_app_module: false,
       },
     ];
   }
@@ -346,13 +375,15 @@ export function classify_excel_rows(matrix: unknown[][]): ExcelPlanRow[] {
   data.forEach((line, offset) => {
     const row_num = offset + 2;
     const excel_id = idx.id >= 0 ? cell_text(line[idx.id]) : "";
-    const modulo = cell_text(line[idx.modulo]).slice(0, 160);
+    const excel_app = idx.app >= 0 ? cell_text(line[idx.app]) : "";
+    const modulo = (
+      idx.modulo >= 0 ? cell_text(line[idx.modulo]) : excel_app
+    ).slice(0, 160) || excel_app.slice(0, 160);
     const titulo = cell_text(line[idx.tarea]);
     const origen_raw = idx.origen >= 0 ? cell_text(line[idx.origen]) : "";
     const estado_raw = idx.estado >= 0 ? cell_text(line[idx.estado]) : "";
     const entregable_raw =
       idx.entregable >= 0 ? cell_text(line[idx.entregable]) : "";
-    const excel_app = idx.app >= 0 ? cell_text(line[idx.app]) : "";
     const single = idx.fecha >= 0 ? cell_date(line[idx.fecha]) : null;
     const fecha_inicio =
       (idx.fecha_inicio >= 0 ? cell_date(line[idx.fecha_inicio]) : null) ??
@@ -362,7 +393,7 @@ export function classify_excel_rows(matrix: unknown[][]): ExcelPlanRow[] {
       fecha_inicio ??
       single;
 
-    if (!modulo && !titulo && !excel_id) return;
+    if (!modulo && !titulo && !excel_id && !excel_app) return;
 
     const estado = map_estado(estado_raw);
     const origen = origen_raw ? map_origen(origen_raw) : "PLAN";
@@ -370,7 +401,7 @@ export function classify_excel_rows(matrix: unknown[][]): ExcelPlanRow[] {
     const titulo_guardado = compose_titulo(excel_id, titulo);
 
     let error: string | null = estado.error;
-    if (!modulo) error = error ?? "Falta el módulo";
+    if (!modulo) error = error ?? "Falta el módulo o la APP";
     if (!titulo) error = error ?? "Falta la tarea / feature";
     if (origen_raw && !origen) {
       error = error ?? `Origen no reconocido: ${origen_raw}`;
@@ -399,6 +430,7 @@ export function classify_excel_rows(matrix: unknown[][]): ExcelPlanRow[] {
       fecha_fin,
       app_ids: [],
       hang_on_general: false,
+      hang_on_app_module: false,
     });
   });
 
@@ -467,7 +499,7 @@ export function apply_excel_roles(
   const seen = new Set<string>();
 
   return rows.map((row) => {
-    if (row.kind === "error" && row.error?.startsWith("Faltan columnas")) {
+    if (row.kind === "error" && row.error?.startsWith("Falta")) {
       return row;
     }
     const role =
@@ -489,11 +521,15 @@ export function apply_excel_roles(
     if (error && mapping_errors.includes(error)) error = null;
 
     let hang_on_general = false;
+    let hang_on_app_module = false;
     if (role.as === "tarea") {
       modulo = role.parent_modulo.trim();
       titulo = row.excel_modulo;
       titulo_guardado = titulo_as_task(row);
-      if (!modulo) {
+      if (!modulo || modulo === HANG_APP_GENERAL_MODULE) {
+        modulo = GENERAL_FALLBACK_MODULO;
+        hang_on_app_module = true;
+      } else if (modulo === HANG_GENERAL_APP) {
         modulo = GENERAL_FALLBACK_MODULO;
         hang_on_general = true;
       } else if (fold(modulo) === fold(row.excel_modulo)) {
@@ -522,6 +558,7 @@ export function apply_excel_roles(
       kind,
       modulo_existe,
       hang_on_general,
+      hang_on_app_module,
     };
   });
 }
@@ -568,6 +605,7 @@ export function excel_commit_rows(
         entregable_ruta: row.entregable_ruta,
         app_ids,
         hang_on_general: row.hang_on_general,
+        hang_on_app_module: row.hang_on_app_module,
         fecha_inicio: dates.fecha_inicio,
         fecha_fin: dates.fecha_fin,
         orden: row.row,

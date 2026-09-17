@@ -1,5 +1,4 @@
 import { getAppById } from "@/config/apps";
-import { build_tickets_frame_url } from "@/lib/tickets-form-url";
 
 const SCAP_OSI_PREVIEW_PATH_RE =
   /^(?:scapacitacion\/)?osi\/preview\/\d+(?:\/.*)?$/;
@@ -22,10 +21,6 @@ export function buildFrameUrl(appId: string, subPath?: string): string {
   const app = getAppById(appId);
   if (!app) {
     throw new Error(`Unknown app: ${appId}`);
-  }
-
-  if (appId === "tickets") {
-    return build_tickets_frame_url();
   }
 
   if (app.embedMode === "native") {

@@ -63,12 +63,15 @@ export function tarea_range(
 
 export function tarea_years(tarea: PlanTarea, modulo: PlanModulo): number[] {
   const range = tarea_range(tarea, modulo);
-  if (!range) return [];
-  const from = Number(range.start.slice(0, 4));
-  const to = Number(range.end.slice(0, 4));
-  const years: number[] = [];
-  for (let year = from; year <= to; year += 1) years.push(year);
-  return years;
+  if (range) {
+    const from = Number(range.start.slice(0, 4));
+    const to = Number(range.end.slice(0, 4));
+    const years: number[] = [];
+    for (let year = from; year <= to; year += 1) years.push(year);
+    return years;
+  }
+  if (tarea.trimestre) return [modulo.anio];
+  return [modulo.anio];
 }
 
 export function tarea_months_in_year(
@@ -77,14 +80,23 @@ export function tarea_months_in_year(
   year: number,
 ): number[] {
   const range = tarea_range(tarea, modulo);
-  if (!range) return [];
-  const months: number[] = [];
-  for (let month = 1; month <= 12; month += 1) {
-    const month_start = `${year}-${pad(month)}-01`;
-    const month_end = `${year}-${pad(month)}-${pad(last_day(year, month))}`;
-    if (range.start <= month_end && range.end >= month_start) months.push(month);
+  if (range) {
+    const months: number[] = [];
+    for (let month = 1; month <= 12; month += 1) {
+      const month_start = `${year}-${pad(month)}-01`;
+      const month_end = `${year}-${pad(month)}-${pad(last_day(year, month))}`;
+      if (range.start <= month_end && range.end >= month_start) months.push(month);
+    }
+    return months;
   }
-  return months;
+  if (tarea.trimestre) {
+    return months_of_quarter(tarea.trimestre);
+  }
+  return [];
+}
+
+export function is_tarea_unplaced(tarea: PlanTarea): boolean {
+  return !iso_date(tarea.fecha_inicio) && !iso_date(tarea.fecha_fin) && !tarea.trimestre;
 }
 
 export function optional_excel_dates(

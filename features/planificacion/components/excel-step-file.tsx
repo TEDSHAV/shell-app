@@ -95,10 +95,12 @@ export function ExcelStepFile({
           />
         </div>
         <div className="rounded-xl border border-gray-100 bg-[#f8f9fb] px-4 py-3 text-xs leading-5 text-gray-500">
-          Columnas: APP, Módulo, Tarea / Feature, Origen, Estado, Entregables.
-          En APP va una sola (NEGOCIOS) o varias separadas por coma
-          (NEGOCIOS, ADMINISTRACIÓN). GENERAL es el Shell / transversal, no
-          Prisma. Fechas opcionales: Fecha, Inicio, Fin.
+          Columnas mínimas: APP y Tarea / Feature. Módulo es opcional (si no
+          viene, se usa el nombre de la APP). Origen, Estado y Entregables
+          también. Global = General, RRHH = Recursos Humanos, SIG = Sistema
+          Integrado de Gestión, Soporte Técnico = Servicios Técnicos. En APP
+          una sola (CAPACITACION) o varias separadas por coma. Fechas
+          opcionales: Fecha, Inicio, Fin.
         </div>
       </div>
     </div>

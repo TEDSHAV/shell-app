@@ -4,18 +4,124 @@ export const STATUS_COLORS: Record<
   PlanSalud,
   { bg: string; text: string; dot: string }
 > = {
-  Completado: { bg: "bg-blue-100", text: "text-blue-700", dot: "bg-blue-500" },
+  Completado: { bg: "bg-blue-100", text: "text-blue-800", dot: "bg-blue-500" },
   "En Marcha": {
-    bg: "bg-green-100",
-    text: "text-green-700",
-    dot: "bg-green-500",
+    bg: "bg-emerald-100",
+    text: "text-emerald-800",
+    dot: "bg-emerald-500",
   },
   "En Riesgo": {
     bg: "bg-orange-100",
-    text: "text-orange-700",
+    text: "text-orange-800",
     dot: "bg-orange-500",
   },
-  Planificado: { bg: "bg-gray-100", text: "text-gray-600", dot: "bg-gray-400" },
+  Planificado: { bg: "bg-slate-100", text: "text-slate-700", dot: "bg-slate-400" },
+};
+
+export type AppTone = {
+  bar: string;
+  soft: string;
+  ring: string;
+  border: string;
+  glow: string;
+};
+
+export const APP_TONES: AppTone[] = [
+  {
+    bar: "bg-sky-500",
+    soft: "bg-sky-50",
+    ring: "ring-sky-200",
+    border: "border-sky-200",
+    glow: "shadow-sky-100",
+  },
+  {
+    bar: "bg-violet-500",
+    soft: "bg-violet-50",
+    ring: "ring-violet-200",
+    border: "border-violet-200",
+    glow: "shadow-violet-100",
+  },
+  {
+    bar: "bg-emerald-500",
+    soft: "bg-emerald-50",
+    ring: "ring-emerald-200",
+    border: "border-emerald-200",
+    glow: "shadow-emerald-100",
+  },
+  {
+    bar: "bg-amber-500",
+    soft: "bg-amber-50",
+    ring: "ring-amber-200",
+    border: "border-amber-200",
+    glow: "shadow-amber-100",
+  },
+  {
+    bar: "bg-rose-500",
+    soft: "bg-rose-50",
+    ring: "ring-rose-200",
+    border: "border-rose-200",
+    glow: "shadow-rose-100",
+  },
+  {
+    bar: "bg-cyan-500",
+    soft: "bg-cyan-50",
+    ring: "ring-cyan-200",
+    border: "border-cyan-200",
+    glow: "shadow-cyan-100",
+  },
+  {
+    bar: "bg-indigo-500",
+    soft: "bg-indigo-50",
+    ring: "ring-indigo-200",
+    border: "border-indigo-200",
+    glow: "shadow-indigo-100",
+  },
+  {
+    bar: "bg-fuchsia-500",
+    soft: "bg-fuchsia-50",
+    ring: "ring-fuchsia-200",
+    border: "border-fuchsia-200",
+    glow: "shadow-fuchsia-100",
+  },
+];
+
+export function app_tone(id: number): AppTone {
+  return APP_TONES[Math.abs(id) % APP_TONES.length];
+}
+
+export const TED_ACCENT = {
+  chip: "bg-violet-600 text-white",
+  bar: "bg-violet-600",
+  barHover: "hover:bg-violet-500",
+  soft: "bg-violet-50",
+  ring: "ring-violet-300",
+  text: "text-violet-700",
+};
+
+export type ExpandedCardTone = {
+  ring: string;
+  wash: string;
+};
+
+const EXPANDED_CARD_TONES: ExpandedCardTone[] = [
+  { ring: "ring-violet-300", wash: "bg-violet-50/80" },
+  { ring: "ring-indigo-300", wash: "bg-indigo-50/80" },
+  { ring: "ring-purple-300", wash: "bg-purple-50/80" },
+  { ring: "ring-slate-300", wash: "bg-slate-50" },
+  { ring: "ring-violet-400", wash: "bg-violet-50" },
+];
+
+export function expanded_card_tone(id: number): ExpandedCardTone {
+  return EXPANDED_CARD_TONES[Math.abs(id) % EXPANDED_CARD_TONES.length];
+}
+
+export const EXPAND_MOTION = {
+  card: "transition-[background-color,box-shadow,transform] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]",
+  panel:
+    "grid transition-[grid-template-rows] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]",
+  body: "origin-top transition-[opacity,transform] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]",
+  chevron:
+    "transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]",
 };
 
 export const ORIGIN_COLORS: Record<PlanOrigen, string> = {

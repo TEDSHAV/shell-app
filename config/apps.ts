@@ -48,7 +48,6 @@ import {
   Settings,
 } from "lucide-react";
 import { build_app_config } from "@/lib/app-theme";
-import { get_tickets_form_base_url } from "@/lib/tickets-form-url";
 import { AppConfig, AppGroupConfig, NavGroup } from "@/types";
 
 const requisicionesNavGroup: NavGroup = {
@@ -916,13 +915,15 @@ export const apps: AppConfig[] = [
     description:
       "Sugerencias y soporte: cuéntanos qué mejorar o qué funciones agregar",
     basePath: "/tickets",
-    upstreamUrl: get_tickets_form_base_url(),
     icon: Ticket,
     brandColor: "#0C3F69",
-    embedMode: "raw",
+    embedMode: "native",
     hiddenFromDashboard: true,
     dashboardOrder: 7,
-    navLinks: [],
+    navLinks: [
+      { label: "Nuevo ticket", path: "/", icon: Ticket },
+      { label: "Mis tickets", path: "/mios", icon: ListOrdered },
+    ],
   }),
   build_app_config({
     id: "osis",
@@ -1083,9 +1084,19 @@ export const apps: AppConfig[] = [
         groupLabel: "Planificación",
         links: [
           {
-            label: "Módulos",
+            label: "Vista general",
             path: "/planificacion",
             icon: LayoutList,
+          },
+          {
+            label: "Tareas",
+            path: "/planificacion/tareas",
+            icon: LayoutGrid,
+          },
+          {
+            label: "Inbox tickets",
+            path: "/planificacion/tickets",
+            icon: Ticket,
           },
         ],
       },

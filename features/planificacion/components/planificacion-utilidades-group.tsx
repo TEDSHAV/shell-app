@@ -3,12 +3,16 @@
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { derive_app_salud, sum_app_progress } from "../lib/app-salud";
-import { STATUS_COLORS } from "../lib/display";
+import { EXPAND_MOTION, STATUS_COLORS } from "../lib/display";
 import type { PlanApp, PlanModulo, PlanTarea } from "../lib/types";
 import { PlanificacionAppRow } from "./planificacion-app-row";
 
 export function PlanificacionUtilidadesGroup({
   apps,
+  select_mode,
+  selected,
+  on_toggle_task,
+  on_toggle_ids,
   on_edit_app,
   on_add_modulo,
   on_edit_modulo,
@@ -16,6 +20,10 @@ export function PlanificacionUtilidadesGroup({
   on_edit_tarea,
 }: {
   apps: PlanApp[];
+  select_mode?: boolean;
+  selected?: Set<number>;
+  on_toggle_task?: (tarea_id: number) => void;
+  on_toggle_ids?: (ids: number[], on: boolean) => void;
   on_edit_app: (app: PlanApp) => void;
   on_add_modulo: (app: PlanApp) => void;
   on_edit_modulo: (app: PlanApp, modulo: PlanModulo) => void;
@@ -29,7 +37,13 @@ export function PlanificacionUtilidadesGroup({
   const sc = STATUS_COLORS[salud];
 
   return (
-    <div className="overflow-hidden rounded-xl border border-gray-100 bg-white">
+    <div
+      className={`overflow-hidden rounded-2xl border shadow-[0_1px_2px_rgba(15,23,42,0.05)] ${EXPAND_MOTION.card} ${
+        open
+          ? "border-slate-200 bg-violet-50/80 shadow-lg ring-2 ring-violet-300"
+          : "border-slate-200/90 bg-white hover:shadow-md"
+      }`}
+    >
       <button
         type="button"
         className="flex w-full items-center gap-4 px-5 py-4 text-left hover:bg-gray-50/70"
@@ -38,9 +52,6 @@ export function PlanificacionUtilidadesGroup({
         <div className="w-56 shrink-0">
           <p className="text-sm font-semibold leading-tight text-gray-900">
             Utilidades
-          </p>
-          <p className="mt-0.5 text-xs leading-tight text-gray-400">
-            Header y utilidades del Shell
           </p>
         </div>
         <div
@@ -52,7 +63,7 @@ export function PlanificacionUtilidadesGroup({
         <div className="flex min-w-0 flex-1 items-center gap-3">
           <div className="h-2 flex-1 overflow-hidden rounded-full bg-gray-100">
             <div
-              className="h-2 rounded-full bg-blue-500"
+              className="h-2 rounded-full bg-violet-600"
               style={{ width: `${totals.progress}%` }}
             />
           </div>
@@ -79,16 +90,29 @@ export function PlanificacionUtilidadesGroup({
           </div>
         </div>
         <ChevronDown
-          className={`h-4 w-4 shrink-0 text-gray-400 transition-transform ${open ? "rotate-180" : ""}`}
+          className={`h-4 w-4 shrink-0 text-gray-400 ${EXPAND_MOTION.chevron} ${open ? "rotate-180" : ""}`}
         />
       </button>
 
-      {open ? (
-        <div className="space-y-2 border-t border-gray-100 bg-gray-50/50 px-3 py-3">
+      <div
+        className={`${EXPAND_MOTION.panel} ${
+          open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+        }`}
+      >
+        <div className="overflow-hidden">
+          <div
+            className={`space-y-2 border-t border-slate-100/80 bg-white/40 px-3 py-3 ${EXPAND_MOTION.body} ${
+              open ? "translate-y-0 opacity-100" : "-translate-y-2 opacity-0"
+            }`}
+          >
           {apps.map((app) => (
             <PlanificacionAppRow
               key={app.id}
               app={app}
+              select_mode={select_mode}
+              selected={selected}
+              on_toggle_task={on_toggle_task}
+              on_toggle_ids={on_toggle_ids}
               on_edit_app={() => on_edit_app(app)}
               on_add_modulo={() => on_add_modulo(app)}
               on_edit_modulo={(modulo) => on_edit_modulo(app, modulo)}
@@ -98,8 +122,9 @@ export function PlanificacionUtilidadesGroup({
               }
             />
           ))}
+          </div>
         </div>
-      ) : null}
+      </div>
     </div>
   );
 }

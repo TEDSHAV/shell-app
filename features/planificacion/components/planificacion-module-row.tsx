@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, Pencil } from "lucide-react";
 import {
-  AVATAR_COLORS,
-  ORIGIN_COLORS,
+  EXPAND_MOTION,
   STATUS_COLORS,
+  expanded_card_tone,
   format_objetivo_date,
 } from "../lib/display";
 import { build_negocios_view_url } from "../lib/prisma-routes";
@@ -16,6 +16,10 @@ import {
   is_tarea_pending,
   tarea_avance,
 } from "../lib/task-progress";
+import {
+  selection_state,
+  tarea_ids_in_modulo,
+} from "../lib/plan-selection";
 
 function AvatarChip({
   initials,
@@ -26,7 +30,7 @@ function AvatarChip({
 }) {
   return (
     <div
-      className={`-ml-1.5 flex h-7 w-7 first:ml-0 items-center justify-center rounded-full border-2 border-white text-[10px] font-semibold text-white ${AVATAR_COLORS[idx % AVATAR_COLORS.length]}`}
+      className={`-ml-1.5 flex h-7 w-7 first:ml-0 items-center justify-center rounded-full border-2 border-white text-[10px] font-semibold text-white ${["bg-slate-500", "bg-slate-600", "bg-sky-700", "bg-teal-700"][idx % 4]}`}
     >
       {initials}
     </div>
@@ -35,24 +39,57 @@ function AvatarChip({
 
 export function PlanificacionModuleRow({
   modulo,
+  select_mode,
+  selected,
+  on_toggle_task,
+  on_toggle_ids,
   on_edit_modulo,
   on_add_tarea,
   on_edit_tarea,
 }: {
   modulo: PlanModulo;
+  select_mode?: boolean;
+  selected?: Set<number>;
+  on_toggle_task?: (tarea_id: number) => void;
+  on_toggle_ids?: (ids: number[], on: boolean) => void;
   on_edit_modulo: () => void;
   on_add_tarea: () => void;
   on_edit_tarea: (tarea: PlanTarea) => void;
 }) {
   const [open, set_open] = useState(false);
   const sc = STATUS_COLORS[modulo.salud];
+  const expanded = expanded_card_tone(modulo.id);
   const done = modulo.tareas.filter((t) => is_tarea_done(t));
   const pending = modulo.tareas.filter((t) => is_tarea_pending(t));
   const skipped = modulo.tareas.filter((t) => is_tarea_no_solicitada(t));
+  const ids = useMemo(() => tarea_ids_in_modulo(modulo), [modulo]);
+  const state = selected ? selection_state(ids, selected) : "none";
+  const box = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (box.current) box.current.indeterminate = state === "some";
+  }, [state]);
 
   return (
-    <div className="overflow-hidden rounded-xl border border-gray-100 bg-white">
-      <div className="flex w-full items-center gap-4 px-5 py-4 text-left hover:bg-gray-50/70">
+    <div
+      className={`overflow-hidden rounded-xl border ${EXPAND_MOTION.card} ${
+        open
+          ? `border-slate-200 shadow-md ring-1 ${expanded.ring} ${expanded.wash}`
+          : "border-slate-200 bg-white"
+      }`}
+    >
+      <div className="flex w-full items-center gap-3 px-4 py-3.5 text-left">
+        {select_mode ? (
+          <input
+            ref={box}
+            type="checkbox"
+            className="h-4 w-4 shrink-0 accent-slate-800"
+            checked={state === "all"}
+            onChange={() => on_toggle_ids?.(ids, state !== "all")}
+            title="Seleccionar todo el módulo"
+            aria-label={`Seleccionar ${modulo.nombre}`}
+          />
+        ) : null}
         <button
           type="button"
           className="flex min-w-0 flex-1 items-center gap-4"
@@ -62,10 +99,11 @@ export function PlanificacionModuleRow({
             <p className="text-sm font-semibold leading-tight text-gray-900">
               {modulo.nombre}
             </p>
-            <p className="mt-0.5 text-xs leading-tight text-gray-400">
-              {modulo.subtitulo || "Sin alcance"}
-              {modulo.app_ids.length > 1 ? " · varias apps" : ""}
-            </p>
+            {modulo.app_ids.length > 1 ? (
+              <p className="mt-0.5 text-xs font-semibold text-violet-700">
+                varias apps
+              </p>
+            ) : null}
           </div>
           <div
             className={`flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${sc.bg} ${sc.text}`}
@@ -76,7 +114,7 @@ export function PlanificacionModuleRow({
           <div className="flex min-w-0 flex-1 items-center gap-3">
             <div className="h-2 flex-1 overflow-hidden rounded-full bg-gray-100">
               <div
-                className="h-2 rounded-full bg-blue-500"
+                className="h-2 rounded-full bg-violet-600"
                 style={{ width: `${modulo.progress}%` }}
               />
             </div>
@@ -108,7 +146,7 @@ export function PlanificacionModuleRow({
             {format_objetivo_date(modulo.fecha_objetivo)}
           </span>
           <ChevronDown
-            className={`h-4 w-4 shrink-0 text-gray-400 transition-transform ${open ? "rotate-180" : ""}`}
+            className={`h-4 w-4 shrink-0 text-gray-400 ${EXPAND_MOTION.chevron} ${open ? "rotate-180" : ""}`}
           />
         </button>
         <button
@@ -121,12 +159,21 @@ export function PlanificacionModuleRow({
         </button>
       </div>
 
-      {open ? (
-        <div className="space-y-4 border-t border-gray-100 bg-gray-50/50 px-5 py-4">
+      <div
+        className={`${EXPAND_MOTION.panel} ${
+          open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+        }`}
+      >
+        <div className="overflow-hidden">
+        <div
+          className={`space-y-4 border-t border-white/60 bg-white/50 px-5 py-4 ${EXPAND_MOTION.body} ${
+            open ? "translate-y-0 opacity-100" : "-translate-y-2 opacity-0"
+          }`}
+        >
           {done.length > 0 ? (
             <div>
               <p className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
-                <span className="inline-block h-2 w-2 rounded-full bg-green-400" />
+                <span className="inline-block h-2 w-2 rounded-full bg-violet-500" />
                 Entregables completados ({done.length})
               </p>
               <div className="space-y-1">
@@ -138,7 +185,17 @@ export function PlanificacionModuleRow({
                     className="flex w-full items-center justify-between rounded-lg border border-gray-100 bg-white px-4 py-2.5 text-left"
                   >
                     <div className="flex min-w-0 items-center gap-2.5">
-                      <span className="text-sm text-green-500">✓</span>
+                      {select_mode ? (
+                        <input
+                          type="checkbox"
+                          className="mt-0.5"
+                          checked={Boolean(selected?.has(t.id))}
+                          onChange={() => on_toggle_task?.(t.id)}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      ) : (
+                        <span className="text-sm text-green-500">✓</span>
+                      )}
                       <span className="truncate text-sm font-medium text-gray-700">
                         {t.titulo}
                       </span>
@@ -184,14 +241,34 @@ export function PlanificacionModuleRow({
                     className="flex w-full items-center justify-between rounded-lg border border-dashed border-gray-200 bg-white px-4 py-2.5 text-left"
                   >
                     <div className="flex items-center gap-2.5">
-                      <span className="text-sm text-gray-300">○</span>
+                      {select_mode ? (
+                        <input
+                          type="checkbox"
+                          checked={Boolean(selected?.has(t.id))}
+                          onChange={() => on_toggle_task?.(t.id)}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      ) : (
+                        <span className="text-sm text-gray-300">○</span>
+                      )}
                       <span className="text-sm text-gray-600">{t.titulo}</span>
                       <span className="text-xs font-semibold text-gray-500">
                         {tarea_avance(t)}%
                       </span>
-                      <span
-                        className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${ORIGIN_COLORS[t.origen]}`}
-                      >
+                      {t.trimestre ? (
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
+                          {t.trimestre}
+                        </span>
+                      ) : null}
+                      {t.asignado ? (
+                        <span
+                          className="text-[10px] font-semibold text-slate-500"
+                          title={t.asignado.nombre}
+                        >
+                          {t.asignado.initials}
+                        </span>
+                      ) : null}
+                      <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400">
                         {t.origen}
                       </span>
                     </div>
@@ -216,14 +293,21 @@ export function PlanificacionModuleRow({
                     className="flex w-full items-center justify-between rounded-lg border border-gray-100 bg-gray-50 px-4 py-2.5 text-left"
                   >
                     <div className="flex items-center gap-2.5">
-                      <span className="text-sm text-gray-300">—</span>
+                      {select_mode ? (
+                        <input
+                          type="checkbox"
+                          checked={Boolean(selected?.has(t.id))}
+                          onChange={() => on_toggle_task?.(t.id)}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      ) : (
+                        <span className="text-sm text-gray-300">—</span>
+                      )}
                       <span className="text-sm text-gray-500">{t.titulo}</span>
                       <span className="rounded-full border border-gray-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-gray-500">
                         No solicitado
                       </span>
-                      <span
-                        className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${ORIGIN_COLORS[t.origen]}`}
-                      >
+                      <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400">
                         {t.origen}
                       </span>
                     </div>
@@ -236,13 +320,14 @@ export function PlanificacionModuleRow({
           <button
             type="button"
             onClick={on_add_tarea}
-            className="flex items-center gap-2 px-2 text-sm font-medium text-blue-600 hover:text-blue-800"
+            className="flex items-center gap-2 px-2 text-sm font-medium text-slate-500 hover:text-slate-800"
           >
             <span className="text-lg leading-none">+</span>
             Agregar tarea a este módulo
           </button>
         </div>
-      ) : null}
+        </div>
+      </div>
     </div>
   );
 }

@@ -10,6 +10,8 @@ import {
   Users,
   UserPlus,
   LayoutList,
+  Columns3,
+  Ticket,
 } from "lucide-react";
 import { isTedMember } from "@/actions/ted";
 
@@ -26,8 +28,24 @@ export default async function TedPage() {
       icon: LayoutList,
       title: "Planificación",
       description:
-        "Consola de módulos Prisma: progreso, tareas y entregables.",
+        "Vista general de apps Prisma: progreso, módulos y roadmap.",
       href: "/ted/planificacion",
+      external: false,
+      disabled: false,
+    },
+    {
+      icon: Columns3,
+      title: "Tareas",
+      description: "Lista y kanban de trabajo TED, separado de las apps.",
+      href: "/ted/planificacion/tareas",
+      external: false,
+      disabled: false,
+    },
+    {
+      icon: Ticket,
+      title: "Inbox tickets",
+      description: "Cola TED: responder, asignar y promover tickets.",
+      href: "/ted/planificacion/tickets",
       external: false,
       disabled: false,
     },

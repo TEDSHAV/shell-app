@@ -60,6 +60,10 @@ export const tarea_schema = z.object({
   entregable_comentario: z.string().trim().max(4000).optional().nullable(),
   fecha_inicio: optional_iso_date,
   fecha_fin: optional_iso_date,
+  trimestre: z.enum(PLAN_TRIMESTRES).nullable().optional(),
+  asignado_id: z.number().int().positive().nullable().optional(),
+  entregable_unidad: z.string().trim().max(80).optional().nullable(),
+  entregable_version: z.string().trim().max(80).optional().nullable(),
 }).refine(
   (value) =>
     !value.fecha_inicio ||
@@ -93,6 +97,7 @@ export const excel_commit_row_schema = z.object({
   entregable_ruta: z.string().trim().max(320).optional().nullable(),
   app_ids: z.array(z.number().int().positive()).min(1),
   hang_on_general: z.boolean().default(false),
+  hang_on_app_module: z.boolean().default(false),
   fecha_inicio: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)

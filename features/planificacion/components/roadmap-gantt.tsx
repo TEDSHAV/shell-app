@@ -9,8 +9,9 @@ import {
   span_label,
   type GanttSpan,
 } from "../lib/gantt";
-import type { PlanApp, PlanHito, PlanTrimestre } from "../lib/types";
+import type { PlanApp, PlanHito, PlanTarea, PlanTrimestre } from "../lib/types";
 import { GanttAppRow } from "./gantt-app-row";
+import { GanttEditRow } from "./gantt-edit-row";
 
 export function RoadmapGantt({
   listed,
@@ -19,6 +20,8 @@ export function RoadmapGantt({
   on_bar_click,
   on_add_hito,
   on_edit_hito,
+  on_place_tarea,
+  edit_mode,
 }: {
   listed: PlanApp[];
   utilidades: PlanApp[];
@@ -30,6 +33,8 @@ export function RoadmapGantt({
   ) => void;
   on_add_hito: (app: PlanApp, trimestre: PlanTrimestre) => void;
   on_edit_hito: (hito: PlanHito) => void;
+  on_place_tarea: (tarea: PlanTarea, trimestre: PlanTrimestre) => void;
+  edit_mode: boolean;
 }) {
   const container_ref = useRef<HTMLDivElement>(null);
   const [open_utils, set_open_utils] = useState(false);
@@ -66,12 +71,12 @@ export function RoadmapGantt({
   return (
     <div
       ref={container_ref}
-      className="relative overflow-hidden rounded-xl border border-gray-100 bg-white"
+      className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
     >
       <div className="flex border-b border-gray-100">
-        <div className="w-64 shrink-0 bg-gray-50/50 px-5 py-3">
+        <div className={`${edit_mode ? "w-80" : "w-64"} shrink-0 bg-gray-50/50 px-5 py-3`}>
           <span className="text-xs font-semibold uppercase tracking-widest text-gray-400">
-            App
+            {edit_mode ? "App y pendientes" : "App"}
           </span>
         </div>
         <div className="grid flex-1 grid-cols-4">
@@ -83,58 +88,92 @@ export function RoadmapGantt({
               <div className="text-sm font-black text-gray-800">{trimestre}</div>
               <div className="mt-0.5 text-[10px] text-gray-400">
                 {QUARTER_MONTHS[trimestre]}
+                {edit_mode ? " · suelta aquí" : ""}
               </div>
             </div>
           ))}
         </div>
       </div>
 
-      {listed.map((app) => (
-        <GanttAppRow
-          key={app.id}
-          app={app}
-          anio={anio}
-          on_hover={on_hover}
-          on_leave={() => set_tooltip(null)}
-          on_bar_click={on_bar_click}
-          on_add_hito={on_add_hito}
-          on_edit_hito={on_edit_hito}
-        />
-      ))}
-
-      {utils_app ? (
-        <>
-          <GanttAppRow
-            app={utils_app}
+      {listed.map((app) =>
+        edit_mode ? (
+          <GanttEditRow
+            key={app.id}
+            app={app}
             anio={anio}
-            expandable
-            expanded={open_utils}
-            on_toggle={() => set_open_utils((value) => !value)}
+            on_add_hito={on_add_hito}
+            on_edit_hito={on_edit_hito}
+            on_place_tarea={on_place_tarea}
+          />
+        ) : (
+          <GanttAppRow
+            key={app.id}
+            app={app}
+            anio={anio}
             on_hover={on_hover}
             on_leave={() => set_tooltip(null)}
             on_bar_click={on_bar_click}
-            on_add_hito={on_add_hito}
             on_edit_hito={on_edit_hito}
           />
+        ),
+      )}
+
+      {utils_app ? (
+        <>
+          {edit_mode ? (
+            <GanttEditRow
+              app={utils_app}
+              anio={anio}
+              expandable
+              expanded={open_utils}
+              on_toggle={() => set_open_utils((value) => !value)}
+              on_add_hito={on_add_hito}
+              on_edit_hito={on_edit_hito}
+              on_place_tarea={on_place_tarea}
+            />
+          ) : (
+            <GanttAppRow
+              app={utils_app}
+              anio={anio}
+              expandable
+              expanded={open_utils}
+              on_toggle={() => set_open_utils((value) => !value)}
+              on_hover={on_hover}
+              on_leave={() => set_tooltip(null)}
+              on_bar_click={on_bar_click}
+              on_edit_hito={on_edit_hito}
+            />
+          )}
           {open_utils ? (
             <div className="border-t border-gray-100">
               <div className="flex items-center gap-1 px-5 py-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
                 <ChevronDown className="h-3 w-3" />
                 Apps de utilidades
               </div>
-              {utilidades.map((app) => (
-                <GanttAppRow
-                  key={app.id}
-                  app={app}
-                  anio={anio}
-                  nested
-                  on_hover={on_hover}
-                  on_leave={() => set_tooltip(null)}
-                  on_bar_click={on_bar_click}
-                  on_add_hito={on_add_hito}
-                  on_edit_hito={on_edit_hito}
-                />
-              ))}
+              {utilidades.map((app) =>
+                edit_mode ? (
+                  <GanttEditRow
+                    key={app.id}
+                    app={app}
+                    anio={anio}
+                    nested
+                    on_add_hito={on_add_hito}
+                    on_edit_hito={on_edit_hito}
+                    on_place_tarea={on_place_tarea}
+                  />
+                ) : (
+                  <GanttAppRow
+                    key={app.id}
+                    app={app}
+                    anio={anio}
+                    nested
+                    on_hover={on_hover}
+                    on_leave={() => set_tooltip(null)}
+                    on_bar_click={on_bar_click}
+                    on_edit_hito={on_edit_hito}
+                  />
+                ),
+              )}
             </div>
           ) : null}
         </>

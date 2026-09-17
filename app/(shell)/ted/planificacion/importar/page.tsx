@@ -17,7 +17,7 @@ export default async function TedPlanImportPage() {
   }
 
   return (
-    <div className="min-h-full w-full bg-[#f4f6f8] p-6">
+    <div className="px-6 pb-6">
       <ExcelImportWizard apps={loaded.data.apps} />
     </div>
   );

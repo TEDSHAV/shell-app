@@ -1,10 +1,8 @@
 "use client";
 
-import { ChevronDown, Cog, Plus, Server, Users } from "lucide-react";
-import { AVATAR_COLORS, STATUS_COLORS } from "../lib/display";
-import { PLAN_TRIMESTRES } from "../schemas";
+import { ChevronDown, Cog, Server, Users } from "lucide-react";
+import { STATUS_COLORS } from "../lib/display";
 import {
-  QUARTER_LABELS,
   build_gantt_cells,
   build_module_spans,
   span_label,
@@ -12,7 +10,7 @@ import {
   type GanttSpan,
 } from "../lib/gantt";
 import { is_tarea_no_solicitada } from "../lib/task-progress";
-import type { PlanApp, PlanHito, PlanHitoIcono, PlanTrimestre } from "../lib/types";
+import type { PlanApp, PlanHito, PlanHitoIcono } from "../lib/types";
 
 const HITO_ICON: Record<PlanHitoIcono, typeof Server> = {
   deploy: Server,
@@ -30,7 +28,6 @@ export function GanttAppRow({
   on_hover,
   on_leave,
   on_bar_click,
-  on_add_hito,
   on_edit_hito,
 }: {
   app: PlanApp;
@@ -47,7 +44,6 @@ export function GanttAppRow({
   ) => void;
   on_leave: () => void;
   on_bar_click: (app: PlanApp, span: GanttSpan, segment: "done" | "pending") => void;
-  on_add_hito: (app: PlanApp, trimestre: PlanTrimestre) => void;
   on_edit_hito: (hito: PlanHito) => void;
 }) {
   const sc = STATUS_COLORS[app.salud];
@@ -59,51 +55,51 @@ export function GanttAppRow({
 
   return (
     <div
-      className={`flex items-stretch border-b border-gray-50 last:border-b-0 hover:bg-gray-50/30 ${nested ? "bg-gray-50/40" : ""}`}
-      style={{ minHeight: 72 }}
+      className={`flex items-stretch border-b border-slate-100 last:border-b-0 ${
+        nested ? "bg-slate-50/70" : "bg-white"
+      }`}
+      style={{ minHeight: 64 }}
     >
-      <div className={`w-64 shrink-0 px-5 py-2 ${nested ? "pl-8" : ""}`}>
-        <button
-          type="button"
-          className="flex w-full items-center gap-2 text-left"
-          onClick={expandable ? on_toggle : undefined}
-        >
-          <span className={`h-2 w-2 shrink-0 rounded-full ${sc.dot}`} />
-          <span className="truncate text-sm font-semibold text-gray-900">
-            {app.nombre}
-          </span>
-          {expandable ? (
-            <ChevronDown
-              className={`h-3.5 w-3.5 shrink-0 text-gray-400 transition-transform ${expanded ? "rotate-180" : ""}`}
-            />
-          ) : null}
-        </button>
-        <p className="ml-4 truncate text-[11px] text-gray-400">
-          {app.subtitulo || app.slug}
-        </p>
-        <div className="ml-4 mt-1 flex">
-          {people.slice(0, 3).map((person, idx) => (
-            <div
-              key={person.usuario_id}
-              className={`-ml-1.5 flex h-7 w-7 first:ml-0 items-center justify-center rounded-full border-2 border-white text-[10px] font-semibold text-white ${AVATAR_COLORS[idx % AVATAR_COLORS.length]}`}
-              title={person.nombre}
-            >
-              {person.initials}
-            </div>
-          ))}
-          {people.length > 3 ? (
-            <div className="-ml-1.5 flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-gray-200 text-[10px] font-semibold text-gray-500">
-              +{people.length - 3}
-            </div>
-          ) : null}
+      <div
+        className={`flex w-64 shrink-0 items-center px-4 py-2 ${nested ? "pl-8" : ""}`}
+      >
+        <div className="min-w-0 flex-1">
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 text-left"
+            onClick={expandable ? on_toggle : undefined}
+          >
+            <span className={`h-2 w-2 shrink-0 rounded-full ${sc.dot}`} />
+            <span className="truncate text-sm font-semibold text-slate-900">
+              {app.nombre}
+            </span>
+            {expandable ? (
+              <ChevronDown
+                className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform ${
+                  expanded ? "rotate-180" : ""
+                }`}
+              />
+            ) : null}
+          </button>
+          <div className="ml-4 mt-1 flex">
+            {people.slice(0, 3).map((person, idx) => (
+              <div
+                key={person.usuario_id}
+                className={`-ml-1.5 flex h-7 w-7 first:ml-0 items-center justify-center rounded-full border-2 border-white text-[10px] font-semibold text-white ${["bg-slate-500", "bg-slate-600", "bg-violet-700"][idx % 3]}`}
+                title={person.nombre}
+              >
+                {person.initials}
+              </div>
+            ))}
+            {people.length > 3 ? (
+              <div className="-ml-1.5 flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-gray-200 text-[10px] font-semibold text-gray-500">
+                +{people.length - 3}
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
       <div className="relative min-w-0 flex-1">
-        <div className="pointer-events-none absolute inset-0 grid grid-cols-4">
-          {PLAN_TRIMESTRES.map((trimestre) => (
-            <div key={trimestre} className="border-l border-gray-100" />
-          ))}
-        </div>
         <div className="relative" style={{ minHeight: tracks_h }}>
           {spans.map((span, index) => (
             <div
@@ -119,7 +115,7 @@ export function GanttAppRow({
               {span.done_count > 0 ? (
                 <button
                   type="button"
-                  className="flex min-w-0 flex-1 items-center justify-end rounded-lg bg-blue-400 pr-2 text-[10px] font-bold text-white shadow-sm hover:bg-blue-500"
+                  className="flex min-w-0 flex-1 items-center justify-end rounded-lg bg-violet-600 pr-2 text-[10px] font-bold text-white shadow-sm hover:bg-violet-500"
                   style={{ flexGrow: Math.max(span.progress, 12) }}
                   onMouseEnter={(event) => on_hover(event, app, span, "done")}
                   onMouseLeave={on_leave}
@@ -131,7 +127,7 @@ export function GanttAppRow({
               {span.left_count > 0 ? (
                 <button
                   type="button"
-                  className="flex min-w-0 flex-1 items-center justify-end rounded-lg border-2 border-dashed border-blue-300 bg-blue-50/60 pr-2 text-[10px] font-semibold text-blue-400 hover:bg-blue-100"
+                  className="flex min-w-0 flex-1 items-center justify-end rounded-lg border border-dashed border-violet-200 bg-violet-50/70 pr-2 text-[10px] font-semibold text-violet-400 hover:bg-violet-100"
                   style={{ flexGrow: Math.max(100 - span.progress, 12) }}
                   onMouseEnter={(event) => on_hover(event, app, span, "pending")}
                   onMouseLeave={on_leave}
@@ -150,7 +146,7 @@ export function GanttAppRow({
             </div>
           ))}
         </div>
-        <div className="relative grid grid-cols-4 px-2 pb-2">
+        <div className="grid grid-cols-4 px-2 pb-2">
           {cells.map((cell) => (
             <div key={cell.trimestre} className="mt-1 flex flex-wrap items-center gap-1">
               {cell.hitos.map((hito) => {
@@ -170,16 +166,6 @@ export function GanttAppRow({
                   </button>
                 );
               })}
-              {app.id > 0 ? (
-                <button
-                  type="button"
-                  className="rounded-full p-0.5 text-gray-300 hover:bg-gray-100 hover:text-gray-600"
-                  aria-label={`Agregar hito ${QUARTER_LABELS[cell.trimestre]}`}
-                  onClick={() => on_add_hito(app, cell.trimestre)}
-                >
-                  <Plus className="h-3 w-3" />
-                </button>
-              ) : null}
             </div>
           ))}
         </div>

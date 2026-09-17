@@ -1,6 +1,6 @@
 import { PLAN_TRIMESTRES } from "../schemas";
 import { derive_app_salud, sum_app_progress } from "./app-salud";
-import { tarea_months_in_year, tarea_years } from "./task-dates";
+import { tarea_months_in_year, tarea_years, is_tarea_unplaced } from "./task-dates";
 import { average_avance, is_tarea_done, is_tarea_pending } from "./task-progress";
 import type {
   PlanApp,
@@ -259,17 +259,52 @@ export function span_tasks(
     .map((tarea) => ({ modulo: span.modulo, tarea }));
 }
 
+function unique_tareas(tareas: PlanTarea[]): PlanTarea[] {
+  const seen = new Set<number>();
+  return tareas.filter((tarea) => {
+    if (seen.has(tarea.id)) return false;
+    seen.add(tarea.id);
+    return true;
+  });
+}
+
+export function app_unplaced_tareas(app: PlanApp): PlanTarea[] {
+  return unique_tareas(
+    app.modulos.flatMap((modulo) => modulo.tareas.filter(is_tarea_unplaced)),
+  );
+}
+
+export function app_tareas_in_trimestre(
+  app: PlanApp,
+  trimestre: PlanTrimestre,
+  anio: number,
+): PlanTarea[] {
+  return unique_tareas(
+    app.modulos.flatMap((modulo) =>
+      modulo.tareas.filter((tarea) => {
+        if (tarea.trimestre) return tarea.trimestre === trimestre;
+        const months = tarea_months_in_year(tarea, modulo, anio);
+        return months.some((month) => trimestre_from_mes(month) === trimestre);
+      }),
+    ),
+  );
+}
+
 export function quarter_tasks(
   cell: GanttQuarterCell,
   segment: "done" | "pending",
 ): Array<{ modulo: PlanModulo; tarea: PlanTarea }> {
   const rows: Array<{ modulo: PlanModulo; tarea: PlanTarea }> = [];
+  const seen = new Set<number>();
   for (const modulo of cell.modulos) {
     for (const tarea of modulo.tareas) {
+      if (seen.has(tarea.id)) continue;
       if (segment === "done" && is_tarea_done(tarea)) {
+        seen.add(tarea.id);
         rows.push({ modulo, tarea });
       }
       if (segment === "pending" && is_tarea_pending(tarea)) {
+        seen.add(tarea.id);
         rows.push({ modulo, tarea });
       }
     }

@@ -1,6 +1,4 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 import { isTedMember } from "@/actions/ted";
 import { load_plan_workspace } from "@/features/planificacion/actions/list-plan";
 import { PlanificacionWorkspace } from "@/features/planificacion/components/planificacion-workspace";
@@ -16,16 +14,7 @@ export default async function TedPlanificacionPage() {
   const loaded = await load_plan_workspace();
 
   return (
-    <div className="min-h-full w-full bg-[#f4f6f8] p-6">
-      <div className="mb-4">
-        <Link
-          href="/ted"
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Volver a TED
-        </Link>
-      </div>
+    <div className="px-6 pb-6 pt-4">
       {loaded.ok ? (
         <PlanificacionWorkspace
           apps={loaded.data.apps}

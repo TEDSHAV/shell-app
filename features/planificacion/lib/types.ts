@@ -56,6 +56,11 @@ export type PlanTarea = {
   fecha_inicio: string | null;
   fecha_fin: string | null;
   orden: number;
+  trimestre: PlanTrimestre | null;
+  asignado_id: number | null;
+  asignado: PlanParticipante | null;
+  en_planificacion: boolean;
+  ticket_id: number | null;
 };
 
 export type PlanModulo = {

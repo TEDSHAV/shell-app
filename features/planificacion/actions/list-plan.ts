@@ -70,6 +70,10 @@ type TareaRow = {
   fecha_inicio: string | null;
   fecha_fin: string | null;
   orden?: number | null;
+  trimestre?: PlanTrimestre | null;
+  asignado_id?: number | null;
+  en_planificacion?: boolean | null;
+  ticket_id?: number | null;
 };
 
 async function sync_shell_apps(
@@ -172,7 +176,7 @@ export async function load_plan_workspace(): Promise<
     supabase
       .from("ted_plan_tareas" as never)
       .select(
-        "id, modulo_id, titulo, origen, avance, no_solicitada, completada, completada_at, entregable_tipo, entregable_ruta, entregable_unidad, entregable_version, entregable_comentario, fecha_inicio, fecha_fin, orden",
+        "id, modulo_id, titulo, origen, avance, no_solicitada, completada, completada_at, entregable_tipo, entregable_ruta, entregable_unidad, entregable_version, entregable_comentario, fecha_inicio, fecha_fin, orden, trimestre, asignado_id, en_planificacion, ticket_id",
       )
       .order("orden")
       .order("id"),
@@ -192,7 +196,7 @@ export async function load_plan_workspace(): Promise<
   let tareas = tareas_res;
   if (
     tareas.error &&
-    /fecha_inicio|fecha_fin|avance|no_solicitada|orden/.test(tareas.error.message ?? "")
+    /fecha_inicio|fecha_fin|avance|no_solicitada|orden|trimestre|asignado_id|en_planificacion/.test(tareas.error.message ?? "")
   ) {
     tareas = await supabase
       .from("ted_plan_tareas" as never)
@@ -247,6 +251,7 @@ export async function load_plan_workspace(): Promise<
   const tareas_by_mod = new Map<number, PlanTarea[]>();
   for (const row of (tareas.data ?? []) as TareaRow[]) {
     const list = tareas_by_mod.get(row.modulo_id) ?? [];
+    if ((row.en_planificacion as boolean | null | undefined) === false) continue;
     list.push({
       ...row,
       avance: tarea_avance(row),
@@ -254,6 +259,20 @@ export async function load_plan_workspace(): Promise<
       fecha_inicio: row.fecha_inicio ?? null,
       fecha_fin: row.fecha_fin ?? null,
       orden: row.orden ?? row.id,
+      trimestre: row.trimestre ?? null,
+      asignado_id: row.asignado_id ?? null,
+      en_planificacion: row.en_planificacion !== false,
+      ticket_id: row.ticket_id ?? null,
+      asignado: row.asignado_id
+        ? (() => {
+            const nombre = name_by_id.get(row.asignado_id) ?? "Usuario";
+            return {
+              usuario_id: row.asignado_id,
+              nombre,
+              initials: user_initials(nombre),
+            };
+          })()
+        : null,
     });
     tareas_by_mod.set(row.modulo_id, list);
   }

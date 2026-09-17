@@ -7,9 +7,18 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { PlanModal } from "./plan-modal";
 import { save_plan_tarea, delete_plan_tarea } from "../actions/tarea-actions";
-import { PLAN_ORIGENES } from "../schemas";
+import { PLAN_ORIGENES, PLAN_TRIMESTRES } from "../schemas";
 import { PRISMA_VIEW_SHORTCUTS } from "../lib/prisma-routes";
-import type { EntregableTipo, PlanApp, PlanModulo, PlanTarea } from "../lib/types";
+import { PLAN_RELEASE_UNITS } from "../lib/release-units";
+import { SearchSelect } from "./search-select";
+import type {
+  EntregableTipo,
+  PlanApp,
+  PlanModulo,
+  PlanTarea,
+  PlanTrimestre,
+  PlanUsuarioOption,
+} from "../lib/types";
 
 export function TareaFormDialog({
   open,
@@ -18,6 +27,7 @@ export function TareaFormDialog({
   preset_app_id,
   preset_modulo_id,
   tarea,
+  usuarios,
   onClose,
   onSaved,
 }: {
@@ -27,6 +37,7 @@ export function TareaFormDialog({
   preset_app_id: number | null;
   preset_modulo_id: number | null;
   tarea: PlanTarea | null;
+  usuarios: PlanUsuarioOption[];
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -50,10 +61,12 @@ export function TareaFormDialog({
     Boolean(tarea?.no_solicitada),
   );
   const [entregable_tipo, set_entregable_tipo] = useState<EntregableTipo>(
-    tarea?.entregable_tipo && tarea.entregable_tipo !== "version"
+    tarea?.entregable_tipo && tarea.entregable_tipo !== "ninguno"
       ? tarea.entregable_tipo
       : "ninguno",
   );
+  const [unidad, set_unidad] = useState(tarea?.entregable_unidad ?? "core");
+  const [version, set_version] = useState(tarea?.entregable_version ?? "");
   const [ruta, set_ruta] = useState(tarea?.entregable_ruta ?? "");
   const [comentario, set_comentario] = useState(
     tarea?.entregable_comentario ?? "",
@@ -63,6 +76,12 @@ export function TareaFormDialog({
   );
   const [fecha_fin, set_fecha_fin] = useState(
     tarea?.fecha_fin?.slice(0, 10) ?? "",
+  );
+  const [trimestre, set_trimestre] = useState<PlanTrimestre | "">(
+    tarea?.trimestre ?? "",
+  );
+  const [asignado_id, set_asignado_id] = useState(
+    tarea?.asignado_id ? String(tarea.asignado_id) : "",
   );
   const [error, set_error] = useState<string | null>(null);
   const [saving, set_saving] = useState(false);
@@ -84,8 +103,12 @@ export function TareaFormDialog({
       entregable_tipo,
       entregable_ruta: ruta,
       entregable_comentario: comentario,
+      entregable_unidad: unidad,
+      entregable_version: version,
       fecha_inicio: fecha_inicio || null,
       fecha_fin: fecha_fin || fecha_inicio || null,
+      trimestre: fecha_inicio ? null : trimestre || null,
+      asignado_id: asignado_id ? Number(asignado_id) : null,
     });
     set_saving(false);
     if (!result.ok) {
@@ -248,9 +271,44 @@ export function TareaFormDialog({
               onChange={(e) => set_fecha_fin(e.target.value)}
             />
             <p className="text-[11px] text-gray-400">
-              Opcional. Sin fecha no entra al Gantt; el orden es el de la lista.
+              Opcional. Sin fecha puedes marcar un trimestre y colocarlo en el roadmap.
             </p>
           </div>
+        </div>
+        {!fecha_inicio ? (
+          <div className="space-y-1.5">
+            <Label htmlFor="tar-tri">Trimestre</Label>
+            <select
+              id="tar-tri"
+              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+              value={trimestre}
+              onChange={(e) =>
+                set_trimestre(e.target.value as PlanTrimestre | "")
+              }
+            >
+              <option value="">Sin colocar</option>
+              {PLAN_TRIMESTRES.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
+        <div className="space-y-1.5">
+          <Label>Asignado a</Label>
+          <SearchSelect
+            value={asignado_id}
+            placeholder="Buscar persona"
+            onChange={set_asignado_id}
+            options={[
+              { value: "", label: "Sin asignar" },
+              ...usuarios.map((user) => ({
+                value: String(user.id),
+                label: user.label,
+              })),
+            ]}
+          />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="tar-ent">Entregable</Label>
@@ -265,9 +323,7 @@ export function TareaFormDialog({
             <option value="ninguno">Sin entregable</option>
             <option value="vista">Vista Prisma (ruta)</option>
             <option value="comentario">Comentario</option>
-            <option value="version" disabled>
-              Versión de módulo (próximamente)
-            </option>
+            <option value="version">Versión de release</option>
           </select>
         </div>
         {entregable_tipo === "vista" ? (
@@ -287,6 +343,34 @@ export function TareaFormDialog({
                 </option>
               ))}
             </datalist>
+          </div>
+        ) : null}
+        {entregable_tipo === "version" ? (
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="tar-uni">Unidad</Label>
+              <select
+                id="tar-uni"
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+                value={unidad}
+                onChange={(e) => set_unidad(e.target.value)}
+              >
+                {PLAN_RELEASE_UNITS.map((unit) => (
+                  <option key={unit.id} value={unit.id}>
+                    {unit.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="tar-ver">Versión</Label>
+              <Input
+                id="tar-ver"
+                placeholder="facturacion-v0.4.0"
+                value={version}
+                onChange={(e) => set_version(e.target.value)}
+              />
+            </div>
           </div>
         ) : null}
         {entregable_tipo === "comentario" ? (

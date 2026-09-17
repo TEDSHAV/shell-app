@@ -8,7 +8,6 @@ import {
   classify_excel_rows,
   EXCEL_PLAN_MAX_ROWS,
   GENERAL_FALLBACK_MODULO,
-  task_key,
   type ExcelExistingTask,
   type ExcelPlanRow,
 } from "../lib/excel-plan";
@@ -195,7 +194,7 @@ export async function commit_plan_excel(
   }
   const rows = input.rows.map((row) =>
     row.hang_on_general && general_app_id > 0
-      ? { ...row, app_ids: [general_app_id] }
+      ? { ...row, app_ids: [general_app_id], hang_on_app_module: false }
       : row,
   );
   const wanted_apps = [...new Set(rows.flatMap((row) => row.app_ids))];
@@ -238,10 +237,13 @@ export async function commit_plan_excel(
     if (!modulo_id_by_name.has(key)) modulo_id_by_name.set(key, row.id);
   }
 
-  const normal_rows = rows.filter((row) => !row.hang_on_general);
+  const named_rows = rows.filter(
+    (row) => !row.hang_on_general && !row.hang_on_app_module,
+  );
   const hang_rows = rows.filter((row) => row.hang_on_general);
+  const app_module_rows = rows.filter((row) => row.hang_on_app_module);
   const apps_by_modulo = new Map<string, number[]>();
-  for (const row of normal_rows) {
+  for (const row of named_rows) {
     const key = row.modulo.trim().toLowerCase();
     const list = apps_by_modulo.get(key) ?? [];
     for (const app_id of row.app_ids) {
@@ -251,12 +253,12 @@ export async function commit_plan_excel(
   }
 
   let created_modulos = 0;
-  const needed = [...new Set(normal_rows.map((row) => row.modulo.trim()))];
+  const needed = [...new Set(named_rows.map((row) => row.modulo.trim()))];
   for (const nombre of needed) {
     const key = nombre.toLowerCase();
     const app_ids = apps_by_modulo.get(key) ?? [];
     if (!modulo_id_by_name.has(key)) {
-      const starts = normal_rows
+      const starts = named_rows
         .filter((row) => row.modulo.trim().toLowerCase() === key)
         .map((row) => row.fecha_inicio)
         .filter((value): value is string => Boolean(value))
@@ -294,59 +296,104 @@ export async function commit_plan_excel(
     }
   }
 
-  let general_bucket_id = 0;
-  if (hang_rows.length > 0) {
-    const bucket_key = GENERAL_FALLBACK_MODULO.trim().toLowerCase();
-    const found = (
-      (existing_mods ?? []) as Array<{
-        id: number;
-        nombre: string;
-        app_id: number | null;
-      }>
-    ).find((modulo) => {
+  const bucket_key = GENERAL_FALLBACK_MODULO.trim().toLowerCase();
+  const existing_mod_list = (existing_mods ?? []) as Array<{
+    id: number;
+    nombre: string;
+    app_id: number | null;
+  }>;
+
+  async function ensure_general_modulo(app_id: number): Promise<number> {
+    const found = existing_mod_list.find((modulo) => {
       if (modulo.nombre.trim().toLowerCase() !== bucket_key) return false;
       const apps = linked_apps.get(modulo.id) ?? [];
-      return (
-        Number(modulo.app_id) === general_app_id ||
-        apps.includes(general_app_id)
-      );
+      const owner = Number(modulo.app_id);
+      if (owner === app_id) return true;
+      if (apps.includes(app_id) && owner !== general_app_id) return true;
+      return owner === general_app_id && app_id === general_app_id;
     });
     if (found) {
-      general_bucket_id = found.id;
-    } else {
-      const starts = hang_rows
-        .map((row) => row.fecha_inicio)
-        .filter((value): value is string => Boolean(value))
-        .sort();
-      const first = starts[0] ?? `${input.anio}-01-01`;
-      const { data, error } = await supabase
-        .from("ted_plan_modulos" as never)
-        .insert({
-          app_id: general_app_id,
-          nombre: GENERAL_FALLBACK_MODULO,
-          trimestre_entrega: trimestre_from_iso(first),
-          anio: Number(first.slice(0, 4)) || input.anio,
-          created_by: user_id,
-        } as never)
-        .select("id")
-        .single();
-      if (error || !data) {
-        console.error("[planificacion] import general modulo:", error);
-        return { ok: false, error: "No se pudo crear el módulo General." };
+      const { error: link_error } = await supabase
+        .from("ted_plan_modulo_apps" as never)
+        .upsert(
+          { modulo_id: found.id, app_id } as never,
+          { onConflict: "modulo_id,app_id" },
+        );
+      if (link_error) {
+        console.error("[planificacion] import general apps:", link_error);
+        return 0;
       }
-      general_bucket_id = Number((data as { id: number }).id);
-      created_modulos += 1;
+      const list = linked_apps.get(found.id) ?? [];
+      if (!list.includes(app_id)) {
+        list.push(app_id);
+        linked_apps.set(found.id, list);
+      }
+      return found.id;
     }
+    const related = [...hang_rows, ...app_module_rows].filter((row) =>
+      row.app_ids.includes(app_id),
+    );
+    const starts = related
+      .map((row) => row.fecha_inicio)
+      .filter((value): value is string => Boolean(value))
+      .sort();
+    const first = starts[0] ?? `${input.anio}-01-01`;
+    const { data, error } = await supabase
+      .from("ted_plan_modulos" as never)
+      .insert({
+        app_id,
+        nombre: GENERAL_FALLBACK_MODULO,
+        trimestre_entrega: trimestre_from_iso(first),
+        anio: Number(first.slice(0, 4)) || input.anio,
+        created_by: user_id,
+      } as never)
+      .select("id")
+      .single();
+    if (error || !data) {
+      console.error("[planificacion] import general modulo:", error);
+      return 0;
+    }
+    const modulo_id = Number((data as { id: number }).id);
+    created_modulos += 1;
+    existing_mod_list.push({
+      id: modulo_id,
+      nombre: GENERAL_FALLBACK_MODULO,
+      app_id,
+    });
+    linked_apps.set(modulo_id, [app_id]);
     const { error: link_error } = await supabase
       .from("ted_plan_modulo_apps" as never)
       .upsert(
-        { modulo_id: general_bucket_id, app_id: general_app_id } as never,
+        { modulo_id, app_id } as never,
         { onConflict: "modulo_id,app_id" },
       );
     if (link_error) {
       console.error("[planificacion] import general apps:", link_error);
-      return { ok: false, error: "No se pudo vincular General." };
+      return 0;
     }
+    return modulo_id;
+  }
+
+  let general_bucket_id = 0;
+  if (hang_rows.length > 0) {
+    general_bucket_id = await ensure_general_modulo(general_app_id);
+    if (general_bucket_id <= 0) {
+      return { ok: false, error: "No se pudo crear el módulo General." };
+    }
+  }
+
+  const general_by_app = new Map<number, number>();
+  for (const app_id of [
+    ...new Set(app_module_rows.flatMap((row) => row.app_ids)),
+  ]) {
+    const modulo_id = await ensure_general_modulo(app_id);
+    if (modulo_id <= 0) {
+      return {
+        ok: false,
+        error: "No se pudo crear el módulo General de la app.",
+      };
+    }
+    general_by_app.set(app_id, modulo_id);
   }
 
   const now = new Date().toISOString();
@@ -355,35 +402,39 @@ export async function commit_plan_excel(
   const { data: existing_tareas } = await supabase
     .from("ted_plan_tareas" as never)
     .select("id, titulo, modulo_id");
-  const nombre_by_id = new Map(
-    [...modulo_id_by_name.entries()].map(([name, id]) => [id, name]),
-  );
-  if (general_bucket_id > 0) {
-    nombre_by_id.set(general_bucket_id, GENERAL_FALLBACK_MODULO);
-  }
   const known = new Map<string, number>();
   for (const tarea of (existing_tareas ?? []) as Array<{
     id: number;
     titulo: string;
     modulo_id: number;
   }>) {
-    if (general_bucket_id > 0 && tarea.modulo_id === general_bucket_id) {
-      known.set(task_key(GENERAL_FALLBACK_MODULO, tarea.titulo), tarea.id);
+    known.set(`${tarea.modulo_id}::${tarea.titulo}`, tarea.id);
+  }
+
+  const ops: Array<{ row: (typeof rows)[number]; modulo_id: number }> = [];
+  for (const row of rows) {
+    if (row.hang_on_general) {
+      ops.push({ row, modulo_id: general_bucket_id });
       continue;
     }
-    const nombre = nombre_by_id.get(tarea.modulo_id);
-    if (!nombre) continue;
-    known.set(task_key(nombre, tarea.titulo), tarea.id);
+    if (row.hang_on_app_module) {
+      for (const app_id of row.app_ids) {
+        const modulo_id = general_by_app.get(app_id);
+        if (modulo_id) ops.push({ row, modulo_id });
+      }
+      continue;
+    }
+    const modulo_id = modulo_id_by_name.get(row.modulo.trim().toLowerCase());
+    if (modulo_id) ops.push({ row, modulo_id });
+    else failed.push(`Fila ${row.row}: módulo ${row.modulo}`);
   }
-  for (const row of rows) {
-    const modulo_id = row.hang_on_general
-      ? general_bucket_id
-      : modulo_id_by_name.get(row.modulo.trim().toLowerCase());
+
+  for (const { row, modulo_id } of ops) {
     if (!modulo_id) {
       failed.push(`Fila ${row.row}: módulo ${row.modulo}`);
       continue;
     }
-    const dup = task_key(row.modulo, row.titulo_guardado);
+    const dup = `${modulo_id}::${row.titulo_guardado}`;
     const no_solicitada = Boolean(row.no_solicitada);
     const avance = no_solicitada ? 0 : row.avance;
     const estado = {
@@ -397,6 +448,7 @@ export async function commit_plan_excel(
     if (existing_id) {
       const patch = {
         orden: row.orden,
+        en_planificacion: true,
         ...(no_solicitada
           ? {
               no_solicitada: true,
@@ -432,6 +484,7 @@ export async function commit_plan_excel(
       fecha_inicio: row.fecha_inicio ?? null,
       fecha_fin: row.fecha_fin ?? null,
       orden: row.orden,
+      en_planificacion: true,
     } as never);
     if (error) {
       console.error("[planificacion] import tarea:", error);

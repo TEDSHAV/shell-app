@@ -14,6 +14,7 @@ import {
   unmatched_app_hints,
   apps_for_excel_row,
   fold_label,
+  HANG_GENERAL_APP,
   type ExcelModuloRole,
   type ExcelPlanRow,
 } from "../lib/excel-plan";
@@ -146,16 +147,17 @@ export function ExcelImportWizard({ apps }: { apps: PlanApp[] }) {
     set_step(3);
   }
 
-  async function on_commit() {
+  async function on_commit(role_map: Record<string, ExcelModuloRole> = roles) {
     const payload: ExcelPlanRow[] = [];
     let skipped = 0;
     const mapping_failed: string[] = [];
     const general_id =
       catalog.find((item) => item.slug === "general")?.id ?? 0;
     for (const row of selected_rows) {
-      const role = roles[fold_label(row.excel_modulo)];
+      const role = role_map[fold_label(row.excel_modulo)];
       const hang_on_general =
-        role?.as === "tarea" && !(role.parent_modulo ?? "").trim();
+        role?.as === "tarea" &&
+        (role.parent_modulo ?? "").trim() === HANG_GENERAL_APP;
       const app_ids = hang_on_general
         ? general_id > 0
           ? [general_id]
@@ -169,7 +171,7 @@ export function ExcelImportWizard({ apps }: { apps: PlanApp[] }) {
       );
       const mapped = apply_excel_roles(
         [row],
-        roles,
+        role_map,
         existing,
         known_modulos,
       )[0];

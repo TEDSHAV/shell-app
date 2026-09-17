@@ -37,8 +37,8 @@ export function ExcelStepRoles({
           ¿La columna Módulo es un módulo o el título de la tarea?
         </h2>
         <p className="mt-1 text-sm text-gray-500">
-          Si marcas título y no eliges módulo, se carga como tarea de la app
-          General.
+          Si marcas título, elige dónde colgarla: el módulo General de la app
+          que ya tiene la tarea, la app General, u otro módulo.
         </p>
       </div>
       <ExcelRoleTable

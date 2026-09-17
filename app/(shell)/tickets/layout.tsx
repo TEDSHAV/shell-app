@@ -1,4 +1,4 @@
-import { TicketsAppFrame } from "@/components/shell/TicketsAppFrame";
+import { TicketsNav } from "@/features/tickets/components/tickets-nav";
 
 export default function TicketsLayout({
   children,
@@ -6,11 +6,9 @@ export default function TicketsLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="relative flex-1 min-h-0 h-full w-full">
-      <TicketsAppFrame />
-      <div className="hidden" aria-hidden="true">
-        {children}
-      </div>
+    <div className="min-h-full w-full bg-slate-50 p-6">
+      <TicketsNav />
+      {children}
     </div>
   );
 }
