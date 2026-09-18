@@ -25,7 +25,8 @@ type SolicitudTipo =
   | "reactivacion"
   | "restablecer_contrasena"
   | "cambio_email"
-  | "cambio_permisos";
+  | "cambio_permisos"
+  | "cambio_firma";
 
 type RhSolicitudRow = {
   id: number;
@@ -81,6 +82,7 @@ const TIPO_FILTERS: { key: TipoFilter; label: string }[] = [
   { key: "restablecer_contrasena", label: "Contraseña" },
   { key: "cambio_email", label: "Email" },
   { key: "cambio_permisos", label: "Permisos" },
+  { key: "cambio_firma", label: "Firma" },
 ];
 
 const ESTADO_BADGE: Record<SolicitudEstado, string> = {
@@ -104,6 +106,7 @@ const TIPO_BADGE: Record<SolicitudTipo, string> = {
   restablecer_contrasena: "bg-amber-100 text-amber-700",
   cambio_email: "bg-sky-100 text-sky-700",
   cambio_permisos: "bg-violet-100 text-violet-700",
+  cambio_firma: "bg-teal-100 text-teal-700",
 };
 
 const TIPO_LABEL: Record<SolicitudTipo, string> = {
@@ -113,6 +116,7 @@ const TIPO_LABEL: Record<SolicitudTipo, string> = {
   restablecer_contrasena: "Contraseña",
   cambio_email: "Email",
   cambio_permisos: "Permisos",
+  cambio_firma: "Firma",
 };
 
 function formatDate(iso: string): string {

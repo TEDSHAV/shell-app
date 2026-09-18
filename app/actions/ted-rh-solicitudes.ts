@@ -13,7 +13,8 @@ type SolicitudTipo =
   | "reactivacion"
   | "restablecer_contrasena"
   | "cambio_email"
-  | "cambio_permisos";
+  | "cambio_permisos"
+  | "cambio_firma";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -50,6 +51,8 @@ function buildTipoCompletionBody(
       return `El cambio de email corporativo de ${nombreApellido} ha sido completado por TED.`;
     case "cambio_permisos":
       return `El cambio de permisos para ${nombreApellido} ha sido completado por TED.`;
+    case "cambio_firma":
+      return `La solicitud de firma de correo para ${nombreApellido} ha sido procesada por TED / Marketing.`;
     default:
       return `Tu solicitud para ${nombreApellido} ha sido completada por TED.`;
   }
@@ -77,6 +80,8 @@ function buildRejectionBody(
         return `Tu solicitud de cambio de email de ${nombreApellido}`;
       case "cambio_permisos":
         return `Tu solicitud de cambio de permisos para ${nombreApellido}`;
+      case "cambio_firma":
+        return `Tu solicitud de cambio de firma de correo para ${nombreApellido}`;
       default:
         return `Tu solicitud para ${nombreApellido}`;
     }
@@ -270,6 +275,11 @@ async function executeSolicitudAction(
       return { success: true };
     }
 
+    case "cambio_firma": {
+      // Signature actions are handled with Marketing; completing the solicitud notifies requester
+      return { success: true };
+    }
+
     default:
       return { success: false, error: `Tipo de solicitud no soportado: ${solicitud.tipo}` };
   }
@@ -410,6 +420,7 @@ export async function updateRhSolicitudStatus(
                   case "restablecer_contrasena": return "Solicitud de Restablecer Contraseña Rechazada";
                   case "cambio_email": return "Solicitud de Cambio de Email Rechazada";
                   case "cambio_permisos": return "Solicitud de Cambio de Permisos Rechazada";
+                  case "cambio_firma": return "Solicitud de Firma Rechazada";
                   default: return "Solicitud Rechazada";
                 }
               })()
@@ -421,6 +432,7 @@ export async function updateRhSolicitudStatus(
                   case "restablecer_contrasena": return "Restablecimiento de Contraseña Completado";
                   case "cambio_email": return "Cambio de Email Completado";
                   case "cambio_permisos": return "Cambio de Permisos Completado";
+                  case "cambio_firma": return "Solicitud de Firma Completada";
                   default: return "Solicitud Completada";
                 }
               })();
