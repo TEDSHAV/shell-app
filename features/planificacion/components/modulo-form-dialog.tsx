@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { PlanModal } from "./plan-modal";
 import {
-  archive_plan_modulo,
+  delete_plan_modulo,
   save_plan_modulo,
 } from "../actions/modulo-actions";
 import { PLAN_TRIMESTRES } from "../schemas";
@@ -45,6 +45,27 @@ export function ModuloFormDialog({
   );
   const [error, set_error] = useState<string | null>(null);
   const [saving, set_saving] = useState(false);
+  const task_count = modulo?.tareas.length ?? 0;
+
+  async function on_delete() {
+    if (!modulo) return;
+    const extra =
+      task_count > 0
+        ? ` También se borrarán ${task_count} tarea${task_count === 1 ? "" : "s"}.`
+        : "";
+    const ok = window.confirm(`¿Borrar el módulo «${modulo.nombre}»?${extra}`);
+    if (!ok) return;
+    set_saving(true);
+    set_error(null);
+    const result = await delete_plan_modulo(modulo.id);
+    set_saving(false);
+    if (!result.ok) {
+      set_error(result.error);
+      return;
+    }
+    onSaved();
+    onClose();
+  }
 
   async function on_submit() {
     set_saving(true);
@@ -76,6 +97,17 @@ export function ModuloFormDialog({
       onClose={onClose}
       footer={
         <>
+          {modulo ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="mr-auto border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+              disabled={saving}
+              onClick={() => void on_delete()}
+            >
+              Borrar módulo
+            </Button>
+          ) : null}
           <Button type="button" variant="outline" onClick={onClose}>
             Cancelar
           </Button>
@@ -163,29 +195,6 @@ export function ModuloFormDialog({
           />
         </div>
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
-        {modulo ? (
-          <button
-            type="button"
-            className="text-xs text-red-500 hover:text-red-700"
-            onClick={() => {
-              void (async () => {
-                const ok = window.confirm(
-                  "¿Archivar este módulo? Dejará de aparecer en la lista.",
-                );
-                if (!ok) return;
-                const result = await archive_plan_modulo(modulo.id);
-                if (!result.ok) {
-                  set_error(result.error);
-                  return;
-                }
-                onSaved();
-                onClose();
-              })();
-            }}
-          >
-            Archivar módulo
-          </button>
-        ) : null}
       </div>
     </PlanModal>
   );

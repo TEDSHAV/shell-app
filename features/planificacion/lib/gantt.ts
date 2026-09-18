@@ -2,6 +2,7 @@ import { PLAN_TRIMESTRES } from "../schemas";
 import { derive_app_salud, sum_app_progress } from "./app-salud";
 import { tarea_months_in_year, tarea_years, is_tarea_unplaced } from "./task-dates";
 import { average_avance, is_tarea_done, is_tarea_pending } from "./task-progress";
+import { people_on_modulos } from "./people";
 import type {
   PlanApp,
   PlanHito,
@@ -110,15 +111,7 @@ export function tarea_mes(tarea: PlanTarea, modulo: PlanModulo): number {
 export function unique_participantes(
   modulos: PlanModulo[],
 ): PlanParticipante[] {
-  const seen = new Map<number, PlanParticipante>();
-  for (const modulo of modulos) {
-    for (const person of modulo.participantes) {
-      if (!seen.has(person.usuario_id)) {
-        seen.set(person.usuario_id, person);
-      }
-    }
-  }
-  return [...seen.values()];
+  return people_on_modulos(modulos);
 }
 
 export function earliest_trimestre(

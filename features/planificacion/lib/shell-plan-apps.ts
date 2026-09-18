@@ -88,6 +88,10 @@ export function plan_app_sort_index(
   return 1000 + (idx === -1 ? 500 : idx);
 }
 
+export function catalog_nombre_of_slug(slug: string): string | null {
+  return list_shell_plan_apps().find((app) => app.slug === slug)?.nombre ?? null;
+}
+
 export function slug_from_app_name(nombre: string): string {
   const base = nombre
     .normalize("NFD")

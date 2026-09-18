@@ -1,13 +1,15 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { AVATAR_COLORS, ORIGIN_COLORS } from "../lib/display";
+import { OrigenBadge } from "./origen-badge";
+import { PlanAssigneeStack } from "./plan-assignee-chip";
+import { people_on_tarea } from "../lib/people";
 import { kanban_column_of_tarea } from "../lib/plan-kanban";
 import type { FlatPlanTask } from "../lib/flatten-plan-tasks";
 
 const STATUS_LABEL = {
-  todo: "Por hacer",
-  progress: "En progreso",
+  todo: "Planificado",
+  progress: "En proceso",
   done: "Completado",
 } as const;
 
@@ -54,11 +56,7 @@ export function PlanTaskList({
                 {tarea.titulo}
               </p>
               <div className="mt-2 flex flex-wrap items-center gap-2">
-                <span
-                  className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${ORIGIN_COLORS[tarea.origen]}`}
-                >
-                  {tarea.origen}
-                </span>
+                <OrigenBadge origen={tarea.origen} />
                 {tarea.trimestre ? (
                   <span className="text-[11px] font-medium text-slate-400">
                     {tarea.trimestre}
@@ -70,18 +68,7 @@ export function PlanTaskList({
               <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
                 {STATUS_LABEL[column]}
               </span>
-              {tarea.asignado ? (
-                <div
-                  className={cn(
-                    "flex h-8 w-8 items-center justify-center rounded-full text-[10px] font-semibold text-white",
-                    AVATAR_COLORS[
-                      (tarea.asignado_id ?? 0) % AVATAR_COLORS.length
-                    ],
-                  )}
-                >
-                  {tarea.asignado.initials}
-                </div>
-              ) : null}
+              <PlanAssigneeStack people={people_on_tarea(tarea)} />
             </div>
           </button>
         );

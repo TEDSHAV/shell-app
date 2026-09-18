@@ -210,7 +210,7 @@ export function RoadmapGantt({
             <>
               <p>
                 Pendiente: <strong>{100 - tooltip.span.progress}%</strong> (
-                {tooltip.span.left_count} en backlog)
+                {tooltip.span.left_count} por completar)
               </p>
               <p>
                 Meses:{" "}

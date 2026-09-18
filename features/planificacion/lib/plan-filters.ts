@@ -4,10 +4,13 @@ import type {
   PlanSalud,
   PlanTrimestre,
 } from "./types";
+import { people_on_tarea } from "./people";
 import { earliest_trimestre, months_of_quarter } from "./gantt";
 import { tarea_months_in_year, tarea_years } from "./task-dates";
 
 export type PlanSortKey = "home" | "nombre" | "progreso" | "trimestre";
+
+export type PlanAsignadoFilter = "Todos" | "none" | number;
 
 export type PlanQuery = {
   salud: PlanSalud | "Todos";
@@ -16,6 +19,7 @@ export type PlanQuery = {
   origen: PlanOrigen | "Todos";
   trimestre: PlanTrimestre | "Todos";
   sort: PlanSortKey;
+  asignado: PlanAsignadoFilter;
 };
 
 function matches_search(app: PlanApp, search: string): boolean {
@@ -75,6 +79,18 @@ function matches_filters(app: PlanApp, query: PlanQuery): boolean {
       modulo.tareas.some((tarea) => tarea.origen === query.origen),
     );
     if (!has_origin) return false;
+  }
+  if ((query.asignado ?? "Todos") !== "Todos") {
+    const wanted = query.asignado;
+    const has_person = in_year.some((modulo) =>
+      modulo.tareas.some((tarea) => {
+        const people = people_on_tarea(tarea);
+        return wanted === "none"
+          ? people.length === 0
+          : people.some((person) => person.usuario_id === wanted);
+      }),
+    );
+    if (!has_person) return false;
   }
   return true;
 }

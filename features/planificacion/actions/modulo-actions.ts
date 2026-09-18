@@ -7,6 +7,7 @@ import { require_ted_plan_context } from "./assert-ted";
 
 function revalidate_plan() {
   revalidatePath("/ted/planificacion");
+  revalidatePath("/ted/planificacion/tareas");
   revalidatePath("/ted/planificacion/importar");
 }
 
@@ -140,7 +141,7 @@ export async function save_plan_modulo(
   return { ok: true, id: modulo_id };
 }
 
-export async function archive_plan_modulo(
+export async function delete_plan_modulo(
   modulo_id: number,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!Number.isInteger(modulo_id) || modulo_id <= 0) {
@@ -150,14 +151,41 @@ export async function archive_plan_modulo(
   if (!gate.ok) return gate;
   const { error } = await gate.ctx.supabase
     .from("ted_plan_modulos" as never)
-    .update({ archived_at: new Date().toISOString() } as never)
+    .delete()
     .eq("id", modulo_id);
   if (error) {
-    console.error("[planificacion] archive:", error);
-    return { ok: false, error: "No se pudo archivar el módulo." };
+    console.error("[planificacion] delete modulo:", error);
+    return { ok: false, error: "No se pudo borrar el módulo." };
   }
   revalidate_plan();
   return { ok: true };
+}
+
+async function app_ids_of_modulo(
+  supabase: Awaited<ReturnType<typeof createAdminClient>>,
+  modulo_id: number,
+): Promise<number[]> {
+  const { data: row } = await supabase
+    .from("ted_plan_modulos" as never)
+    .select("app_id")
+    .eq("id", modulo_id)
+    .maybeSingle();
+  const { data: links } = await supabase
+    .from("ted_plan_modulo_apps" as never)
+    .select("app_id")
+    .eq("modulo_id", modulo_id);
+  const ids = [
+    ...((links ?? []) as Array<{ app_id: number }>).map((item) =>
+      Number(item.app_id),
+    ),
+  ];
+  const owner = Number((row as { app_id?: number } | null)?.app_id ?? 0);
+  if (owner > 0 && !ids.includes(owner)) ids.push(owner);
+  return [...new Set(ids.filter((id) => id > 0))];
+}
+
+function is_exclusive_to_app(app_ids: number[], app_id: number): boolean {
+  return app_ids.length === 1 && app_ids[0] === app_id;
 }
 
 export async function find_or_create_modulo_by_nombre(
@@ -174,26 +202,44 @@ export async function find_or_create_modulo_by_nombre(
   const { supabase, user_id } = gate.ctx;
   const { data: existing, error: find_error } = await supabase
     .from("ted_plan_modulos" as never)
-    .select("id")
+    .select("id, app_id")
     .ilike("nombre", trimmed)
     .is("archived_at", null);
   if (find_error) {
     console.error("[planificacion] find modulo:", find_error);
     return { ok: false, error: "No se pudo buscar el módulo." };
   }
-  const candidates = ((existing ?? []) as Array<{ id: number }>).map((row) =>
-    Number(row.id),
-  );
+  const candidates = (existing ?? []) as Array<{
+    id: number;
+    app_id: number | null;
+  }>;
+  const candidate_ids = candidates.map((row) => Number(row.id));
   let modulo_id = 0;
-  if (candidates.length > 0) {
+  if (candidate_ids.length > 0) {
     const { data: links } = await supabase
       .from("ted_plan_modulo_apps" as never)
-      .select("modulo_id")
-      .eq("app_id", app_id)
-      .in("modulo_id", candidates);
-    const linked = ((links ?? []) as Array<{ modulo_id: number }>)[0];
-    modulo_id = Number(linked?.modulo_id ?? candidates[0]);
-  } else {
+      .select("modulo_id, app_id")
+      .in("modulo_id", candidate_ids);
+    const apps_by_mod = new Map<number, number[]>();
+    for (const row of (links ?? []) as Array<{
+      modulo_id: number;
+      app_id: number;
+    }>) {
+      const list = apps_by_mod.get(row.modulo_id) ?? [];
+      if (!list.includes(row.app_id)) list.push(row.app_id);
+      apps_by_mod.set(row.modulo_id, list);
+    }
+    for (const candidate of candidates) {
+      const id = Number(candidate.id);
+      const owner = Number(candidate.app_id ?? 0);
+      const apps = apps_by_mod.get(id) ?? (owner > 0 ? [owner] : []);
+      if (is_exclusive_to_app(apps, app_id)) {
+        modulo_id = id;
+        break;
+      }
+    }
+  }
+  if (modulo_id <= 0) {
     const year = new Date().getFullYear();
     const { data, error } = await supabase
       .from("ted_plan_modulos" as never)
@@ -218,4 +264,32 @@ export async function find_or_create_modulo_by_nombre(
     return { ok: false, error: "No se pudo vincular el módulo a la app." };
   }
   return { ok: true, id: modulo_id };
+}
+
+export async function resolve_modulo_for_app(
+  app_id: number | undefined,
+  modulo_id: number,
+  modulo_nombre_nuevo: string | null | undefined,
+): Promise<{ ok: true; id: number } | { ok: false; error: string }> {
+  if (!app_id || app_id <= 0) {
+    if (modulo_id > 0) return { ok: true, id: modulo_id };
+    return { ok: false, error: "Selecciona una aplicación." };
+  }
+  const gate = await require_ted_plan_context();
+  if (!gate.ok) return gate;
+  const { supabase } = gate.ctx;
+  if (modulo_id > 0) {
+    const apps = await app_ids_of_modulo(supabase, modulo_id);
+    if (apps.includes(app_id)) return { ok: true, id: modulo_id };
+    const { data } = await supabase
+      .from("ted_plan_modulos" as never)
+      .select("nombre")
+      .eq("id", modulo_id)
+      .maybeSingle();
+    const nombre =
+      (modulo_nombre_nuevo ?? "").trim() ||
+      String((data as { nombre?: string } | null)?.nombre ?? "");
+    return find_or_create_modulo_by_nombre(nombre, app_id);
+  }
+  return find_or_create_modulo_by_nombre(modulo_nombre_nuevo ?? "", app_id);
 }

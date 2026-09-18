@@ -13,13 +13,13 @@ export const PLAN_KANBAN_COLUMNS: Array<{
 }> = [
   {
     id: "todo",
-    label: "Por hacer",
+    label: "Planificado",
     headerBg: "bg-[#f4f5f7]",
     countBg: "text-slate-500",
   },
   {
     id: "progress",
-    label: "En progreso",
+    label: "En proceso",
     headerBg: "bg-[#f4f5f7]",
     countBg: "text-slate-500",
   },

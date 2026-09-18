@@ -62,6 +62,7 @@ export const tarea_schema = z.object({
   fecha_fin: optional_iso_date,
   trimestre: z.enum(PLAN_TRIMESTRES).nullable().optional(),
   asignado_id: z.number().int().positive().nullable().optional(),
+  asignado_ids: z.array(z.number().int().positive()).optional(),
   entregable_unidad: z.string().trim().max(80).optional().nullable(),
   entregable_version: z.string().trim().max(80).optional().nullable(),
 }).refine(

@@ -1,11 +1,11 @@
 "use client";
 
-import { ORIGIN_COLORS, format_objetivo_date } from "../lib/display";
 import { build_negocios_view_url } from "../lib/prisma-routes";
 import { span_label, span_tasks, type GanttSpan } from "../lib/gantt";
 import { tarea_avance } from "../lib/task-progress";
 import type { PlanApp, PlanModulo, PlanTarea } from "../lib/types";
 import { PlanModal } from "./plan-modal";
+import { OrigenBadge } from "./origen-badge";
 
 export function QuarterTasksSheet({
   open,
@@ -27,12 +27,16 @@ export function QuarterTasksSheet({
   on_edit_modulo: (app: PlanApp, modulo: PlanModulo) => void;
 }) {
   if (!open || !app || !span || !segment) return null;
-  const rows = span_tasks(span, segment);
+  const rows = [...span_tasks(span, segment)].sort((a, b) => {
+    const extra_a = a.tarea.origen === "ADICIONAL" ? 1 : 0;
+    const extra_b = b.tarea.origen === "ADICIONAL" ? 1 : 0;
+    return extra_a - extra_b;
+  });
   const months = span_label(span.start_month, span.end_month);
   const title =
     segment === "done"
       ? `${app.nombre} · Hechos ${months} ${anio}`
-      : `${app.nombre} · Pendientes ${months} ${anio}`;
+      : `${app.nombre} · En proceso ${months} ${anio}`;
 
   return (
     <PlanModal open title={title} onClose={onClose}>
@@ -76,16 +80,7 @@ export function QuarterTasksSheet({
                 </p>
               </button>
               <div className="mt-2 flex flex-wrap items-center gap-2">
-                <span
-                  className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${ORIGIN_COLORS[tarea.origen]}`}
-                >
-                  {tarea.origen}
-                </span>
-                {tarea.completada ? (
-                  <span className="text-[10px] text-gray-400">
-                    {format_objetivo_date(tarea.completada_at)}
-                  </span>
-                ) : null}
+                <OrigenBadge origen={tarea.origen} />
                 {tarea.entregable_tipo === "vista" && tarea.entregable_ruta ? (
                   <a
                     href={build_negocios_view_url(tarea.entregable_ruta)}

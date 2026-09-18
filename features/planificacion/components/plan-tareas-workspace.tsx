@@ -12,6 +12,7 @@ import type {
   PlanUsuarioOption,
 } from "../lib/types";
 import { PLAN_ORIGENES, PLAN_TRIMESTRES } from "../schemas";
+import { TedPersonPicker } from "./ted-person-picker";
 import {
   filter_flat_plan_tasks,
   flatten_plan_tasks,
@@ -33,8 +34,10 @@ export function PlanTareasWorkspace({
   const [view, set_view] = useState<"lista" | "kanban">("kanban");
   const [search, set_search] = useState("");
   const [origen, set_origen] = useState<PlanOrigen | "Todos">("Todos");
+  const [asignado, set_asignado] = useState<"Todos" | "none" | number>("Todos");
   const [trimestre, set_trimestre] = useState<PlanTrimestre | "Todos">("Todos");
   const [editing, set_editing] = useState<FlatPlanTask | null>(null);
+  const [filter_people, set_filter_people] = useState(false);
 
   const all_modulos = useMemo(() => {
     const seen = new Set<number>();
@@ -49,26 +52,28 @@ export function PlanTareasWorkspace({
     return out;
   }, [apps]);
 
+  const all_flat = useMemo(() => flatten_plan_tasks(apps), [apps]);
+
   const items = useMemo(() => {
-    return filter_flat_plan_tasks(flatten_plan_tasks(apps), {
+    return filter_flat_plan_tasks(all_flat, {
       search,
       origen,
       trimestre,
+      asignado,
     });
-  }, [apps, search, origen, trimestre]);
+  }, [all_flat, search, origen, trimestre, asignado]);
 
   const origin_counts = useMemo(() => {
-    const all = flatten_plan_tasks(apps);
     const counts = new Map<PlanOrigen | "Todos", number>();
-    counts.set("Todos", all.length);
+    counts.set("Todos", all_flat.length);
     for (const origin of PLAN_ORIGENES) {
       counts.set(
         origin,
-        all.filter((item) => item.tarea.origen === origin).length,
+        all_flat.filter((item) => item.tarea.origen === origin).length,
       );
     }
     return counts;
-  }, [apps]);
+  }, [all_flat]);
 
   function open_item(item: FlatPlanTask) {
     set_editing(item);
@@ -171,7 +176,44 @@ export function PlanTareasWorkspace({
             </option>
           ))}
         </select>
+        <button
+          type="button"
+          onClick={() => set_filter_people((value) => !value)}
+          className={cn(
+            "h-9 rounded-full px-3 text-xs font-semibold",
+            filter_people || asignado !== "Todos"
+              ? "bg-slate-900 text-white"
+              : "border border-slate-200 bg-white text-slate-600",
+          )}
+        >
+          Responsable
+        </button>
       </div>
+      {filter_people ? (
+        <div className="rounded-2xl bg-white px-3 py-3 ring-1 ring-slate-200">
+          <TedPersonPicker
+            usuarios={usuarios}
+            value={
+              asignado === "Todos" ? null : asignado === "none" ? "none" : asignado
+            }
+            on_change={(next) => {
+              if (next === null) set_asignado("Todos");
+              else set_asignado(next === "none" ? "none" : next);
+            }}
+            allow_none
+            none_label="Sin asignar"
+          />
+          {asignado !== "Todos" ? (
+            <button
+              type="button"
+              className="mt-2 text-xs font-semibold text-violet-700"
+              onClick={() => set_asignado("Todos")}
+            >
+              Ver todos
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       {view === "kanban" ? (
         <PlanKanban items={items} on_open={open_item} />

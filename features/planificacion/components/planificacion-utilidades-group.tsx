@@ -11,6 +11,7 @@ export function PlanificacionUtilidadesGroup({
   apps,
   select_mode,
   selected,
+  read_only = false,
   on_toggle_task,
   on_toggle_ids,
   on_edit_app,
@@ -22,6 +23,7 @@ export function PlanificacionUtilidadesGroup({
   apps: PlanApp[];
   select_mode?: boolean;
   selected?: Set<number>;
+  read_only?: boolean;
   on_toggle_task?: (tarea_id: number) => void;
   on_toggle_ids?: (ids: number[], on: boolean) => void;
   on_edit_app: (app: PlanApp) => void;
@@ -31,6 +33,7 @@ export function PlanificacionUtilidadesGroup({
   on_edit_tarea: (app: PlanApp, modulo: PlanModulo, tarea: PlanTarea) => void;
 }) {
   const [open, set_open] = useState(false);
+  const [mounted, set_mounted] = useState(false);
   const totals = sum_app_progress(apps.flatMap((app) => app.modulos));
   const salud = derive_app_salud(apps.flatMap((app) => app.modulos));
   const modulo_count = apps.reduce((sum, app) => sum + app.modulo_count, 0);
@@ -47,7 +50,13 @@ export function PlanificacionUtilidadesGroup({
       <button
         type="button"
         className="flex w-full items-center gap-4 px-5 py-4 text-left hover:bg-gray-50/70"
-        onClick={() => set_open((value) => !value)}
+        onClick={() => {
+          set_open((value) => {
+            const next = !value;
+            if (next) set_mounted(true);
+            return next;
+          });
+        }}
       >
         <div className="w-56 shrink-0">
           <p className="text-sm font-semibold leading-tight text-gray-900">
@@ -105,23 +114,26 @@ export function PlanificacionUtilidadesGroup({
               open ? "translate-y-0 opacity-100" : "-translate-y-2 opacity-0"
             }`}
           >
-          {apps.map((app) => (
-            <PlanificacionAppRow
-              key={app.id}
-              app={app}
-              select_mode={select_mode}
-              selected={selected}
-              on_toggle_task={on_toggle_task}
-              on_toggle_ids={on_toggle_ids}
-              on_edit_app={() => on_edit_app(app)}
-              on_add_modulo={() => on_add_modulo(app)}
-              on_edit_modulo={(modulo) => on_edit_modulo(app, modulo)}
-              on_add_tarea={(modulo) => on_add_tarea(app, modulo)}
-              on_edit_tarea={(modulo, tarea) =>
-                on_edit_tarea(app, modulo, tarea)
-              }
-            />
-          ))}
+          {mounted
+            ? apps.map((app) => (
+                <PlanificacionAppRow
+                  key={app.id}
+                  app={app}
+                  read_only={read_only}
+                  select_mode={select_mode}
+                  selected={selected}
+                  on_toggle_task={on_toggle_task}
+                  on_toggle_ids={on_toggle_ids}
+                  on_edit_app={() => on_edit_app(app)}
+                  on_add_modulo={() => on_add_modulo(app)}
+                  on_edit_modulo={(modulo) => on_edit_modulo(app, modulo)}
+                  on_add_tarea={(modulo) => on_add_tarea(app, modulo)}
+                  on_edit_tarea={(modulo, tarea) =>
+                    on_edit_tarea(app, modulo, tarea)
+                  }
+                />
+              ))
+            : null}
           </div>
         </div>
       </div>

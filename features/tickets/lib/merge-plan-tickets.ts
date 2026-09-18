@@ -1,5 +1,5 @@
-import { flatten_plan_tasks } from "@/features/planificacion/lib/flatten-plan-tasks";
-import type { PlanApp } from "@/features/planificacion/lib/types";
+import type { FlatPlanTask } from "@/features/planificacion/lib/flatten-plan-tasks";
+import { given_name, people_on_tarea } from "@/features/planificacion/lib/people";
 import type { TicketEstado, TicketRow } from "./types";
 
 function estado_from_avance(
@@ -14,7 +14,7 @@ function estado_from_avance(
 
 export function merge_ticket_inbox(
   native: TicketRow[],
-  apps: PlanApp[],
+  items: FlatPlanTask[],
 ): TicketRow[] {
   const linked_tarea = new Set(
     native.map((row) => row.tarea_id).filter((id): id is number => Boolean(id)),
@@ -22,12 +22,13 @@ export function merge_ticket_inbox(
   const linked_ticket = new Set(native.map((row) => row.id));
   const from_plan: TicketRow[] = [];
 
-  for (const item of flatten_plan_tasks(apps)) {
+  for (const item of items) {
     if (item.tarea.origen !== "TICKET") continue;
     if (linked_tarea.has(item.tarea.id)) continue;
     if (item.tarea.ticket_id && linked_ticket.has(item.tarea.ticket_id)) {
       continue;
     }
+    const people = people_on_tarea(item.tarea);
     from_plan.push({
       id: item.tarea.id,
       titulo: item.tarea.titulo,
@@ -43,8 +44,8 @@ export function merge_ticket_inbox(
       modulo_nombre: item.modulo_nombre,
       solicitado_por: null,
       solicitante: "Plan",
-      asignado_id: item.tarea.asignado_id,
-      asignado: item.tarea.asignado?.nombre ?? null,
+      asignado_id: people[0]?.usuario_id ?? item.tarea.asignado_id,
+      asignado: people.map((person) => given_name(person.nombre)).join(", ") || null,
       colaborador_ids: [],
       respuesta: null,
       respondido_at: null,

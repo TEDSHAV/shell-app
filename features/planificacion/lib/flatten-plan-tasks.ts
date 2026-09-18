@@ -1,4 +1,6 @@
 import type { PlanApp, PlanOrigen, PlanTarea, PlanTrimestre } from "./types";
+import { sort_flat_adicional_last } from "./sort-tareas";
+import { people_on_tarea } from "./people";
 
 export type FlatPlanTask = {
   tarea: PlanTarea;
@@ -27,7 +29,7 @@ export function flatten_plan_tasks(apps: PlanApp[]): FlatPlanTask[] {
       }
     }
   }
-  return [...by_id.values()];
+  return sort_flat_adicional_last([...by_id.values()]);
 }
 
 export function filter_flat_plan_tasks(
@@ -36,14 +38,25 @@ export function filter_flat_plan_tasks(
     search: string;
     origen: PlanOrigen | "Todos";
     trimestre: PlanTrimestre | "Todos";
+    asignado?: "Todos" | "none" | number;
   },
 ): FlatPlanTask[] {
   const q = query.search.trim().toLowerCase();
-  return items.filter(({ tarea, app_nombre, modulo_nombre }) => {
+  const filtered = items.filter(({ tarea, app_nombre, modulo_nombre }) => {
     if (query.origen !== "Todos" && tarea.origen !== query.origen) {
       return false;
     }
     if (query.trimestre !== "Todos" && tarea.trimestre !== query.trimestre) {
+      return false;
+    }
+    const people = people_on_tarea(tarea);
+    if (
+      query.asignado &&
+      query.asignado !== "Todos" &&
+      (query.asignado === "none"
+        ? people.length > 0
+        : !people.some((person) => person.usuario_id === query.asignado))
+    ) {
       return false;
     }
     if (!q) return true;
@@ -53,4 +66,5 @@ export function filter_flat_plan_tasks(
       modulo_nombre.toLowerCase().includes(q)
     );
   });
+  return sort_flat_adicional_last(filtered);
 }

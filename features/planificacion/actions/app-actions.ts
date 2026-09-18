@@ -30,11 +30,10 @@ export async function save_plan_app(
     if (load_error || !current) {
       return { ok: false, error: "No se encontró la aplicación." };
     }
-    const origen = (current as { origen: string }).origen;
-    const payload =
-      origen === "shell"
-        ? { subtitulo: input.subtitulo || null }
-        : { nombre: input.nombre, subtitulo: input.subtitulo || null };
+    const payload = {
+      nombre: input.nombre,
+      subtitulo: input.subtitulo || null,
+    };
     const { error } = await supabase
       .from("ted_plan_apps" as never)
       .update(payload as never)

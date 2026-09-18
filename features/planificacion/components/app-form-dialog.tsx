@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PlanModal } from "./plan-modal";
 import { archive_plan_app, save_plan_app } from "../actions/app-actions";
+import { catalog_nombre_of_slug } from "../lib/shell-plan-apps";
 import type { PlanApp } from "../lib/types";
 
 export function AppFormDialog({
@@ -23,7 +24,7 @@ export function AppFormDialog({
   const [subtitulo, set_subtitulo] = useState(app?.subtitulo ?? "");
   const [error, set_error] = useState<string | null>(null);
   const [saving, set_saving] = useState(false);
-  const shell_locked = app?.origen === "shell";
+  const catalog_nombre = app ? catalog_nombre_of_slug(app.slug) : null;
 
   async function on_submit() {
     set_saving(true);
@@ -65,18 +66,22 @@ export function AppFormDialog({
     >
       <div className="space-y-3">
         <div className="space-y-1.5">
-          <Label htmlFor="app-nombre">APP</Label>
+          <Label htmlFor="app-nombre">Nombre en Prisma</Label>
+          {catalog_nombre ? (
+            <p className="text-xs text-slate-500">
+              En el catálogo del Shell se llama{" "}
+              <span className="font-semibold text-slate-700">
+                {catalog_nombre}
+              </span>
+              . Puedes cambiar cómo se ve aquí; el identificador de la app no
+              cambia.
+            </p>
+          ) : null}
           <Input
             id="app-nombre"
             value={nombre}
-            disabled={shell_locked}
             onChange={(e) => set_nombre(e.target.value)}
           />
-          {shell_locked ? (
-            <p className="text-xs text-gray-400">
-              El nombre viene del catálogo del Shell.
-            </p>
-          ) : null}
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="app-sub">Descripción</Label>

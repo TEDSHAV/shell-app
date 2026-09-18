@@ -27,6 +27,14 @@ export function is_tarea_pending(tarea: ProgressTarea): boolean {
   return !is_tarea_no_solicitada(tarea) && !is_tarea_done(tarea);
 }
 
+export function is_tarea_planned(tarea: ProgressTarea): boolean {
+  return is_tarea_pending(tarea) && tarea_avance(tarea) === 0;
+}
+
+export function is_tarea_in_progress(tarea: ProgressTarea): boolean {
+  return is_tarea_pending(tarea) && tarea_avance(tarea) > 0;
+}
+
 export function countable_tareas<T extends ProgressTarea>(tareas: T[]): T[] {
   return tareas.filter((tarea) => !is_tarea_no_solicitada(tarea));
 }

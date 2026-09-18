@@ -2,9 +2,11 @@
 
 import { useRef } from "react";
 import { cn } from "@/lib/utils";
-import { AVATAR_COLORS } from "../lib/display";
 import { PLAN_TAREA_DRAG_MIME } from "../lib/plan-kanban";
 import type { FlatPlanTask } from "../lib/flatten-plan-tasks";
+import { OrigenBadge } from "./origen-badge";
+import { PlanAssigneeStack } from "./plan-assignee-chip";
+import { people_on_tarea } from "../lib/people";
 
 export function PlanKanbanCard({
   item,
@@ -21,7 +23,6 @@ export function PlanKanbanCard({
 }) {
   const { tarea, app_nombre, modulo_nombre } = item;
   const moved = useRef(false);
-  const initials = tarea.asignado?.initials ?? "";
 
   return (
     <article
@@ -72,25 +73,9 @@ export function PlanKanbanCard({
               {tarea.trimestre}
             </span>
           ) : null}
-          <span className="truncate text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-            {tarea.origen}
-          </span>
+          <OrigenBadge origen={tarea.origen} />
         </div>
-        {initials ? (
-          <div
-            className={cn(
-              "flex h-7 w-7 items-center justify-center rounded-full border-2 border-white text-[10px] font-semibold text-white",
-              AVATAR_COLORS[
-                tarea.asignado_id ? tarea.asignado_id % AVATAR_COLORS.length : 0
-              ],
-            )}
-            title={tarea.asignado?.nombre}
-          >
-            {initials}
-          </div>
-        ) : (
-          <span className="h-7 w-7 rounded-full border border-dashed border-slate-200" />
-        )}
+        <PlanAssigneeStack people={people_on_tarea(tarea)} />
       </div>
     </article>
   );

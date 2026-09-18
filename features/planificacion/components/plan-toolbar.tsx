@@ -4,6 +4,8 @@ import { useRef } from "react";
 import { PLAN_ORIGENES, PLAN_TRIMESTRES } from "../schemas";
 import type { PlanOrigen, PlanSalud, PlanTrimestre } from "../lib/types";
 import type { PlanQuery, PlanSortKey } from "../lib/plan-filters";
+import type { PlanUsuarioOption } from "../lib/types";
+import { TedPersonPicker } from "./ted-person-picker";
 import { STATUS_COLORS } from "../lib/display";
 import { Search, SlidersHorizontal } from "lucide-react";
 import { useState } from "react";
@@ -27,11 +29,13 @@ export function PlanToolbar({
   query,
   years,
   counts,
+  usuarios,
   on_change,
 }: {
   query: PlanQuery;
   years: number[];
   counts: Record<string, number>;
+  usuarios: PlanUsuarioOption[];
   on_change: (next: Partial<PlanQuery>) => void;
 }) {
   const [more, set_more] = useState(false);
@@ -86,7 +90,7 @@ export function PlanToolbar({
           }`}
         >
           <SlidersHorizontal className="h-3.5 w-3.5" />
-          Más
+          Filtros
         </button>
       </div>
       {more ? (
@@ -145,7 +149,45 @@ export function PlanToolbar({
               </option>
             ))}
           </select>
+          <div className="w-full">
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+              Responsable TED
+            </p>
+            <TedPersonPicker
+              usuarios={usuarios}
+              value={
+                query.asignado === "Todos"
+                  ? null
+                  : query.asignado === "none"
+                    ? "none"
+                    : query.asignado
+              }
+              on_change={(next) => {
+                if (next === null) on_change({ asignado: "Todos" });
+                else on_change({ asignado: next === "none" ? "none" : next });
+              }}
+              allow_none
+              none_label="Sin asignar"
+            />
+            {query.asignado !== "Todos" ? (
+              <button
+                type="button"
+                className="mt-2 text-xs font-semibold text-violet-700 hover:text-violet-900"
+                onClick={() => on_change({ asignado: "Todos" })}
+              >
+                Ver todos
+              </button>
+            ) : null}
+          </div>
         </div>
+      ) : query.asignado !== "Todos" ? (
+        <button
+          type="button"
+          className="text-xs font-semibold text-violet-700"
+          onClick={() => set_more(true)}
+        >
+          Filtro de responsable activo — ver
+        </button>
       ) : null}
     </div>
   );

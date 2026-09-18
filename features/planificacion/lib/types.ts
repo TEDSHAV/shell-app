@@ -59,6 +59,7 @@ export type PlanTarea = {
   trimestre: PlanTrimestre | null;
   asignado_id: number | null;
   asignado: PlanParticipante | null;
+  asignados: PlanParticipante[];
   en_planificacion: boolean;
   ticket_id: number | null;
 };

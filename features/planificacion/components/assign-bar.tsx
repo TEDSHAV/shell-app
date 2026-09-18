@@ -4,7 +4,7 @@ import { useState } from "react";
 import { UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PlanModal } from "./plan-modal";
-import { SearchSelect } from "./search-select";
+import { TedPersonPicker } from "./ted-person-picker";
 import { assign_plan_tareas } from "../actions/tarea-actions";
 import type { PlanUsuarioOption } from "../lib/types";
 
@@ -22,17 +22,26 @@ export function AssignBar({
   on_done: () => void;
 }) {
   const [open, set_open] = useState(false);
-  const [person, set_person] = useState("");
+  const [people, set_people] = useState<number[]>([]);
+  const [clear, set_clear] = useState(false);
   const [error, set_error] = useState<string | null>(null);
   const [saving, set_saving] = useState(false);
   const count = selected_ids.length;
 
   async function on_assign() {
+    if (count === 0) {
+      set_error("Selecciona al menos una tarea.");
+      return;
+    }
+    if (!clear && people.length === 0) {
+      set_error("Elige al menos una persona de TED, o quita la asignación.");
+      return;
+    }
     set_saving(true);
     set_error(null);
     const result = await assign_plan_tareas(
       selected_ids,
-      person ? Number(person) : null,
+      clear ? [] : people,
     );
     set_saving(false);
     if (!result.ok) {
@@ -40,6 +49,8 @@ export function AssignBar({
       return;
     }
     set_open(false);
+    set_people([]);
+    set_clear(false);
     on_done();
   }
 
@@ -60,8 +71,11 @@ export function AssignBar({
           </Button>
           <Button
             type="button"
-            className="bg-slate-900 text-white hover:bg-slate-800"
-            onClick={() => set_open(true)}
+            className="bg-violet-600 text-white hover:bg-violet-500"
+            onClick={() => {
+              set_error(null);
+              set_open(true);
+            }}
             disabled={count === 0}
           >
             <UserPlus className="mr-1.5 h-4 w-4" />
@@ -72,7 +86,8 @@ export function AssignBar({
       {open ? (
         <PlanModal
           open
-          title="Asignar tareas"
+          title="Asignar tareas TED"
+          wide
           onClose={() => set_open(false)}
           footer={
             <>
@@ -85,8 +100,8 @@ export function AssignBar({
               </Button>
               <Button
                 type="button"
-                className="bg-slate-900 text-white hover:bg-slate-800"
-                disabled={saving}
+                className="bg-violet-600 text-white hover:bg-violet-500"
+                disabled={saving || (!clear && people.length === 0)}
                 onClick={() => void on_assign()}
               >
                 {saving ? "Asignando…" : `Asignar (${count})`}
@@ -94,18 +109,21 @@ export function AssignBar({
             </>
           }
         >
-          <div className="space-y-2">
+          <div className="space-y-3">
             <p className="text-sm text-slate-500">
-              Elige a la persona. Vacío quita la asignación.
+              Puedes marcar varias personas. Todas quedan asignadas a las tareas
+              seleccionadas.
             </p>
-            <SearchSelect
-              value={person}
-              placeholder="Buscar persona"
-              onChange={set_person}
-              options={usuarios.map((user) => ({
-                value: String(user.id),
-                label: user.label,
-              }))}
+            <TedPersonPicker
+              usuarios={usuarios}
+              multiple
+              values={clear ? [] : people}
+              on_change_many={(next) => {
+                set_clear(next.length === 0);
+                set_people(next);
+              }}
+              allow_none
+              none_label="Quitar asignación"
             />
             {error ? <p className="text-sm text-red-600">{error}</p> : null}
           </div>

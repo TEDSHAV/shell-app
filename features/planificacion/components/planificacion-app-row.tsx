@@ -15,37 +15,14 @@ import {
   tarea_ids_in_app,
 } from "../lib/plan-selection";
 import { cn } from "@/lib/utils";
-
-function AvatarChip({
-  initials,
-  idx,
-}: {
-  initials: string;
-  idx: number;
-}) {
-  const tones = [
-    "bg-slate-500",
-    "bg-slate-600",
-    "bg-slate-700",
-    "bg-sky-700",
-    "bg-teal-700",
-  ];
-  return (
-    <div
-      className={cn(
-        "-ml-1.5 flex h-7 w-7 first:ml-0 items-center justify-center rounded-full border-2 border-white text-[10px] font-semibold text-white",
-        tones[idx % tones.length],
-      )}
-    >
-      {initials}
-    </div>
-  );
-}
+import { PlanPeopleBadges } from "./plan-assignee-chip";
+import { people_on_modulos } from "../lib/people";
 
 export function PlanificacionAppRow({
   app,
   select_mode,
   selected,
+  read_only = false,
   on_toggle_task,
   on_toggle_ids,
   on_edit_app,
@@ -57,6 +34,7 @@ export function PlanificacionAppRow({
   app: PlanApp;
   select_mode?: boolean;
   selected?: Set<number>;
+  read_only?: boolean;
   on_toggle_task?: (tarea_id: number) => void;
   on_toggle_ids?: (ids: number[], on: boolean) => void;
   on_edit_app: () => void;
@@ -66,6 +44,7 @@ export function PlanificacionAppRow({
   on_edit_tarea: (modulo: PlanModulo, tarea: PlanTarea) => void;
 }) {
   const [open, set_open] = useState(false);
+  const [mounted, set_mounted] = useState(false);
   const sc = STATUS_COLORS[app.salud];
   const expanded = expanded_card_tone(app.id);
   const ids = useMemo(() => tarea_ids_in_app(app), [app]);
@@ -78,16 +57,7 @@ export function PlanificacionAppRow({
     if (box.current) box.current.indeterminate = state === "some";
   }, [state]);
 
-  const people = useMemo(() => {
-    const seen = new Set<number>();
-    return app.modulos.flatMap((modulo) =>
-      modulo.participantes.filter((person) => {
-        if (seen.has(person.usuario_id)) return false;
-        seen.add(person.usuario_id);
-        return true;
-      }),
-    );
-  }, [app]);
+  const people = useMemo(() => people_on_modulos(app.modulos), [app]);
 
   const due = app.modulos
     .map((modulo) => modulo.fecha_objetivo)
@@ -104,7 +74,7 @@ export function PlanificacionAppRow({
           : "border-slate-200/90 bg-white hover:shadow-md",
       )}
     >
-      <div className="flex w-full items-center gap-3 px-5 py-4 text-left">
+      <div className="flex w-full items-start gap-3 px-5 py-4 text-left">
         {select_mode ? (
           <input
             ref={box}
@@ -118,11 +88,17 @@ export function PlanificacionAppRow({
         ) : null}
         <button
           type="button"
-          className="flex min-w-0 flex-1 items-center gap-4"
-          onClick={() => set_open((v) => !v)}
+          className="flex min-w-0 flex-1 items-start gap-4"
+          onClick={() => {
+            set_open((v) => {
+              const next = !v;
+              if (next) set_mounted(true);
+              return next;
+            });
+          }}
         >
-          <div className="min-w-0 w-44 shrink-0">
-            <p className="truncate text-[15px] font-semibold leading-tight text-slate-900">
+          <div className="w-44 shrink-0 sm:w-52">
+            <p className="whitespace-normal break-words text-[15px] font-semibold leading-snug text-slate-900">
               {app.nombre}
             </p>
           </div>
@@ -157,19 +133,8 @@ export function PlanificacionAppRow({
               <p className="text-slate-400">Left</p>
             </div>
           </div>
-          <div className="hidden shrink-0 pl-1 md:flex">
-            {people.slice(0, 3).map((person, index) => (
-              <AvatarChip
-                key={person.usuario_id}
-                initials={person.initials}
-                idx={index}
-              />
-            ))}
-            {people.length > 3 ? (
-              <div className="-ml-1.5 flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-slate-200 text-[10px] font-semibold text-slate-600">
-                +{people.length - 3}
-              </div>
-            ) : null}
+          <div className="hidden max-w-[16rem] shrink-0 justify-end md:flex">
+            <PlanPeopleBadges people={people} />
           </div>
           <span className="hidden w-14 shrink-0 text-right text-xs text-slate-400 lg:block">
             {format_objetivo_date(due)}
@@ -182,6 +147,7 @@ export function PlanificacionAppRow({
             )}
           />
         </button>
+        {read_only ? null : (
         <button
           type="button"
           className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-50 hover:text-slate-700"
@@ -190,6 +156,7 @@ export function PlanificacionAppRow({
         >
           <Pencil className="h-3.5 w-3.5" />
         </button>
+        )}
       </div>
 
       <div
@@ -206,33 +173,40 @@ export function PlanificacionAppRow({
               open ? "translate-y-0 opacity-100" : "-translate-y-2 opacity-0",
             )}
           >
-            {app.modulos.length === 0 ? (
-              <p className="px-1 text-sm text-slate-400">
-                Esta app aún no tiene módulos.
-              </p>
-            ) : (
-              app.modulos.map((modulo) => (
-                <PlanificacionModuleRow
-                  key={modulo.id}
-                  modulo={modulo}
-                  select_mode={select_mode}
-                  selected={selected}
-                  on_toggle_task={on_toggle_task}
-                  on_toggle_ids={on_toggle_ids}
-                  on_edit_modulo={() => on_edit_modulo(modulo)}
-                  on_add_tarea={() => on_add_tarea(modulo)}
-                  on_edit_tarea={(tarea) => on_edit_tarea(modulo, tarea)}
-                />
-              ))
-            )}
-            <button
-              type="button"
-              onClick={on_add_modulo}
-              className="flex items-center gap-2 px-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800"
-            >
-              <span className="text-lg leading-none">+</span>
-              Agregar módulo
-            </button>
+            {mounted ? (
+              <>
+                {app.modulos.length === 0 ? (
+                  <p className="px-1 text-sm text-slate-400">
+                    Esta app aún no tiene módulos.
+                  </p>
+                ) : (
+                  app.modulos.map((modulo) => (
+                    <PlanificacionModuleRow
+                      key={modulo.id}
+                      modulo={modulo}
+                      read_only={read_only}
+                      select_mode={select_mode}
+                      selected={selected}
+                      on_toggle_task={on_toggle_task}
+                      on_toggle_ids={on_toggle_ids}
+                      on_edit_modulo={() => on_edit_modulo(modulo)}
+                      on_add_tarea={() => on_add_tarea(modulo)}
+                      on_edit_tarea={(tarea) => on_edit_tarea(modulo, tarea)}
+                    />
+                  ))
+                )}
+                {read_only ? null : (
+                <button
+                  type="button"
+                  onClick={on_add_modulo}
+                  className="flex items-center gap-2 px-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800"
+                >
+                  <span className="text-lg leading-none">+</span>
+                  Agregar módulo
+                </button>
+                )}
+              </>
+            ) : null}
           </div>
         </div>
       </div>

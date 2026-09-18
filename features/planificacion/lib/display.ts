@@ -125,12 +125,12 @@ export const EXPAND_MOTION = {
 };
 
 export const ORIGIN_COLORS: Record<PlanOrigen, string> = {
-  PLAN: "bg-blue-50 text-blue-600 border-blue-200",
-  TICKET: "bg-purple-50 text-purple-600 border-purple-200",
-  GERENCIA: "bg-amber-50 text-amber-600 border-amber-200",
-  USUARIO: "bg-teal-50 text-teal-600 border-teal-200",
-  REQUERIMIENTO: "bg-rose-50 text-rose-600 border-rose-200",
-  ADICIONAL: "bg-slate-50 text-slate-600 border-slate-200",
+  PLAN: "bg-blue-600 text-white border-blue-700 shadow-sm",
+  TICKET: "bg-violet-600 text-white border-violet-700 shadow-sm",
+  GERENCIA: "bg-amber-500 text-white border-amber-600 shadow-sm",
+  USUARIO: "bg-teal-600 text-white border-teal-700 shadow-sm",
+  REQUERIMIENTO: "bg-emerald-600 text-white border-emerald-700 shadow-sm",
+  ADICIONAL: "bg-red-600 text-white border-red-700 shadow-sm",
 };
 
 export const AVATAR_COLORS = [

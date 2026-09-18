@@ -5,7 +5,8 @@ import { PLAN_TRIMESTRES, tarea_schema, type TareaInput } from "../schemas";
 import type { PlanTrimestre } from "../lib/types";
 import { normalize_prisma_path } from "../lib/prisma-routes";
 import { require_ted_plan_context } from "./assert-ted";
-import { find_or_create_modulo_by_nombre } from "./modulo-actions";
+import { TED_DEPARTMENT_ID } from "../lib/ted-department";
+import { resolve_modulo_for_app } from "./modulo-actions";
 import { iso_date } from "../lib/task-dates";
 import { createAdminClient } from "@/lib/supabase/server";
 
@@ -40,18 +41,13 @@ export async function save_plan_tarea(
   const { supabase, user_id } = gate.ctx;
   const input = parsed.data;
 
-  let modulo_id = input.modulo_id ?? 0;
-  if (modulo_id <= 0) {
-    if (!input.app_id) {
-      return { ok: false, error: "Selecciona una aplicación." };
-    }
-    const created = await find_or_create_modulo_by_nombre(
-      input.modulo_nombre_nuevo ?? "",
-      input.app_id,
-    );
-    if (!created.ok) return created;
-    modulo_id = created.id;
-  }
+  const resolved = await resolve_modulo_for_app(
+    input.app_id,
+    input.modulo_id ?? 0,
+    input.modulo_nombre_nuevo,
+  );
+  if (!resolved.ok) return resolved;
+  const modulo_id = resolved.id;
 
   const tipo = input.entregable_tipo;
   const ruta =
@@ -96,7 +92,10 @@ export async function save_plan_tarea(
     fecha_inicio,
     fecha_fin,
     trimestre: fecha_inicio ? null : (input.trimestre ?? null),
-    asignado_id: input.asignado_id ?? null,
+    asignado_id:
+      (input.asignado_ids && input.asignado_ids[0]) ??
+      input.asignado_id ??
+      null,
     en_planificacion: true,
     entregable_unidad: tipo === "version" ? (input.entregable_unidad ?? null) : null,
     entregable_version: tipo === "version" ? (input.entregable_version ?? null) : null,
@@ -111,6 +110,13 @@ export async function save_plan_tarea(
       console.error("[planificacion] update tarea:", error);
       return { ok: false, error: "No se pudo actualizar la tarea." };
     }
+    const assigned = await replace_tarea_asignados(
+      supabase,
+      input.id,
+      input.asignado_ids ??
+        (input.asignado_id ? [input.asignado_id] : []),
+    );
+    if (!assigned.ok) return assigned;
     revalidate_plan();
     return { ok: true, id: input.id };
   }
@@ -129,7 +135,14 @@ export async function save_plan_tarea(
     return { ok: false, error: "No se pudo crear la tarea." };
   }
   revalidate_plan();
-  return { ok: true, id: Number((data as { id: number }).id) };
+  const new_id = Number((data as { id: number }).id);
+  const assigned = await replace_tarea_asignados(
+    supabase,
+    new_id,
+    input.asignado_ids ?? (input.asignado_id ? [input.asignado_id] : []),
+  );
+  if (!assigned.ok) return assigned;
+  return { ok: true, id: new_id };
 }
 
 export async function delete_plan_tarea(
@@ -240,9 +253,38 @@ export async function place_plan_tarea_trimestre(
   return { ok: true };
 }
 
+async function replace_tarea_asignados(
+  supabase: Awaited<ReturnType<typeof createAdminClient>>,
+  tarea_id: number,
+  usuario_ids: number[],
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ids = [...new Set(usuario_ids)].filter(
+    (id) => Number.isInteger(id) && id > 0,
+  );
+  const { error: del_error } = await supabase
+    .from("ted_plan_tarea_asignados" as never)
+    .delete()
+    .eq("tarea_id", tarea_id);
+  if (del_error) {
+    console.error("[planificacion] clear asignados:", del_error);
+    return { ok: false, error: "No se pudieron actualizar los asignados." };
+  }
+  if (ids.length === 0) return { ok: true };
+  const { error: ins_error } = await supabase
+    .from("ted_plan_tarea_asignados" as never)
+    .insert(
+      ids.map((usuario_id) => ({ tarea_id, usuario_id })) as never,
+    );
+  if (ins_error) {
+    console.error("[planificacion] insert asignados:", ins_error);
+    return { ok: false, error: "No se pudieron guardar los asignados." };
+  }
+  return { ok: true };
+}
+
 export async function assign_plan_tareas(
   tarea_ids: number[],
-  asignado_id: number | null,
+  asignado_ids: number[],
 ): Promise<{ ok: true; count: number } | { ok: false; error: string }> {
   const ids = [...new Set(tarea_ids)].filter(
     (id) => Number.isInteger(id) && id > 0,
@@ -253,22 +295,46 @@ export async function assign_plan_tareas(
   if (ids.length > 200) {
     return { ok: false, error: "Demasiadas tareas de una vez." };
   }
-  if (
-    asignado_id !== null &&
-    (!Number.isInteger(asignado_id) || asignado_id <= 0)
-  ) {
-    return { ok: false, error: "Persona inválida." };
-  }
+  const people = [...new Set(asignado_ids)].filter(
+    (id) => Number.isInteger(id) && id > 0,
+  );
   const gate = await require_ted_plan_context();
   if (!gate.ok) return gate;
-  const { error } = await gate.ctx.supabase
+  if (people.length > 0) {
+    const { data: rows, error: person_error } = await gate.ctx.supabase
+      .from("usuarios")
+      .select("id, departamento")
+      .in("id", people);
+    if (person_error || !rows || rows.length !== people.length) {
+      return { ok: false, error: "No se encontró a alguna persona." };
+    }
+    const invalid = (
+      rows as Array<{ id: number; departamento: number | null }>
+    ).some((row) => Number(row.departamento) !== TED_DEPARTMENT_ID);
+    if (invalid) {
+      return { ok: false, error: "Solo se puede asignar a miembros TED." };
+    }
+  }
+  const { data, error } = await gate.ctx.supabase
     .from("ted_plan_tareas" as never)
-    .update({ asignado_id } as never)
-    .in("id", ids);
+    .update({ asignado_id: people[0] ?? null } as never)
+    .in("id", ids)
+    .select("id");
   if (error) {
     console.error("[planificacion] assign tareas:", error);
     return { ok: false, error: "No se pudieron asignar las tareas." };
   }
+  if ((data ?? []).length === 0) {
+    return { ok: false, error: "Ninguna tarea se actualizó. Revisa la selección." };
+  }
+  for (const row of data as Array<{ id: number }>) {
+    const assigned = await replace_tarea_asignados(
+      gate.ctx.supabase,
+      row.id,
+      people,
+    );
+    if (!assigned.ok) return assigned;
+  }
   revalidate_plan();
-  return { ok: true, count: ids.length };
+  return { ok: true, count: (data ?? []).length };
 }

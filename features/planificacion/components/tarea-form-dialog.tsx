@@ -11,6 +11,7 @@ import { PLAN_ORIGENES, PLAN_TRIMESTRES } from "../schemas";
 import { PRISMA_VIEW_SHORTCUTS } from "../lib/prisma-routes";
 import { PLAN_RELEASE_UNITS } from "../lib/release-units";
 import { SearchSelect } from "./search-select";
+import { TedPersonPicker } from "./ted-person-picker";
 import type {
   EntregableTipo,
   PlanApp,
@@ -80,8 +81,9 @@ export function TareaFormDialog({
   const [trimestre, set_trimestre] = useState<PlanTrimestre | "">(
     tarea?.trimestre ?? "",
   );
-  const [asignado_id, set_asignado_id] = useState(
-    tarea?.asignado_id ? String(tarea.asignado_id) : "",
+  const [asignado_ids, set_asignado_ids] = useState<number[]>(
+    tarea?.asignados?.map((person) => person.usuario_id) ??
+      (tarea?.asignado_id ? [tarea.asignado_id] : []),
   );
   const [error, set_error] = useState<string | null>(null);
   const [saving, set_saving] = useState(false);
@@ -108,7 +110,7 @@ export function TareaFormDialog({
       fecha_inicio: fecha_inicio || null,
       fecha_fin: fecha_fin || fecha_inicio || null,
       trimestre: fecha_inicio ? null : trimestre || null,
-      asignado_id: asignado_id ? Number(asignado_id) : null,
+      asignado_ids,
     });
     set_saving(false);
     if (!result.ok) {
@@ -169,14 +171,18 @@ export function TareaFormDialog({
           >
             <option value="">Crear módulo nuevo…</option>
             {all_modulos
-              .filter((m) =>
-                (m.app_ids?.length ? m.app_ids : [m.app_id]).includes(
-                  Number(app_id),
-                ),
+              .filter((m) => {
+                const ids = m.app_ids?.length ? m.app_ids : [m.app_id];
+                return ids.includes(Number(app_id));
+              })
+              .filter(
+                (m, index, list) =>
+                  list.findIndex((item) => item.id === m.id) === index,
               )
               .map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.nombre}
+                  {m.app_ids.length > 1 ? " (varias apps)" : ""}
                 </option>
               ))}
           </select>
@@ -296,18 +302,14 @@ export function TareaFormDialog({
           </div>
         ) : null}
         <div className="space-y-1.5">
-          <Label>Asignado a</Label>
-          <SearchSelect
-            value={asignado_id}
-            placeholder="Buscar persona"
-            onChange={set_asignado_id}
-            options={[
-              { value: "", label: "Sin asignar" },
-              ...usuarios.map((user) => ({
-                value: String(user.id),
-                label: user.label,
-              })),
-            ]}
+          <Label>Asignados TED</Label>
+          <TedPersonPicker
+            usuarios={usuarios}
+            multiple
+            values={asignado_ids}
+            on_change_many={set_asignado_ids}
+            allow_none
+            none_label="Sin asignar"
           />
         </div>
         <div className="space-y-1.5">

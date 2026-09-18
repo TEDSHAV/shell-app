@@ -29,6 +29,7 @@ type RawTicket = {
 async function hydrate(
   supabase: Awaited<ReturnType<typeof import("@/lib/supabase/server").createAdminClient>>,
   rows: RawTicket[],
+  options?: { include_events?: boolean },
 ): Promise<TicketRow[]> {
   if (rows.length === 0) return [];
   const ids = rows.map((row) => row.id);
@@ -54,11 +55,13 @@ async function hydrate(
       .from("ted_plan_ticket_colaboradores" as never)
       .select("ticket_id, usuario_id")
       .in("ticket_id", ids),
-    supabase
-      .from("ted_plan_ticket_eventos" as never)
-      .select("id, ticket_id, estado, nota, created_by, created_at")
-      .in("ticket_id", ids)
-      .order("created_at", { ascending: true }),
+    options?.include_events === false
+      ? Promise.resolve({ data: [] })
+      : supabase
+          .from("ted_plan_ticket_eventos" as never)
+          .select("id, ticket_id, estado, nota, created_by, created_at")
+          .in("ticket_id", ids)
+          .order("created_at", { ascending: true }),
   ]);
 
   const name_by = new Map(
@@ -175,6 +178,8 @@ export async function list_ted_tickets(): Promise<
   if (error) {
     return { ok: false, error: "No se pudieron cargar los tickets." };
   }
-  const tickets = await hydrate(gate.ctx.supabase, (data ?? []) as RawTicket[]);
+  const tickets = await hydrate(gate.ctx.supabase, (data ?? []) as RawTicket[], {
+    include_events: false,
+  });
   return { ok: true, tickets };
 }

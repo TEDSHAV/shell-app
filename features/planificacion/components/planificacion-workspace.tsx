@@ -1,9 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { LayoutList, CalendarRange, UserPlus, Pencil } from "lucide-react";
+import { LayoutList, CalendarRange, Pencil, FileDown } from "lucide-react";
 import type {
   PlanApp,
   PlanHito,
@@ -14,8 +13,7 @@ import type {
 } from "../lib/types";
 import { current_ve_year, list_years, type GanttSpan } from "../lib/gantt";
 import { filter_plan_apps, type PlanQuery } from "../lib/plan-filters";
-import { PlanificacionAppRow } from "./planificacion-app-row";
-import { PlanificacionUtilidadesGroup } from "./planificacion-utilidades-group";
+import { PlanWorkspaceAppList } from "./plan-workspace-app-list";
 import { AppFormDialog } from "./app-form-dialog";
 import { ModuloFormDialog } from "./modulo-form-dialog";
 import { TareaFormDialog } from "./tarea-form-dialog";
@@ -24,15 +22,25 @@ import { RoadmapGantt } from "./roadmap-gantt";
 import { QuarterTasksSheet } from "./quarter-tasks-sheet";
 import { HitoFormDialog } from "./hito-form-dialog";
 import { AssignBar } from "./assign-bar";
+import { PlanActionsMenu } from "./plan-actions-menu";
+import { PlanShareModal } from "./plan-share-modal";
+import { PrismaKpiStrip } from "./prisma-kpi-strip";
+import { flatten_plan_tasks } from "../lib/flatten-plan-tasks";
+import { download_plan_overview_pdf } from "../lib/download-plan-pdf";
+import { prisma_kpis_from_tareas } from "../lib/prisma-kpis";
 import { place_plan_tarea_trimestre } from "../actions/tarea-actions";
 import { tarea_ids_in_app } from "../lib/plan-selection";
 
 export function PlanificacionWorkspace({
   apps,
   usuarios,
+  read_only = false,
+  snapshot_at = null,
 }: {
   apps: PlanApp[];
   usuarios: PlanUsuarioOption[];
+  read_only?: boolean;
+  snapshot_at?: string | null;
 }) {
   const router = useRouter();
   const years = useMemo(() => list_years(apps), [apps]);
@@ -44,6 +52,7 @@ export function PlanificacionWorkspace({
     origen: "Todos",
     trimestre: "Todos",
     sort: "home",
+    asignado: "Todos",
   });
   const [app_open, set_app_open] = useState(false);
   const [editing_app, set_editing_app] = useState<PlanApp | null>(null);
@@ -66,10 +75,17 @@ export function PlanificacionWorkspace({
   const [selected, set_selected] = useState<Set<number>>(() => new Set());
   const [roadmap_edit, set_roadmap_edit] = useState(false);
   const [place_error, set_place_error] = useState<string | null>(null);
+  const [share_open, set_share_open] = useState(false);
+  const [snapshot_pdf_busy, set_snapshot_pdf_busy] = useState(false);
 
   const filtered = useMemo(() => filter_plan_apps(apps, query), [apps, query]);
   const listed = filtered.filter((app) => app.section !== "utilidades");
   const utilidades = filtered.filter((app) => app.section === "utilidades");
+  const listed_live = listed.filter((app) => app.progress > 0);
+  const listed_idle = listed.filter((app) => app.progress <= 0);
+  const util_live = utilidades.filter((app) => app.progress > 0);
+  const util_idle = utilidades.filter((app) => app.progress <= 0);
+  const idle_apps = [...listed_idle, ...util_idle];
   const empty = listed.length === 0 && utilidades.length === 0;
   const counts = useMemo(() => {
     const base = filter_plan_apps(apps, { ...query, salud: "Todos" });
@@ -79,6 +95,14 @@ export function PlanificacionWorkspace({
     }
     return map;
   }, [apps, query]);
+
+  const prisma_kpis = useMemo(
+    () =>
+      prisma_kpis_from_tareas(
+        flatten_plan_tasks(apps).map((item) => item.tarea),
+      ),
+    [apps],
+  );
 
   const all_modulos = useMemo(() => {
     const seen = new Set<number>();
@@ -170,121 +194,97 @@ export function PlanificacionWorkspace({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        <div className="shrink-0">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0 shrink-0">
           <h1 className="text-[28px] font-semibold tracking-tight text-slate-900">
-            Proyectos
+            Prisma
           </h1>
           <p className="mt-0.5 text-sm text-slate-400">
-            Gestiona y monitorea el progreso de PRISMA
+            {read_only
+              ? snapshot_at
+                ? `Foto del plan · ${new Date(snapshot_at).toLocaleString("es-VE")}`
+                : "Vista de solo lectura"
+              : "Planificación TED · módulos y tareas"}
           </p>
         </div>
-        <div className="flex flex-1 justify-center">
-          <div className="inline-flex items-center gap-0.5 rounded-full border border-slate-200 bg-white p-1 shadow-sm">
-            <button
-              type="button"
-              onClick={() => set_tab("lista")}
-              className={`${tab_btn} ${
-                tab === "lista"
-                  ? "bg-slate-900 text-white"
-                  : "text-slate-400 hover:text-slate-700"
-              }`}
-            >
-              <LayoutList className="h-3.5 w-3.5" />
-              Vista General
-            </button>
-            <button
-              type="button"
-              onClick={() => set_tab("gantt")}
-              className={`${tab_btn} ${
-                tab === "gantt"
-                  ? "bg-slate-900 text-white"
-                  : "text-slate-400 hover:text-slate-700"
-              }`}
-            >
-              <CalendarRange className="h-3.5 w-3.5" />
-              Roadmap Temporal
-            </button>
-          </div>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="inline-flex items-center gap-0.5 rounded-full border border-slate-200 bg-white p-1 shadow-sm">
           <button
             type="button"
+            onClick={() => set_tab("lista")}
+            className={`${tab_btn} ${
+              tab === "lista"
+                ? "bg-slate-900 text-white"
+                : "text-slate-400 hover:text-slate-700"
+            }`}
+          >
+            <LayoutList className="h-3.5 w-3.5" />
+            Vista General
+          </button>
+          <button
+            type="button"
+            onClick={() => set_tab("gantt")}
+            className={`${tab_btn} ${
+              tab === "gantt"
+                ? "bg-slate-900 text-white"
+                : "text-slate-400 hover:text-slate-700"
+            }`}
+          >
+            <CalendarRange className="h-3.5 w-3.5" />
+            Roadmap Temporal
+          </button>
+        </div>
+        {read_only ? (
+          <button
+            type="button"
+            disabled={snapshot_pdf_busy || apps.length === 0}
             onClick={() => {
+              void (async () => {
+                set_snapshot_pdf_busy(true);
+                try {
+                  await download_plan_overview_pdf({
+                    apps,
+                    anio: query.anio,
+                    captured_at: snapshot_at,
+                  });
+                } finally {
+                  set_snapshot_pdf_busy(false);
+                }
+              })();
+            }}
+            className="inline-flex h-10 items-center gap-2 rounded-full border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-50"
+          >
+            <FileDown className="h-4 w-4" />
+            {snapshot_pdf_busy ? "PDF…" : "Descargar PDF"}
+          </button>
+        ) : (
+          <PlanActionsMenu
+            select_mode={select_mode}
+            export_apps={[...listed_live, ...util_live, ...idle_apps]}
+            anio={query.anio}
+            on_assign={() => {
               set_select_mode(true);
               set_tab("lista");
             }}
-            className={`flex items-center gap-2 rounded-full border px-4 py-2.5 text-sm font-semibold shadow-sm transition-colors ${
-              select_mode
-                ? "border-slate-800 bg-slate-900 text-white"
-                : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-            }`}
-          >
-            <UserPlus className="h-4 w-4" />
-            Asignar
-          </button>
-          <Link
-            href="/ted/planificacion/importar"
-            className="rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
-          >
-            Cargar Excel
-          </Link>
-          <button
-            type="button"
-            onClick={() => {
+            on_new_app={() => {
               set_editing_app(null);
               set_app_open(true);
             }}
-            className="flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-800"
-          >
-            + Nueva app
-          </button>
-        </div>
+            on_share={() => set_share_open(true)}
+          />
+        )}
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        {[
-          {
-            label: "Total módulos",
-            value: listed.reduce((sum, app) => sum + app.modulo_count, 0),
-            color: "text-slate-800",
-          },
-          {
-            label: "Completados",
-            value: counts.Completado ?? 0,
-            color: "text-blue-600",
-          },
-          {
-            label: "En Marcha",
-            value: counts["En Marcha"] ?? 0,
-            color: "text-emerald-600",
-          },
-          {
-            label: "En Riesgo",
-            value: counts["En Riesgo"] ?? 0,
-            color: "text-orange-500",
-          },
-        ].map((card) => (
-          <div
-            key={card.label}
-            className="flex items-center justify-between rounded-2xl border border-slate-200/80 bg-white px-4 py-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
-          >
-            <span className="text-sm text-slate-500">{card.label}</span>
-            <span className={`text-2xl font-semibold tabular-nums ${card.color}`}>
-              {card.value}
-            </span>
-          </div>
-        ))}
-      </div>
+      <PrismaKpiStrip kpis={prisma_kpis} />
 
       <PlanToolbar
         query={query}
         years={years}
         counts={counts}
+        usuarios={usuarios}
         on_change={(next) => set_query((prev) => ({ ...prev, ...next }))}
       />
 
-      {select_mode ? (
+      {select_mode && !read_only ? (
         <AssignBar
           selected_ids={[...selected]}
           usuarios={usuarios}
@@ -299,47 +299,26 @@ export function PlanificacionWorkspace({
 
       {tab === "lista" ? (
         <div className="space-y-2">
-          {empty ? (
-            <div className="rounded-xl border border-dashed border-gray-200 bg-white px-5 py-10 text-center text-sm text-gray-400">
-              No hay aplicaciones en este filtro.
-            </div>
-          ) : (
-            <>
-              {listed.map((app) => (
-                <PlanificacionAppRow
-                  key={app.id}
-                  app={app}
-                  select_mode={select_mode}
-                  selected={selected}
-                  on_toggle_task={toggle_task}
-                  on_toggle_ids={toggle_ids}
-                  on_edit_app={() => open_edit_app(app)}
-                  on_add_modulo={() => open_add_modulo(app)}
-                  on_edit_modulo={(modulo) => open_edit_modulo(app, modulo)}
-                  on_add_tarea={(modulo) => open_add_tarea(app, modulo)}
-                  on_edit_tarea={(modulo, tarea) =>
-                    open_edit_tarea(app, modulo, tarea)
-                  }
-                />
-              ))}
-              {utilidades.length > 0 ? (
-                <PlanificacionUtilidadesGroup
-                  apps={utilidades}
-                  select_mode={select_mode}
-                  selected={selected}
-                  on_toggle_task={toggle_task}
-                  on_toggle_ids={toggle_ids}
-                  on_edit_app={open_edit_app}
-                  on_add_modulo={open_add_modulo}
-                  on_edit_modulo={open_edit_modulo}
-                  on_add_tarea={open_add_tarea}
-                  on_edit_tarea={open_edit_tarea}
-                />
-              ) : null}
-            </>
-          )}
+          <PlanWorkspaceAppList
+            empty={empty}
+            listed_live={listed_live}
+            util_live={util_live}
+            idle_apps={idle_apps}
+            handlers={{
+              read_only,
+              select_mode,
+              selected,
+              on_toggle_task: toggle_task,
+              on_toggle_ids: toggle_ids,
+              on_edit_app: open_edit_app,
+              on_add_modulo: open_add_modulo,
+              on_edit_modulo: open_edit_modulo,
+              on_add_tarea: open_add_tarea,
+              on_edit_tarea: open_edit_tarea,
+            }}
+          />
         </div>
-      ) : tab === "gantt" ? (
+      ) : !read_only && tab === "gantt" ? (
         <div className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm text-slate-500">
@@ -369,8 +348,8 @@ export function PlanificacionWorkspace({
             </p>
           ) : null}
           <RoadmapGantt
-          listed={listed}
-          utilidades={utilidades}
+          listed={[...listed_live, ...listed_idle]}
+          utilidades={[...util_live, ...util_idle]}
           anio={query.anio}
           edit_mode={roadmap_edit}
           on_bar_click={(app, span, segment) =>
@@ -397,7 +376,13 @@ export function PlanificacionWorkspace({
         </div>
       ) : null}
 
-      {app_open ? (
+      {!read_only ? (
+        <PlanShareModal
+          open={share_open}
+          onClose={() => set_share_open(false)}
+        />
+      ) : null}
+      {!read_only && app_open ? (
         <AppFormDialog
           key={editing_app?.id ?? "new-app"}
           open
@@ -406,7 +391,7 @@ export function PlanificacionWorkspace({
           onSaved={refresh}
         />
       ) : null}
-      {modulo_open && preset_app_id ? (
+      {!read_only && modulo_open && preset_app_id ? (
         <ModuloFormDialog
           key={editing_modulo?.id ?? `new-mod-${preset_app_id}`}
           open
@@ -418,7 +403,7 @@ export function PlanificacionWorkspace({
           onSaved={refresh}
         />
       ) : null}
-      {tarea_open ? (
+      {!read_only && tarea_open ? (
         <TareaFormDialog
           key={editing_tarea?.id ?? `new-tar-${preset_modulo_id}`}
           open
@@ -432,6 +417,7 @@ export function PlanificacionWorkspace({
           onSaved={refresh}
         />
       ) : null}
+      {!read_only ? (
       <QuarterTasksSheet
         open={Boolean(sheet)}
         app={sheet?.app ?? null}
@@ -452,7 +438,8 @@ export function PlanificacionWorkspace({
           open_edit_modulo(owner, modulo);
         }}
       />
-      {hito_open ? (
+      ) : null}
+      {!read_only && hito_open ? (
         <HitoFormDialog
           key={editing_hito?.id ?? `new-hito-${hito_app?.id}-${hito_trimestre}`}
           open

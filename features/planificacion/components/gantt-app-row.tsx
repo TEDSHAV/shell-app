@@ -9,6 +9,7 @@ import {
   unique_participantes,
   type GanttSpan,
 } from "../lib/gantt";
+import { PlanPeopleBadges } from "./plan-assignee-chip";
 import { is_tarea_no_solicitada } from "../lib/task-progress";
 import type { PlanApp, PlanHito, PlanHitoIcono } from "../lib/types";
 
@@ -81,21 +82,8 @@ export function GanttAppRow({
               />
             ) : null}
           </button>
-          <div className="ml-4 mt-1 flex">
-            {people.slice(0, 3).map((person, idx) => (
-              <div
-                key={person.usuario_id}
-                className={`-ml-1.5 flex h-7 w-7 first:ml-0 items-center justify-center rounded-full border-2 border-white text-[10px] font-semibold text-white ${["bg-slate-500", "bg-slate-600", "bg-violet-700"][idx % 3]}`}
-                title={person.nombre}
-              >
-                {person.initials}
-              </div>
-            ))}
-            {people.length > 3 ? (
-              <div className="-ml-1.5 flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-gray-200 text-[10px] font-semibold text-gray-500">
-                +{people.length - 3}
-              </div>
-            ) : null}
+          <div className="ml-4 mt-1">
+            <PlanPeopleBadges people={people} max={2} align="start" />
           </div>
         </div>
       </div>
