@@ -27,7 +27,7 @@ import { PlanShareModal } from "./plan-share-modal";
 import { PrismaKpiStrip } from "./prisma-kpi-strip";
 import { flatten_plan_tasks } from "../lib/flatten-plan-tasks";
 import { download_plan_overview_pdf } from "../lib/download-plan-pdf";
-import { prisma_kpis_from_tareas } from "../lib/prisma-kpis";
+import { prisma_kpis_from_tareas, prisma_plan_rango } from "../lib/prisma-kpis";
 import { place_plan_tarea_trimestre } from "../actions/tarea-actions";
 import { tarea_ids_in_app } from "../lib/plan-selection";
 
@@ -202,37 +202,39 @@ export function PlanificacionWorkspace({
           <p className="mt-0.5 text-sm text-slate-400">
             {read_only
               ? snapshot_at
-                ? `Foto del plan · ${new Date(snapshot_at).toLocaleString("es-VE")}`
+                ? `Foto del plan · ${prisma_plan_rango(query.anio, snapshot_at)}`
                 : "Vista de solo lectura"
               : "Planificación TED · módulos y tareas"}
           </p>
         </div>
-        <div className="inline-flex items-center gap-0.5 rounded-full border border-slate-200 bg-white p-1 shadow-sm">
-          <button
-            type="button"
-            onClick={() => set_tab("lista")}
-            className={`${tab_btn} ${
-              tab === "lista"
-                ? "bg-slate-900 text-white"
-                : "text-slate-400 hover:text-slate-700"
-            }`}
-          >
-            <LayoutList className="h-3.5 w-3.5" />
-            Vista General
-          </button>
-          <button
-            type="button"
-            onClick={() => set_tab("gantt")}
-            className={`${tab_btn} ${
-              tab === "gantt"
-                ? "bg-slate-900 text-white"
-                : "text-slate-400 hover:text-slate-700"
-            }`}
-          >
-            <CalendarRange className="h-3.5 w-3.5" />
-            Roadmap Temporal
-          </button>
-        </div>
+        {!read_only ? (
+          <div className="inline-flex items-center gap-0.5 rounded-full border border-slate-200 bg-white p-1 shadow-sm">
+            <button
+              type="button"
+              onClick={() => set_tab("lista")}
+              className={`${tab_btn} ${
+                tab === "lista"
+                  ? "bg-slate-900 text-white"
+                  : "text-slate-400 hover:text-slate-700"
+              }`}
+            >
+              <LayoutList className="h-3.5 w-3.5" />
+              Vista General
+            </button>
+            <button
+              type="button"
+              onClick={() => set_tab("gantt")}
+              className={`${tab_btn} ${
+                tab === "gantt"
+                  ? "bg-slate-900 text-white"
+                  : "text-slate-400 hover:text-slate-700"
+              }`}
+            >
+              <CalendarRange className="h-3.5 w-3.5" />
+              Roadmap Temporal
+            </button>
+          </div>
+        ) : null}
         {read_only ? (
           <button
             type="button"
@@ -274,7 +276,12 @@ export function PlanificacionWorkspace({
         )}
       </div>
 
-      <PrismaKpiStrip kpis={prisma_kpis} />
+      <PrismaKpiStrip
+        kpis={prisma_kpis}
+        alcance_publico={read_only}
+        anio={query.anio}
+        captured_at={snapshot_at}
+      />
 
       <PlanToolbar
         query={query}
@@ -297,7 +304,7 @@ export function PlanificacionWorkspace({
         />
       ) : null}
 
-      {tab === "lista" ? (
+      {read_only || tab === "lista" ? (
         <div className="space-y-2">
           <PlanWorkspaceAppList
             empty={empty}

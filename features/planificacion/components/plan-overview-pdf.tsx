@@ -8,10 +8,18 @@ import {
   tarea_avance,
 } from "../lib/task-progress";
 import { flatten_plan_tasks } from "../lib/flatten-plan-tasks";
-import { prisma_kpis_from_tareas, type RatioKpi } from "../lib/prisma-kpis";
+import {
+  PRISMA_ALCANCE_LEVANTADO_PCT,
+  PRISMA_ALCANCE_NOTA,
+  PRISMA_APP_ALCANCE_NOTA,
+  is_plan_app_alcance_parcial,
+  prisma_kpis_from_tareas,
+  prisma_plan_rango,
+  type RatioKpi,
+} from "../lib/prisma-kpis";
 import { sort_tareas_adicional_last } from "../lib/sort-tareas";
 import { COL, ORIGIN_HEX, pdf_styles as styles } from "./plan-overview-pdf-styles";
-import { people_on_tarea } from "../lib/people";
+import { people_on_tarea, top_contributor_on_modulos } from "../lib/people";
 
 function owner_label(nombre: string | undefined): string {
   if (!nombre) return "Sin asignar";
@@ -26,11 +34,13 @@ function KpiCell({
   value,
   accent,
   last,
+  side_lines,
 }: {
   label: string;
   value: RatioKpi | { pct: number };
   accent?: boolean;
   last?: boolean;
+  side_lines?: [string, string];
 }) {
   const is_pct = "pct" in value;
   const pct = is_pct
@@ -42,7 +52,7 @@ function KpiCell({
     <View
       style={[
         accent ? styles.kpiCardAccent : styles.kpiCard,
-        last && !accent ? { marginRight: 0 } : {},
+        last ? { marginRight: 0 } : { marginRight: 6 },
       ]}
       wrap={false}
     >
@@ -50,9 +60,21 @@ function KpiCell({
         {label}
       </Text>
       {is_pct ? (
-        <Text style={accent ? styles.kpiValueOnAccent : styles.kpiValue}>
-          {value.pct}%
-        </Text>
+        <View style={styles.kpiValueRow}>
+          <Text style={accent ? styles.kpiValueOnAccent : styles.kpiValue}>
+            {value.pct}%{side_lines ? " /" : ""}
+          </Text>
+          {side_lines ? (
+            <View style={styles.kpiSideLines}>
+              <Text style={accent ? styles.kpiHintOnAccent : styles.kpiHint}>
+                {side_lines[0]}
+              </Text>
+              <Text style={accent ? styles.kpiHintOnAccent : styles.kpiHint}>
+                {side_lines[1]}
+              </Text>
+            </View>
+          ) : null}
+        </View>
       ) : (
         <Text style={styles.kpiValue}>
           {value.done}
@@ -112,7 +134,7 @@ function TaskLines({
   const [first, ...rest] = ordered;
   return (
     <View>
-      <View wrap={false} minPresenceAhead={56}>
+      <View wrap={false}>
         <Text style={styles.groupTitle}>
           {title} ({ordered.length})
         </Text>
@@ -154,14 +176,26 @@ function TaskRow({ tarea }: { tarea: PlanTarea }) {
   );
 }
 
-function AppBlock({ app }: { app: PlanApp }) {
+function AppBlock({
+  app,
+  alcance_publico = false,
+}: {
+  app: PlanApp;
+  alcance_publico?: boolean;
+}) {
+  const admin_note =
+    alcance_publico && is_plan_app_alcance_parcial(app.nombre);
+  const lead = top_contributor_on_modulos(app.modulos);
   return (
     <View>
-      <View wrap={false} minPresenceAhead={72}>
+      <View wrap={false}>
         <View style={styles.appHead}>
           <Text style={styles.appName}>{app.nombre}</Text>
           <Text style={styles.appMeta}>
             {app.progress}% · {app.salud}
+            {alcance_publico
+              ? ` · ${lead ? owner_label(lead.nombre) : "Sin asignar"}`
+              : ""}
           </Text>
         </View>
         {app.modulos.length === 0 ? (
@@ -169,15 +203,14 @@ function AppBlock({ app }: { app: PlanApp }) {
         ) : null}
       </View>
       {app.modulos.map((modulo) => {
-        const task_n = modulo.tareas.length;
+        const above_general =
+          admin_note && modulo.nombre.trim().toLowerCase() === "general";
         return (
-          <View
-            key={modulo.id}
-            style={styles.moduleBlock}
-            wrap={task_n > 8}
-            minPresenceAhead={80}
-          >
-            <View wrap={false} minPresenceAhead={84}>
+          <View key={modulo.id} style={styles.moduleBlock} wrap>
+            {above_general ? (
+              <Text style={styles.kpiNote}>{PRISMA_APP_ALCANCE_NOTA}</Text>
+            ) : null}
+            <View wrap={false}>
               <View style={styles.moduleHead}>
                 <View>
                   <Text style={styles.modulePath}>{app.nombre}</Text>
@@ -233,30 +266,72 @@ export function PlanOverviewPdfDocument({
           <View>
             <Text style={styles.brand}>PRISMA</Text>
             <Text style={styles.brandSub}>
-              Planificación TED · módulos y tareas
+              {captured_at
+                ? prisma_plan_rango(anio, captured_at)
+                : "Planificación TED · módulos y tareas"}
             </Text>
           </View>
           <Text style={styles.year}>{anio}</Text>
         </View>
 
-        <View style={styles.kpiRow} wrap={false}>
-          <KpiCell label="Tareas" value={kpis.tareas} />
-          <KpiCell label="Planificado" value={kpis.plan} />
-          <KpiCell label="Requerimientos" value={kpis.requerimientos} />
-          <KpiCell label="Adicional" value={kpis.adicional} />
-          <KpiCell label="Avance Prisma" value={{ pct: kpis.avance }} accent last />
-        </View>
+        {captured_at ? (
+          <View>
+            <View style={styles.kpiRow} wrap={false}>
+              <KpiCell label="Tareas" value={kpis.tareas} />
+              <KpiCell label="Plan inicial" value={kpis.plan} />
+              <KpiCell label="Requerimientos" value={kpis.requerimientos} />
+              <KpiCell label="Adicional" value={kpis.adicional} last />
+            </View>
+            <View style={styles.kpiRow} wrap={false}>
+              <KpiCell
+                label="Avance Prisma"
+                value={{ pct: kpis.avance }}
+                accent
+                side_lines={["alcance del plan", "hasta hoy"]}
+              />
+              <KpiCell
+                label="Alcance del plan hasta hoy"
+                value={{ pct: PRISMA_ALCANCE_LEVANTADO_PCT }}
+                last
+              />
+            </View>
+            <View style={styles.alcanceBox} wrap={false}>
+              <Text style={styles.kpiNote}>{PRISMA_ALCANCE_NOTA}</Text>
+            </View>
+          </View>
+        ) : (
+          <View style={styles.kpiRow} wrap={false}>
+            <KpiCell label="Tareas" value={kpis.tareas} />
+            <KpiCell label="Plan inicial" value={kpis.plan} />
+            <KpiCell label="Requerimientos" value={kpis.requerimientos} />
+            <KpiCell label="Adicional" value={kpis.adicional} />
+            <KpiCell
+              label="Avance Prisma"
+              value={{ pct: kpis.avance }}
+              accent
+              last
+            />
+          </View>
+        )}
 
         {live.map((app) => (
-          <AppBlock key={app.id} app={app} />
+          <AppBlock
+            key={app.id}
+            app={app}
+            alcance_publico={Boolean(captured_at)}
+          />
         ))}
         {idle.length > 0 ? (
           <View>
-            <Text style={styles.sectionIdle} minPresenceAhead={48}>
+            <Text style={styles.sectionIdle}>
               Sin avance
             </Text>
             {idle.map((app) => (
-              <AppBlock key={app.id} app={app} />
+              <AppBlock
+                key={app.id}
+                app={app}
+                alcance_publico={Boolean(captured_at)}
+              />
             ))}
           </View>
         ) : null}

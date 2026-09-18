@@ -87,7 +87,42 @@ export const pdf_styles = StyleSheet.create({
     fontFamily: "Helvetica-Bold",
     color: "#ffffff",
   },
+  kpiValueRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  kpiSideLines: {
+    marginLeft: 6,
+    flexGrow: 1,
+    flexShrink: 1,
+  },
   kpiMuted: { fontSize: 10, color: "#94a3b8", fontFamily: "Helvetica" },
+  kpiHint: {
+    fontSize: 7,
+    color: "#64748b",
+    fontFamily: "Helvetica",
+    lineHeight: 1.2,
+  },
+  kpiHintOnAccent: {
+    fontSize: 7,
+    color: "#ede9fe",
+    fontFamily: "Helvetica",
+    lineHeight: 1.2,
+  },
+  kpiNote: {
+    fontSize: 8,
+    color: "#64748b",
+    lineHeight: 1.35,
+  },
+  alcanceBox: {
+    marginBottom: 14,
+  },
+  alcanceQuestion: {
+    fontSize: 9,
+    fontFamily: "Helvetica-Bold",
+    color: "#334155",
+    marginBottom: 4,
+  },
   barTrack: {
     height: 5,
     borderRadius: 3,

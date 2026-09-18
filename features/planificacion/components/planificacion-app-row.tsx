@@ -15,8 +15,12 @@ import {
   tarea_ids_in_app,
 } from "../lib/plan-selection";
 import { cn } from "@/lib/utils";
-import { PlanPeopleBadges } from "./plan-assignee-chip";
-import { people_on_modulos } from "../lib/people";
+import { PlanAssigneeChip, PlanPeopleBadges } from "./plan-assignee-chip";
+import { people_on_modulos, top_contributor_on_modulos } from "../lib/people";
+import {
+  is_plan_app_alcance_parcial,
+  PRISMA_APP_ALCANCE_NOTA,
+} from "../lib/prisma-kpis";
 
 export function PlanificacionAppRow({
   app,
@@ -58,6 +62,10 @@ export function PlanificacionAppRow({
   }, [state]);
 
   const people = useMemo(() => people_on_modulos(app.modulos), [app]);
+  const top_contributor = useMemo(
+    () => top_contributor_on_modulos(app.modulos),
+    [app],
+  );
 
   const due = app.modulos
     .map((modulo) => modulo.fecha_objetivo)
@@ -133,9 +141,15 @@ export function PlanificacionAppRow({
               <p className="text-slate-400">Left</p>
             </div>
           </div>
-          <div className="hidden max-w-[16rem] shrink-0 justify-end md:flex">
-            <PlanPeopleBadges people={people} />
-          </div>
+          {read_only ? (
+            <div className="w-36 shrink-0 self-center">
+              <PlanAssigneeChip person={top_contributor} />
+            </div>
+          ) : (
+            <div className="hidden max-w-[16rem] shrink-0 justify-end md:flex">
+              <PlanPeopleBadges people={people} />
+            </div>
+          )}
           <span className="hidden w-14 shrink-0 text-right text-xs text-slate-400 lg:block">
             {format_objetivo_date(due)}
           </span>
@@ -180,20 +194,34 @@ export function PlanificacionAppRow({
                     Esta app aún no tiene módulos.
                   </p>
                 ) : (
-                  app.modulos.map((modulo) => (
-                    <PlanificacionModuleRow
-                      key={modulo.id}
-                      modulo={modulo}
-                      read_only={read_only}
-                      select_mode={select_mode}
-                      selected={selected}
-                      on_toggle_task={on_toggle_task}
-                      on_toggle_ids={on_toggle_ids}
-                      on_edit_modulo={() => on_edit_modulo(modulo)}
-                      on_add_tarea={() => on_add_tarea(modulo)}
-                      on_edit_tarea={(tarea) => on_edit_tarea(modulo, tarea)}
-                    />
-                  ))
+                  app.modulos.flatMap((modulo) => {
+                    const show_alcance_note =
+                      read_only &&
+                      is_plan_app_alcance_parcial(app.nombre) &&
+                      modulo.nombre.trim().toLowerCase() === "general";
+                    return [
+                      show_alcance_note ? (
+                        <p
+                          key={`alcance-${modulo.id}`}
+                          className="px-1 pb-0.5 text-xs leading-snug text-slate-500"
+                        >
+                          {PRISMA_APP_ALCANCE_NOTA}
+                        </p>
+                      ) : null,
+                      <PlanificacionModuleRow
+                        key={modulo.id}
+                        modulo={modulo}
+                        read_only={read_only}
+                        select_mode={select_mode}
+                        selected={selected}
+                        on_toggle_task={on_toggle_task}
+                        on_toggle_ids={on_toggle_ids}
+                        on_edit_modulo={() => on_edit_modulo(modulo)}
+                        on_add_tarea={() => on_add_tarea(modulo)}
+                        on_edit_tarea={(tarea) => on_edit_tarea(modulo, tarea)}
+                      />,
+                    ];
+                  })
                 )}
                 {read_only ? null : (
                 <button
