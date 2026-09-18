@@ -54,9 +54,11 @@ export function resolve_notification_href(
     return notification.link_path;
   }
 
-  // Tareas vive en app Shell `/tareas` (mismo dbSlug sgestion que Negocios).
-  // No prefijar con `/negocios` vía getAppByDbSlug.
-  if (notification.link_path.startsWith("/tareas")) {
+  // Tareas y tickets viven en Shell (mismo dbSlug sgestion que Negocios).
+  if (
+    notification.link_path.startsWith("/tareas") ||
+    notification.link_path.startsWith("/tickets")
+  ) {
     return notification.link_path;
   }
 

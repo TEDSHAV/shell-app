@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { PlanModal } from "./plan-modal";
+import { PlanField, PLAN_SELECT_CLASS } from "./plan-form-ui";
 import {
   delete_plan_modulo,
   save_plan_modulo,
@@ -93,6 +93,7 @@ export function ModuloFormDialog({
   return (
     <PlanModal
       open={open}
+      wide
       title={modulo ? "Editar módulo" : "Nuevo módulo"}
       onClose={onClose}
       footer={
@@ -113,7 +114,7 @@ export function ModuloFormDialog({
           </Button>
           <Button
             type="button"
-            className="bg-gray-900 text-white hover:bg-gray-800"
+            className="bg-slate-900 text-white hover:bg-slate-800"
             disabled={saving}
             onClick={() => void on_submit()}
           >
@@ -122,38 +123,34 @@ export function ModuloFormDialog({
         </>
       }
     >
-      <div className="space-y-3">
-        <div className="space-y-1.5">
-          <Label>Apps</Label>
+      <div className="space-y-4">
+        <PlanField label="Apps">
           <MultiSelect
             options={apps.map((app) => ({ id: app.id, label: app.nombre }))}
             selectedIds={app_ids}
             onChange={set_app_ids}
             placeholder="Este módulo puede estar en varias apps"
           />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="mod-nombre">Nombre</Label>
+        </PlanField>
+        <PlanField label="Nombre" htmlFor="mod-nombre">
           <Input
             id="mod-nombre"
             value={nombre}
             onChange={(e) => set_nombre(e.target.value)}
           />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="mod-sub">Subtítulo / alcance</Label>
+        </PlanField>
+        <PlanField label="Subtítulo / alcance" htmlFor="mod-sub">
           <Input
             id="mod-sub"
             value={subtitulo}
             onChange={(e) => set_subtitulo(e.target.value)}
           />
-        </div>
+        </PlanField>
         <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="mod-t">Trimestre</Label>
+          <PlanField label="Trimestre" htmlFor="mod-t">
             <select
               id="mod-t"
-              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+              className={PLAN_SELECT_CLASS}
               value={trimestre}
               onChange={(e) =>
                 set_trimestre(e.target.value as (typeof PLAN_TRIMESTRES)[number])
@@ -165,35 +162,32 @@ export function ModuloFormDialog({
                 </option>
               ))}
             </select>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="mod-anio">Año</Label>
+          </PlanField>
+          <PlanField label="Año" htmlFor="mod-anio">
             <Input
               id="mod-anio"
               type="number"
               value={anio}
               onChange={(e) => set_anio(e.target.value)}
             />
-          </div>
+          </PlanField>
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="mod-fecha">Fecha objetivo</Label>
+        <PlanField label="Fecha objetivo" htmlFor="mod-fecha">
           <Input
             id="mod-fecha"
             type="date"
             value={fecha ?? ""}
             onChange={(e) => set_fecha(e.target.value)}
           />
-        </div>
-        <div className="space-y-1.5">
-          <Label>Participantes</Label>
+        </PlanField>
+        <PlanField label="Participantes">
           <MultiSelect
             options={usuarios}
             selectedIds={participante_ids}
             onChange={set_participante_ids}
             placeholder="Asignar responsables"
           />
-        </div>
+        </PlanField>
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
       </div>
     </PlanModal>

@@ -135,6 +135,9 @@ export function TedTicketsInbox({
                 {ticket.modulo_nombre}
               </p>
               <p className="mt-1 truncate text-sm text-slate-600">{ticket.titulo}</p>
+              <p className="mt-0.5 truncate text-xs text-slate-400">
+                Solicitó {ticket.solicitante}
+              </p>
             </div>
             <div className="flex shrink-0 flex-col items-end gap-1 text-xs font-semibold">
               <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600">
@@ -161,14 +164,17 @@ export function TedTicketsInbox({
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <button
             type="button"
-            className="absolute inset-0 bg-black/30"
+            className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px]"
             aria-label="Cerrar"
             onClick={() => set_open(null)}
           />
-          <div className="relative max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-5 shadow-xl">
+          <div className="relative max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
             <h2 className="text-lg font-semibold text-slate-900">{open.titulo}</h2>
             <p className="text-[15px] font-semibold text-slate-800">
               {open.app_nombre}
+            </p>
+            <p className="text-xs text-slate-500">
+              Solicitó {open.solicitante}
             </p>
             <p className="text-xs font-semibold text-violet-700">
               {open.modulo_nombre}

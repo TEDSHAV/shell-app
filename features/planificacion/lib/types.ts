@@ -39,6 +39,21 @@ export type PlanParticipante = {
   initials: string;
 };
 
+export type PlanObjetivoEstado = "abierto" | "cumplido" | "cancelado";
+
+export type PlanObjetivo = {
+  id: number;
+  titulo: string;
+  descripcion: string | null;
+  fecha_inicio: string;
+  fecha_fin: string;
+  app_id: number | null;
+  app_nombre: string | null;
+  estado: PlanObjetivoEstado;
+  tarea_count: number;
+  avance: number;
+};
+
 export type PlanTarea = {
   id: number;
   modulo_id: number;
@@ -48,6 +63,7 @@ export type PlanTarea = {
   no_solicitada: boolean;
   completada: boolean;
   completada_at: string | null;
+  created_at: string | null;
   entregable_tipo: EntregableTipo;
   entregable_ruta: string | null;
   entregable_unidad: string | null;
@@ -62,6 +78,8 @@ export type PlanTarea = {
   asignados: PlanParticipante[];
   en_planificacion: boolean;
   ticket_id: number | null;
+  objetivo_id: number | null;
+  objetivo_titulo: string | null;
 };
 
 export type PlanModulo = {

@@ -2,6 +2,8 @@
 
 import { cache } from "react";
 import { getUsuarioDepartamento } from "@/actions/apps";
+import { getCurrentUserUsuarioId } from "@/actions/requisiciones";
+import { is_gerencia_user_id } from "@/features/planificacion/lib/plan-access";
 
 /**
  * Returns true if the current logged-in user belongs to the "TED"
@@ -22,3 +24,17 @@ export const isTedMember = cache(async (): Promise<boolean> => {
     return false;
   }
 });
+
+/** Temporary gerencia figure until a role exists: usuarios.id 1 and 13. */
+export const isPlanGerenciaUser = cache(async (): Promise<boolean> => {
+  const user_id = await getCurrentUserUsuarioId();
+  return is_gerencia_user_id(user_id);
+});
+
+export const canReadObjetivosArea = cache(async (): Promise<boolean> => {
+  return (await isTedMember()) || (await isPlanGerenciaUser());
+});
+
+export const canWriteObjetivos = canReadObjetivosArea;
+
+export const canWritePlanTareas = isTedMember;

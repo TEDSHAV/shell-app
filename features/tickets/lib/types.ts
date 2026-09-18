@@ -57,6 +57,7 @@ export type TicketCatalog = {
   apps: TicketCatalogApp[];
   modulos: TicketCatalogModulo[];
   usuarios: TicketUsuario[];
+  is_ted: boolean;
 };
 
 export type TicketQueueItem = {

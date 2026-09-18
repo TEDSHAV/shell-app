@@ -1,6 +1,7 @@
 "use server";
 
 import { require_ticket_user } from "./assert-user";
+import { isTedMember } from "@/actions/ted";
 import type { TicketCatalog } from "../lib/types";
 
 export async function load_ticket_catalog(): Promise<
@@ -9,6 +10,7 @@ export async function load_ticket_catalog(): Promise<
   const gate = await require_ticket_user();
   if (!gate.ok) return gate;
   const { supabase } = gate;
+  const is_ted = await isTedMember();
 
   const [apps_res, mods_res, links_res, parts_res, users_res] = await Promise.all([
     supabase
@@ -92,6 +94,7 @@ export async function load_ticket_catalog(): Promise<
       apps: (apps_res.data ?? []) as TicketCatalog["apps"],
       modulos,
       usuarios,
+      is_ted,
     },
   };
 }

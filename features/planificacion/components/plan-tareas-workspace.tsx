@@ -12,6 +12,7 @@ import type {
   PlanUsuarioOption,
 } from "../lib/types";
 import { PLAN_ORIGENES, PLAN_TRIMESTRES } from "../schemas";
+import { ORIGIN_LABELS } from "../lib/display";
 import { TedPersonPicker } from "./ted-person-picker";
 import {
   filter_flat_plan_tasks,
@@ -150,7 +151,7 @@ export function PlanTareasWorkspace({
                 : "bg-white text-slate-600 ring-1 ring-slate-200",
             )}
           >
-            {item} ({origin_counts.get(item) ?? 0})
+            {ORIGIN_LABELS[item]} ({origin_counts.get(item) ?? 0})
           </button>
         ))}
         <div className="relative ml-auto min-w-[200px] flex-1">

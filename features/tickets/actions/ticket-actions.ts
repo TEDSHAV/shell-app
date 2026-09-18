@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { require_ticket_user } from "./assert-user";
 import { require_ted_plan_context } from "@/features/planificacion/actions/assert-ted";
+import { isTedMember } from "@/actions/ted";
 import {
   ticket_assign_schema,
   ticket_create_schema,
@@ -10,6 +11,83 @@ import {
   ticket_reply_schema,
 } from "../schemas";
 import { createAdminClient } from "@/lib/supabase/server";
+
+async function notify_ticket_requester(
+  supabase: Awaited<ReturnType<typeof createAdminClient>>,
+  ticket_id: number,
+  estado: "cerrado" | "no_procede",
+  respuesta: string,
+) {
+  const { data: ticket } = await supabase
+    .from("ted_plan_tickets" as never)
+    .select("titulo, solicitado_por")
+    .eq("id", ticket_id)
+    .maybeSingle();
+  const row = ticket as { titulo?: string; solicitado_por?: number | null } | null;
+  if (!row?.solicitado_por) return;
+  const { data: user } = await supabase
+    .from("usuarios")
+    .select("id_auth")
+    .eq("id", row.solicitado_por)
+    .maybeSingle();
+  const auth_id = (user as { id_auth?: string | null } | null)?.id_auth;
+  if (!auth_id) return;
+  const closed = estado === "cerrado";
+  const titulo = row.titulo ?? "tu requerimiento";
+  const { error } = await supabase.schema("notify").from("inbox").insert({
+    app_slug: "sgestion",
+    event_key: closed ? "ticket_completado" : "ticket_no_procede",
+    recipient_id_auth: auth_id,
+    title: closed
+      ? "Tu requerimiento fue completado"
+      : "Tu requerimiento no procede",
+    body: `«${titulo}»\n\n${respuesta}`,
+    link_path: "/tickets/mios",
+    metadata: { ticket_id, estado },
+    dedupe_key: `ticket:${ticket_id}:${estado}:${Date.now()}`,
+    priority: 2,
+  });
+  if (error) {
+    console.error("[tickets] notify:", error);
+  }
+}
+
+export async function sync_ticket_on_tarea_done(
+  supabase: Awaited<ReturnType<typeof createAdminClient>>,
+  tarea_id: number,
+  user_id: number | null,
+  respuesta: string,
+) {
+  const { data } = await supabase
+    .from("ted_plan_tareas" as never)
+    .select("ticket_id")
+    .eq("id", tarea_id)
+    .maybeSingle();
+  const ticket_id = Number(
+    (data as { ticket_id?: number | null } | null)?.ticket_id ?? 0,
+  );
+  if (ticket_id <= 0) return;
+  const { data: ticket } = await supabase
+    .from("ted_plan_tickets" as never)
+    .select("id, estado")
+    .eq("id", ticket_id)
+    .maybeSingle();
+  const estado = (ticket as { estado?: string } | null)?.estado;
+  if (!ticket || estado === "cerrado" || estado === "no_procede") return;
+  const note =
+    respuesta.trim() || "El requerimiento se completó en el plan Prisma.";
+  await supabase
+    .from("ted_plan_tickets" as never)
+    .update({
+      estado: "cerrado",
+      respuesta: note,
+      respondido_por: user_id,
+      respondido_at: new Date().toISOString(),
+    } as never)
+    .eq("id", ticket_id);
+  await add_evento(supabase, ticket_id, "cerrado", note, user_id);
+  await notify_ticket_requester(supabase, ticket_id, "cerrado", note);
+}
 
 function revalidate_tickets() {
   revalidatePath("/tickets");
@@ -134,6 +212,11 @@ export async function create_ticket(raw: unknown) {
   if (!gate.ok) return gate;
   const { supabase, user_id } = gate;
   const input = parsed.data;
+  const ted = await isTedMember();
+  const solicitado_por =
+    ted && input.solicitado_por && input.solicitado_por > 0
+      ? input.solicitado_por
+      : user_id;
   const modulo = await ensure_modulo(supabase, input.app_id, input.modulo_id, user_id);
   if (!modulo.ok) return modulo;
   const asignado_id =
@@ -145,7 +228,7 @@ export async function create_ticket(raw: unknown) {
     .insert({
       titulo: input.titulo,
       descripcion: input.descripcion,
-      solicitado_por: user_id,
+      solicitado_por,
       app_id: input.app_id,
       modulo_id: modulo.id,
       prioridad: input.prioridad,
@@ -203,7 +286,15 @@ export async function create_ticket(raw: unknown) {
       extra.map((usuario_id) => ({ ticket_id, usuario_id })) as never,
     );
   }
-  await add_evento(supabase, ticket_id, "abierto", "Ticket creado", user_id);
+  await add_evento(
+    supabase,
+    ticket_id,
+    "abierto",
+    solicitado_por === user_id
+      ? "Ticket creado"
+      : "Ticket registrado a nombre de otro usuario",
+    user_id,
+  );
   revalidate_tickets();
   return { ok: true as const, id: ticket_id };
 }
@@ -250,6 +341,14 @@ export async function reply_ticket(raw: unknown) {
     parsed.data.respuesta,
     user_id,
   );
+  if (parsed.data.estado === "cerrado" || parsed.data.estado === "no_procede") {
+    await notify_ticket_requester(
+      supabase,
+      parsed.data.ticket_id,
+      parsed.data.estado,
+      parsed.data.respuesta,
+    );
+  }
   revalidate_tickets();
   return { ok: true as const };
 }

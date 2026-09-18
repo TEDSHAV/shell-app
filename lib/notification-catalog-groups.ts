@@ -52,6 +52,8 @@ const GENERAL_SGESION_EVENT_KEYS = new Set([
   "user_reminder",
   "scheduled_reminder",
   "comment_mention",
+  "ticket_completado",
+  "ticket_no_procede",
 ]);
 
 export const NOTIFICATION_CATALOG_GROUPS: NotificationCatalogGroupMeta[] = [

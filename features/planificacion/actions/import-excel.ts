@@ -437,12 +437,14 @@ export async function commit_plan_excel(
     const dup = `${modulo_id}::${row.titulo_guardado}`;
     const no_solicitada = Boolean(row.no_solicitada);
     const avance = no_solicitada ? 0 : row.avance;
+    const done = !no_solicitada && avance >= 100;
+    const dated = Boolean(row.fecha_inicio || row.fecha_fin);
     const estado = {
       avance,
       no_solicitada,
-      completada: !no_solicitada && avance >= 100,
-      completada_at: !no_solicitada && avance >= 100 ? now : null,
-      completada_by: !no_solicitada && avance >= 100 ? user_id : null,
+      completada: done,
+      completada_at: done && dated ? now : null,
+      completada_by: done && dated ? user_id : null,
     };
     const existing_id = known.get(dup);
     if (existing_id) {

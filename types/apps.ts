@@ -20,6 +20,11 @@ export interface NavGroup {
   links: NavLink[];
   /** When set, sidebar shows this group only for that reportes department. */
   department?: "negocios" | "marketing";
+  /**
+   * TED: hide this group outside its area.
+   * Hub `/ted` shows every group. Omit to always show (Usuarios, Notificaciones).
+   */
+  tedArea?: "planificacion" | "objetivos";
   /** Optional icon for the group header (used by collapsible rendering). */
   icon?: LucideIcon;
   /**

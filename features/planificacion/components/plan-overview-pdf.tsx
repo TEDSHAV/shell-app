@@ -169,7 +169,9 @@ function TaskRow({ tarea }: { tarea: PlanTarea }) {
         <View
           style={[styles.badge, { backgroundColor: ORIGIN_HEX[tarea.origen] }]}
         >
-          <Text style={styles.badgeText}>{tarea.origen}</Text>
+          <Text style={styles.badgeText}>
+            {tarea.origen === "PLAN" ? "PLAN INICIAL" : tarea.origen}
+          </Text>
         </View>
       </View>
     </View>

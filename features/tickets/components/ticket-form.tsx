@@ -4,9 +4,12 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { SearchSelect } from "@/features/planificacion/components/search-select";
+import {
+  PlanField,
+  PLAN_SELECT_CLASS,
+} from "@/features/planificacion/components/plan-form-ui";
 import { create_ticket } from "../actions/ticket-actions";
 import { TICKET_PRIORIDADES } from "../schemas";
 import { PRIORIDAD_LABEL } from "../lib/labels";
@@ -18,9 +21,12 @@ export function TicketForm({ catalog }: { catalog: TicketCatalog }) {
   const [modulo_id, set_modulo_id] = useState("");
   const [titulo, set_titulo] = useState("");
   const [descripcion, set_descripcion] = useState("");
-  const [prioridad, set_prioridad] = useState<(typeof TICKET_PRIORIDADES)[number]>("media");
+  const [prioridad, set_prioridad] = useState<(typeof TICKET_PRIORIDADES)[number]>(
+    "media",
+  );
   const [asignado_id, set_asignado_id] = useState("");
   const [colab, set_colab] = useState("");
+  const [solicitado_por, set_solicitado_por] = useState("");
   const [error, set_error] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
@@ -51,28 +57,55 @@ export function TicketForm({ catalog }: { catalog: TicketCatalog }) {
         prioridad,
         asignado_id: assigned ? Number(assigned) : null,
         colaborador_ids: extra,
+        solicitado_por:
+          catalog.is_ted && solicitado_por ? Number(solicitado_por) : undefined,
       });
       if (!result.ok) {
         set_error(result.error);
         return;
       }
-      router.push("/tickets/mios");
+      router.push(catalog.is_ted ? "/ted/planificacion/tickets" : "/tickets/mios");
       router.refresh();
     });
   }
 
   return (
-    <form onSubmit={on_submit} className="mx-auto max-w-2xl space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <form
+      onSubmit={on_submit}
+      className="mx-auto max-w-2xl space-y-5 rounded-3xl border border-slate-200 bg-white p-7 shadow-sm"
+    >
       <div>
-        <h1 className="text-xl font-bold text-slate-900">Ticket Prisma</h1>
+        <h1 className="text-xl font-semibold tracking-tight text-slate-900">
+          Ticket Prisma
+        </h1>
         <p className="mt-1 text-sm text-slate-500">
-          Requerimientos o errores. Se crea una tarea tipo ticket, fuera de la planificación hasta que TED la promueva.
+          {catalog.is_ted
+            ? "Puedes registrar una solicitud de otro usuario. Al completarla, esa persona recibe la respuesta."
+            : "Requerimientos o errores. TED te responde y queda el registro."}
         </p>
       </div>
-      <div className="space-y-1.5">
-        <Label>App</Label>
+      {catalog.is_ted ? (
+        <PlanField
+          label="Solicitado por"
+          hint="La notificación de cierre llega a esta persona."
+        >
+          <SearchSelect
+            value={solicitado_por}
+            placeholder="Quién hizo el requerimiento"
+            onChange={set_solicitado_por}
+            options={[
+              { value: "", label: "Yo (TED)" },
+              ...catalog.usuarios.map((u) => ({
+                value: String(u.id),
+                label: u.label,
+              })),
+            ]}
+          />
+        </PlanField>
+      ) : null}
+      <PlanField label="App">
         <select
-          className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+          className={PLAN_SELECT_CLASS}
           value={app_id}
           onChange={(e) => {
             set_app_id(e.target.value);
@@ -86,9 +119,8 @@ export function TicketForm({ catalog }: { catalog: TicketCatalog }) {
             </option>
           ))}
         </select>
-      </div>
-      <div className="space-y-1.5">
-        <Label>Módulo</Label>
+      </PlanField>
+      <PlanField label="Módulo">
         <SearchSelect
           value={modulo_id}
           placeholder="Buscar módulo (vacío = GENERAL)"
@@ -98,18 +130,16 @@ export function TicketForm({ catalog }: { catalog: TicketCatalog }) {
             ...modulos.map((m) => ({ value: String(m.id), label: m.nombre })),
           ]}
         />
-      </div>
-      <div className="space-y-1.5">
-        <Label htmlFor="tic-tit">Título</Label>
+      </PlanField>
+      <PlanField label="Título" htmlFor="tic-tit">
         <Input
           id="tic-tit"
           value={titulo}
           onChange={(e) => set_titulo(e.target.value)}
           required
         />
-      </div>
-      <div className="space-y-1.5">
-        <Label htmlFor="tic-des">Detalle / comportamiento esperado</Label>
+      </PlanField>
+      <PlanField label="Detalle / comportamiento esperado" htmlFor="tic-des">
         <Textarea
           id="tic-des"
           value={descripcion}
@@ -117,11 +147,10 @@ export function TicketForm({ catalog }: { catalog: TicketCatalog }) {
           required
           rows={5}
         />
-      </div>
-      <div className="space-y-1.5">
-        <Label>Prioridad</Label>
+      </PlanField>
+      <PlanField label="Prioridad">
         <select
-          className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+          className={PLAN_SELECT_CLASS}
           value={prioridad}
           onChange={(e) =>
             set_prioridad(e.target.value as (typeof TICKET_PRIORIDADES)[number])
@@ -136,10 +165,9 @@ export function TicketForm({ catalog }: { catalog: TicketCatalog }) {
             </option>
           ))}
         </select>
-      </div>
+      </PlanField>
       <div className="grid gap-3 sm:grid-cols-2">
-        <div className="space-y-1.5">
-          <Label>Asignado (dueño del módulo/app)</Label>
+        <PlanField label="Asignado (dueño del módulo/app)">
           <SearchSelect
             value={assigned}
             placeholder="Persona a cargo"
@@ -149,9 +177,8 @@ export function TicketForm({ catalog }: { catalog: TicketCatalog }) {
               label: u.label,
             }))}
           />
-        </div>
-        <div className="space-y-1.5">
-          <Label>Colaborador extra</Label>
+        </PlanField>
+        <PlanField label="Colaborador extra">
           <SearchSelect
             value={colab}
             placeholder="Opcional"
@@ -164,10 +191,14 @@ export function TicketForm({ catalog }: { catalog: TicketCatalog }) {
               })),
             ]}
           />
-        </div>
+        </PlanField>
       </div>
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
-      <Button type="submit" disabled={pending} className="bg-slate-900 text-white">
+      <Button
+        type="submit"
+        disabled={pending}
+        className="bg-slate-900 text-white hover:bg-slate-800"
+      >
         {pending ? "Enviando…" : "Enviar ticket"}
       </Button>
     </form>

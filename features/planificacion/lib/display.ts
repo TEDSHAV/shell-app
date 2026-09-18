@@ -124,6 +124,15 @@ export const EXPAND_MOTION = {
     "transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]",
 };
 
+export const ORIGIN_LABELS: Record<PlanOrigen, string> = {
+  PLAN: "Plan inicial",
+  TICKET: "Ticket",
+  GERENCIA: "Gerencia",
+  USUARIO: "Usuario",
+  REQUERIMIENTO: "Requerimiento",
+  ADICIONAL: "Adicional",
+};
+
 export const ORIGIN_COLORS: Record<PlanOrigen, string> = {
   PLAN: "bg-blue-600 text-white border-blue-700 shadow-sm",
   TICKET: "bg-violet-600 text-white border-violet-700 shadow-sm",

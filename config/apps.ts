@@ -1082,6 +1082,9 @@ export const apps: AppConfig[] = [
     navLinks: [
       {
         groupLabel: "Planificación",
+        icon: LayoutList,
+        collapsible: "always",
+        tedArea: "planificacion",
         links: [
           {
             label: "Vista general",
@@ -1101,7 +1104,32 @@ export const apps: AppConfig[] = [
         ],
       },
       {
+        groupLabel: "Objetivos",
+        icon: Target,
+        collapsible: "always",
+        tedArea: "objetivos",
+        links: [
+          {
+            label: "Objetivos",
+            path: "/planificacion/objetivos",
+            icon: Target,
+          },
+          {
+            label: "Cubrir",
+            path: "/planificacion/cubrir",
+            icon: GitBranch,
+          },
+          {
+            label: "Informe",
+            path: "/planificacion/informe",
+            icon: BarChart2,
+          },
+        ],
+      },
+      {
         groupLabel: "Usuarios",
+        icon: UserPlus,
+        collapsible: "always",
         links: [
           {
             label: "Manejo de usuarios",
@@ -1112,6 +1140,8 @@ export const apps: AppConfig[] = [
       },
       {
         groupLabel: "Notificaciones",
+        icon: Bell,
+        collapsible: "always",
         links: [
           {
             label: "Catálogo de notificaciones",

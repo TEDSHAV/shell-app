@@ -3,12 +3,12 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { PLAN_TRIMESTRES, HITO_ICONOS } from "../schemas";
 import { save_plan_hito, delete_plan_hito } from "../actions/hito-actions";
 import type { PlanApp, PlanHito, PlanHitoIcono, PlanTrimestre } from "../lib/types";
 import { PlanModal } from "./plan-modal";
+import { PlanField, PLAN_SELECT_CLASS } from "./plan-form-ui";
 
 const ICON_LABEL: Record<PlanHitoIcono, string> = {
   deploy: "Despliegue",
@@ -85,6 +85,7 @@ export function HitoFormDialog({
   return (
     <PlanModal
       open={open}
+      wide
       title={hito ? "Editar hito" : "Nuevo hito"}
       onClose={onClose}
       footer={
@@ -108,11 +109,10 @@ export function HitoFormDialog({
         </>
       }
     >
-      <div className="space-y-3">
-        <div>
-          <Label>App</Label>
+      <div className="space-y-4">
+        <PlanField label="App">
           <select
-            className="mt-1 h-9 w-full rounded-md border border-gray-200 px-2 text-sm"
+            className={PLAN_SELECT_CLASS}
             value={app_id}
             onChange={(event) => {
               set_app_id(event.target.value);
@@ -125,11 +125,10 @@ export function HitoFormDialog({
               </option>
             ))}
           </select>
-        </div>
-        <div>
-          <Label>Módulo (opcional)</Label>
+        </PlanField>
+        <PlanField label="Módulo (opcional)">
           <select
-            className="mt-1 h-9 w-full rounded-md border border-gray-200 px-2 text-sm"
+            className={PLAN_SELECT_CLASS}
             value={modulo_id}
             onChange={(event) => set_modulo_id(event.target.value)}
           >
@@ -140,28 +139,23 @@ export function HitoFormDialog({
               </option>
             ))}
           </select>
-        </div>
-        <div>
-          <Label>Título</Label>
+        </PlanField>
+        <PlanField label="Título">
           <Input
-            className="mt-1"
             value={titulo}
             onChange={(event) => set_titulo(event.target.value)}
           />
-        </div>
-        <div>
-          <Label>Descripción</Label>
+        </PlanField>
+        <PlanField label="Descripción">
           <Textarea
-            className="mt-1"
             value={descripcion}
             onChange={(event) => set_descripcion(event.target.value)}
           />
-        </div>
-        <div className="grid grid-cols-3 gap-2">
-          <div>
-            <Label>Trimestre</Label>
+        </PlanField>
+        <div className="grid grid-cols-3 gap-3">
+          <PlanField label="Trimestre">
             <select
-              className="mt-1 h-9 w-full rounded-md border border-gray-200 px-2 text-sm"
+              className={PLAN_SELECT_CLASS}
               value={trim}
               onChange={(event) => set_trim(event.target.value as PlanTrimestre)}
             >
@@ -171,20 +165,17 @@ export function HitoFormDialog({
                 </option>
               ))}
             </select>
-          </div>
-          <div>
-            <Label>Año</Label>
+          </PlanField>
+          <PlanField label="Año">
             <Input
-              className="mt-1"
               type="number"
               value={year}
               onChange={(event) => set_year(Number(event.target.value))}
             />
-          </div>
-          <div>
-            <Label>Icono</Label>
+          </PlanField>
+          <PlanField label="Icono">
             <select
-              className="mt-1 h-9 w-full rounded-md border border-gray-200 px-2 text-sm"
+              className={PLAN_SELECT_CLASS}
               value={icono}
               onChange={(event) =>
                 set_icono(event.target.value as PlanHitoIcono)
@@ -196,7 +187,7 @@ export function HitoFormDialog({
                 </option>
               ))}
             </select>
-          </div>
+          </PlanField>
         </div>
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
       </div>

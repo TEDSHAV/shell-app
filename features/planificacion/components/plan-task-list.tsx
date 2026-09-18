@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { OrigenBadge } from "./origen-badge";
+import { ObjetivoChip } from "./objetivo-chip";
 import { PlanAssigneeStack } from "./plan-assignee-chip";
 import { people_on_tarea } from "../lib/people";
 import { kanban_column_of_tarea } from "../lib/plan-kanban";
@@ -57,6 +58,7 @@ export function PlanTaskList({
               </p>
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <OrigenBadge origen={tarea.origen} />
+                <ObjetivoChip titulo={tarea.objetivo_titulo} />
                 {tarea.trimestre ? (
                   <span className="text-[11px] font-medium text-slate-400">
                     {tarea.trimestre}

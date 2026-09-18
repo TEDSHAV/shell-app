@@ -112,6 +112,21 @@ function resolve_reportes_department(
   return null;
 }
 
+function resolve_ted_area(
+  pathname: string,
+): "hub" | "planificacion" | "objetivos" | null {
+  if (!pathname.startsWith("/ted")) return null;
+  if (
+    pathname.startsWith("/ted/planificacion/objetivos") ||
+    pathname.startsWith("/ted/planificacion/cubrir") ||
+    pathname.startsWith("/ted/planificacion/informe")
+  ) {
+    return "objetivos";
+  }
+  if (pathname.startsWith("/ted/planificacion")) return "planificacion";
+  return "hub";
+}
+
 interface SidebarNavClientProps {
   userPermsByApp: Record<string, string[]>;
   userRolesByApp: Record<string, string>;
@@ -398,6 +413,8 @@ export function SidebarNavClient({
     currentApp.id === "reportes"
       ? resolve_reportes_department(pathname)
       : null;
+  const ted_area =
+    currentApp.id === "ted" ? resolve_ted_area(pathname) : null;
 
   const filteredItems = currentApp.navLinks
     .map((item) => {
@@ -406,6 +423,14 @@ export function SidebarNavClient({
           currentApp.id === "reportes" &&
           item.department &&
           item.department !== reportes_department
+        ) {
+          return { ...item, links: [] as NavLink[] };
+        }
+        if (
+          currentApp.id === "ted" &&
+          item.tedArea &&
+          ted_area !== "hub" &&
+          item.tedArea !== ted_area
         ) {
           return { ...item, links: [] as NavLink[] };
         }
@@ -458,7 +483,8 @@ export function SidebarNavClient({
             nav_paths,
           );
           const isExpanded =
-            group_toggles[item.groupLabel] ?? has_active;
+            group_toggles[item.groupLabel] ??
+            (has_active || ted_area === "hub");
 
           if (collapsible) {
             const GroupIcon = item.icon;

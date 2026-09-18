@@ -39,7 +39,7 @@ export function QuarterTasksSheet({
       : `${app.nombre} · En proceso ${months} ${anio}`;
 
   return (
-    <PlanModal open title={title} onClose={onClose}>
+    <PlanModal open wide title={title} onClose={onClose}>
       <p className="mb-3 text-xs text-gray-400">
         {span.modulo.nombre} · {months} · {rows.length} tarea
         {rows.length === 1 ? "" : "s"}

@@ -246,7 +246,7 @@ export function map_origen(raw: string): PlanOrigen | null {
   if (key === "plan") return "PLAN";
   if (key === "adicional" || key.includes("adicional")) return "ADICIONAL";
   if (key === "ticket" || key.includes("ticket")) return "TICKET";
-  if (key === "gerencia") return "GERENCIA";
+  if (key === "gerencia") return "REQUERIMIENTO";
   if (key === "usuario") return "USUARIO";
   if (
     key === "req" ||

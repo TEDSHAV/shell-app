@@ -81,6 +81,8 @@ type TareaRow = {
   asignado_id?: number | null;
   en_planificacion?: boolean | null;
   ticket_id?: number | null;
+  objetivo_id?: number | null;
+  created_at?: string | null;
 };
 
 let shell_apps_synced = false;
@@ -156,7 +158,7 @@ function module_metrics(tareas: PlanTarea[], modulo: ModuloRow): PlanModulo {
   };
 }
 
-async function query_plan_workspace(
+export async function query_plan_workspace(
   supabase: Awaited<ReturnType<typeof createAdminClient>>,
 ): Promise<{ ok: true; data: PlanWorkspaceData } | { ok: false; error: string }> {
   const [apps_res, modulos_res, tareas_res, parts, hitos_res, users_result, links_res, asignados_res] =
@@ -176,7 +178,7 @@ async function query_plan_workspace(
     supabase
       .from("ted_plan_tareas" as never)
       .select(
-        "id, modulo_id, titulo, origen, avance, no_solicitada, completada, completada_at, entregable_tipo, entregable_ruta, entregable_unidad, entregable_version, entregable_comentario, fecha_inicio, fecha_fin, orden, trimestre, asignado_id, en_planificacion, ticket_id",
+        "id, modulo_id, titulo, origen, avance, no_solicitada, completada, completada_at, created_at, entregable_tipo, entregable_ruta, entregable_unidad, entregable_version, entregable_comentario, fecha_inicio, fecha_fin, orden, trimestre, asignado_id, en_planificacion, ticket_id, objetivo_id",
       )
       .order("orden")
       .order("id"),
@@ -286,6 +288,30 @@ async function query_plan_workspace(
     participantes_by_mod.set(row.modulo_id, list);
   }
 
+  const objetivo_ids = [
+    ...new Set(
+      ((tareas.data ?? []) as TareaRow[])
+        .map((row) => row.objetivo_id)
+        .filter((id): id is number => Boolean(id && id > 0)),
+    ),
+  ];
+  const objetivo_titulo = new Map<number, string>();
+  if (objetivo_ids.length > 0) {
+    const objetivos_res = await supabase
+      .from("ted_plan_objetivos" as never)
+      .select("id, titulo")
+      .in("id", objetivo_ids);
+    if (objetivos_res.error) {
+      console.error("[planificacion] objetivos:", objetivos_res.error);
+    }
+    for (const row of (objetivos_res.data ?? []) as Array<{
+      id: number;
+      titulo: string;
+    }>) {
+      objetivo_titulo.set(row.id, row.titulo);
+    }
+  }
+
   const tareas_by_mod = new Map<number, PlanTarea[]>();
   for (const row of (tareas.data ?? []) as TareaRow[]) {
     const list = tareas_by_mod.get(row.modulo_id) ?? [];
@@ -305,6 +331,11 @@ async function query_plan_workspace(
       asignado_id: asignados[0]?.usuario_id ?? row.asignado_id ?? null,
       en_planificacion: row.en_planificacion !== false,
       ticket_id: row.ticket_id ?? null,
+      created_at: row.created_at ?? null,
+      objetivo_id: row.objetivo_id ?? null,
+      objetivo_titulo: row.objetivo_id
+        ? (objetivo_titulo.get(row.objetivo_id) ?? null)
+        : null,
       asignados,
       asignado: asignados[0] ?? null,
     });
@@ -458,7 +489,7 @@ export async function load_plan_ticket_inbox(): Promise<
     supabase
       .from("ted_plan_tareas" as never)
       .select(
-        "id, modulo_id, titulo, origen, avance, no_solicitada, completada, completada_at, entregable_tipo, entregable_ruta, entregable_unidad, entregable_version, entregable_comentario, fecha_inicio, fecha_fin, orden, trimestre, asignado_id, en_planificacion, ticket_id",
+        "id, modulo_id, titulo, origen, avance, no_solicitada, completada, completada_at, created_at, entregable_tipo, entregable_ruta, entregable_unidad, entregable_version, entregable_comentario, fecha_inicio, fecha_fin, orden, trimestre, asignado_id, en_planificacion, ticket_id, objetivo_id",
       )
       .eq("origen", "TICKET")
       .order("id"),
@@ -590,6 +621,9 @@ export async function load_plan_ticket_inbox(): Promise<
       asignado_id: asignados[0]?.usuario_id ?? row.asignado_id ?? null,
       en_planificacion: row.en_planificacion !== false,
       ticket_id: row.ticket_id ?? null,
+      created_at: row.created_at ?? null,
+      objetivo_id: row.objetivo_id ?? null,
+      objetivo_titulo: null,
       asignado: asignados[0] ?? null,
       asignados,
     };

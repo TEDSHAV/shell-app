@@ -24,7 +24,13 @@ export default async function TedTicketsPage() {
         Inbox de tickets
       </h1>
       <p className="mb-4 mt-0.5 text-sm text-slate-400">
-        Tickets nativos y tareas ya cargadas con origen TICKET
+        Tickets nativos y tareas ya cargadas con origen TICKET.{" "}
+        <a
+          href="/tickets"
+          className="font-semibold text-violet-700 hover:underline"
+        >
+          Registrar ticket de un usuario
+        </a>
       </p>
       {tickets.ok && plan_tickets.ok ? (
         <TedTicketsInbox tickets={merged} usuarios={plan_tickets.usuarios} />

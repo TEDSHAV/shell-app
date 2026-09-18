@@ -3,16 +3,20 @@
 import { revalidatePath } from "next/cache";
 import { PLAN_TRIMESTRES, tarea_schema, type TareaInput } from "../schemas";
 import type { PlanTrimestre } from "../lib/types";
+import { is_frozen_origen } from "../lib/origen-policy";
 import { normalize_prisma_path } from "../lib/prisma-routes";
 import { require_ted_plan_context } from "./assert-ted";
 import { TED_DEPARTMENT_ID } from "../lib/ted-department";
 import { resolve_modulo_for_app } from "./modulo-actions";
 import { iso_date } from "../lib/task-dates";
 import { createAdminClient } from "@/lib/supabase/server";
+import { sync_ticket_on_tarea_done } from "@/features/tickets/actions/ticket-actions";
 
 function revalidate_plan() {
   revalidatePath("/ted/planificacion");
   revalidatePath("/ted/planificacion/tareas");
+  revalidatePath("/ted/planificacion/objetivos");
+  revalidatePath("/ted/planificacion/cubrir");
 }
 
 async function next_tarea_orden(
@@ -40,6 +44,28 @@ export async function save_plan_tarea(
   if (!gate.ok) return gate;
   const { supabase, user_id } = gate.ctx;
   const input = parsed.data;
+
+  if (!input.id && is_frozen_origen(input.origen)) {
+    return {
+      ok: false,
+      error:
+        "El plan inicial ya está cargado. Usa requerimiento, ticket, usuario o adicional.",
+    };
+  }
+  if (input.id && is_frozen_origen(input.origen)) {
+    const { data: current } = await supabase
+      .from("ted_plan_tareas" as never)
+      .select("origen")
+      .eq("id", input.id)
+      .maybeSingle();
+    const current_origen = (current as { origen?: string } | null)?.origen;
+    if (current_origen !== input.origen) {
+      return {
+        ok: false,
+        error: "No se puede cambiar el origen a Plan inicial o Gerencia.",
+      };
+    }
+  }
 
   const resolved = await resolve_modulo_for_app(
     input.app_id,
@@ -97,6 +123,7 @@ export async function save_plan_tarea(
       input.asignado_id ??
       null,
     en_planificacion: true,
+    objetivo_id: input.objetivo_id ?? null,
     entregable_unidad: tipo === "version" ? (input.entregable_unidad ?? null) : null,
     entregable_version: tipo === "version" ? (input.entregable_version ?? null) : null,
   };
@@ -117,6 +144,14 @@ export async function save_plan_tarea(
         (input.asignado_id ? [input.asignado_id] : []),
     );
     if (!assigned.ok) return assigned;
+    if (payload.completada) {
+      await sync_ticket_on_tarea_done(
+        supabase,
+        input.id,
+        user_id,
+        comentario ?? "",
+      );
+    }
     revalidate_plan();
     return { ok: true, id: input.id };
   }
@@ -189,6 +224,9 @@ export async function toggle_plan_tarea(
     console.error("[planificacion] toggle tarea:", error);
     return { ok: false, error: "No se pudo cambiar el estado." };
   }
+  if (completada) {
+    await sync_ticket_on_tarea_done(supabase, tarea_id, user_id, "");
+  }
   revalidate_plan();
   return { ok: true };
 }
@@ -218,6 +256,9 @@ export async function set_plan_tarea_avance(
   if (error) {
     console.error("[planificacion] set avance:", error);
     return { ok: false, error: "No se pudo mover la tarea." };
+  }
+  if (done) {
+    await sync_ticket_on_tarea_done(supabase, tarea_id, user_id, "");
   }
   revalidate_plan();
   return { ok: true };

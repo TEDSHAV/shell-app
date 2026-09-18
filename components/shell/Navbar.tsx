@@ -6,6 +6,7 @@ import { AppBreadcrumb } from "./AppBreadcrumb";
 import { AppNavigation } from "./AppNavigation";
 import { UserMenu } from "./UserMenu";
 import { NotificationsBell } from "./NotificationsBell";
+import { HelpCenterTrigger } from "@/components/help/help-center-trigger";
 import { NavbarProps } from "@/types";
 
 export const Navbar = ({
@@ -48,6 +49,7 @@ export const Navbar = ({
           userRolesByApp={userRolesByApp} 
           globalRole={globalRole} 
         />
+        <HelpCenterTrigger />
         <NotificationsBell />
         {userEmail && <UserMenu userEmail={userEmail} />}
       </div>

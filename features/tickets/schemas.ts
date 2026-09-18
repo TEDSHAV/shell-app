@@ -18,6 +18,7 @@ export const ticket_create_schema = z.object({
   prioridad: z.enum(TICKET_PRIORIDADES),
   asignado_id: z.number().int().positive().nullable().optional(),
   colaborador_ids: z.array(z.number().int().positive()).default([]),
+  solicitado_por: z.number().int().positive().optional(),
 });
 
 export const ticket_reply_schema = z.object({

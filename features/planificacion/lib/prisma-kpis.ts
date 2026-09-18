@@ -53,11 +53,7 @@ export function prisma_plan_rango(
   return `Enero – ${labeled} ${anio}`;
 }
 
-const REQ_ORIGINS = new Set<PlanOrigen>([
-  "REQUERIMIENTO",
-  "GERENCIA",
-  "USUARIO",
-]);
+const REQ_ORIGINS = new Set<PlanOrigen>(["REQUERIMIENTO", "USUARIO"]);
 
 function ratio(tareas: PlanTarea[]): RatioKpi {
   const countable = tareas.filter((tarea) => !is_tarea_no_solicitada(tarea));

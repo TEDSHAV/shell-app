@@ -197,7 +197,7 @@ export function PlanificacionWorkspace({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0 shrink-0">
           <h1 className="text-[28px] font-semibold tracking-tight text-slate-900">
-            Prisma
+            Planificación
           </h1>
           <p className="mt-0.5 text-sm text-slate-400">
             {read_only
@@ -410,7 +410,7 @@ export function PlanificacionWorkspace({
           onSaved={refresh}
         />
       ) : null}
-      {!read_only && tarea_open ? (
+      {tarea_open ? (
         <TareaFormDialog
           key={editing_tarea?.id ?? `new-tar-${preset_modulo_id}`}
           open
@@ -420,6 +420,7 @@ export function PlanificacionWorkspace({
           preset_modulo_id={preset_modulo_id}
           tarea={editing_tarea}
           usuarios={usuarios}
+          view_only={read_only}
           onClose={() => set_tarea_open(false)}
           onSaved={refresh}
         />

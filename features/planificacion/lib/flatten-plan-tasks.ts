@@ -62,6 +62,7 @@ export function filter_flat_plan_tasks(
     if (!q) return true;
     return (
       tarea.titulo.toLowerCase().includes(q) ||
+      (tarea.objetivo_titulo ?? "").toLowerCase().includes(q) ||
       app_nombre.toLowerCase().includes(q) ||
       modulo_nombre.toLowerCase().includes(q)
     );

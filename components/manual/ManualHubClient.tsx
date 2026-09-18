@@ -176,6 +176,44 @@ export function ManualHubClient({ apps }: Props) {
       >
         <div className="grid gap-4 sm:grid-cols-2">
           <Link
+            href="/ted/planificacion/manual"
+            className="group rounded-xl border border-sky-200 bg-white p-5 shadow-sm transition hover:border-sky-400 hover:shadow-md"
+          >
+            <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">
+              TED
+            </p>
+            <h3 className="mt-1 text-xl font-bold text-slate-900">
+              Planificación
+            </h3>
+            <p className="mt-2 text-sm leading-relaxed text-slate-600">
+              Árbol, plan inicial congelado, Excel y orígenes de alta.
+            </p>
+          </Link>
+          <Link
+            href="/ted/planificacion/objetivos/manual"
+            className="group rounded-xl border border-violet-200 bg-white p-5 shadow-sm transition hover:border-violet-400 hover:shadow-md"
+          >
+            <p className="text-xs font-semibold uppercase tracking-wide text-violet-700">
+              Periodo
+            </p>
+            <h3 className="mt-1 text-xl font-bold text-slate-900">Objetivos</h3>
+            <p className="mt-2 text-sm leading-relaxed text-slate-600">
+              Dos pisos, cubrir, informe Compromiso y Plus.
+            </p>
+          </Link>
+          <Link
+            href="/ted/planificacion/tickets/manual"
+            className="group rounded-xl border border-amber-200 bg-white p-5 shadow-sm transition hover:border-amber-400 hover:shadow-md"
+          >
+            <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
+              TED
+            </p>
+            <h3 className="mt-1 text-xl font-bold text-slate-900">Tickets</h3>
+            <p className="mt-2 text-sm leading-relaxed text-slate-600">
+              Inbox, promover a tarea y origen TICKET.
+            </p>
+          </Link>
+          <Link
             href="/negocios/manual"
             className="group rounded-xl border border-emerald-200 bg-white p-5 shadow-sm transition hover:border-emerald-400 hover:shadow-md"
           >

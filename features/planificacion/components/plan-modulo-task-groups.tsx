@@ -5,6 +5,7 @@ import { sort_tareas_adicional_last } from "../lib/sort-tareas";
 import { tarea_avance } from "../lib/task-progress";
 import type { PlanTarea } from "../lib/types";
 import { OrigenBadge } from "./origen-badge";
+import { ObjetivoChip } from "./objetivo-chip";
 import { PlanAssigneeStack } from "./plan-assignee-chip";
 import { people_on_tarea } from "../lib/people";
 
@@ -31,19 +32,15 @@ function TaskRow({
   const edge = dashed ? "border-dashed border-gray-200" : "border-gray-100";
   return (
     <tr
-      tabIndex={read_only ? undefined : 0}
-      onClick={read_only ? undefined : () => on_edit_tarea(tarea)}
-      onKeyDown={
-        read_only
-          ? undefined
-          : (event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                on_edit_tarea(tarea);
-              }
-            }
-      }
-      className={`${read_only ? "" : "cursor-pointer"} bg-white outline-none ring-violet-200 hover:bg-slate-50 focus-visible:ring-2 ${
+      tabIndex={0}
+      onClick={() => on_edit_tarea(tarea)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          on_edit_tarea(tarea);
+        }
+      }}
+      className={`cursor-pointer bg-white outline-none ring-violet-200 hover:bg-slate-50 focus-visible:ring-2 ${
         variant === "skipped" ? "bg-gray-50" : ""
       }`}
     >
@@ -74,6 +71,11 @@ function TaskRow({
         >
           {tarea.titulo}
         </span>
+        {tarea.objetivo_titulo ? (
+          <span className="mt-0.5 block">
+            <ObjetivoChip titulo={tarea.objetivo_titulo} />
+          </span>
+        ) : null}
         {variant === "done" &&
         tarea.entregable_tipo === "vista" &&
         tarea.entregable_ruta ? (

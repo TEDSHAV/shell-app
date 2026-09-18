@@ -2,16 +2,12 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { PlanModal } from "./plan-modal";
+import { OrigenBadge } from "./origen-badge";
+import { TareaViewPanel } from "./tarea-view-panel";
+import { TareaEditForm } from "./tarea-edit-form";
+import { default_new_origen } from "../lib/origen-policy";
 import { save_plan_tarea, delete_plan_tarea } from "../actions/tarea-actions";
-import { PLAN_ORIGENES, PLAN_TRIMESTRES } from "../schemas";
-import { PRISMA_VIEW_SHORTCUTS } from "../lib/prisma-routes";
-import { PLAN_RELEASE_UNITS } from "../lib/release-units";
-import { SearchSelect } from "./search-select";
-import { TedPersonPicker } from "./ted-person-picker";
 import type {
   EntregableTipo,
   PlanApp,
@@ -27,8 +23,10 @@ export function TareaFormDialog({
   all_modulos,
   preset_app_id,
   preset_modulo_id,
+  preset_objetivo_id = null,
   tarea,
   usuarios,
+  view_only = false,
   onClose,
   onSaved,
 }: {
@@ -37,8 +35,10 @@ export function TareaFormDialog({
   all_modulos: PlanModulo[];
   preset_app_id: number | null;
   preset_modulo_id: number | null;
+  preset_objetivo_id?: number | null;
   tarea: PlanTarea | null;
   usuarios: PlanUsuarioOption[];
+  view_only?: boolean;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -48,13 +48,21 @@ export function TareaFormDialog({
       ?.app_id ??
     apps[0]?.id ??
     0;
+  const [mode, set_mode] = useState<"ver" | "editar">(
+    tarea && !view_only ? "ver" : tarea && view_only ? "ver" : "editar",
+  );
   const [app_id, set_app_id] = useState(String(initial_app || ""));
   const [modulo_id, set_modulo_id] = useState(
     String(tarea?.modulo_id ?? preset_modulo_id ?? ""),
   );
   const [nuevo_modulo, set_nuevo_modulo] = useState("");
   const [titulo, set_titulo] = useState(tarea?.titulo ?? "");
-  const [origen, set_origen] = useState(tarea?.origen ?? "PLAN");
+  const [origen, set_origen] = useState(
+    tarea?.origen ?? default_new_origen(),
+  );
+  const [objetivo_id] = useState(
+    tarea?.objetivo_id ?? preset_objetivo_id ?? null,
+  );
   const [avance, set_avance] = useState(
     tarea?.avance ?? (tarea?.completada ? 100 : 0),
   );
@@ -87,6 +95,9 @@ export function TareaFormDialog({
   );
   const [error, set_error] = useState<string | null>(null);
   const [saving, set_saving] = useState(false);
+  const viewing = Boolean(tarea) && mode === "ver";
+  const app = apps.find((item) => item.id === Number(app_id));
+  const modulo = all_modulos.find((item) => item.id === Number(modulo_id));
 
   async function on_submit() {
     set_saving(true);
@@ -111,6 +122,7 @@ export function TareaFormDialog({
       fecha_fin: fecha_fin || fecha_inicio || null,
       trimestre: fecha_inicio ? null : trimestre || null,
       asignado_ids,
+      objetivo_id,
     });
     set_saving(false);
     if (!result.ok) {
@@ -124,290 +136,131 @@ export function TareaFormDialog({
   return (
     <PlanModal
       open={open}
-      title={tarea ? "Editar tarea" : "Nueva tarea"}
+      variant="sheet"
+      title={
+        viewing
+          ? tarea?.titulo ?? "Tarea"
+          : tarea
+            ? "Editar tarea"
+            : "Nueva tarea"
+      }
+      subtitle={
+        viewing
+          ? `${app?.nombre ?? "App"} · ${modulo?.nombre ?? "Módulo"}`
+          : tarea
+            ? `${app?.nombre ?? "App"} · ${modulo?.nombre ?? "Módulo"}`
+            : "Completa los datos para incluirla en el plan"
+      }
+      badges={
+        viewing && tarea ? <OrigenBadge origen={tarea.origen} /> : undefined
+      }
       onClose={onClose}
       footer={
-        <>
-          <Button type="button" variant="outline" onClick={onClose}>
-            Cancelar
-          </Button>
-          <Button
-            type="button"
-            className="bg-gray-900 text-white hover:bg-gray-800"
-            disabled={saving}
-            onClick={() => void on_submit()}
-          >
-            {saving ? "Guardando…" : "Guardar"}
-          </Button>
-        </>
+        viewing ? (
+          <>
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cerrar
+            </Button>
+            {view_only ? null : (
+              <Button
+                type="button"
+                className="bg-slate-900 px-5 text-white hover:bg-slate-800"
+                onClick={() => set_mode("editar")}
+              >
+                Editar tarea
+              </Button>
+            )}
+          </>
+        ) : (
+          <>
+            {tarea && !view_only ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="mr-auto border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                onClick={() => {
+                  void (async () => {
+                    const ok = window.confirm(
+                      "¿Eliminar esta tarea del cálculo?",
+                    );
+                    if (!ok) return;
+                    const result = await delete_plan_tarea(tarea.id);
+                    if (!result.ok) {
+                      set_error(result.error);
+                      return;
+                    }
+                    onSaved();
+                    onClose();
+                  })();
+                }}
+              >
+                Eliminar
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                if (tarea) set_mode("ver");
+                else onClose();
+              }}
+            >
+              {tarea ? "Volver" : "Cancelar"}
+            </Button>
+            <Button
+              type="button"
+              className="bg-slate-900 px-5 text-white hover:bg-slate-800"
+              disabled={saving}
+              onClick={() => void on_submit()}
+            >
+              {saving ? "Guardando…" : "Guardar cambios"}
+            </Button>
+          </>
+        )
       }
     >
-      <div className="space-y-3">
-        <div className="space-y-1.5">
-          <Label htmlFor="tar-app">APP</Label>
-          <select
-            id="tar-app"
-            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
-            value={app_id}
-            onChange={(e) => {
-              set_app_id(e.target.value);
-              set_modulo_id("");
-            }}
-          >
-            {apps.map((app) => (
-              <option key={app.id} value={app.id}>
-                {app.nombre}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="tar-mod">Módulo</Label>
-          <select
-            id="tar-mod"
-            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
-            value={modulo_id}
-            onChange={(e) => set_modulo_id(e.target.value)}
-          >
-            <option value="">Crear módulo nuevo…</option>
-            {all_modulos
-              .filter((m) => {
-                const ids = m.app_ids?.length ? m.app_ids : [m.app_id];
-                return ids.includes(Number(app_id));
-              })
-              .filter(
-                (m, index, list) =>
-                  list.findIndex((item) => item.id === m.id) === index,
-              )
-              .map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.nombre}
-                  {m.app_ids.length > 1 ? " (varias apps)" : ""}
-                </option>
-              ))}
-          </select>
-        </div>
-        {!modulo_id ? (
-          <div className="space-y-1.5">
-            <Label htmlFor="tar-mod-new">Nombre del módulo nuevo</Label>
-            <Input
-              id="tar-mod-new"
-              value={nuevo_modulo}
-              onChange={(e) => set_nuevo_modulo(e.target.value)}
-            />
-          </div>
-        ) : null}
-        <div className="space-y-1.5">
-          <Label htmlFor="tar-titulo">Tarea / feature</Label>
-          <Input
-            id="tar-titulo"
-            value={titulo}
-            onChange={(e) => set_titulo(e.target.value)}
-          />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="tar-origen">Origen</Label>
-            <select
-              id="tar-origen"
-              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
-              value={origen}
-              onChange={(e) =>
-                set_origen(e.target.value as (typeof PLAN_ORIGENES)[number])
-              }
-            >
-              {PLAN_ORIGENES.map((o) => (
-                <option key={o} value={o}>
-                  {o}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="tar-estado">Avance</Label>
-            <div className="flex items-center gap-2">
-              <Input
-                id="tar-estado"
-                type="number"
-                min={0}
-                max={100}
-                disabled={no_solicitada}
-                value={no_solicitada ? 0 : avance}
-                onChange={(e) => {
-                  const next = Math.min(
-                    100,
-                    Math.max(0, Number(e.target.value) || 0),
-                  );
-                  set_avance(next);
-                }}
-              />
-              <span className="text-sm text-gray-500">%</span>
-            </div>
-            <label className="flex items-center gap-2 text-xs text-gray-600">
-              <input
-                type="checkbox"
-                checked={no_solicitada}
-                onChange={(e) => set_no_solicitada(e.target.checked)}
-              />
-              No solicitada (no cuenta en el %)
-            </label>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="tar-ini">Fecha inicio</Label>
-            <Input
-              id="tar-ini"
-              type="date"
-              value={fecha_inicio}
-              onChange={(e) => {
-                set_fecha_inicio(e.target.value);
-                if (!fecha_fin || fecha_fin < e.target.value) {
-                  set_fecha_fin(e.target.value);
-                }
-              }}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="tar-fin">Fecha fin</Label>
-            <Input
-              id="tar-fin"
-              type="date"
-              value={fecha_fin}
-              onChange={(e) => set_fecha_fin(e.target.value)}
-            />
-            <p className="text-[11px] text-gray-400">
-              Opcional. Sin fecha puedes marcar un trimestre y colocarlo en el roadmap.
-            </p>
-          </div>
-        </div>
-        {!fecha_inicio ? (
-          <div className="space-y-1.5">
-            <Label htmlFor="tar-tri">Trimestre</Label>
-            <select
-              id="tar-tri"
-              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
-              value={trimestre}
-              onChange={(e) =>
-                set_trimestre(e.target.value as PlanTrimestre | "")
-              }
-            >
-              <option value="">Sin colocar</option>
-              {PLAN_TRIMESTRES.map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-          </div>
-        ) : null}
-        <div className="space-y-1.5">
-          <Label>Asignados TED</Label>
-          <TedPersonPicker
-            usuarios={usuarios}
-            multiple
-            values={asignado_ids}
-            on_change_many={set_asignado_ids}
-            allow_none
-            none_label="Sin asignar"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="tar-ent">Entregable</Label>
-          <select
-            id="tar-ent"
-            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
-            value={entregable_tipo}
-            onChange={(e) =>
-              set_entregable_tipo(e.target.value as EntregableTipo)
-            }
-          >
-            <option value="ninguno">Sin entregable</option>
-            <option value="vista">Vista Prisma (ruta)</option>
-            <option value="comentario">Comentario</option>
-            <option value="version">Versión de release</option>
-          </select>
-        </div>
-        {entregable_tipo === "vista" ? (
-          <div className="space-y-1.5">
-            <Label htmlFor="tar-ruta">Ruta</Label>
-            <Input
-              id="tar-ruta"
-              placeholder="/crm/leads"
-              value={ruta}
-              onChange={(e) => set_ruta(e.target.value)}
-              list="prisma-routes"
-            />
-            <datalist id="prisma-routes">
-              {PRISMA_VIEW_SHORTCUTS.map((item) => (
-                <option key={item.path} value={item.path}>
-                  {item.label}
-                </option>
-              ))}
-            </datalist>
-          </div>
-        ) : null}
-        {entregable_tipo === "version" ? (
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="tar-uni">Unidad</Label>
-              <select
-                id="tar-uni"
-                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
-                value={unidad}
-                onChange={(e) => set_unidad(e.target.value)}
-              >
-                {PLAN_RELEASE_UNITS.map((unit) => (
-                  <option key={unit.id} value={unit.id}>
-                    {unit.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="tar-ver">Versión</Label>
-              <Input
-                id="tar-ver"
-                placeholder="facturacion-v0.4.0"
-                value={version}
-                onChange={(e) => set_version(e.target.value)}
-              />
-            </div>
-          </div>
-        ) : null}
-        {entregable_tipo === "comentario" ? (
-          <div className="space-y-1.5">
-            <Label htmlFor="tar-com">Comentario de entrega</Label>
-            <Textarea
-              id="tar-com"
-              value={comentario}
-              onChange={(e) => set_comentario(e.target.value)}
-            />
-          </div>
-        ) : null}
-        {error ? <p className="text-sm text-red-600">{error}</p> : null}
-        {tarea ? (
-          <button
-            type="button"
-            className="text-xs text-red-500 hover:text-red-700"
-            onClick={() => {
-              void (async () => {
-                const ok = window.confirm("¿Eliminar esta tarea del cálculo?");
-                if (!ok) return;
-                const result = await delete_plan_tarea(tarea.id);
-                if (!result.ok) {
-                  set_error(result.error);
-                  return;
-                }
-                onSaved();
-                onClose();
-              })();
-            }}
-          >
-            Eliminar tarea
-          </button>
-        ) : null}
-      </div>
+      {viewing && tarea ? (
+        <TareaViewPanel tarea={tarea} app={app} modulo={modulo} />
+      ) : (
+        <TareaEditForm
+          apps={apps}
+          all_modulos={all_modulos}
+          app_id={app_id}
+          modulo_id={modulo_id}
+          nuevo_modulo={nuevo_modulo}
+          titulo={titulo}
+          origen={origen}
+          avance={avance}
+          no_solicitada={no_solicitada}
+          entregable_tipo={entregable_tipo}
+          unidad={unidad}
+          version={version}
+          ruta={ruta}
+          comentario={comentario}
+          fecha_inicio={fecha_inicio}
+          fecha_fin={fecha_fin}
+          trimestre={trimestre}
+          asignado_ids={asignado_ids}
+          usuarios={usuarios}
+          error={error}
+          on_app={set_app_id}
+          on_modulo={set_modulo_id}
+          on_nuevo_modulo={set_nuevo_modulo}
+          on_titulo={set_titulo}
+          on_origen={set_origen}
+          on_avance={set_avance}
+          on_no_solicitada={set_no_solicitada}
+          on_entregable={set_entregable_tipo}
+          on_unidad={set_unidad}
+          on_version={set_version}
+          on_ruta={set_ruta}
+          on_comentario={set_comentario}
+          on_inicio={set_fecha_inicio}
+          on_fin={set_fecha_fin}
+          on_trimestre={set_trimestre}
+          on_asignados={set_asignado_ids}
+        />
+      )}
     </PlanModal>
   );
 }

@@ -1,12 +1,12 @@
 "use client";
 
 import { useRef } from "react";
+import { ORIGIN_LABELS, STATUS_COLORS } from "../lib/display";
 import { PLAN_ORIGENES, PLAN_TRIMESTRES } from "../schemas";
 import type { PlanOrigen, PlanSalud, PlanTrimestre } from "../lib/types";
 import type { PlanQuery, PlanSortKey } from "../lib/plan-filters";
 import type { PlanUsuarioOption } from "../lib/types";
 import { TedPersonPicker } from "./ted-person-picker";
-import { STATUS_COLORS } from "../lib/display";
 import { Search, SlidersHorizontal } from "lucide-react";
 import { useState } from "react";
 
@@ -116,7 +116,7 @@ export function PlanToolbar({
             <option value="Todos">Origen</option>
             {PLAN_ORIGENES.map((origen) => (
               <option key={origen} value={origen}>
-                {origen}
+                {ORIGIN_LABELS[origen]}
               </option>
             ))}
           </select>

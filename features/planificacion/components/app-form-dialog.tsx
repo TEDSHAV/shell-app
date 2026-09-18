@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { PlanModal } from "./plan-modal";
+import { PlanField } from "./plan-form-ui";
 import { archive_plan_app, save_plan_app } from "../actions/app-actions";
 import { catalog_nombre_of_slug } from "../lib/shell-plan-apps";
 import type { PlanApp } from "../lib/types";
@@ -46,6 +46,7 @@ export function AppFormDialog({
   return (
     <PlanModal
       open={open}
+      wide
       title={app ? "Editar aplicación" : "Nueva aplicación"}
       onClose={onClose}
       footer={
@@ -55,7 +56,7 @@ export function AppFormDialog({
           </Button>
           <Button
             type="button"
-            className="bg-gray-900 text-white hover:bg-gray-800"
+            className="bg-slate-900 text-white hover:bg-slate-800"
             disabled={saving}
             onClick={() => void on_submit()}
           >
@@ -64,33 +65,29 @@ export function AppFormDialog({
         </>
       }
     >
-      <div className="space-y-3">
-        <div className="space-y-1.5">
-          <Label htmlFor="app-nombre">Nombre en Prisma</Label>
-          {catalog_nombre ? (
-            <p className="text-xs text-slate-500">
-              En el catálogo del Shell se llama{" "}
-              <span className="font-semibold text-slate-700">
-                {catalog_nombre}
-              </span>
-              . Puedes cambiar cómo se ve aquí; el identificador de la app no
-              cambia.
-            </p>
-          ) : null}
+      <div className="space-y-4">
+        <PlanField
+          label="Nombre en Prisma"
+          htmlFor="app-nombre"
+          hint={
+            catalog_nombre
+              ? `En el catálogo del Shell se llama ${catalog_nombre}.`
+              : undefined
+          }
+        >
           <Input
             id="app-nombre"
             value={nombre}
             onChange={(e) => set_nombre(e.target.value)}
           />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="app-sub">Descripción</Label>
+        </PlanField>
+        <PlanField label="Descripción" htmlFor="app-sub">
           <Input
             id="app-sub"
             value={subtitulo}
             onChange={(e) => set_subtitulo(e.target.value)}
           />
-        </div>
+        </PlanField>
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
         {app && app.origen === "custom" ? (
           <button
