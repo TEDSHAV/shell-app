@@ -3,6 +3,7 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { RefreshCw } from "lucide-react";
 import type {
   OSIListFilters,
   OSIListItem,
@@ -32,9 +33,6 @@ interface CacheEntry {
   timestamp: number;
 }
 
-// Stale-while-revalidate: entries are fresh for 60s, then stale but still
-// usable instantly while a refetch runs in the background.
-const FRESH_MS = 60_000;
 const MAX_CACHE = 20;
 
 function cacheKey(filters: OSIListFilters, page: number, itemsPerPage: number): CacheKey {
@@ -79,6 +77,13 @@ export default function ConsultaOSIClient({ canChangeStatus, canHideForClient, c
   // Scroll container ref so we can scroll to top on page change.
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // Trigger manual or post-mutation refresh
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const refreshData = useCallback(() => {
+    cacheRef.current.clear();
+    setRefreshTrigger((prev) => prev + 1);
+  }, []);
+
   const getCached = useCallback((key: CacheKey): CacheEntry | null => {
     const entry = cacheRef.current.get(key);
     if (!entry) return null;
@@ -107,17 +112,14 @@ export default function ConsultaOSIClient({ canChangeStatus, canHideForClient, c
 
       setOsis(cached.osis);
       setTotalCount(cached.totalCount);
-      // If fresh, we can skip the fetch entirely — clear all loading states.
-      if (Date.now() - cached.timestamp < FRESH_MS) {
-        setLoading(false);
-        setFetching(false);
-        if (!filtersLoadedRef.current) setLoadingFilters(false);
-      }
+      setLoading(false);
+      setFetching(true);
+      if (!filtersLoadedRef.current) setLoadingFilters(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters, currentPage, itemsPerPage]);
+  }, [filters, currentPage, itemsPerPage, refreshTrigger]);
 
-  // --- Async fetch: runs after paint, only if data is stale or missing ---
+  // --- Async fetch: runs after paint, always revalidating with fresh server data ---
   useEffect(() => {
     let cancelled = false;
     const reqId = ++latestReqIdRef.current;
@@ -125,25 +127,16 @@ export default function ConsultaOSIClient({ canChangeStatus, canHideForClient, c
     const key = cacheKey(filters, currentPage, itemsPerPage);
     const cached = getCached(key);
 
-    // If we have fresh cached data, skip the fetch entirely.
-    if (cached && Date.now() - cached.timestamp < FRESH_MS) {
-      return;
-    }
-
     const isInitialLoad = !filtersLoadedRef.current;
     const hasExistingData = osis.length > 0;
 
     // Determine loading state.
-    if (cached) {
-      // Stale cache — data already shown by layout effect, just fetch in background.
-      setLoading(false);
-      setFetching(true);
-    } else if (hasExistingData || !isInitialLoad) {
-      // Filter/page change with no cache: keep old data visible, show thin bar.
+    if (cached || hasExistingData) {
+      // Data already shown by layout effect or previous fetch, revalidate in background.
       setLoading(false);
       setFetching(true);
     } else {
-      // Very first load — full spinner.
+      // Very first load with no data — full spinner.
       setLoading(true);
       setFetching(false);
     }
@@ -198,9 +191,11 @@ export default function ConsultaOSIClient({ canChangeStatus, canHideForClient, c
     };
 
     loadAll();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters, currentPage, itemsPerPage]);
+  }, [filters, currentPage, itemsPerPage, accessFilter, refreshTrigger]);
 
   // --- Prefetch next page in the background (only when not on last page) ---
   useEffect(() => {
@@ -383,15 +378,27 @@ export default function ConsultaOSIClient({ canChangeStatus, canHideForClient, c
                 Visualiza y monitorea las Órdenes de Servicio Interna
               </p>
             </div>
-            {isDev && (
-              <Link
-                href="/consulta-osi/backfill-ejecutadas"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-dashed border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors whitespace-nowrap"
-                title="Herramienta de desarrollo: marcar OSIs antiguas como ejecutadas"
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={refreshData}
+                disabled={fetching}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-60 transition-colors shadow-sm cursor-pointer"
+                title="Actualizar lista de OSIs"
               >
-                ⚙ Backfill ejecutadas
-              </Link>
-            )}
+                <RefreshCw className={`w-3.5 h-3.5 ${fetching ? "animate-spin text-blue-600" : "text-gray-500"}`} />
+                <span className="hidden sm:inline">{fetching ? "Actualizando..." : "Actualizar"}</span>
+              </button>
+              {isDev && (
+                <Link
+                  href="/consulta-osi/backfill-ejecutadas"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-dashed border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors whitespace-nowrap"
+                  title="Herramienta de desarrollo: marcar OSIs antiguas como ejecutadas"
+                >
+                  ⚙ Backfill ejecutadas
+                </Link>
+              )}
+            </div>
           </div>
         </div>
 
