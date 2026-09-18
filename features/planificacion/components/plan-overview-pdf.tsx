@@ -233,9 +233,7 @@ export function PlanOverviewPdfDocument({
           <View>
             <Text style={styles.brand}>PRISMA</Text>
             <Text style={styles.brandSub}>
-              {captured_at
-                ? "Foto pública · no se actualiza con el plan en vivo"
-                : "Planificación TED · módulos y tareas"}
+              Planificación TED · módulos y tareas
             </Text>
           </View>
           <Text style={styles.year}>{anio}</Text>
