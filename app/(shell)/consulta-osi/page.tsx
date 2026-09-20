@@ -2,8 +2,8 @@ import { redirect } from "next/navigation";
 import ConsultaOSIClient from "./ConsultaOSIClient";
 import {
   canAccessConsultaOSI,
-  canChangeStatus,
-  canHideForClient,
+  canChangeOSIStatus,
+  canHideOSIFromClient,
   canToggleOSIAttachment,
   getOSIList,
   getOSIListFilterOptions,
@@ -31,9 +31,9 @@ export default async function ConsultaOSIPage({
     filterOptions,
   ] = await Promise.all([
     canAccessConsultaOSI(),
-    canChangeStatus(),
-    canHideForClient(),
-    canToggleAttachment(),
+    canChangeOSIStatus(),
+    canHideOSIFromClient(),
+    canToggleOSIAttachment(),
     getOSIList(initialFilters, 1, 20),
     getOSIListFilterOptions(),
   ]);
