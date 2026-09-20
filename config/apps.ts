@@ -995,6 +995,7 @@ export const apps: AppConfig[] = [
         icon: Shield,
         requiredPermissions: ["scalidad:all:access"],
       },
+      ...[requisicionesNavGroup],
     ],
   }),
   build_app_config({
@@ -1043,6 +1044,7 @@ export const apps: AppConfig[] = [
         icon: Users,
         requiredPermissions: ["srh:all:access"],
       },
+      ...[requisicionesNavGroup],
     ],
   }),
   build_app_config({
