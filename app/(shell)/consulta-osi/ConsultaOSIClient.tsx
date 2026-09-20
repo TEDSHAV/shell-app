@@ -9,6 +9,7 @@ import type {
   OSIListItem,
   OSIStatusOption,
   OSIAccessFilter,
+  OSIListFilterOptions,
 } from "@/types/osi";
 import { getOSIList, getOSIListFilterOptions, updateOSIStatus, updateSessionStatus, setOSIHiddenForClient, toggleOSIAttachmentReceived } from "@/actions/osi";
 import OSIFilters from "./components/OSIFilters";
@@ -22,6 +23,9 @@ interface ConsultaOSIClientProps {
   canToggleAttachment: boolean;
   isDev?: boolean;
   initialNroOsi?: string;
+  initialOsis?: OSIListItem[];
+  initialTotalCount?: number;
+  initialFilterOptions?: OSIListFilterOptions;
 }
 
 // Cache key for a (filters, page, itemsPerPage) combination.
@@ -39,12 +43,21 @@ function cacheKey(filters: OSIListFilters, page: number, itemsPerPage: number): 
   return JSON.stringify({ ...filters, page, itemsPerPage });
 }
 
-export default function ConsultaOSIClient({ canChangeStatus, canHideForClient, canToggleAttachment, isDev, initialNroOsi }: ConsultaOSIClientProps) {
+export default function ConsultaOSIClient({
+  canChangeStatus,
+  canHideForClient,
+  canToggleAttachment,
+  isDev,
+  initialNroOsi,
+  initialOsis,
+  initialTotalCount,
+  initialFilterOptions,
+}: ConsultaOSIClientProps) {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!initialOsis);
   const [fetching, setFetching] = useState(false);
-  const [osis, setOsis] = useState<OSIListItem[]>([]);
-  const [totalCount, setTotalCount] = useState(0);
+  const [osis, setOsis] = useState<OSIListItem[]>(initialOsis ?? []);
+  const [totalCount, setTotalCount] = useState(initialTotalCount ?? 0);
   const [filters, setFilters] = useState<OSIListFilters>(
     initialNroOsi ? { nroOsi: initialNroOsi } : {}
   );
@@ -53,21 +66,22 @@ export default function ConsultaOSIClient({ canChangeStatus, canHideForClient, c
 
   const [companies, setCompanies] = useState<
     { id_empresa: number; nombre_empresa: string }[]
-  >([]);
-  const [ejecutivos, setEjecutivos] = useState<string[]>([]);
+  >(initialFilterOptions?.companies ?? []);
+  const [ejecutivos, setEjecutivos] = useState<string[]>(initialFilterOptions?.ejecutivos ?? []);
   const [cityOptions, setCityOptions] = useState<
     { id: number; nombre_ciudad: string }[]
-  >([]);
-  const [statuses, setStatuses] = useState<OSIStatusOption[]>([]);
-  const [accessFilter, setAccessFilter] = useState<OSIAccessFilter>("none");
-  const [loadingFilters, setLoadingFilters] = useState(true);
+  >(initialFilterOptions?.cityOptions ?? []);
+  const [statuses, setStatuses] = useState<OSIStatusOption[]>(initialFilterOptions?.statuses ?? []);
+  const [accessFilter, setAccessFilter] = useState<OSIAccessFilter>(initialFilterOptions?.accessFilter ?? "none");
+  const [loadingFilters, setLoadingFilters] = useState(!initialFilterOptions);
 
   const [selectedOSI, setSelectedOSI] = useState<OSIListItem | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // --- Client-side page cache (stale-while-revalidate) ---
   const cacheRef = useRef<Map<CacheKey, CacheEntry>>(new Map());
-  const filtersLoadedRef = useRef(false);
+  const filtersLoadedRef = useRef(Boolean(initialFilterOptions));
+  const isFirstMountWithInitialData = useRef(Boolean(initialOsis));
   // Monotonic id for the latest in-flight fetch. Only the most recent request
   // is allowed to clear loading/fetching in its finally — earlier cancelled
   // requests must NOT touch loading state, otherwise a cancelled request can
@@ -125,6 +139,20 @@ export default function ConsultaOSIClient({ canChangeStatus, canHideForClient, c
     const reqId = ++latestReqIdRef.current;
 
     const key = cacheKey(filters, currentPage, itemsPerPage);
+
+    // Skip redundant network fetch on initial mount when server data was provided
+    if (isFirstMountWithInitialData.current) {
+      isFirstMountWithInitialData.current = false;
+      if (initialOsis) {
+        setCached(key, {
+          osis: initialOsis,
+          totalCount: initialTotalCount ?? 0,
+          timestamp: Date.now(),
+        });
+      }
+      return;
+    }
+
     const cached = getCached(key);
 
     const isInitialLoad = !filtersLoadedRef.current;

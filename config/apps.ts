@@ -683,7 +683,7 @@ export const apps: AppConfig[] = [
     navLinks: [
       {
         label: "Dashboard",
-        path: "/",
+        path: "/dashboard/capacitacion",
         icon: LayoutDashboard,
         requiredPermissions: ["scapacitacion:all:access"],
       },

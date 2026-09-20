@@ -17,12 +17,16 @@ export default async function ConsultaOSIPreviewPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const canAccess = await canAccessConsultaOSI();
-  if (!canAccess) {
+  const [canAccess, { id }, accessFilter] = await Promise.all([
+    canAccessConsultaOSI(),
+    params,
+    getUserOSIAccessFilter(),
+  ]);
+
+  if (!canAccess || accessFilter === "none") {
     redirect("/dashboard");
   }
 
-  const { id } = await params;
   const osiId = Number(id);
   if (!Number.isFinite(osiId) || osiId <= 0) {
     notFound();
@@ -33,7 +37,6 @@ export default async function ConsultaOSIPreviewPage({
     notFound();
   }
 
-  const accessFilter = await getUserOSIAccessFilter();
   if (accessFilter !== "all" && accessFilter !== "other") {
     const tipoServicio = String(bundle.view_row?.tipo_servicio ?? "").toUpperCase();
     if (accessFilter === "capacitacion" && !tipoServicio.includes("CAPACITACION")) {
