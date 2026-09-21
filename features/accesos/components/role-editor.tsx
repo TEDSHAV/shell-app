@@ -7,9 +7,21 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PermissionMatrix } from "./permission-matrix";
-import { slugify_kebab, group_permissions_by_module, module_label } from "../lib/slugs";
+import { PermissionFormDialog } from "./permission-form-dialog";
+import {
+  slugify_kebab,
+  group_permissions_by_module,
+  module_label,
+  permission_related_to_app,
+} from "../lib/slugs";
 import { upsert_acceso_role } from "../actions/catalog-actions";
-import type { AccesoPermission, AccesoRole } from "../lib/types";
+import type {
+  AccesoAction,
+  AccesoApp,
+  AccesoModule,
+  AccesoPermission,
+  AccesoRole,
+} from "../lib/types";
 
 const STEPS = [
   { n: 1, label: "Datos del rol" },
@@ -18,19 +30,27 @@ const STEPS = [
 ] as const;
 
 export function RoleEditor({
-  app_id,
-  app_nombre,
+  app,
   role,
   permissions,
+  roles,
+  modules,
+  actions,
+  apps,
   back_href,
 }: {
-  app_id: number;
-  app_nombre: string;
+  app: AccesoApp;
   role: AccesoRole | null;
   permissions: AccesoPermission[];
+  roles: AccesoRole[];
+  modules: AccesoModule[];
+  actions: AccesoAction[];
+  apps: AccesoApp[];
   back_href: string;
 }) {
   const router = useRouter();
+  const app_id = app.id;
+  const app_nombre = app.nombre;
   const existing_ids = useMemo(() => {
     if (!role) return [];
     return permissions
@@ -46,6 +66,22 @@ export function RoleEditor({
   const [error, set_error] = useState<string | null>(null);
   const [saving, set_saving] = useState(false);
   const [slug_touched, set_slug_touched] = useState(Boolean(role));
+  const [perm_open, set_perm_open] = useState(false);
+
+  const scoped_permissions = useMemo(
+    () =>
+      permissions.filter((p) =>
+        permission_related_to_app({
+          slug: p.slug,
+          id: p.id,
+          app,
+          roles,
+          modules,
+          keep_ids: permission_ids,
+        }),
+      ),
+    [permissions, app, roles, modules, permission_ids],
+  );
 
   const selected_perms = permissions.filter((p) => permission_ids.includes(p.id));
   const review_groups = group_permissions_by_module(selected_perms);
@@ -192,14 +228,40 @@ export function RoleEditor({
 
       {step === 2 ? (
         <div className="space-y-3">
-          <p className="text-sm text-slate-600">
-            Marca lo que puede hacer quien tenga este rol. Agrupado por el
-            primer segmento del slug (módulo).
-          </p>
-          <PermissionMatrix
-            permissions={permissions}
-            selected_ids={permission_ids}
-            onChange={set_permission_ids}
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <p className="max-w-2xl text-sm text-slate-600">
+              Solo aparecen permisos de {app_nombre} (módulos de esta app o
+              ya usados por sus roles). Marca lo que puede hacer este rol.
+            </p>
+            <Button type="button" variant="outline" onClick={() => set_perm_open(true)}>
+              Nuevo permiso
+            </Button>
+          </div>
+          {scoped_permissions.length === 0 ? (
+            <p className="rounded-xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">
+              Esta app aún no tiene permisos relacionados. Crea el primero
+              para colgarlo de este rol.
+            </p>
+          ) : (
+            <PermissionMatrix
+              permissions={scoped_permissions}
+              selected_ids={permission_ids}
+              onChange={set_permission_ids}
+            />
+          )}
+          <PermissionFormDialog
+            open={perm_open}
+            onClose={() => set_perm_open(false)}
+            apps={apps}
+            modules={modules}
+            actions={actions}
+            locked_app={app}
+            onSaved={(created) => {
+              set_permission_ids((ids) =>
+                ids.includes(created.id) ? ids : [...ids, created.id],
+              );
+              router.refresh();
+            }}
           />
         </div>
       ) : null}

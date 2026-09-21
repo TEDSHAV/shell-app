@@ -9,7 +9,7 @@ import {
   role_permission_set_schema,
   role_upsert_schema,
 } from "../schemas";
-import { build_permission_slug, is_valid_permission_slug } from "../lib/slugs";
+import { build_permission_slug, is_valid_permission_slug, slugify_kebab } from "../lib/slugs";
 
 function revalidate_accesos() {
   revalidatePath("/ted/usuarios/accesos", "layout");
@@ -125,25 +125,56 @@ export async function create_acceso_permission(input: unknown) {
   }
   const slug = build_permission_slug(
     parsed.data.modulo,
-    parsed.data.recurso,
+    parsed.data.recurso || "",
     parsed.data.accion,
   );
   if (!is_valid_permission_slug(slug)) {
     return { ok: false as const, error: "El slug generado no es válido." };
   }
   const supabase = await require_ted_accesos();
-  const { error } = await supabase.schema("authprisma").from("permissions").insert({
-    slug,
-    descripcion: parsed.data.descripcion || null,
-  });
-  if (error) {
-    if (error.code === "23505") {
+  const auth = supabase.schema("authprisma");
+
+  if (parsed.data.save_module && parsed.data.app_id) {
+    const { error: modErr } = await auth.from("permission_modules").upsert(
+      {
+        slug: slugify_kebab(parsed.data.modulo),
+        nombre: parsed.data.module_nombre || parsed.data.modulo,
+        descripcion: parsed.data.module_descripcion || null,
+        app_id: parsed.data.app_id,
+      },
+      { onConflict: "slug" },
+    );
+    if (modErr) return { ok: false as const, error: modErr.message };
+  }
+
+  if (parsed.data.save_action) {
+    const { error: actErr } = await auth.from("permission_actions").upsert(
+      {
+        slug: slugify_kebab(parsed.data.accion),
+        nombre: parsed.data.action_nombre || parsed.data.accion,
+        descripcion: parsed.data.action_descripcion || null,
+      },
+      { onConflict: "slug" },
+    );
+    if (actErr) return { ok: false as const, error: actErr.message };
+  }
+
+  const { data, error } = await auth
+    .from("permissions")
+    .insert({
+      slug,
+      descripcion: parsed.data.descripcion || null,
+    })
+    .select("id")
+    .single();
+  if (error || !data) {
+    if (error?.code === "23505") {
       return { ok: false as const, error: `Ya existe el permiso ${slug}.` };
     }
-    return { ok: false as const, error: error.message };
+    return { ok: false as const, error: error?.message || "No se pudo crear." };
   }
   revalidate_accesos();
-  return { ok: true as const, slug };
+  return { ok: true as const, slug, id: num(data.id) };
 }
 
 export async function update_acceso_permission(input: unknown) {

@@ -1,9 +1,12 @@
 "use server";
 
 import { require_ted_accesos, num } from "./assert-ted";
+import { ACTION_CATALOG, MODULE_HOME_APP, MODULE_LABELS } from "../lib/slugs";
 import type {
+  AccesoAction,
   AccesoApp,
   AccesoCatalog,
+  AccesoModule,
   AccesoPermission,
   AccesoRole,
   AccesoUsuarioAssignment,
@@ -15,7 +18,7 @@ export async function load_acceso_catalog(): Promise<AccesoCatalog> {
   const supabase = await require_ted_accesos();
   const auth = supabase.schema("authprisma");
 
-  const [appsRes, rolesRes, permsRes, uarRes, usersRes, deptsRes, rpRes] =
+  const [appsRes, rolesRes, permsRes, uarRes, usersRes, deptsRes, rpRes, modulesRes, actionsRes] =
     await Promise.all([
       auth.from("apps").select("id, slug, nombre, descripcion").order("nombre"),
       auth
@@ -32,6 +35,14 @@ export async function load_acceso_catalog(): Promise<AccesoCatalog> {
         .order("nombre_apellido"),
       supabase.from("departamentos").select("id, nombre"),
       auth.from("role_permissions").select("role_id, permission_id"),
+      auth
+        .from("permission_modules")
+        .select("slug, nombre, descripcion, app_id")
+        .order("nombre"),
+      auth
+        .from("permission_actions")
+        .select("slug, nombre, descripcion")
+        .order("slug"),
     ]);
 
   if (appsRes.error) throw new Error(appsRes.error.message);
@@ -195,7 +206,55 @@ export async function load_acceso_catalog(): Promise<AccesoCatalog> {
     ),
   }));
 
-  return { apps, roles, permissions, users };
+  const app_id_by_slug = new Map(apps.map((a) => [a.slug, a.id]));
+  const modules_by_slug = new Map<string, AccesoModule>();
+  for (const [slug, app_slug] of Object.entries(MODULE_HOME_APP)) {
+    modules_by_slug.set(slug, {
+      slug,
+      nombre: MODULE_LABELS[slug] || slug,
+      descripcion: null,
+      app_id: app_id_by_slug.get(app_slug) ?? null,
+    });
+  }
+  for (const row of (modulesRes.data || []) as Array<{
+    slug: string;
+    nombre: string;
+    descripcion: string | null;
+    app_id: number | null;
+  }>) {
+    modules_by_slug.set(row.slug, {
+      slug: row.slug,
+      nombre: row.nombre,
+      descripcion: row.descripcion,
+      app_id: row.app_id != null ? num(row.app_id) : null,
+    });
+  }
+  const modules = [...modules_by_slug.values()].sort((a, b) =>
+    a.nombre.localeCompare(b.nombre, "es"),
+  );
+
+  const actions_by_slug = new Map<string, AccesoAction>(
+    ACTION_CATALOG.map((a) => [
+      a.slug,
+      { slug: a.slug, nombre: a.nombre, descripcion: a.descripcion },
+    ]),
+  );
+  for (const row of (actionsRes.data || []) as Array<{
+    slug: string;
+    nombre: string;
+    descripcion: string | null;
+  }>) {
+    actions_by_slug.set(row.slug, {
+      slug: row.slug,
+      nombre: row.nombre,
+      descripcion: row.descripcion,
+    });
+  }
+  const actions = [...actions_by_slug.values()].sort((a, b) =>
+    a.slug.localeCompare(b.slug),
+  );
+
+  return { apps, roles, permissions, users, modules, actions };
 }
 
 export async function load_usuario_ficha(

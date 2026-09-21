@@ -24,10 +24,13 @@ export default async function NuevoRolPage({
   return (
     <div className="p-8 w-full max-w-6xl mx-auto">
       <RoleEditor
-        app_id={app.id}
-        app_nombre={app.nombre}
+        app={app}
         role={null}
         permissions={catalog.permissions}
+        roles={catalog.roles}
+        modules={catalog.modules}
+        actions={catalog.actions}
+        apps={catalog.apps}
         back_href={`/ted/usuarios/accesos?tab=aplicaciones&app=${app.id}`}
       />
     </div>

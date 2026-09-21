@@ -5,6 +5,7 @@ import {
   BarChart2,
   Building2,
   Calculator,
+  ClipboardList,
   GitBranch,
   GraduationCap,
   Handshake,
@@ -29,6 +30,7 @@ const MODULE_ICONS: Record<string, LucideIcon> = {
   scapacitacion: GraduationCap,
   scalidad: Shield,
   srh: UserCircle,
+  requisiciones: ClipboardList,
 };
 
 export function ModuleGlyph({

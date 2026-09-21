@@ -24,6 +24,19 @@ export type AccesoPermission = {
   descripcion: string | null;
 };
 
+export type AccesoModule = {
+  slug: string;
+  nombre: string;
+  descripcion: string | null;
+  app_id: number | null;
+};
+
+export type AccesoAction = {
+  slug: string;
+  nombre: string;
+  descripcion: string | null;
+};
+
 export type AccesoUsuarioAssignment = {
   app_id: number;
   app_slug: string;
@@ -71,4 +84,6 @@ export type AccesoCatalog = {
   roles: AccesoRole[];
   permissions: AccesoPermission[];
   users: AccesoUsuarioListItem[];
+  modules: AccesoModule[];
+  actions: AccesoAction[];
 };

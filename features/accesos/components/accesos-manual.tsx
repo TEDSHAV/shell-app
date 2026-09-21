@@ -14,6 +14,7 @@ export function AccesosManual({ catalog }: { catalog: AccesoCatalog }) {
       chips={[
         { id: "manual-rbac", label: "Modelo" },
         { id: "manual-slugs", label: "Convención" },
+        { id: "manual-niveles", label: "Niveles" },
         { id: "manual-consola", label: "Consola" },
         { id: "manual-catalogo", label: "Catálogo" },
         { id: "manual-limites", label: "Límites" },
@@ -59,7 +60,21 @@ export function AccesosManual({ catalog }: { catalog: AccesoCatalog }) {
                 duplica el nombre de la app dentro del rol.
               </p>
               <p>
-                Permiso: <code>modulo:recurso:accion</code> con dos puntos.
+                Permiso: se arma por niveles, con dos puntos:
+              </p>
+              <ul className="mt-2 list-disc space-y-1 pl-5">
+                <li>
+                  <strong>Módulo + acción</strong>{" "}
+                  (<code>directorio:access</code>): el módulo es pequeño o el
+                  permiso cubre todo. El recurso se deja vacío.
+                </li>
+                <li>
+                  <strong>Módulo + recurso + acción</strong>{" "}
+                  (<code>finance:ecc:approve</code>): el módulo tiene varias
+                  cosas (ECC, facturas, presupuestos) y hay que acotar.
+                </li>
+              </ul>
+              <p className="mt-2">
                 Acciones habituales: access, read, write, create, edit, approve,
                 manage, export. Los slugs viejos no se renombran: SGestion ya
                 los consume.
@@ -67,6 +82,32 @@ export function AccesosManual({ catalog }: { catalog: AccesoCatalog }) {
               <p>
                 La descripción de un rol habla de la función (“lidera ST y
                 aprueba requisiciones”), no de la lista de permisos del momento.
+              </p>
+            </>
+          ),
+        },
+        {
+          id: "manual-niveles",
+          title: "Cuándo poner recurso y cuándo no",
+          body: (
+            <>
+              <p>
+                El recurso no es obligatorio. Sirve para no mezclar poderes
+                dentro de un módulo grande. Un módulo chico (Directorio, Pipeline
+                de una sola pantalla) se describe con <code>modulo:accion</code>.
+              </p>
+              <p>
+                El permiso sigue siendo <strong>global</strong>: no se duplica
+                por app. Se orienta a una app al crearlo (para el catálogo de
+                módulos) y luego se cuelga de los roles que lo necesiten, aunque
+                esos roles vivan en otras apps. Ejemplo: crear requisiciones lo
+                puede tener un analista de ST y un gestor de Negocios, con el
+                mismo slug.
+              </p>
+              <p>
+                Guía de slugs de requisiciones:{" "}
+                <code>docs/requisiciones-permisos.md</code>. Se crean y se
+                cuelgan en esta consola; el módulo es transversal.
               </p>
             </>
           ),
