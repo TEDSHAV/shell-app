@@ -11,6 +11,7 @@ import {
   UserPlus,
   LayoutList,
   Target,
+  Shield,
 } from "lucide-react";
 import { isTedMember } from "@/actions/ted";
 
@@ -45,6 +46,15 @@ export default async function TedPage() {
       title: "Manejo de usuarios",
       description: "Crear cuentas nuevas y restablecer contraseñas.",
       href: "/ted/usuarios",
+      external: false,
+      disabled: false,
+    },
+    {
+      icon: Shield,
+      title: "Accesos y roles",
+      description:
+        "Catálogo authprisma: apps, roles, permisos y asignación por persona.",
+      href: "/ted/usuarios/accesos",
       external: false,
       disabled: false,
     },
