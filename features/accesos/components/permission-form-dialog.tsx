@@ -54,7 +54,7 @@ export function PermissionFormDialog({
   const [creating_action, set_creating_action] = useState(false);
   const [action_nombre, set_action_nombre] = useState("");
   const [action_descripcion, set_action_descripcion] = useState("");
-  const [save_action, set_save_action] = useState(true);
+  const [save_action, set_save_action] = useState(false);
   const [descripcion, set_descripcion] = useState("");
   const [error, set_error] = useState<string | null>(null);
   const [saving, set_saving] = useState(false);
@@ -72,7 +72,7 @@ export function PermissionFormDialog({
     set_creating_action(false);
     set_action_nombre("");
     set_action_descripcion("");
-    set_save_action(true);
+    set_save_action(false);
     set_descripcion("");
     set_error(null);
   }, [open, locked_app]);
@@ -345,7 +345,7 @@ export function PermissionFormDialog({
               set_accion("");
               set_action_nombre("");
               set_action_descripcion("");
-              set_save_action(true);
+              set_save_action(false);
             }}
             onNombre={(value) => {
               set_action_nombre(value);

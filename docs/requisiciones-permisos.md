@@ -83,7 +83,7 @@ Nadie aprueba la suya. Externas hoy no usan sellos: las ve quien tiene `process`
 1. `/ted/usuarios/accesos` → pestaña **Permisos** → **Nuevo permiso** (o **Nuevo permiso** en el paso 2 al editar un rol).
 2. App: **Administración** (casa del módulo).
 3. Módulo: crea **Requisiciones** (`requisiciones`) la primera vez; después elígelo.
-4. Recurso `solicitud` o `gestion`; acción según la tabla de arriba; descripción a tu criterio.
+4. Recurso `solicitud` o `gestion`. Para `access-depto`, `approve-coordinador`, `approve-lider` y `process`: **Nueva acción**, sin marcar “Agregar al catálogo de acciones” (solo viven en ese permiso).
 5. El mismo slug se cuelga después en el rol de cada app (ST, Negocios, Capacitación…). No lo vuelvas a crear por app.
 
 Orden sugerido: primero los de `solicitud`, luego los de `gestion`. El código del módulo se cambia cuando ya estén colgados.

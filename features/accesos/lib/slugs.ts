@@ -49,29 +49,6 @@ export const ACTION_CATALOG = [
     nombre: "Ejecutivo",
     descripcion: "Operar el flujo de campo o de ejecución (p. ej. OSI).",
   },
-  {
-    slug: "access-depto",
-    nombre: "Acceder al departamento",
-    descripcion:
-      "Ver los documentos del departamento de la persona, no solo los propios.",
-  },
-  {
-    slug: "approve-coordinador",
-    nombre: "Aprobar como coordinador",
-    descripcion: "Primer sello: aprueba o rechaza en la etapa de coordinación.",
-  },
-  {
-    slug: "approve-lider",
-    nombre: "Aprobar como líder",
-    descripcion:
-      "Segundo sello. Incluye el primero: el líder no espera coordinación.",
-  },
-  {
-    slug: "process",
-    nombre: "Procesar",
-    descripcion:
-      "Cerrar el trámite operativo: verificar, procesar o rechazar en bandeja.",
-  },
 ] as const;
 
 export const PERMISSION_ACTIONS = ACTION_CATALOG.map((a) => a.slug);
