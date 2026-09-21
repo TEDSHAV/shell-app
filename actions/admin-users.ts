@@ -192,12 +192,8 @@ export async function createUser(
     // shell sidebar shows the corresponding app links. A user can only have one
     // role per app (unique(usuario_id, app_id) constraint).
     //
-    // Uses the regular cookie-based client (not admin) because the service role
-    // key lacks USAGE permission on the authprisma schema. The caller is an
-    // authenticated TED member, so RLS policies allow the insert.
     if (input.app_role) {
-      const supabase = await createClient();
-      const { error: roleError } = await supabase
+      const { error: roleError } = await admin
         .schema("authprisma")
         .from("user_app_roles")
         .insert({

@@ -176,6 +176,20 @@ export function ManualHubClient({ apps }: Props) {
       >
         <div className="grid gap-4 sm:grid-cols-2">
           <Link
+            href="/ted/usuarios/accesos/manual"
+            className="group rounded-xl border border-indigo-200 bg-white p-5 shadow-sm transition hover:border-indigo-400 hover:shadow-md"
+          >
+            <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">
+              TED
+            </p>
+            <h3 className="mt-1 text-xl font-bold text-slate-900">
+              Accesos y roles
+            </h3>
+            <p className="mt-2 text-sm leading-relaxed text-slate-600">
+              Un rol por app, convención de slugs y cómo asignar funciones.
+            </p>
+          </Link>
+          <Link
             href="/ted/planificacion/manual"
             className="group rounded-xl border border-sky-200 bg-white p-5 shadow-sm transition hover:border-sky-400 hover:shadow-md"
           >

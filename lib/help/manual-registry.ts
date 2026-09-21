@@ -5,11 +5,14 @@ import {
   FileSpreadsheet,
   GitBranch,
   Inbox,
+  KeyRound,
   Layers3,
   LayoutGrid,
   Lock,
+  Shield,
   Target,
   Ticket,
+  Users,
 } from "lucide-react";
 
 export type HelpTopic = {
@@ -31,11 +34,53 @@ export const MANUAL_HUB_HREF = "/manual";
 export const MANUAL_PLANIFICACION = "/ted/planificacion/manual";
 export const MANUAL_OBJETIVOS = "/ted/planificacion/objetivos/manual";
 export const MANUAL_TICKETS = "/ted/planificacion/tickets/manual";
+export const MANUAL_ACCESOS = "/ted/usuarios/accesos/manual";
 
 export const HELP_REGISTRY: {
   match: (pathname: string) => boolean;
   context: HelpContext;
 }[] = [
+  {
+    match: (p) => p.startsWith("/ted/usuarios/accesos"),
+    context: {
+      scopeLabel: "Accesos y roles",
+      scopeIcon: Shield,
+      topics: [
+        {
+          id: "rbac",
+          title: "Un rol por app",
+          summary: "La persona recibe una función; los permisos cuelgan del rol.",
+          href: `${MANUAL_ACCESOS}#manual-rbac`,
+          icon: Users,
+          accent: "violet",
+        },
+        {
+          id: "slugs",
+          title: "Cómo se nombran",
+          summary: "App, rol y permiso modulo:recurso:accion, sin puntos.",
+          href: `${MANUAL_ACCESOS}#manual-slugs`,
+          icon: KeyRound,
+          accent: "sky",
+        },
+        {
+          id: "consola",
+          title: "Usar la consola",
+          summary: "Personas, fichas de rol, stepper y asignar función.",
+          href: `${MANUAL_ACCESOS}#manual-consola`,
+          icon: LayoutGrid,
+          accent: "emerald",
+        },
+        {
+          id: "limites",
+          title: "Qué no hace",
+          summary: "No crea el menú Shell ni dos roles en la misma app.",
+          href: `${MANUAL_ACCESOS}#manual-limites`,
+          icon: Lock,
+          accent: "amber",
+        },
+      ],
+    },
+  },
   {
     match: (p) =>
       p.startsWith("/ted/planificacion/objetivos") ||
@@ -177,6 +222,9 @@ export function resolveHelpContext(pathname: string): HelpContext | null {
 
 export function resolveFullManualHref(pathname: string): string {
   const normalized = pathname.split("?")[0] ?? pathname;
+  if (normalized.startsWith("/ted/usuarios/accesos")) {
+    return MANUAL_ACCESOS;
+  }
   if (
     normalized.startsWith("/ted/planificacion/objetivos") ||
     normalized.startsWith("/ted/planificacion/cubrir") ||

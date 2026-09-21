@@ -1138,6 +1138,11 @@ export const apps: AppConfig[] = [
             path: "/usuarios",
             icon: UserPlus,
           },
+          {
+            label: "Accesos y roles",
+            path: "/usuarios/accesos",
+            icon: Shield,
+          },
         ],
       },
       {

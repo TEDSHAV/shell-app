@@ -40,7 +40,10 @@ export default async function TedUsuariosPage() {
               Manejo de usuarios
             </h1>
             <p className="mt-0.5 text-sm text-muted-foreground">
-              Crear cuentas nuevas, restablecer contraseñas y activar/desactivar usuarios.
+              Crear cuentas nuevas, restablecer contraseñas y activar/desactivar usuarios.{" "}
+              <Link href="/ted/usuarios/accesos" className="underline">
+                Accesos y roles
+              </Link>
             </p>
           </div>
         </div>

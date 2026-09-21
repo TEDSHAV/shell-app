@@ -32,47 +32,49 @@ const APP_DISPLAY_NAME: Record<string, string> = {
 
 const ROLE_BLURB: Record<string, string> = {
   "sgestion:admin":
-    "Ve y configura todo Negocios: directorio, pipeline, costos, facturación, reportes y cierres.",
+    "Opera y configura Negocios: directorio, embudo, costos, facturación y reportes del día a día.",
   "sgestion:superadmin":
-    "Igual que Admin, más aprobación del líder y supervisión completa del proceso comercial.",
+    "Supervisa Negocios: visibilidad total del proceso comercial y la última palabra en aprobaciones de la gerencia.",
   "sgestion:gestor_clientes":
-    "Ejecutivo comercial: embudo, clientes, OSI de su cartera y solicitudes de factura.",
+    "Ejecutivo comercial: atiende el embudo, la cartera de clientes y las órdenes de servicio de su equipo.",
   "sgestion:gestor_financiero":
-    "Ingeniería y finanzas: ECC, costeo OSI, presupuestos, facturación y reportes de presupuesto.",
+    "Ingeniería y finanzas de Negocios: costea, arma presupuestos y lleva la facturación del proceso comercial.",
   "sgestion:gestor_marketing":
-    "Leads y contactos de marketing, pipeline de captación y reportes de leads.",
+    "Captación: leads, contactos y el embudo de marketing.",
   "sadministracion:admin":
-    "Acceso a Administración y a las bandejas de emisión fiscal de facturas.",
+    "Administra la app de Administración y las bandejas de emisión fiscal.",
   "sadministracion:gestor":
-    "Opera Administración y registra la factura fiscal cuando Finanzas ya aprobó la solicitud.",
+    "Opera Administración: registra la factura fiscal cuando el proceso comercial ya está listo para emitir.",
   "sadministracion:coordinador":
-    "Rol operativo de Administración. Los permisos detallados aún no están catalogados en el sistema.",
+    "Coordina el trabajo diario de Administración y las requisiciones del área.",
+  "sadministracion:lider":
+    "Lidera Administración y aprueba las requisiciones de ese departamento.",
   "st:analista":
-    "Ejecuta órdenes de servicio en campo. Permisos específicos se asignan en la app de ST.",
+    "Ejecuta órdenes de servicio en campo: visita, informe y cierre operativo.",
   "st:coordinador":
-    "Coordina la ejecución de OSI en Servicios Técnicos.",
+    "Coordina la ejecución de OSI en Servicios Técnicos y las requisiciones del equipo.",
   "st:lider":
-    "Lidera Servicios Técnicos y aprueba requisiciones de ese departamento.",
+    "Lidera Servicios Técnicos y aprueba las requisiciones de ese departamento.",
   "scalidad:analista":
-    "Acceso al módulo de Calidad para el control de procesos.",
+    "Ejecuta el control de procesos y registros de Calidad.",
   "scalidad:superadmin":
-    "Supervisa Calidad. Ampliar permisos desde el catálogo cuando se definan.",
+    "Supervisa Calidad: políticas, auditorías y el estándar del módulo.",
   "scapacitacion:admin":
-    "Administra Capacitación: cursos, participantes y operación del módulo.",
+    "Administra Capacitación: catálogo de cursos, participantes y operación del módulo.",
   "scapacitacion:analista":
-    "Opera el día a día de Capacitación.",
+    "Opera el día a día de Capacitación: inscripciones, asistencia y seguimiento.",
   "scapacitacion:coordinador":
-    "Coordina la operación de Capacitación.",
+    "Coordina la operación de Capacitación y las requisiciones de ese equipo.",
   "scapacitacion:lider":
-    "Lidera el módulo de Capacitación.",
+    "Lidera Capacitación y aprueba las requisiciones de ese departamento.",
   "scapacitacion:superadmin":
-    "Supervisión total de Capacitación.",
+    "Supervisa Capacitación a nivel de módulo: estándares y operación completa.",
   "srh:admin":
-    "Acceso total a Recursos Humanos.",
+    "Administra Recursos Humanos: personas, solicitudes y trámites del área.",
   "inventario:admin":
-    "Administra Inventario. Completar permisos cuando el módulo los publique.",
+    "Administra inventario: catálogo, movimientos y control de almacén.",
   "inventario:analista":
-    "Opera Inventario según el acceso asignado.",
+    "Opera inventario: entradas, salidas y consulta de existencias.",
 };
 
 /** Fallback alineado al catálogo actual si la vista nueva aún no está desplegada. */
@@ -147,7 +149,7 @@ function assemble(rows: ViewRow[]): ManualAppRoles[] {
         role_nombre: raw.role_nombre,
         description:
           ROLE_BLURB[key] ??
-          `Rol ${raw.role_nombre} en ${app_nombre}. Las funciones siguen los permisos asignados.`,
+          `Función ${raw.role_nombre} en ${app_nombre}.`,
         permissions: [],
       };
       app.roles.push(role);
@@ -195,6 +197,47 @@ function assemble(rows: ViewRow[]): ManualAppRoles[] {
   return apps;
 }
 
+async function overlay_role_descriptions(
+  apps: ManualAppRoles[],
+): Promise<ManualAppRoles[]> {
+  const supabase = await createClient();
+  const [appsRes, rolesRes] = await Promise.all([
+    supabase.schema("authprisma").from("apps").select("id, slug, descripcion"),
+    supabase
+      .schema("authprisma")
+      .from("roles")
+      .select("slug, descripcion, app_id"),
+  ]);
+  if (appsRes.error || rolesRes.error) return apps;
+
+  const app_slug_by_id = new Map<number, string>(
+    ((appsRes.data || []) as Array<{ id: number; slug: string }>).map((a) => [
+      Number(a.id),
+      a.slug,
+    ]),
+  );
+  const desc_by_key = new Map<string, string>();
+  for (const row of (rolesRes.data || []) as Array<{
+    slug: string;
+    descripcion: string | null;
+    app_id: number;
+  }>) {
+    if (!row.descripcion) continue;
+    const app_slug = app_slug_by_id.get(Number(row.app_id));
+    if (!app_slug) continue;
+    desc_by_key.set(`${app_slug}:${row.slug}`, row.descripcion);
+  }
+
+  return apps.map((app) => ({
+    ...app,
+    roles: app.roles.map((role) => ({
+      ...role,
+      description:
+        desc_by_key.get(`${app.app_slug}:${role.role_slug}`) ?? role.description,
+    })),
+  }));
+}
+
 export async function get_manual_app_roles(): Promise<ManualAppRoles[]> {
   const supabase = await createClient();
 
@@ -204,17 +247,18 @@ export async function get_manual_app_roles(): Promise<ManualAppRoles[]> {
       "app_slug, app_nombre, role_slug, role_nombre, permission_slug, permission_descripcion",
     );
 
+  let assembled: ManualAppRoles[] = [];
   if (!full.error && full.data?.length) {
-    return assemble(full.data as ViewRow[]);
+    assembled = assemble(full.data as ViewRow[]);
+  } else {
+    const catalog = await supabase
+      .from("v_osi_app_roles_catalog")
+      .select("app_slug, app_nombre, role_slug, role_nombre");
+    if (catalog.error || !catalog.data) {
+      return [];
+    }
+    assembled = assemble(catalog.data as ViewRow[]);
   }
 
-  const catalog = await supabase
-    .from("v_osi_app_roles_catalog")
-    .select("app_slug, app_nombre, role_slug, role_nombre");
-
-  if (catalog.error || !catalog.data) {
-    return [];
-  }
-
-  return assemble(catalog.data as ViewRow[]);
+  return overlay_role_descriptions(assembled);
 }
