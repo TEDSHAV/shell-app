@@ -126,6 +126,74 @@ export function module_label(slug_or_module: string): string {
   return MODULE_LABELS[key] || key;
 }
 
+export function permission_resource(slug: string): string | null {
+  const parts = slug.split(":").filter(Boolean);
+  if (parts.length < 3) return null;
+  return parts[1] ?? null;
+}
+
+export type ResourceUsage = {
+  slug: string;
+  app_names: string[];
+  role_labels: string[];
+  permissions: Array<{ slug: string; descripcion: string | null }>;
+};
+
+export function collect_resource_usages(args: {
+  permissions: Array<{ slug: string; descripcion: string | null }>;
+  roles: Array<{
+    nombre: string;
+    permission_slugs: string[];
+    app_id: number;
+  }>;
+  apps: Array<{ id: number; slug: string; nombre: string }>;
+}): ResourceUsage[] {
+  const by_resource = new Map<string, ResourceUsage>();
+
+  function bucket(slug: string): ResourceUsage {
+    const existing = by_resource.get(slug);
+    if (existing) return existing;
+    const created: ResourceUsage = {
+      slug,
+      app_names: [],
+      role_labels: [],
+      permissions: [],
+    };
+    by_resource.set(slug, created);
+    return created;
+  }
+
+  function add_unique(list: string[], value: string) {
+    if (value && !list.includes(value)) list.push(value);
+  }
+
+  for (const perm of args.permissions) {
+    const resource = permission_resource(perm.slug);
+    if (!resource) continue;
+    const row = bucket(resource);
+    row.permissions.push({ slug: perm.slug, descripcion: perm.descripcion });
+    const home = permission_home_app_slug(perm.slug);
+    const home_app = home
+      ? args.apps.find((a) => a.slug === home)
+      : undefined;
+    if (home_app) add_unique(row.app_names, home_app.nombre);
+  }
+
+  for (const role of args.roles) {
+    const app = args.apps.find((a) => a.id === role.app_id);
+    const label = app ? `${role.nombre} · ${app.nombre}` : role.nombre;
+    for (const slug of role.permission_slugs) {
+      const resource = permission_resource(slug);
+      if (!resource) continue;
+      const row = bucket(resource);
+      add_unique(row.role_labels, label);
+      if (app) add_unique(row.app_names, app.nombre);
+    }
+  }
+
+  return [...by_resource.values()].sort((a, b) => a.slug.localeCompare(b.slug));
+}
+
 export function build_permission_slug(
   modulo: string,
   recurso: string,

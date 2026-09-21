@@ -8,19 +8,20 @@ import { AccesosModal } from "./accesos-modal";
 import { AppGlyph } from "./catalog-glyphs";
 import { ModuleGlyph } from "./module-glyph";
 import { PermissionActionPicker } from "./permission-action-picker";
+import { PermissionResourcePicker } from "./permission-resource-picker";
 import { create_acceso_permission } from "../actions/catalog-actions";
 import { build_permission_slug, CROSS_APP_MODULES, slugify_kebab } from "../lib/slugs";
 import type {
   AccesoAction,
   AccesoApp,
   AccesoModule,
+  AccesoPermission,
+  AccesoRole,
 } from "../lib/types";
 
 const FIELD_HELP = {
   modulo:
     "Área funcional de la app (Finanzas, Ventas). Agrupa permisos que se usan juntos.",
-  recurso:
-    "Opcional. El objeto concreto (ecc, facturas). Si el módulo es pequeño, déjalo vacío: el permiso aplica a todo el módulo.",
   descripcion:
     "Texto para personas. Explica el efecto, no copies el slug.",
 } as const;
@@ -32,6 +33,8 @@ export function PermissionFormDialog({
   apps,
   modules,
   actions,
+  permissions,
+  roles,
   locked_app,
 }: {
   open: boolean;
@@ -40,6 +43,8 @@ export function PermissionFormDialog({
   apps: AccesoApp[];
   modules: AccesoModule[];
   actions: AccesoAction[];
+  permissions: AccesoPermission[];
+  roles: AccesoRole[];
   locked_app?: AccesoApp | null;
 }) {
   const start_step = locked_app ? 2 : 1;
@@ -318,16 +323,14 @@ export function PermissionFormDialog({
 
       {step === 3 ? (
         <div className="space-y-4">
-          <div>
-            <Label htmlFor="perm-rec">Recurso (opcional)</Label>
-            <p className="mb-1 text-xs text-slate-500">{FIELD_HELP.recurso}</p>
-            <Input
-              id="perm-rec"
-              value={recurso}
-              onChange={(e) => set_recurso(slugify_kebab(e.target.value))}
-              placeholder="ecc — o vacío si cubre todo el módulo"
-            />
-          </div>
+          <PermissionResourcePicker
+            modulo={modulo}
+            recurso={recurso}
+            permissions={permissions}
+            roles={roles}
+            apps={apps}
+            onChange={set_recurso}
+          />
           <PermissionActionPicker
             actions={actions}
             accion={accion}

@@ -255,6 +255,8 @@ export function RoleEditor({
             apps={apps}
             modules={modules}
             actions={actions}
+            permissions={permissions}
+            roles={roles}
             locked_app={app}
             onSaved={(created) => {
               set_permission_ids((ids) =>

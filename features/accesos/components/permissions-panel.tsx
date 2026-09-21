@@ -173,6 +173,8 @@ export function PermissionsPanel({
         apps={apps}
         modules={modules}
         actions={actions}
+        permissions={permissions}
+        roles={roles}
         onSaved={() => router.refresh()}
       />
     </div>
