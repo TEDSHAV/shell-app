@@ -10,6 +10,7 @@ export function AccesosModal({
   children,
   footer,
   wide,
+  size,
 }: {
   open: boolean;
   title: string;
@@ -17,6 +18,7 @@ export function AccesosModal({
   children: ReactNode;
   footer?: ReactNode;
   wide?: boolean;
+  size?: "md" | "lg" | "xl";
 }) {
   useEffect(() => {
     if (!open) return;
@@ -46,7 +48,11 @@ export function AccesosModal({
         role="dialog"
         aria-modal="true"
         className={`relative z-10 flex max-h-[90vh] w-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl ${
-          wide ? "max-w-3xl" : "max-w-lg"
+          size === "xl" || wide
+            ? "max-w-4xl"
+            : size === "lg"
+              ? "max-w-3xl"
+              : "max-w-lg"
         }`}
       >
         <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-5 py-3">

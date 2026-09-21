@@ -26,10 +26,13 @@ export default async function EditarRolPage({
   return (
     <div className="mx-auto w-full max-w-6xl p-8">
       <RoleEditor
-        app_id={app.id}
-        app_nombre={app.nombre}
+        app={app}
         role={role}
         permissions={catalog.permissions}
+        roles={catalog.roles}
+        modules={catalog.modules}
+        actions={catalog.actions}
+        apps={catalog.apps}
         back_href={`/ted/usuarios/accesos/apps/${app.id}/roles/${role.id}`}
       />
     </div>

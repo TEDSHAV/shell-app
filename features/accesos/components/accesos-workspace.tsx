@@ -108,6 +108,8 @@ export function AccesosWorkspace({
           permissions={catalog.permissions}
           apps={catalog.apps}
           roles={catalog.roles}
+          modules={catalog.modules}
+          actions={catalog.actions}
         />
       ) : null}
     </div>

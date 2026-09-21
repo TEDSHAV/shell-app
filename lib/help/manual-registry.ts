@@ -57,10 +57,18 @@ export const HELP_REGISTRY: {
         {
           id: "slugs",
           title: "Cómo se nombran",
-          summary: "App, rol y permiso modulo:recurso:accion, sin puntos.",
+          summary: "Módulo:acción, o módulo:recurso:acción si hay que acotar.",
           href: `${MANUAL_ACCESOS}#manual-slugs`,
           icon: KeyRound,
           accent: "sky",
+        },
+        {
+          id: "niveles",
+          title: "Recurso opcional",
+          summary: "Módulo chico sin recurso; módulo grande con recurso concreto.",
+          href: `${MANUAL_ACCESOS}#manual-niveles`,
+          icon: Layers3,
+          accent: "violet",
         },
         {
           id: "consola",

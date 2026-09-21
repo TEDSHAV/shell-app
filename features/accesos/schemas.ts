@@ -1,5 +1,21 @@
 import { z } from "zod";
-import { PERMISSION_ACTIONS } from "./lib/slugs";
+import { slugify_kebab } from "./lib/slugs";
+
+const kebab = z
+  .string()
+  .trim()
+  .min(1)
+  .max(40)
+  .transform((value) => slugify_kebab(value))
+  .refine((value) => value.length >= 1, "Slug inválido");
+
+const kebab_optional = z
+  .string()
+  .trim()
+  .max(40)
+  .transform((value) => slugify_kebab(value))
+  .optional()
+  .default("");
 
 export const app_upsert_schema = z.object({
   id: z.number().int().positive().optional(),
@@ -28,10 +44,17 @@ export const role_upsert_schema = z.object({
 });
 
 export const permission_create_schema = z.object({
-  modulo: z.string().trim().min(1).max(40),
-  recurso: z.string().trim().min(1).max(40),
-  accion: z.string().trim().min(1).max(40),
+  modulo: kebab,
+  recurso: kebab_optional,
+  accion: kebab,
   descripcion: z.string().trim().max(400).optional().nullable(),
+  app_id: z.number().int().positive().optional(),
+  save_module: z.boolean().optional(),
+  module_nombre: z.string().trim().max(80).optional().nullable(),
+  module_descripcion: z.string().trim().max(400).optional().nullable(),
+  save_action: z.boolean().optional(),
+  action_nombre: z.string().trim().max(80).optional().nullable(),
+  action_descripcion: z.string().trim().max(400).optional().nullable(),
 });
 
 export const permission_update_schema = z.object({
@@ -54,5 +77,3 @@ export const role_permission_set_schema = z.object({
   role_id: z.number().int().positive(),
   permission_ids: z.array(z.number().int().positive()),
 });
-
-export const PERMISSION_ACTION_OPTIONS = PERMISSION_ACTIONS;

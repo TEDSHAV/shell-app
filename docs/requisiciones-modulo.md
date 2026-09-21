@@ -4,6 +4,8 @@
 **Fecha del análisis:** 21 de septiembre de 2026.  
 **Objetivo:** entender qué hace el módulo tal como está implementado hoy, para tomarlo de otro programador. No es un diseño ideal; es un mapa de lo que el código hace de verdad.
 
+**Permisos (propuesta, no código):** `docs/requisiciones-permisos.md`.
+
 ---
 
 ## 1. Qué es y para qué sirve

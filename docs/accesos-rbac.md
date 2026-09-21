@@ -33,17 +33,21 @@ solo se muestra depto y cargo, de `public.usuarios`.
 |---------|--------------------------------------------------|----------------------------------------|
 | App     | kebab corto: `sgestion`, `st`, `scapacitacion`   | Duplicar el slug de la app en el rol   |
 | Rol     | función kebab, único por app: `lider`            | `prisma-superadmin` (el app ya está)   |
-| Permiso | `modulo:recurso:accion` con **dos puntos**       | Puntos; rename masivo de slugs viejos  |
+| Permiso | `modulo:accion` o `modulo:recurso:accion`        | Puntos; rename masivo de slugs viejos  |
 
 Acciones nuevas: `access`, `read`, `write`, `create`, `edit`, `approve`,
 `manage`, `export`. No exigir `.ver` si el código ya usa `read`.
 
-La matriz agrupa por `slug.split(':')[0]`. Permisos nuevos: el formulario arma
-el slug (`finance` + `ecc` + `approve` → `finance:ecc:approve`) y rechaza
-duplicados.
+La matriz agrupa por `slug.split(':')[0]`. El **recurso es opcional**:
 
-Los slugs vivos de SGestion (`finance:ecc:approve`, etc.) **no se renombran**.
-Requisiciones sigue buscando `roles.slug = 'lider'|'coordinador'` **por app**.
+- Módulo chico o permiso general: `directorio:access`, `pipeline:access`.
+- Módulo con varias piezas: `finance:ecc:approve`.
+
+El formulario arma el slug y rechaza duplicados. Permisos nuevos sin recurso
+quedan en dos segmentos. Los slugs vivos de SGestion **no se renombran**.
+Requisiciones: guía `docs/requisiciones-permisos.md` (módulo transversal). TED
+crea y cuelga los slugs en la consola. El runtime del módulo aún busca
+`lider`/`coordinador` por app hasta que se implemente la lectura.
 
 ## Superficie TED
 

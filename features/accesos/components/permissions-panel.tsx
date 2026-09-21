@@ -12,16 +12,20 @@ import {
   permission_module,
 } from "../lib/slugs";
 import { update_acceso_permission } from "../actions/catalog-actions";
-import type { AccesoApp, AccesoPermission, AccesoRole } from "../lib/types";
+import type { AccesoAction, AccesoApp, AccesoModule, AccesoPermission, AccesoRole } from "../lib/types";
 
 export function PermissionsPanel({
   permissions,
   apps,
   roles,
+  modules,
+  actions,
 }: {
   permissions: AccesoPermission[];
   apps: AccesoApp[];
   roles: AccesoRole[];
+  modules: AccesoModule[];
+  actions: AccesoAction[];
 }) {
   const router = useRouter();
   const [query, set_query] = useState("");
@@ -54,7 +58,7 @@ export function PermissionsPanel({
     () => group_permissions_by_module(permissions),
     [permissions],
   );
-  const modules = groups.map((g) => g.module);
+  const module_keys = groups.map((g) => g.module);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -107,7 +111,7 @@ export function PermissionsPanel({
           onChange={(e) => set_module_filter(e.target.value)}
         >
           <option value="todos">Todos los módulos</option>
-          {modules.map((m) => (
+          {module_keys.map((m) => (
             <option key={m} value={m}>
               {module_label(m)}
             </option>
@@ -166,6 +170,9 @@ export function PermissionsPanel({
       <PermissionFormDialog
         open={open}
         onClose={() => set_open(false)}
+        apps={apps}
+        modules={modules}
+        actions={actions}
         onSaved={() => router.refresh()}
       />
     </div>
