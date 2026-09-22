@@ -1083,6 +1083,12 @@ export const apps: AppConfig[] = [
         icon: Users,
         requiredPermissions: ["srh:all:access"],
       },
+      {
+        label: "Proveedores",
+        path: "/dashboard/rh/proveedores",
+        icon: Building2,
+        requiredPermissions: ["srh:all:access"],
+      },
       ...[requisicionesNavGroup],
     ],
   }),
