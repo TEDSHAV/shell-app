@@ -36,7 +36,10 @@ function matches_search(app: PlanApp, search: string): boolean {
     (modulo) =>
       modulo.nombre.toLowerCase().includes(q) ||
       (modulo.subtitulo ?? "").toLowerCase().includes(q) ||
-      modulo.tareas.some((tarea) => tarea.titulo.toLowerCase().includes(q)),
+      modulo.tareas.some((tarea) =>
+        tarea.titulo.toLowerCase().includes(q) ||
+        (tarea.descripcion ?? "").toLowerCase().includes(q),
+      ),
   );
 }
 

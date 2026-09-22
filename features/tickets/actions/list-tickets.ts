@@ -24,6 +24,7 @@ type RawTicket = {
   respondido_at: string | null;
   tarea_id: number | null;
   created_at: string;
+  updated_at: string | null;
 };
 
 async function hydrate(
@@ -116,13 +117,14 @@ async function hydrate(
     respondido_at: row.respondido_at,
     tarea_id: row.tarea_id,
     created_at: row.created_at,
+    updated_at: row.updated_at ?? null,
     eventos: events_by.get(row.id) ?? [],
     source: "nativo",
   }));
 }
 
 const SELECT =
-  "id, titulo, descripcion, prioridad, estado, app_id, modulo_id, solicitado_por, asignado_id, respuesta, respondido_at, tarea_id, created_at";
+  "id, titulo, descripcion, prioridad, estado, app_id, modulo_id, solicitado_por, asignado_id, respuesta, respondido_at, tarea_id, created_at, updated_at";
 
 export async function list_my_tickets(): Promise<
   { ok: true; tickets: TicketRow[]; queues: Record<number, TicketQueueItem[]> } | { ok: false; error: string }

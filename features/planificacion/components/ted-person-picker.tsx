@@ -39,7 +39,7 @@ export function TedPersonPicker({
             on_change?.(value === "none" ? null : "none");
           }}
           className={cn(
-            "flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left transition",
+            "flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left transition-all duration-300 ease-out",
             (!multiple && value === "none") || (multiple && selected.size === 0)
               ? "border-violet-500 bg-violet-50 ring-2 ring-violet-300"
               : "border-slate-200 bg-white hover:border-slate-300",
@@ -70,7 +70,7 @@ export function TedPersonPicker({
               on_change?.(active ? null : user.id);
             }}
             className={cn(
-              "flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left transition",
+              "flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left transition-all duration-300 ease-out",
               active
                 ? "border-violet-500 bg-violet-50 ring-2 ring-violet-300"
                 : "border-slate-200 bg-white hover:border-slate-300",

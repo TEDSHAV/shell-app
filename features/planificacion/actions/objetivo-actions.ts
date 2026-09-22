@@ -40,12 +40,14 @@ type CoverTareaRow = {
   id: number;
   modulo_id: number;
   titulo: string;
+  descripcion?: string | null;
   origen: PlanOrigen;
   avance: number | null;
   no_solicitada?: boolean | null;
   completada: boolean;
   completada_at: string | null;
   created_at: string | null;
+  updated_at?: string | null;
   entregable_tipo: EntregableTipo;
   entregable_ruta: string | null;
   entregable_unidad: string | null;
@@ -68,6 +70,7 @@ function as_plan_tarea(
 ): PlanTarea {
   return {
     ...row,
+    descripcion: row.descripcion ?? null,
     avance: tarea_avance(row),
     no_solicitada: is_tarea_no_solicitada(row),
     fecha_inicio: row.fecha_inicio ?? null,
@@ -78,6 +81,7 @@ function as_plan_tarea(
     en_planificacion: row.en_planificacion !== false,
     ticket_id: row.ticket_id ?? null,
     created_at: row.created_at ?? null,
+    updated_at: row.updated_at ?? null,
     objetivo_id: row.objetivo_id ?? null,
     objetivo_titulo,
     asignados,
@@ -274,7 +278,7 @@ export async function load_cubrir_workspace(
     supabase
       .from("ted_plan_tareas" as never)
       .select(
-        "id, modulo_id, titulo, origen, avance, no_solicitada, completada, completada_at, created_at, entregable_tipo, entregable_ruta, entregable_unidad, entregable_version, entregable_comentario, fecha_inicio, fecha_fin, orden, trimestre, asignado_id, en_planificacion, ticket_id, objetivo_id",
+        "id, modulo_id, titulo, descripcion, origen, avance, no_solicitada, completada, completada_at, created_at, updated_at, entregable_tipo, entregable_ruta, entregable_unidad, entregable_version, entregable_comentario, fecha_inicio, fecha_fin, orden, trimestre, asignado_id, en_planificacion, ticket_id, objetivo_id",
       )
       .order("orden")
       .order("id"),

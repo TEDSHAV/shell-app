@@ -7,6 +7,7 @@ import type {
   PlanApp,
   PlanHito,
   PlanModulo,
+  PlanOrigen,
   PlanTarea,
   PlanTrimestre,
   PlanUsuarioOption,
@@ -30,6 +31,7 @@ import { download_plan_overview_pdf } from "../lib/download-plan-pdf";
 import { prisma_kpis_from_tareas, prisma_plan_rango } from "../lib/prisma-kpis";
 import { place_plan_tarea_trimestre } from "../actions/tarea-actions";
 import { tarea_ids_in_app } from "../lib/plan-selection";
+import { PLAN_ORIGENES } from "../schemas";
 
 export function PlanificacionWorkspace({
   apps,
@@ -103,6 +105,19 @@ export function PlanificacionWorkspace({
       ),
     [apps],
   );
+
+  const origin_counts = useMemo(() => {
+    const all = flatten_plan_tasks(apps);
+    const map = new Map<PlanOrigen | "Todos", number>();
+    map.set("Todos", all.length);
+    for (const origin of PLAN_ORIGENES) {
+      map.set(
+        origin,
+        all.filter((item) => item.tarea.origen === origin).length,
+      );
+    }
+    return map;
+  }, [apps]);
 
   const all_modulos = useMemo(() => {
     const seen = new Set<number>();
@@ -287,6 +302,7 @@ export function PlanificacionWorkspace({
         query={query}
         years={years}
         counts={counts}
+        origin_counts={origin_counts}
         usuarios={usuarios}
         on_change={(next) => set_query((prev) => ({ ...prev, ...next }))}
       />

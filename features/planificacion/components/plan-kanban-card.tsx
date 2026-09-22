@@ -6,6 +6,7 @@ import { PLAN_TAREA_DRAG_MIME } from "../lib/plan-kanban";
 import type { FlatPlanTask } from "../lib/flatten-plan-tasks";
 import { OrigenBadge } from "./origen-badge";
 import { PlanAssigneeStack } from "./plan-assignee-chip";
+import { TareaDateLine } from "./tarea-date-line";
 import { people_on_tarea } from "../lib/people";
 
 export function PlanKanbanCard({
@@ -66,6 +67,7 @@ export function PlanKanbanCard({
       >
         {tarea.titulo}
       </h3>
+      <TareaDateLine tarea={tarea} />
       <div className="mt-3 flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
           {tarea.trimestre ? (

@@ -15,6 +15,21 @@ import {
 } from "../actions/ticket-actions";
 import { ESTADO_LABEL, PRIORIDAD_LABEL } from "../lib/labels";
 import type { TicketEstado, TicketPrioridad, TicketRow } from "../lib/types";
+import { TimeFilterControl } from "@/components/time-filter-control";
+import { SortControl } from "@/components/sort-control";
+import { format_ve_datetime } from "@/lib/date-range";
+import {
+  compare_time,
+  type TimeOrder,
+} from "@/lib/date-range";
+import {
+  DEFAULT_TIME_FILTER,
+  stamp_for_date_field,
+  stamp_in_time_filter,
+  type DateField,
+  type SortDir,
+  type TimeFilterValue,
+} from "@/lib/list-time-period";
 
 export function TedTicketsInbox({
   tickets,
@@ -27,6 +42,9 @@ export function TedTicketsInbox({
   const [origen, set_origen] = useState<"Todos" | "nativo" | "plan">("Todos");
   const [estado, set_estado] = useState<TicketEstado | "Todos">("Todos");
   const [prio, set_prio] = useState<TicketPrioridad | "Todos">("Todos");
+  const [time, set_time] = useState<TimeFilterValue>(DEFAULT_TIME_FILTER);
+  const [date_field, set_date_field] = useState<DateField>("created");
+  const [sort_dir, set_sort_dir] = useState<SortDir>("desc");
   const [open, set_open] = useState<TicketRow | null>(null);
   const [respuesta, set_respuesta] = useState("");
   const [asig, set_asig] = useState("");
@@ -35,18 +53,26 @@ export function TedTicketsInbox({
   const [error, set_error] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
-  const filtered = useMemo(
-    () =>
-      tickets.filter((t) => {
-        if (origen !== "Todos" && (t.source ?? "nativo") !== origen) {
-          return false;
-        }
-        if (estado !== "Todos" && t.estado !== estado) return false;
-        if (prio !== "Todos" && t.prioridad !== prio) return false;
-        return true;
-      }),
-    [tickets, estado, prio, origen],
-  );
+  const filtered = useMemo(() => {
+    const order: TimeOrder = sort_dir === "asc" ? "oldest" : "newest";
+    const rows = tickets.filter((t) => {
+      if (origen !== "Todos" && (t.source ?? "nativo") !== origen) {
+        return false;
+      }
+      if (estado !== "Todos" && t.estado !== estado) return false;
+      if (prio !== "Todos" && t.prioridad !== prio) return false;
+      const stamp = stamp_for_date_field(date_field, t);
+      if (!stamp_in_time_filter(stamp, time)) return false;
+      return true;
+    });
+    return [...rows].sort((a, b) =>
+      compare_time(
+        stamp_for_date_field(date_field, a),
+        stamp_for_date_field(date_field, b),
+        order,
+      ),
+    );
+  }, [tickets, estado, prio, origen, time, date_field, sort_dir]);
 
   function refresh() {
     router.refresh();
@@ -67,33 +93,24 @@ export function TedTicketsInbox({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        {(
-          [
-            ["Todos", "Todos"],
-            ["nativo", "Nativos"],
-            ["plan", "Del plan"],
-          ] as const
-        ).map(([id, label]) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => set_origen(id)}
-            className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
-              origen === id
-                ? "bg-violet-600 text-white"
-                : "bg-white text-slate-600 ring-1 ring-slate-200"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
+      <div className="flex flex-wrap items-center gap-1.5 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
         <select
-          className="ml-auto h-9 rounded-full border-0 bg-white px-3 text-sm shadow-sm ring-1 ring-slate-200"
+          className="h-8 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-600"
+          value={origen}
+          onChange={(e) =>
+            set_origen(e.target.value as "Todos" | "nativo" | "plan")
+          }
+        >
+          <option value="Todos">Todos</option>
+          <option value="nativo">Nativos</option>
+          <option value="plan">Del plan</option>
+        </select>
+        <select
+          className="h-8 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-600"
           value={estado}
           onChange={(e) => set_estado(e.target.value as TicketEstado | "Todos")}
         >
-          <option value="Todos">Todos los estados</option>
+          <option value="Todos">Estado</option>
           {Object.entries(ESTADO_LABEL).map(([id, label]) => (
             <option key={id} value={id}>
               {label}
@@ -101,7 +118,7 @@ export function TedTicketsInbox({
           ))}
         </select>
         <select
-          className="h-9 rounded-full border-0 bg-white px-3 text-sm shadow-sm ring-1 ring-slate-200"
+          className="h-8 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-600"
           value={prio}
           onChange={(e) => set_prio(e.target.value as TicketPrioridad | "Todos")}
         >
@@ -112,6 +129,16 @@ export function TedTicketsInbox({
             </option>
           ))}
         </select>
+        <div className="ml-auto flex flex-wrap items-center gap-1.5">
+          <TimeFilterControl value={time} on_change={set_time} />
+          <SortControl
+            field={date_field}
+            dir={sort_dir}
+            on_field={set_date_field}
+            on_dir={set_sort_dir}
+            fields={["created", "updated"]}
+          />
+        </div>
       </div>
       <div className="space-y-2">
         {filtered.map((ticket) => (
@@ -137,6 +164,9 @@ export function TedTicketsInbox({
               <p className="mt-1 truncate text-sm text-slate-600">{ticket.titulo}</p>
               <p className="mt-0.5 truncate text-xs text-slate-400">
                 Solicitó {ticket.solicitante}
+                {ticket.created_at
+                  ? ` · ${format_ve_datetime(ticket.created_at)}`
+                  : ""}
               </p>
             </div>
             <div className="flex shrink-0 flex-col items-end gap-1 text-xs font-semibold">
@@ -175,6 +205,7 @@ export function TedTicketsInbox({
             </p>
             <p className="text-xs text-slate-500">
               Solicitó {open.solicitante}
+              {open.created_at ? ` · ${format_ve_datetime(open.created_at)}` : ""}
             </p>
             <p className="text-xs font-semibold text-violet-700">
               {open.modulo_nombre}

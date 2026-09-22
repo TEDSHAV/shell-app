@@ -48,6 +48,7 @@ export type TicketRow = {
   respondido_at: string | null;
   tarea_id: number | null;
   created_at: string;
+  updated_at: string | null;
   eventos: TicketEvento[];
   source?: "nativo" | "plan";
   avance?: number;

@@ -30,6 +30,7 @@ export function TareaEditForm({
   modulo_id,
   nuevo_modulo,
   titulo,
+  descripcion,
   origen,
   avance,
   no_solicitada,
@@ -48,6 +49,7 @@ export function TareaEditForm({
   on_modulo,
   on_nuevo_modulo,
   on_titulo,
+  on_descripcion,
   on_origen,
   on_avance,
   on_no_solicitada,
@@ -67,6 +69,7 @@ export function TareaEditForm({
   modulo_id: string;
   nuevo_modulo: string;
   titulo: string;
+  descripcion: string;
   origen: PlanOrigen;
   avance: number;
   no_solicitada: boolean;
@@ -85,6 +88,7 @@ export function TareaEditForm({
   on_modulo: (value: string) => void;
   on_nuevo_modulo: (value: string) => void;
   on_titulo: (value: string) => void;
+  on_descripcion: (value: string) => void;
   on_origen: (value: PlanOrigen) => void;
   on_avance: (value: number) => void;
   on_no_solicitada: (value: boolean) => void;
@@ -109,6 +113,16 @@ export function TareaEditForm({
             className={PLAN_INPUT_CLASS}
             value={titulo}
             onChange={(e) => on_titulo(e.target.value)}
+          />
+        </PlanField>
+        <PlanField label="Descripción" htmlFor="tar-descripcion">
+          <Textarea
+            id="tar-descripcion"
+            rows={4}
+            className={PLAN_INPUT_CLASS}
+            placeholder="Contexto, alcance o pedido original"
+            value={descripcion}
+            onChange={(e) => on_descripcion(e.target.value)}
           />
         </PlanField>
         <div className="grid gap-3 sm:grid-cols-2">
