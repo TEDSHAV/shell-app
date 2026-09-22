@@ -6,12 +6,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { NumberInput } from "@/components/ui/number-input";
 import { RequisicionItem, OSIFixedItem } from "@/types/requisiciones";
-import { setRequisicionEstatus, updateItemVerificacion, updateFixedItemVerificacion, markAllItemsVerificadas, saveVerificacionProgress, getExchangeRate, updateFacilitadorBankingDetails, acknowledgeRequisicionReceipt, approveRequisicionByCoordinador, rejectRequisicionByCoordinador, approveRequisicionByLider, rejectRequisicionByLider, updateRequisicionByApprover } from "@/actions/requisiciones";
+import { setRequisicionEstatus, updateItemVerificacion, updateFixedItemVerificacion, markAllItemsVerificadas, saveVerificacionProgress, getExchangeRate, updateFacilitadorBankingDetails, acknowledgeRequisicionReceipt, approveRequisicionByCoordinador, rejectRequisicionByCoordinador, approveRequisicionByLider, rejectRequisicionByLider, updateRequisicionByApprover, confirmInternaCostos } from "@/actions/requisiciones";
 import { CheckCircle2, XCircle, Undo2, Clock, AlertTriangle, CalendarClock, Copy, Check, Download, Save, Printer, PackageCheck, Plus, Trash2 } from "lucide-react";
 import MotivoModal from "../../../components/MotivoModal";
 import ApproverDiff from "./ApproverDiff";
 import { formatDate } from "@/lib/utils";
 import { deptInList, isLiderGatePending, skipsCoordinadorGate } from "@/lib/requisiciones-gerencia";
+import { apply_item_money_updates, requisicion_items_total } from "@/lib/requisiciones-totals";
+import { RequisicionItemMoneyInputs, RequisicionPriceHeaders } from "../../../components/RequisicionItemMoneyInputs";
 
 export default function RequisicionView({
   record,
@@ -23,6 +25,7 @@ export default function RequisicionView({
   isLider = false,
   liderDepts = [],
   banks = [],
+  umbralLiderUsd = 100,
 }: {
   record: any,
   osiData: any,
@@ -35,6 +38,7 @@ export default function RequisicionView({
   /** All departments inside the gerencia(s) the current user leads. */
   liderDepts?: string[],
   banks?: { id: number; nombre: string }[],
+  umbralLiderUsd?: number,
 }) {
   const router = useRouter();
   const [isUpdating, setIsUpdating] = useState(false);
@@ -80,6 +84,7 @@ export default function RequisicionView({
   // server action re-checks either way).
   const liderDeptMatches = isLider && deptInList(record.departamento, liderDepts);
   const canLiderAct = isLiderPendiente && liderDeptMatches;
+  const showInternaMontos = isGeneralMode && (isAdminView || liderDeptMatches);
 
   // --- Coordinador approval state (internas only) ---
   const isCoordinadorPendiente = isGeneralMode && coordinadorEstatus === "pendiente";
@@ -110,6 +115,10 @@ export default function RequisicionView({
     canLiderAct || canCoordinadorAct
     || canLiderEditPostApproval
     || canCoordinadorEditPostApproval;
+  const coordDoneForAdmin = !coordinadorEstatus || coordinadorEstatus === "aprobada";
+  const canEstimateEdit = isAdminView && isGeneralMode && coordDoneForAdmin && !adminProcessed;
+  const liderAlreadyApproved = liderEstatus === "aprobada";
+  const canConfirmCostos = canEstimateEdit && !liderAlreadyApproved;
   const [editedItems, setEditedItems] = useState<any[]>(record.additional_items || []);
   const [editedObservaciones, setEditedObservaciones] = useState<string>(record.observaciones_compras || "");
   const [editedPrioridad, setEditedPrioridad] = useState<string>(record.prioridad || "");
@@ -135,11 +144,7 @@ export default function RequisicionView({
   const handleApproverItemChange = (itemId: string, field: string, value: any) => {
     setEditedItems(prev => prev.map(item => {
       if (item.id !== itemId) return item;
-      const updated = { ...item, [field]: value };
-      if (field === "cant" || field === "costo_unitario") {
-        updated.total = (Number(updated.cant) || 0) * (Number(updated.costo_unitario) || 0);
-      }
-      return updated;
+      return apply_item_money_updates(item, { [field]: value } as Partial<typeof item>);
     }));
   };
 
@@ -161,6 +166,23 @@ export default function RequisicionView({
       return false;
     } finally {
       setIsSavingApproverEdit(false);
+    }
+  };
+
+  const handleConfirmCostos = async () => {
+    setIsUpdating(true);
+    try {
+      const result = await confirmInternaCostos(record.id, editedItems);
+      alert(
+        result.needsLider
+          ? `Total $${result.total.toFixed(2)} supera el umbral ($${result.umbral}). Se envió al líder para aprobación.`
+          : `Total $${result.total.toFixed(2)}. Puede procesar sin sello de líder.`,
+      );
+      router.refresh();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "No se pudo confirmar la estimación");
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -227,7 +249,8 @@ export default function RequisicionView({
     (fi.impresion_total || 0) +
     (fi.honorarios_total || 0) +
     (fi.informe_final_total || 0), 0);
-  const totalAdditional = additionalItems.reduce((sum, item) => sum + (item.total || 0), 0);
+  const workingItems = (canApproverEdit || canEstimateEdit) ? editedItems : additionalItems;
+  const totalAdditional = requisicion_items_total(workingItems);
   const totalGeneral = totalFixed + totalAdditional;
 
   // Total of only verified ("listo") items — used for copy-all VES calculation
@@ -687,6 +710,14 @@ export default function RequisicionView({
               Motivo: {record.motivo_rechazo_lider}
             </span>
           )}
+          {liderDeptMatches && (
+            <span className="text-sm font-semibold text-gray-800">
+              Estimado ${totalGeneral.toFixed(2)}
+              <span className="ml-2 text-xs font-medium text-gray-500">
+                umbral ${Number(umbralLiderUsd).toFixed(2)}
+              </span>
+            </span>
+          )}
           {canLiderAct && (
             <div className="ml-auto flex gap-2">
               <Button
@@ -794,6 +825,20 @@ export default function RequisicionView({
           <div className="ml-auto flex gap-2">
             {isPendiente && (
               <>
+                {canConfirmCostos ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={isUpdating}
+                    onClick={handleConfirmCostos}
+                    className="h-8 px-3 text-xs flex gap-1 border-blue-300 text-blue-700 hover:bg-blue-50"
+                  >
+                    {liderEstatus === "pendiente" || liderEstatus === "rechazada"
+                      ? `Reemitir al líder (umbral $${umbralLiderUsd})`
+                      : `Confirmar costos (umbral $${umbralLiderUsd})`}
+                  </Button>
+                ) : null}
                 {verifiedCount > 0 && verifiedCount < totalCount && (
                   <Button
                     type="button"
@@ -811,7 +856,7 @@ export default function RequisicionView({
                   type="button"
                   variant="outline"
                   size="sm"
-                  disabled={isUpdating}
+                  disabled={isUpdating || (isGeneralMode && (!record.costos_confirmados_at || record.lider_estatus === "pendiente"))}
                   onClick={() => handleSetEstatus("procesada")}
                   className="h-8 px-3 text-xs flex gap-1 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
                 >
@@ -998,17 +1043,23 @@ export default function RequisicionView({
                 <th className="p-2 border-r border-gray-300 w-20">UNIDAD/ CONCEPTO</th>
                 <th className="p-2 border-r border-gray-300 w-20">CANT</th>
                 <th className="p-2 border-r border-gray-300">DESCRIPCIÓN</th>
-                {!isGeneralMode && (
-                  <th className="p-2 border-r border-gray-300 w-32">PRECIO U.</th>
-                )}
-                {((isCapacitacion && osiFixedItems.length > 1) || (!isCapacitacion && linkedOSIs.length > 1)) && (
+                {showInternaMontos ? (
+                  <RequisicionPriceHeaders />
+                ) : !isGeneralMode ? (
+                  <>
+                    <th className="p-2 border-r border-gray-300 w-32">PRECIO U.</th>
+                    {((isCapacitacion && osiFixedItems.length > 1) || linkedOSIs.length > 1) && (
+                      <th className="p-2 border-r border-gray-300 w-28">OSI</th>
+                    )}
+                    <th className="p-2 w-32">TOTAL</th>
+                  </>
+                ) : null}
+                {isGeneralMode && isAdminView && linkedOSIs.length > 1 && (
                   <th className="p-2 border-r border-gray-300 w-28">OSI</th>
                 )}
                 {isGeneralMode ? (
                   <th className="p-2 w-24">VERIF.</th>
-                ) : (
-                  <th className="p-2 w-32">TOTAL</th>
-                )}
+                ) : null}
                 {isAdminView && (
                   <th className="p-2 w-20 border-l border-gray-300">✓</th>
                 )}
@@ -1324,7 +1375,7 @@ export default function RequisicionView({
               })()}
 
               {/* Additional Items (non-Capacitación) */}
-              {!isCapacitacion && !canApproverEdit && additionalItems.map((item, index) => (
+              {!isCapacitacion && !canApproverEdit && !canEstimateEdit && additionalItems.map((item, index) => (
                 <tr key={item.id} className="border-b border-gray-300 bg-blue-50/10">
                   <td className="p-2 text-center border-r border-gray-300 font-bold">{index + 1}</td>
                   <td className="p-2 border-r border-gray-300 text-center uppercase font-bold">
@@ -1338,10 +1389,15 @@ export default function RequisicionView({
                       <span className="uppercase">{item.descripcion || "-"}</span>
                     </div>
                   </td>
-                  {!isGeneralMode && (
-                    <td className="p-2 text-center font-bold border-r border-gray-300">
-                      ${item.costo_unitario?.toFixed(2) || "0.00"}
-                    </td>
+                  {(!isGeneralMode || showInternaMontos) && (
+                    <>
+                      <td className="p-2 text-center font-bold border-r border-gray-300">
+                        ${item.costo_unitario?.toFixed(2) || "0.00"}
+                      </td>
+                      <td className="p-2 text-center font-bold border-r border-gray-300 bg-amber-50/40">
+                        ${item.total?.toFixed(2) || "0.00"}
+                      </td>
+                    </>
                   )}
                   {linkedOSIs.length > 1 && (
                     <td className="p-2 text-center border-r border-gray-300 font-bold text-blue-700 text-[10px]">
@@ -1356,11 +1412,7 @@ export default function RequisicionView({
                         {item.verificacion === "listo" ? "Listo" : "Pendiente"}
                       </span>
                     </td>
-                  ) : (
-                    <td className="p-2 text-center font-bold bg-blue-50/20">
-                      ${item.total?.toFixed(2) || "0.00"}
-                    </td>
-                  )}
+                  ) : null}
                   {isAdminView && (
                     <td className="p-2 text-center border-l border-gray-300">
                       <input
@@ -1377,7 +1429,7 @@ export default function RequisicionView({
               ))}
 
               {/* Additional Items — Approver editable mode (non-Capacitación) */}
-              {!isCapacitacion && canApproverEdit && editedItems.map((item, index) => (
+              {!isCapacitacion && (canApproverEdit || canEstimateEdit) && editedItems.map((item, index) => (
                 <tr key={item.id} className="border-b border-gray-300 bg-blue-50/30">
                   <td className="p-2 text-center border-r border-gray-300 font-bold">{index + 1}</td>
                   <td className="p-2 border-r border-gray-300 text-center">
@@ -1407,18 +1459,22 @@ export default function RequisicionView({
                       placeholder="Descripción..."
                     />
                   </td>
-                  {!isGeneralMode && (
-                    <td className="p-2 text-center border-r border-gray-300">
-                      <NumberInput
-                        value={item.costo_unitario || 0}
-                        onValueChange={(n) => handleApproverItemChange(item.id, "costo_unitario", n)}
-                        allowDecimal
-                        min={0}
-                        step={0.01}
-                        className="w-20 px-1 py-0.5 text-xs text-center border border-gray-300 rounded font-bold focus:outline-none focus:ring-1 focus:ring-blue-400"
-                      />
-                    </td>
-                  )}
+                  {(!isGeneralMode || canEstimateEdit) ? (
+                    <RequisicionItemMoneyInputs
+                      costo_unitario={item.costo_unitario || 0}
+                      total={item.total || 0}
+                      onChange={(field, n) => handleApproverItemChange(item.id, field, n)}
+                    />
+                  ) : showInternaMontos ? (
+                    <>
+                      <td className="p-2 text-center font-bold border-r border-gray-300">
+                        ${item.costo_unitario?.toFixed(2) || "0.00"}
+                      </td>
+                      <td className="p-2 text-center font-bold border-r border-gray-300 bg-amber-50/40">
+                        ${item.total?.toFixed(2) || "0.00"}
+                      </td>
+                    </>
+                  ) : null}
                   {isGeneralMode ? (
                     <td className="p-2 text-center">
                       <button
@@ -1431,18 +1487,15 @@ export default function RequisicionView({
                       </button>
                     </td>
                   ) : (
-                    <td className="p-2 text-center font-bold bg-blue-50/30">
-                      <div className="flex items-center justify-center gap-1">
-                        ${(item.total || 0).toFixed(2)}
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveApproverItem(item.id)}
-                          className="text-red-600 hover:text-red-800 hover:bg-red-50 rounded p-0.5"
-                          title="Eliminar item"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </button>
-                      </div>
+                    <td className="p-2 text-center">
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveApproverItem(item.id)}
+                        className="text-red-600 hover:text-red-800 hover:bg-red-50 rounded p-0.5"
+                        title="Eliminar item"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
                     </td>
                   )}
                 </tr>
@@ -1450,7 +1503,7 @@ export default function RequisicionView({
               {/* Add item button (approver editable mode) */}
               {!isCapacitacion && canApproverEdit && (
                 <tr className="border-b border-gray-300 bg-blue-50/20">
-                  <td colSpan={isGeneralMode ? 5 : 6} className="p-2">
+                  <td colSpan={isGeneralMode ? (isAdminView ? 8 : showInternaMontos ? 7 : 6) : 7} className="p-2">
                     <button
                       type="button"
                       onClick={handleAddApproverItem}
@@ -1463,12 +1516,15 @@ export default function RequisicionView({
                 </tr>
               )}
 
-              {!isGeneralMode && (
+              {(!isGeneralMode || showInternaMontos) && (
               <tr className="bg-gray-100 border-b border-gray-300">
-                <td colSpan={(isCapacitacion && osiFixedItems.length > 1) || (!isCapacitacion && linkedOSIs.length > 1) ? (isAdminView ? 6 : 6) : (isAdminView ? 5 : 5)} className="p-2 text-right font-bold uppercase text-sm">Total General:</td>
+                <td colSpan={(isCapacitacion && osiFixedItems.length > 1) || (!isCapacitacion && linkedOSIs.length > 1) ? 6 : 5} className="p-2 text-right font-bold uppercase text-sm">Total General:</td>
                 <td className="p-2 text-center font-bold text-sm bg-yellow-50">
                   ${totalGeneral.toFixed(2)}
                 </td>
+                {isGeneralMode && (
+                  <td className="p-2 bg-gray-100"></td>
+                )}
                 {isAdminView && (
                   <td className="p-2 border-l border-gray-300 bg-gray-100"></td>
                 )}
@@ -1728,7 +1784,7 @@ export default function RequisicionView({
                   type="button"
                   variant="outline"
                   size="sm"
-                  disabled={isUpdating}
+                  disabled={isUpdating || (isGeneralMode && (!record.costos_confirmados_at || record.lider_estatus === "pendiente"))}
                   onClick={() => handleSetEstatus("procesada")}
                   className="h-8 px-3 text-xs flex gap-1 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
                 >

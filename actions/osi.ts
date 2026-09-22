@@ -2,7 +2,8 @@
 
 import { cache } from "react";
 import { unstable_cache } from "next/cache";
-import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { createAdminClient, createClient, peek_dev_db_target } from "@/lib/supabase/server";
+import type { DevDbTarget } from "@/lib/supabase/dev-db";
 import { notifySessionStatusChange } from "@/actions/osi-session-notifications";
 import {
   getUserRole,
@@ -258,7 +259,7 @@ export async function getOSIList(
     const adminClientPromise = pageOsiIds.length > 0 ? createAdminClient() : null;
 
     const [statuses, cityResult, visibleOsiIds, sesionesProgramadasResult, attachmentResult] = await Promise.all([
-      getOSIStatuses(),
+      getOSIStatuses(await peek_dev_db_target()),
       uniqueCityIds.length > 0
         ? supabase
             .from("cat_ciudades")
@@ -354,12 +355,12 @@ export async function getOSIList(
 // different departments get different filter options. Revalidated every 5
 // minutes via the "osi-filters" tag.
 const getOSIListFilterOptionsCached = unstable_cache(
-  async (accessFilter: OSIAccessFilter): Promise<OSIListFilterOptions> => {
+  async (accessFilter: OSIAccessFilter, target: DevDbTarget): Promise<OSIListFilterOptions> => {
     if (accessFilter === "none") {
       return { companies: [], ejecutivos: [], cityOptions: [], statuses: [], accessFilter };
     }
 
-    const supabase = await createAdminClient();
+    const supabase = await createAdminClient(target);
 
     const tipoServicioOr = accessFilter === "servicios_tecnicos"
       ? "tipo_servicio.ilike.%servicios tecnicos%,tipo_servicio.ilike.%servicio tecnico%"
@@ -380,7 +381,7 @@ const getOSIListFilterOptionsCached = unstable_cache(
 
     const [viewResult, statuses] = await Promise.all([
       viewQuery,
-      getOSIStatuses(),
+      getOSIStatuses(target),
     ]);
 
     const viewRows = viewResult.data || [];
@@ -436,7 +437,8 @@ const getOSIListFilterOptionsCached = unstable_cache(
 export async function getOSIListFilterOptions(): Promise<OSIListFilterOptions> {
   try {
     const accessFilter = await getUserOSIAccessFilter();
-    return getOSIListFilterOptionsCached(accessFilter);
+    const target = await peek_dev_db_target();
+    return getOSIListFilterOptionsCached(accessFilter, target);
   } catch (err) {
     console.error("Error fetching OSI filter options:", err);
     return { companies: [], ejecutivos: [], cityOptions: [], statuses: [], accessFilter: "none" };
@@ -444,9 +446,9 @@ export async function getOSIListFilterOptions(): Promise<OSIListFilterOptions> {
 }
 
 const getOSIStatuses = unstable_cache(
-  async (): Promise<OSIStatusOption[]> => {
+  async (target: DevDbTarget): Promise<OSIStatusOption[]> => {
     try {
-      const supabase = await createAdminClient();
+      const supabase = await createAdminClient(target);
       const { data, error } = await supabase
         .from("conf_estatus")
         .select("id, nombre_estado, color_hex, orden, es_estado_final")

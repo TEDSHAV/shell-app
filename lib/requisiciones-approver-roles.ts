@@ -12,8 +12,8 @@ export type CoordinadorRoleMapEntry = {
   matchesDept: (deptName: string | null | undefined) => boolean;
 };
 
-// authprisma.roles used as coordinador de requisiciones.
-// roleId is the production id; appId+slug is the fallback if ids differ.
+// DEPRECATED: el runtime de requisiciones ya no usa roleId 21/22/23.
+// El sello sale de slugs requisiciones:* + territorio de ficha (ver requisiciones-dept-context.ts).
 export const REQUISICION_COORDINADOR_ROLES: CoordinadorRoleMapEntry[] = [
   {
     roleId: 21,

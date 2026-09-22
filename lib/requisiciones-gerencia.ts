@@ -106,14 +106,7 @@ export function skipsCoordinadorGate(record: ApproverRecordFlags): boolean {
 
 export function isLiderGatePending(record: ApproverRecordFlags): boolean {
   if (!isInternaRecord(record)) return false;
-  if (record.lider_estatus === "aprobada" || record.lider_estatus === "rechazada") {
-    return false;
-  }
-  if (record.lider_estatus === "pendiente") return true;
-  if (skipsCoordinadorGate(record) && record.coordinador_estatus !== "rechazada") {
-    return true;
-  }
-  return false;
+  return record.lider_estatus === "pendiente";
 }
 
 export function isPendingForCurrentApprover(

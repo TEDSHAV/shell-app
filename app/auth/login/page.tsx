@@ -1,8 +1,19 @@
 import { LoginForm } from "@/components/login-form";
 import Image from "next/image";
 import logo from "@/app/logo.png";
+import { cookies } from "next/headers";
+import {
+  DEV_DB_COOKIE,
+  is_dev_db_switcher_enabled,
+  parse_dev_db_target,
+} from "@/lib/supabase/dev-db";
 
-export default function Page() {
+export default async function Page() {
+  const cookieStore = await cookies();
+  const dev_target = is_dev_db_switcher_enabled()
+    ? parse_dev_db_target(cookieStore.get(DEV_DB_COOKIE)?.value)
+    : null;
+
   return (
     <div className="min-h-svh flex">
 
@@ -87,6 +98,17 @@ export default function Page() {
               <p className="text-sm text-gray-400 mt-1">
                 Ingresa tus credenciales para acceder
               </p>
+              {dev_target ? (
+                <p
+                  className={
+                    dev_target === "production"
+                      ? "mt-3 text-xs font-semibold text-red-700 bg-red-50 border border-red-200 rounded-md px-2 py-1"
+                      : "mt-3 text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-md px-2 py-1"
+                  }
+                >
+                  next dev → {dev_target === "production" ? "producción (o)" : "staging (g)"}
+                </p>
+              ) : null}
             </div>
 
             <LoginForm />

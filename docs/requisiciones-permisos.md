@@ -1,7 +1,7 @@
 # Permisos de requisiciones
 
-**Estado:** decisiones cerradas. **Los permisos los crea TED en la consola** (`/ted/usuarios/accesos` → Permisos → Nuevo permiso, o desde el paso Permisos de un rol). Este documento no inserta slugs. El código de requisiciones **aún no los lee**.  
-**Fecha:** 21 de septiembre de 2026.  
+**Estado:** el código de requisiciones **lee** estos slugs (globales, aplanados de todas las apps). TED los crea en la consola; este documento no inserta slugs.  
+**Fecha:** 22 de septiembre de 2026.  
 **Modelo RBAC:** `docs/accesos-rbac.md`.
 
 Casa del módulo: app **Administración** (`sadministracion`). El permiso es global; **no** se clona. Quién lo tiene: **roles transversales estándar** en esa misma app (abajo).
@@ -15,7 +15,7 @@ Casa del módulo: app **Administración** (`sadministracion`). El permiso es glo
 | 1 | ¿Un set de slugs global, no un clon por app? | **Sí.** Dónde se cuelga: protocolo abajo. |
 | 2 | ¿`solicitud:access` = solo las propias? | **Sí.** |
 | 3 | ¿`solicitud:access-depto` para el mural de equipo? | **Sí.** |
-| 4 | ¿`approve-coordinador` y `approve-lider` (líder hereda el 1.er sello)? | **Sí.** |
+| 4 | ¿`approve-coordinador` y `approve-lider` (líder hereda el 1.er sello)? | El líder **no** hereda el 1.er sello en el flujo post-estimación. Coordinador sella antes de estimar. |
 | 5 | ¿Recursos `solicitud` y `gestion`, sin `cola`? | **Sí.** |
 | 6 | ¿Gestor de Admin crea y procesa sin sellos? | TED lo cuelga. |
 | 7 | ¿Líder de Admin puede `process`? | **Sí.** |
@@ -31,6 +31,7 @@ Casa del módulo: app **Administración** (`sadministracion`). El permiso es glo
 |---------|------------|----------|
 | `solicitud` | Solicitante: Mis requisiciones, crear, editar lo propio | `access`, `create`, `edit`, `access-depto` |
 | `gestion` | Trámite: colas de sello y proceso de Administración | `access`, `approve-coordinador`, `approve-lider`, `process`, `edit` |
+| `config` | Umbral USD de internas (quién debe pasar por líder) | `manage` |
 
 El permiso es global. No se duplica por app.
 
@@ -43,9 +44,19 @@ El permiso es global. No se duplica por app.
 | `requisiciones:solicitud:access` | Ver **solo las que creé**. Acuse de recibo. |
 | `requisiciones:solicitud:create` | Crear interna o externa. Conveniente colgarlo junto con `access`. |
 | `requisiciones:solicitud:edit` | Editar **la propia** mientras el flujo lo permita. |
-| `requisiciones:solicitud:access-depto` | Ver las del **departamento del usuario** (mural de equipo). No es la bandeja de aprobación. |
+| `requisiciones:solicitud:access-depto` | Ver las del **departamento del usuario** (mural de equipo). No es la bandeja de aprobación. **Ya está en BD.** |
 
 Interna vs externa no es un slug.
+
+---
+
+## `config`
+
+Página **Umbral de aprobación** (`/requisiciones/configuracion`). Define `requisiciones_ajustes.umbral_lider_usd`: si Administración estima una interna por encima de ese monto, entra el sello del líder; si no, pasa directo a proceso.
+
+| Slug | Efecto |
+|------|--------|
+| `requisiciones:config:manage` | Ver el ítem de menú, abrir la página y guardar el umbral. Sin este slug el enlace no aparece (tampoco el atajo en Gestión). |
 
 ---
 
@@ -85,7 +96,7 @@ Nadie aprueba la suya. Externas hoy no usan sellos: las ve quien tiene `process`
 1. `/ted/usuarios/accesos` → pestaña **Permisos** → **Nuevo permiso** (o **Nuevo permiso** en el paso 2 al editar un rol).
 2. App: **Administración** (casa del módulo).
 3. Módulo: crea **Requisiciones** (`requisiciones`) la primera vez; después elígelo.
-4. Recurso `solicitud` o `gestion`. Para `access-depto`, `approve-coordinador`, `approve-lider` y `process`: **Nueva acción**, sin marcar “Agregar al catálogo de acciones” (solo viven en ese permiso).
+4. Recurso `solicitud`, `gestion` o `config`. Para `access-depto`, `approve-coordinador`, `approve-lider`, `process` y `manage`: **Nueva acción**, sin marcar “Agregar al catálogo de acciones” (solo viven en ese permiso).
 5. Crear los **roles transversales** de abajo (pestaña Roles, app Administración) y colgarles los permisos (o usar **Colgar en roles** desde Permisos).
 6. **Asignar a personas** (pestaña Roles) para dar el rol a la gente o a todos.
 
@@ -97,11 +108,15 @@ Nadie aprueba la suya. Externas hoy no usan sellos: las ve quien tiene `process`
 
 ### Roles funcionales estándar (Administración)
 
+Nombres reales en consola (no `solicitante-general`):
+
 | Rol | Para quién | Permisos |
 |-----|------------|----------|
-| `solicitante-general` | Cualquier empleado de base que deba pedir compras | `requisiciones:solicitud:access`, `create`, `edit` (solo las propias). Si necesita mural de equipo: añadir `access-depto`. |
-| `aprobador-coordinador` | Quien da el **1.er sello** | `requisiciones:gestion:access`, `approve-coordinador` |
-| `aprobador-lider` | Líderes de departamento (2.º sello; hereda el 1.º) | `requisiciones:gestion:access`, `approve-lider` |
+| `solicitante-requisiciones` | Cualquier empleado de base que deba pedir compras | `requisiciones:solicitud:access`, `create`, `edit` (solo las propias). Si necesita mural de equipo: `requisiciones:solicitud:access-depto`. |
+| `aprobador-coordinador-requisiciones` | Quien da el **1.er sello** | `requisiciones:gestion:access`, `approve-coordinador` (hoy el rol en BD **no** tiene `gestion:access`; colgarlo). |
+| `aprobador-lider-requisiciones` | Líderes de departamento (2.º sello post-umbral) | `requisiciones:gestion:access`, `approve-lider` |
+
+En producción también sellan/procesan los roles operativos `coordinador`, `lider`, `gestor` y `admin-ted` de Administración, que ya tienen los slugs colgados. Coordinador y gestores de Admin cubren **también** el depto `recursos_humanos` (misma gerencia). La app `srh` no cuelga `requisiciones:*`.
 
 Ejemplo: en ST sigue siendo `analista`; en Administración es `solicitante-general`. Dos apps, dos fichas, sin mezclar OSI con compras.
 
@@ -147,8 +162,8 @@ El precio: si editas `solicitante-general` después, `admin` **no** se actualiza
 1. **Misma app.** Solo ofrecer roles de la misma `app_id` como atajo de copia.
 2. **Copiar ≠ bloquear.** Tras pegar, cada permiso es editable (marcar / desmarcar).
 3. **Volver a pegar** el mismo rol de origen: suma/marca de nuevo lo que tenga ese rol; no borra lo que TED ya tenía marcado de más.
-4. **Al guardar un rol**, la consola busca **otros roles de la misma app** cuyo set de permisos **coincida en parte** con el que se acaba de editar (intersección no vacía, o que antes compartían el paquete que este rol “representa” como transversal).
-5. **Aviso + botón opcional:** “Estos roles tienen permisos en común: … ¿Actualizar también?” TED elige **actualizar** (aplicar el delta a esos roles) o **no** (solo guarda el rol actual). Nada automático sin confirmación.
+4. **Aviso al guardar (solo edición manual).** Si cambias permisos a mano en un rol que **ya** compartía permisos con otros de la misma app, aparece el diálogo para propagar el delta. Los peers se buscan por intersección con el set **antes** de guardar (quién ya coincidía), no con lo recién pegado.
+5. **No sale el aviso** si en esa sesión usaste **Añadir desde otro rol** (componer/pegar). Pegar no es propagar: guardar y listo. Botón **Solo este rol** / **Actualizar seleccionados** solo en el caso 4.
 6. El aviso es **conveniencia**, no herencia. Si no pulsas actualizar, cada rol sigue independiente.
 
 #### Quién recibe qué (con A)
@@ -163,7 +178,7 @@ El precio: si editas `solicitante-general` después, `admin` **no** se actualiza
 - No es multi-rol en la persona; es un atajo de edición.
 - No sustituye organigrama.
 
-**Estado:** dirección cerrada (A). UI: atajo «Añadir desde otro rol» en el editor + aviso al guardar si hay roles con permisos en común.
+**Estado:** dirección cerrada (A). UI: atajo «Añadir desde otro rol» (sin diálogo de peers). Aviso de sincronizar solo al editar permisos a mano en un rol que ya compartía set con otros.
 
 ### Qué no hacer
 
@@ -173,7 +188,9 @@ El precio: si editas `solicitante-general` después, `admin` **no** se actualiza
 
 ---
 
-Orden sugerido: crear permisos → crear los tres roles transversales → componer `gestor`/`admin` con el atajo de copia → asignar gente. El código del módulo se cambia cuando ya estén colgados.
+Orden sugerido: crear permisos → crear/ajustar roles transversales → componer `gestor`/`admin` con el atajo de copia → asignar gente. **Runtime:** slugs + territorio de ficha. Internas: coordinador → Admin estima → líder solo si total > umbral (`requisiciones_ajustes.umbral_lider_usd`, default 100) → Admin procesa.
+
+El depto de la solicitud: contexto `?from=` o el departamento de casa. El **selector** (Administración vs Recursos Humanos) solo lo ven miembros operativos de Administración (`gestor`, `coordinador`, `lider`, `admin-ted`, `aprobador-*`). Un `solicitante-requisiciones` de otra gerencia no elige depto. `usuarios.departamento` no es multi.
 
 ---
 

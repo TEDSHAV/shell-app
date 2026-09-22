@@ -128,7 +128,12 @@ export function RoleEditor({
     }
 
     const { added, removed } = permission_delta(existing_ids, permission_ids);
-    if (!role || (added.length === 0 && removed.length === 0)) {
+    // Compose via “Añadir desde otro rol” is a paste, not a propagate case.
+    if (
+      !role ||
+      copy_bundles.length > 0 ||
+      (added.length === 0 && removed.length === 0)
+    ) {
       finish();
       return;
     }
@@ -139,7 +144,6 @@ export function RoleEditor({
       roles,
       permissions,
       before_ids: existing_ids,
-      after_ids: permission_ids,
     });
 
     if (peers.length === 0) {

@@ -14,6 +14,13 @@ import {
   Shield,
 } from "lucide-react";
 import { isTedMember } from "@/actions/ted";
+import { cookies } from "next/headers";
+import { TedDevDbSwitcher } from "@/features/ted/components/ted-dev-db-switcher";
+import {
+  DEV_DB_COOKIE,
+  dev_db_snapshot,
+  parse_dev_db_target,
+} from "@/lib/supabase/dev-db";
 
 export const dynamic = "force-dynamic";
 
@@ -118,6 +125,12 @@ export default async function TedPage() {
           </div>
         </div>
       </div>
+
+      <TedDevDbSwitcher
+        snapshot={dev_db_snapshot(
+          parse_dev_db_target((await cookies()).get(DEV_DB_COOKIE)?.value),
+        )}
+      />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {resources.map((r) => {

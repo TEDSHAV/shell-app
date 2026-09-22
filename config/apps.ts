@@ -47,30 +47,33 @@ import {
 import { build_app_config } from "@/lib/app-theme";
 import { AppConfig, AppGroupConfig, NavGroup } from "@/types";
 
-const requisicionesNavGroup: NavGroup = {
-  groupLabel: "Requisiciones",
-  links: [
-    {
-      label: "Mis Requisiciones",
-      path: "/",
-      href: "/requisiciones",
-      icon: ListOrdered,
-    },
-    {
-      label: "Gestión de Requisiciones",
-      path: "/gestion",
-      href: "/requisiciones/gestion",
-      icon: ClipboardList,
-      requiresRequisicionesGestion: true,
-    },
-    {
-      label: "Nueva Requisición",
-      path: "/create",
-      href: "/requisiciones/create",
-      icon: FilePlus2,
-    },
-  ],
-};
+function buildRequisicionesNavGroup(fromApp: string): NavGroup {
+  const q = `?from=${fromApp}`;
+  return {
+    groupLabel: "Requisiciones",
+    links: [
+      {
+        label: "Mis Requisiciones",
+        path: "/",
+        href: `/requisiciones${q}`,
+        icon: ListOrdered,
+      },
+      {
+        label: "Gestión de Requisiciones",
+        path: "/gestion",
+        href: `/requisiciones/gestion${q}`,
+        icon: ClipboardList,
+        requiresRequisicionesGestion: true,
+      },
+      {
+        label: "Nueva Requisición",
+        path: "/create",
+        href: `/requisiciones/create${q}`,
+        icon: FilePlus2,
+      },
+    ],
+  };
+}
 
 const administracionDashboardNavGroup: NavGroup = {
   groupLabel: "General",
@@ -102,8 +105,15 @@ const administracionNavGroup: NavGroup = {
     {
       label: "Nueva Requisición",
       path: "/requisiciones/create",
-      href: "/requisiciones/create",
+      href: "/requisiciones/create?from=administracion",
       icon: FilePlus2,
+    },
+    {
+      label: "Umbral de aprobación",
+      path: "/requisiciones/configuracion",
+      href: "/requisiciones/configuracion",
+      icon: Settings,
+      requiredPermissions: ["requisiciones:config:manage"],
     },
   ],
 };
@@ -953,7 +963,7 @@ export const apps: AppConfig[] = [
       { label: "Control de Calibración", path: "/dashboard/control-calibracion", icon: Gauge },
       { label: "Entrada y Salida de Equipos", path: "/dashboard/entrada-salida-equipos", icon: ArrowLeftRight },
       { label: "Formulario de Novedades", path: "/dashboard/formulario-novedades", icon: FileText },
-      ...[requisicionesNavGroup],
+      ...[buildRequisicionesNavGroup("servicios-tecnicos")],
     ],
   }),
   build_app_config({
@@ -1062,7 +1072,7 @@ export const apps: AppConfig[] = [
         icon: ClipboardList,
         requiredPermissions: ["scalidad:all:access"],
       },
-      ...[requisicionesNavGroup],
+      ...[buildRequisicionesNavGroup("calidad")],
     ],
   }),
   build_app_config({
@@ -1117,7 +1127,7 @@ export const apps: AppConfig[] = [
         icon: Building2,
         requiredPermissions: ["srh:all:access"],
       },
-      ...[requisicionesNavGroup],
+      ...[buildRequisicionesNavGroup("recursos-humanos")],
     ],
   }),
   build_app_config({

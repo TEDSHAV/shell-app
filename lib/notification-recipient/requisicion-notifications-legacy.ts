@@ -144,7 +144,7 @@ export async function legacyNotifyLiderOfPendingInterna(
       title: "Requisición Interna Pendiente de Aprobación",
       body: `${solicitanteName} ha creado una requisición interna que requiere su aprobación como Lider de la Gerencia.`,
       link_path: `/requisiciones/view/${requisicionId}`,
-      dedupe_key: `requisicion:${requisicionId}:pending_lider`,
+      dedupe_key: `requisicion:${requisicionId}:pending_lider:${Date.now()}`,
       priority: 2,
     });
 

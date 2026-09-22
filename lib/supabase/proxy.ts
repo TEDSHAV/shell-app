@@ -2,12 +2,22 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { hasEnvVars } from "../utils";
 import { getSupabaseCookieOptions } from "./cookie-options";
+import {
+  DEV_DB_COOKIE,
+  is_dev_db_switcher_enabled,
+  parse_dev_db_target,
+  resolve_supabase_env,
+} from "./dev-db";
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
   });
-  const cookieOptions = getSupabaseCookieOptions();
+  const target = is_dev_db_switcher_enabled()
+    ? parse_dev_db_target(request.cookies.get(DEV_DB_COOKIE)?.value)
+    : parse_dev_db_target(undefined);
+  const env = resolve_supabase_env(target);
+  const cookieOptions = getSupabaseCookieOptions(env.target);
 
   // If the env vars are not set, skip proxy check. You can remove this
   // once you setup the project.
@@ -18,8 +28,8 @@ export async function updateSession(request: NextRequest) {
   // With Fluid compute, don't put this client in a global environment
   // variable. Always create a new one on each request.
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    env.url,
+    env.publishableKey,
     {
       ...(cookieOptions && {
         cookieOptions,

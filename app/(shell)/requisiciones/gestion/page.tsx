@@ -5,6 +5,7 @@ import {
   isRequisicionesAdmin,
   getOsiNumbersForLookup,
 } from "@/actions/requisiciones";
+import { getRequisicionAccess } from "@/actions/requisiciones-access-context";
 import RequisicionesTable from "../components/RequisicionesTable";
 
 export const metadata = {
@@ -17,9 +18,10 @@ export default async function GestionRequisicionesPage() {
     redirect("/requisiciones");
   }
 
-  const [records, osiPairs] = await Promise.all([
+  const [records, osiPairs, access] = await Promise.all([
     getGestionRequisiciones(),
     getOsiNumbersForLookup(),
+    getRequisicionAccess(),
   ]);
 
   const osiLookup = new Map<number, string>();
@@ -38,6 +40,13 @@ export default async function GestionRequisicionesPage() {
         <p className="mt-1 text-sm text-gray-600">
           Listado de todas las requisiciones recibidas por Administración.
         </p>
+        {access.can_edit_config ? (
+          <p className="mt-2 text-sm">
+            <a href="/requisiciones/configuracion" className="text-blue-700 hover:underline">
+              Configurar umbral de líder
+            </a>
+          </p>
+        ) : null}
       </div>
 
       <div className="flex items-center gap-2 border-b border-gray-200 mb-6">

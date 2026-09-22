@@ -211,49 +211,26 @@ export const getUserRolesByApp = cache(async (): Promise<Record<string, string>>
     if (!usuario) return {};
 
     const supabase = await createClient();
+    const { data: rows, error } = await supabase.rpc("get_user_roles_by_app", {
+      p_usuario_id: usuario.id,
+    });
 
-    const { data: userAppRoles, error: rolesError } = await supabase
-      .schema("authprisma")
-      .from("user_app_roles")
-      .select(`
-        app_id,
-        roles (
-          slug
-        )
-      `)
-      .eq("usuario_id", usuario.id);
-
-    if (rolesError || !userAppRoles) {
-      console.error("[getUserRolesByApp] Roles error or no data:", rolesError);
+    if (error) {
+      console.error(
+        "[getUserRolesByApp] Roles error:",
+        error.message || error.code || error,
+        error.details || "",
+        error.hint || "",
+      );
       return {};
     }
-
-    // Get app slugs by their IDs
-    const { data: apps, error: appsError } = await supabase
-      .schema("authprisma")
-      .from("apps")
-      .select("id, slug");
-
-    if (appsError || !apps) {
-      console.error("[getUserRolesByApp] Apps error or no data:", appsError);
-      return {};
-    }
-
-    const appMap = new Map(apps.map((app: { id: bigint; slug: string }) => [app.id, app.slug]));
 
     const result: Record<string, string> = {};
-    for (const uar of userAppRoles as Array<{ app_id: bigint; roles: { slug: string } | { slug: string }[] }>) {
-      const appSlug = appMap.get(uar.app_id);
-      if (appSlug && uar.roles) {
-        // Handle both single object and array
-        const role = Array.isArray(uar.roles) ? uar.roles[0]?.slug : uar.roles.slug;
-        if (role) {
-          result[appSlug] = role;
-        }
+    for (const row of (rows || []) as { app_slug: string; role_slug: string }[]) {
+      if (row.app_slug && row.role_slug) {
+        result[row.app_slug] = row.role_slug;
       }
     }
-
-    console.log("[getUserRolesByApp] Resolved app roles:", result);
     return result;
   } catch (error) {
     console.error("[getUserRolesByApp] Unexpected error:", error);

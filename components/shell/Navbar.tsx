@@ -7,6 +7,7 @@ import { AppNavigation } from "./AppNavigation";
 import { UserMenu } from "./UserMenu";
 import { NotificationsBell } from "./NotificationsBell";
 import { HelpCenterTrigger } from "@/components/help/help-center-trigger";
+import { DevDbBadge } from "@/components/shell/DevDbBadge";
 import { NavbarProps } from "@/types";
 
 export const Navbar = ({
@@ -45,6 +46,7 @@ export const Navbar = ({
       <AppBreadcrumb />
 
       <div className="ml-auto flex items-center gap-2">
+        <DevDbBadge />
         <AppNavigation 
           userRolesByApp={userRolesByApp} 
           globalRole={globalRole} 

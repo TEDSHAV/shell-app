@@ -23,8 +23,8 @@ Hay **dos tipos**:
 
 En la práctica:
 
-- **Interna** = pedido interno del departamento (materiales, etc.). Pasa por **aprobación de coordinador y/o líder** y después llega a Administración.
-- **Externa** = pedido ligado a un servicio/OSI (cliente). **Hoy va directo a Administración**, sin esa cadena de aprobación.
+- **Interna** = pedido interno del departamento (materiales, etc.). Pasa por **coordinador**, luego **Administración estima montos**; el **líder** solo si el total supera el umbral. Después Administración procesa.
+- **Externa** = pedido ligado a un servicio/OSI (cliente). **Va directo a Administración**, sin cadena de aprobación.
 
 El documento se imprime/PDF como formato RG-ADM-003 (revisión persistida en cada fila).
 

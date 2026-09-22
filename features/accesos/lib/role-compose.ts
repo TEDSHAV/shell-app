@@ -42,32 +42,34 @@ export function apply_delta_to_ids(
 }
 
 /**
- * Other roles in the same app that share at least one permission with
- * the edited set (before ∪ after). Pure coincidence check — no role graph.
+ * Roles that already shared permissions with this role *before* the edit.
+ * Used to offer optional delta sync — not when composing by pasting other roles.
  */
 export function find_overlapping_roles(args: {
   app_id: number;
   exclude_role_id: number | null;
+  exclude_role_ids?: number[];
   roles: AccesoRole[];
   permissions: AccesoPermission[];
+  /** Only the set the role had before saving. Empty → no peers. */
   before_ids: number[];
-  after_ids: number[];
 }): AccesoRole[] {
-  const probe = new Set([...args.before_ids, ...args.after_ids]);
-  if (probe.size === 0) return [];
+  if (args.before_ids.length === 0) return [];
 
   const id_to_slug = new Map(args.permissions.map((p) => [p.id, p.slug]));
   const probe_slugs = new Set(
-    [...probe]
+    args.before_ids
       .map((id) => id_to_slug.get(id))
       .filter((slug): slug is string => Boolean(slug)),
   );
+  if (probe_slugs.size === 0) return [];
+
+  const excluded = new Set<number>(args.exclude_role_ids || []);
+  if (args.exclude_role_id != null) excluded.add(args.exclude_role_id);
 
   return args.roles.filter((role) => {
     if (role.app_id !== args.app_id) return false;
-    if (args.exclude_role_id != null && role.id === args.exclude_role_id) {
-      return false;
-    }
+    if (excluded.has(role.id)) return false;
     return role.permission_slugs.some((slug) => probe_slugs.has(slug));
   });
 }
