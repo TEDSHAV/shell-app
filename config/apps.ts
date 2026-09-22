@@ -158,6 +158,7 @@ export const UTILIDADES_HEADER_APP_IDS = [
   "drive",
   "inventario",
   "directorio",
+  "cedula",
   "administracion",
 ] as const;
 
@@ -648,6 +649,18 @@ export const apps: AppConfig[] = [
           },
         ],
       },
+      {
+        groupLabel: "Herramientas",
+        icon: UserCheck,
+        links: [
+          {
+            label: "Verificar Cédula",
+            path: "/verificar-cedula",
+            href: "/verificar-cedula",
+            icon: UserCheck,
+          },
+        ],
+      },
     ],
   }),
   build_app_config({
@@ -692,6 +705,12 @@ export const apps: AppConfig[] = [
         path: "/consulta-osi",
         href: "/consulta-osi",
         icon: Search,
+      },
+      {
+        label: "Verificar Cédula",
+        path: "/verificar-cedula",
+        href: "/verificar-cedula",
+        icon: UserCheck,
       },
       {
         groupLabel: "Planificación y Ejecución",
@@ -959,6 +978,19 @@ export const apps: AppConfig[] = [
     hiddenFromDashboard: true,
     groupId: "utilidades",
     dashboardOrder: 8,
+    navLinks: [],
+  }),
+  build_app_config({
+    id: "cedula",
+    name: "Verificar Cédula",
+    description: "Consulta y verificación oficial de identidad por cédula",
+    basePath: "/verificar-cedula",
+    icon: UserCheck,
+    brandColor: "#0284C7",
+    embedMode: "native",
+    hiddenFromDashboard: true,
+    groupId: "utilidades",
+    dashboardOrder: 9,
     navLinks: [],
   }),
   // Placeholders: módulos visibles en dashboard para completar el mapa de procesos

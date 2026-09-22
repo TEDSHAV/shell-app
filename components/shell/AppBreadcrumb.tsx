@@ -75,6 +75,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   formularios: "Formularios",
   departamento: "Departamento",
   admin: "Gestión",
+  "verificar-cedula": "Verificar Cédula",
 };
 
 function isNavGroup(item: NavLink | NavGroup): item is NavGroup {
