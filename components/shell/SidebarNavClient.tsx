@@ -174,6 +174,7 @@ export function SidebarNavClient({
         if (
           currentApp &&
           uses_iframe_in_shell(currentApp) &&
+          home_href !== "/dashboard" &&
           !is_modified_click(event)
         ) {
           event.preventDefault();

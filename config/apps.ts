@@ -969,6 +969,7 @@ export const apps: AppConfig[] = [
     description: "Políticas, manuales y control de procesos corporativos",
     basePath: "/calidad",
     dashboardOrder: 1,
+    defaultSubPath: "dashboard/calidad",
     upstreamUrl:
       process.env.NEXT_PUBLIC_CALIDAD_URL ||
       "https://calidad.shadevenezuela.com.ve",
@@ -978,8 +979,8 @@ export const apps: AppConfig[] = [
     groupId: "procesos-estrategicos",
     navLinks: [
       {
-        label: "Inicio",
-        path: "/",
+        label: "Dashboard",
+        path: "/dashboard/calidad",
         icon: LayoutDashboard,
         requiredPermissions: ["scalidad:all:access"],
       },
@@ -993,6 +994,12 @@ export const apps: AppConfig[] = [
         label: "Gestión (Calidad)",
         path: "/dashboard/calidad/admin",
         icon: Shield,
+        requiredPermissions: ["scalidad:all:access"],
+      },
+      {
+        label: "Formularios",
+        path: "/dashboard/calidad/formularios",
+        icon: ClipboardList,
         requiredPermissions: ["scalidad:all:access"],
       },
       ...[requisicionesNavGroup],
