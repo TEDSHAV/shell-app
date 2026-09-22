@@ -4,11 +4,13 @@ import { revalidatePath } from "next/cache";
 import { require_ted_accesos, num } from "./assert-ted";
 import {
   app_upsert_schema,
+  apply_permission_delta_schema,
   permission_create_schema,
   permission_update_schema,
   role_permission_set_schema,
   role_upsert_schema,
 } from "../schemas";
+import { apply_delta_to_ids } from "../lib/role-compose";
 import { build_permission_slug, is_valid_permission_slug, slugify_kebab } from "../lib/slugs";
 
 function revalidate_accesos() {
@@ -189,6 +191,48 @@ export async function update_acceso_permission(input: unknown) {
     .update({ descripcion: parsed.data.descripcion || null })
     .eq("id", parsed.data.id);
   if (error) return { ok: false as const, error: error.message };
+  revalidate_accesos();
+  return { ok: true as const };
+}
+
+export async function apply_permission_delta_to_roles(input: unknown) {
+  const parsed = apply_permission_delta_schema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false as const, error: parsed.error.issues[0]?.message || "Datos inválidos" };
+  }
+  const { role_ids, add_permission_ids, remove_permission_ids } = parsed.data;
+  if (add_permission_ids.length === 0 && remove_permission_ids.length === 0) {
+    return { ok: true as const };
+  }
+
+  const supabase = await require_ted_accesos();
+  const auth = supabase.schema("authprisma");
+
+  const { data: rows, error: loadErr } = await auth
+    .from("role_permissions")
+    .select("role_id, permission_id")
+    .in("role_id", role_ids);
+  if (loadErr) return { ok: false as const, error: loadErr.message };
+
+  const by_role = new Map<number, number[]>();
+  for (const id of role_ids) by_role.set(id, []);
+  for (const row of rows || []) {
+    const role_id = num(row.role_id);
+    const list = by_role.get(role_id) || [];
+    list.push(num(row.permission_id));
+    by_role.set(role_id, list);
+  }
+
+  for (const role_id of role_ids) {
+    const next = apply_delta_to_ids(
+      by_role.get(role_id) || [],
+      add_permission_ids,
+      remove_permission_ids,
+    );
+    const result = await set_role_permissions({ role_id, permission_ids: next });
+    if (!result.ok) return result;
+  }
+
   revalidate_accesos();
   return { ok: true as const };
 }

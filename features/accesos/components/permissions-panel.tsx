@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PermissionFormDialog } from "./permission-form-dialog";
+import { GrantPermissionDialog } from "./grant-permission-dialog";
 import {
   group_permissions_by_module,
   module_label,
@@ -31,6 +32,7 @@ export function PermissionsPanel({
   const [query, set_query] = useState("");
   const [module_filter, set_module_filter] = useState("todos");
   const [open, set_open] = useState(false);
+  const [grant_open, set_grant_open] = useState(false);
   const [drafts, set_drafts] = useState<Record<number, string>>({});
   const [error, set_error] = useState<string | null>(null);
 
@@ -117,6 +119,9 @@ export function PermissionsPanel({
             </option>
           ))}
         </select>
+        <Button type="button" variant="outline" onClick={() => set_grant_open(true)}>
+          Colgar en roles
+        </Button>
         <Button type="button" onClick={() => set_open(true)}>
           Nuevo permiso
         </Button>
@@ -167,6 +172,14 @@ export function PermissionsPanel({
           </tbody>
         </table>
       </div>
+      <GrantPermissionDialog
+        open={grant_open}
+        onClose={() => set_grant_open(false)}
+        apps={apps}
+        roles={roles}
+        permissions={permissions}
+        onSaved={() => router.refresh()}
+      />
       <PermissionFormDialog
         open={open}
         onClose={() => set_open(false)}
