@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import Link from "next/link";
 import {
   Building2,
   Plus,
@@ -16,8 +15,6 @@ import {
   Copy,
   Check,
   Award,
-  ChevronRight,
-  Home,
 } from "lucide-react";
 import type {
   Proveedor,
@@ -37,13 +34,11 @@ import ProveedorDetailDrawer from "./ProveedorDetailDrawer";
 import ProveedorFichaModal from "./ProveedorFichaModal";
 
 interface ProveedoresClientProps {
-  userName: string;
   initialProveedores: ProveedorWithDetails[];
   estados: EstadoVenezuela[];
 }
 
 export default function ProveedoresClient({
-  userName,
   initialProveedores,
   estados,
 }: ProveedoresClientProps) {
@@ -150,68 +145,9 @@ export default function ProveedoresClient({
   };
 
   return (
-    <div className="min-h-screen bg-gray-50/50">
-      {/* Top Navbar */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-30">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-6">
-            <Link href="/" className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-[#0C3F69] text-white flex items-center justify-center font-bold text-sm shadow-xs">
-                SHA
-              </div>
-              <div className="hidden sm:block">
-                <span className="font-bold text-gray-900 text-sm block leading-tight">
-                  Administración
-                </span>
-                <span className="text-[11px] text-gray-500">Módulos Operativos</span>
-              </div>
-            </Link>
-
-            {/* Navigation tabs */}
-            <nav className="flex items-center gap-1">
-              <Link
-                href="/administracion"
-                className="px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
-              >
-                Dashboard
-              </Link>
-              <Link
-                href="/administracion/proveedores"
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#0C3F69]/10 text-[#0C3F69]"
-              >
-                Proveedores
-              </Link>
-              <Link
-                href="/requisiciones"
-                className="px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
-              >
-                Requisiciones
-              </Link>
-            </nav>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-gray-500 hidden sm:inline">
-              Usuario: <strong className="text-gray-800 font-semibold">{userName}</strong>
-            </span>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
-        {/* Breadcrumb */}
-        <div className="flex items-center gap-2 text-xs text-gray-500">
-          <Link href="/administracion" className="hover:text-gray-800 flex items-center gap-1">
-            <Home className="w-3.5 h-3.5" />
-            <span>Administración</span>
-          </Link>
-          <ChevronRight className="w-3 h-3 text-gray-400" />
-          <span className="font-semibold text-gray-800">Proveedores</span>
-        </div>
-
-        {/* Header Section */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="p-4 sm:p-8 space-y-6">
+      {/* Header Section */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2.5">
               <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-[#0C3F69] shadow-2xs">
@@ -640,7 +576,6 @@ export default function ProveedoresClient({
             onClose={() => setFichaData(null)}
           />
         )}
-      </main>
     </div>
   );
 }

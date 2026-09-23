@@ -131,45 +131,31 @@ export default async function AdministracionDashboardPage() {
   ];
 
   return (
-    <div className="min-h-full bg-slate-50/60 pb-16">
-      {/* Header Banner */}
-      <div className="bg-white border-b border-slate-200/80 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3.5">
-              <div className="w-12 h-12 rounded-xl bg-[#0C3F69]/10 text-[#0C3F69] flex items-center justify-center shadow-xs">
-                <Landmark className="w-6 h-6" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-                    Administración
-                  </h1>
-                  <span className="text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#0C3F69]/10 text-[#0C3F69] border border-[#0C3F69]/20">
-                    Procesos de Apoyo
-                  </span>
-                </div>
-                <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-                  Centro de control administrativo, compras, gestión de proveedores y facturación
-                </p>
-              </div>
-            </div>
+    <div className="p-4 sm:p-8 space-y-6">
+      {/* Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">
+            Administración
+          </h1>
+          <p className="mt-1 text-sm text-gray-600">
+            Panel de control administrativo, compras, gestión de proveedores y facturación
+          </p>
+        </div>
 
-            <div className="flex items-center gap-2 self-start sm:self-auto">
-              <Link
-                href="/requisiciones/create"
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg bg-[#0C3F69] text-white hover:bg-[#092e4e] transition-colors shadow-xs"
-              >
-                <FilePlus2 className="w-4 h-4" />
-                <span>Nueva Requisición</span>
-              </Link>
-            </div>
-          </div>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/requisiciones/create"
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors shadow-xs"
+          >
+            <FilePlus2 className="w-4 h-4" />
+            <span>Nueva Requisición</span>
+          </Link>
         </div>
       </div>
 
       {/* Main Content Area */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-6">
+      <div className="space-y-6">
         {/* Welcome & Quick KPI Bar */}
         <div className="bg-white rounded-2xl border border-slate-200 p-5 md:p-6 shadow-xs">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">

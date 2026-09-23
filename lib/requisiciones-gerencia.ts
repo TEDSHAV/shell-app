@@ -86,7 +86,7 @@ function isInternaRecord(record: {
   );
 }
 
-type ApproverRecordFlags = {
+export type ApproverRecordFlags = {
   tipo_solicitud?: string | null;
   id_osi?: unknown;
   departamento?: string | null;
