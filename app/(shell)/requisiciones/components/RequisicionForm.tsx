@@ -743,7 +743,7 @@ function RequisicionFormContent({
               ) : (
                 <Select
                   value={formData.departamento}
-                  onValueChange={(nombre) => {
+                  onValueChange={(nombre: string) => {
                     const hit = allowedDepts.find((row) => row.nombre === nombre);
                     setFormData((p) => ({
                       ...p,
