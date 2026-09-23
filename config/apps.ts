@@ -9,8 +9,6 @@ import {
   Award,
   UserCheck,
   FilePlus2,
-  CreditCard,
-  LayoutTemplate,
   ListOrdered,
   PenLine,
   Building2,
@@ -40,7 +38,6 @@ import {
   LayoutList,
   Shield,
   Code2,
-  Layers,
   Bell,
   UserPlus,
   FileStack,
@@ -75,24 +72,49 @@ const requisicionesNavGroup: NavGroup = {
   ],
 };
 
+const administracionDashboardNavGroup: NavGroup = {
+  groupLabel: "General",
+  links: [
+    {
+      label: "Dashboard",
+      path: "/",
+      icon: LayoutDashboard,
+    },
+  ],
+};
+
 const administracionNavGroup: NavGroup = {
   groupLabel: "Requisiciones",
   links: [
     {
       label: "Mis Requisiciones",
-      path: "/",
+      path: "/requisiciones",
+      href: "/requisiciones",
       icon: ListOrdered,
     },
     {
       label: "Gestión de Requisiciones",
-      path: "/gestion",
+      path: "/requisiciones/gestion",
+      href: "/requisiciones/gestion",
       icon: ClipboardList,
       requiresRequisicionesGestion: true,
     },
     {
       label: "Nueva Requisición",
-      path: "/create",
+      path: "/requisiciones/create",
+      href: "/requisiciones/create",
       icon: FilePlus2,
+    },
+  ],
+};
+
+const administracionProveedoresNavGroup: NavGroup = {
+  groupLabel: "Proveedores",
+  links: [
+    {
+      label: "Gestión de Proveedores",
+      path: "/proveedores",
+      icon: Building2,
     },
   ],
 };
@@ -104,6 +126,7 @@ const administracionFacturacionNavGroup: NavGroup = {
       label: "Facturación",
       // Ruta bajo Administración (/requisiciones/facturacion); embebe UI de Negocios.
       path: "/facturacion",
+      href: "/requisiciones/facturacion",
       icon: Landmark,
       requiredPermissions: [
         "admin:facturacion:access",
@@ -667,16 +690,21 @@ export const apps: AppConfig[] = [
     id: "administracion",
     dbSlug: "sgestion",
     name: "Administración",
-    description: "Procesos administrativos y requisiciones",
-    basePath: "/requisiciones",
+    description: "Procesos administrativos, proveedores y requisiciones",
+    basePath: "/administracion",
     icon: Landmark,
-    brandColor: "#4F46E5",
+    brandColor: "#0C3F69",
     embedMode: "native",
     groupId: "procesos-de-apoyo",
     headerGroupId: "utilidades",
-    headerLabel: "Requisiciones",
+    headerLabel: "Administración",
     dashboardOrder: 1,
-    navLinks: [administracionNavGroup, administracionFacturacionNavGroup],
+    navLinks: [
+      administracionDashboardNavGroup,
+      administracionNavGroup,
+      administracionProveedoresNavGroup,
+      administracionFacturacionNavGroup,
+    ],
   }),
   build_app_config({
     id: "capacitacion",
@@ -1212,6 +1240,9 @@ export const apps: AppConfig[] = [
 ];
 
 export function getAppByPath(pathname: string): AppConfig | undefined {
+  if (pathname.startsWith("/requisiciones")) {
+    return apps.find((app) => app.id === "administracion");
+  }
   return apps.find((app) => pathname.startsWith(app.basePath));
 }
 

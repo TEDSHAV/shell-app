@@ -17,6 +17,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   capacitacion: "Capacitación",
   negocios: "Negocios",
   administracion: "Administración",
+  proveedores: "Proveedores",
   marketing: "Marketing",
   crm: "CRM",
   leads: "Leads",
