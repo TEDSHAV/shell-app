@@ -5,7 +5,6 @@ import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { getUserPermissionsByApp, getUserRolesByApp } from "@/actions/apps";
 import {
   catalog_names_for_keys,
-  dept_in_keys,
   flatten_permission_slugs,
   is_admin_operative,
   organigram_lider_dept_names,
@@ -115,6 +114,30 @@ const get_led_gerencia_nombres = cache(async (usuario_id: number | null): Promis
   }
 });
 
+/** Depts where this user is `departamentos.coordinador`. */
+const get_organigram_coord_dept_names = cache(
+  async (usuario_id: number | null): Promise<string[]> => {
+    if (!usuario_id) return [];
+    try {
+      const admin = await createAdminClient();
+      const { data, error } = await admin
+        .from("departamentos")
+        .select("nombre")
+        .eq("coordinador", usuario_id)
+        .eq("esta_activo", true);
+      if (error) {
+        console.error("[get_organigram_coord_dept_names]", error);
+        return [];
+      }
+      return (data || [])
+        .map((row: { nombre: string | null }) => row.nombre)
+        .filter((nombre): nombre is string => Boolean(nombre));
+    } catch {
+      return [];
+    }
+  },
+);
+
 export const getRequisicionAccess = cache(async (): Promise<RequisicionAccess> => {
   const [perms_by_app, roles_by_app, home_dept, usuario_id, catalog] = await Promise.all([
     getUserPermissionsByApp(),
@@ -123,27 +146,33 @@ export const getRequisicionAccess = cache(async (): Promise<RequisicionAccess> =
     getCurrentUserUsuarioId(),
     get_departamento_catalog(),
   ]);
-  const led_gerencias = await get_led_gerencia_nombres(usuario_id);
+  const [led_gerencias, organigram_coord_depts] = await Promise.all([
+    get_led_gerencia_nombres(usuario_id),
+    get_organigram_coord_dept_names(usuario_id),
+  ]);
   const slugs = flatten_permission_slugs(perms_by_app);
   const slug_set = new Set(slugs);
+  const product_coord_keys = stamp_coord_dept_keys(roles_by_app);
+  const product_lider_keys = stamp_lider_dept_keys(roles_by_app);
+  // Sello = permiso/rol TED (o rol de producto legacy). Organigrama solo aporta territorio.
   const can_approve_coord =
-    slug_set.has(REQ_GESTION_APPROVE_COORD) ||
-    stamp_coord_dept_keys(roles_by_app).size > 0;
+    slug_set.has(REQ_GESTION_APPROVE_COORD) || product_coord_keys.size > 0;
   const can_approve_lider =
-    slug_set.has(REQ_GESTION_APPROVE_LIDER) ||
-    stamp_lider_dept_keys(roles_by_app).size > 0 ||
-    led_gerencias.length > 0;
+    slug_set.has(REQ_GESTION_APPROVE_LIDER) || product_lider_keys.size > 0;
 
   const request_depts = catalog_names_for_keys(
     catalog,
     request_dept_keys({ home_dept, roles_by_app }),
   );
   const coord_depts = can_approve_coord
-    ? catalog_names_for_keys(catalog, stamp_coord_dept_keys(roles_by_app))
+    ? [...new Set([
+        ...catalog_names_for_keys(catalog, product_coord_keys),
+        ...organigram_coord_depts,
+      ])]
     : [];
   const lider_depts = can_approve_lider
     ? [...new Set([
-        ...catalog_names_for_keys(catalog, stamp_lider_dept_keys(roles_by_app)),
+        ...catalog_names_for_keys(catalog, product_lider_keys),
         ...organigram_lider_dept_names(catalog, led_gerencias),
       ])]
     : [];
@@ -172,7 +201,13 @@ export const getRequisicionAccess = cache(async (): Promise<RequisicionAccess> =
 
 export async function user_covers_coord_dept(deptName: string | null | undefined) {
   const access = await getRequisicionAccess();
-  return access.can_approve_coord && dept_in_keys(deptName, stamp_coord_dept_keys(access.roles_by_app));
+  return (
+    access.can_approve_coord &&
+    Boolean(deptName) &&
+    access.coord_depts.some(
+      (nombre) => nombre.toLowerCase() === deptName!.trim().toLowerCase(),
+    )
+  );
 }
 
 export async function user_covers_lider_dept(deptName: string | null | undefined) {

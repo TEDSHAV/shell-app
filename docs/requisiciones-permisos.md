@@ -78,6 +78,8 @@ El procesador no necesita un segundo permiso de “ver todo”: `access` + `proc
 
 El depto que cubre un coordinador/líder **no** va en el slug: sale del **organigrama / depto de la persona** (no del rol de producto ST/Negocios). Los sellos viven en roles de Administración; la cobertura territorial es de la gente, no de la ficha `st:lider`.
 
+**Notificaciones:** destinatarios se configuran en **TED → Notificaciones** (`notify.event_recipient_config`). El código solo dispara el `event_key`. Defaults: cola Admin = roles `gestor`+`coordinador`; sellos = organigrama ∩ permiso de sello.
+
 ### Sellos y proceso
 
 | Slug | Efecto |

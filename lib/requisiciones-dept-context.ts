@@ -3,7 +3,6 @@ import {
   isCapacitacionDept,
   isServiciosTecnicosDept,
   normalizeDeptKey,
-  resolveInternaApprovalGerencia,
 } from "@/lib/requisiciones-gerencia";
 import {
   ADMIN_APP_SLUG,
@@ -214,7 +213,7 @@ export function stamp_lider_dept_keys(roles_by_app: Record<string, string>): Set
   return keys;
 }
 
-/** Depts covered because the user is gerencias.lider, including interna overrides. */
+/** Depts covered because the user is `gerencias.lider` of their home gerencia. */
 export function organigram_lider_dept_names(
   catalog: DeptCatalogRow[],
   led_gerencias: string[],
@@ -227,9 +226,7 @@ export function organigram_lider_dept_names(
   for (const row of catalog) {
     if (!row.nombre) continue;
     const home = normalizeDeptKey(row.gerencia);
-    const override = resolveInternaApprovalGerencia(row.nombre);
-    const override_key = override ? normalizeDeptKey(override) : "";
-    if ((home && led.has(home)) || (override_key && led.has(override_key))) {
+    if (home && led.has(home)) {
       names.push(row.nombre);
     }
   }

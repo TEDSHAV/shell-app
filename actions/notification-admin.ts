@@ -106,7 +106,12 @@ export async function listNotificationEvents(): Promise<
     .order("event_key", { ascending: true });
 
   if (error || !Array.isArray(events)) {
-    console.error("[listNotificationEvents]", error);
+    console.error(
+      "[listNotificationEvents]",
+      error?.message ?? error,
+      error?.code ? `(${error.code})` : "",
+      error?.hint ?? "",
+    );
     return [];
   }
 

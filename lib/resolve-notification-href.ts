@@ -54,10 +54,11 @@ export function resolve_notification_href(
     return notification.link_path;
   }
 
-  // Tareas y tickets viven en Shell (mismo dbSlug sgestion que Negocios).
+  // Tareas, tickets y requisiciones viven en Shell (rutas nativas, sin basePath de app).
   if (
     notification.link_path.startsWith("/tareas") ||
-    notification.link_path.startsWith("/tickets")
+    notification.link_path.startsWith("/tickets") ||
+    notification.link_path.startsWith("/requisiciones")
   ) {
     return notification.link_path;
   }

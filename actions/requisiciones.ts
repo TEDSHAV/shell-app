@@ -13,6 +13,7 @@ import {
 } from "@/types/requisiciones";
 import {
   notifyAdminsOfNewRequisicion,
+  notifyAdminsOfCostosAprobados,
   notifyCreatorOfProcesada,
   notifyCreatorOfRechazada,
   notifyCreatorOfPartialVerificacion,
@@ -30,7 +31,6 @@ import {
   getCurrentUserUsuarioId,
   getRequisicionAccess,
 } from "@/actions/requisiciones-access-context";
-import { dept_in_keys, stamp_coord_dept_keys } from "@/lib/requisiciones-dept-context";
 import {
   apply_item_money_updates,
   interna_needs_lider,
@@ -117,48 +117,22 @@ export const getCurrentUserGerencia = cache(async (): Promise<string | null> => 
   }
 });
 
-async function loadUsuarioRolesByApp(usuarioId: number): Promise<Record<string, string>> {
-  try {
-    const admin = await createAdminClient();
-    const { data: assignments } = await admin
-      .schema("authprisma")
-      .from("user_app_roles")
-      .select("app_id, role_id")
-      .eq("usuario_id", usuarioId);
-    if (!assignments?.length) return {};
-    const { data: roles } = await admin
-      .schema("authprisma")
-      .from("roles")
-      .select("id, slug, app_id");
-    const { data: apps } = await admin
-      .schema("authprisma")
-      .from("apps")
-      .select("id, slug");
-    const role_map = new Map(
-      (roles || []).map((r: { id: number; slug: string; app_id: number }) => [r.id, r]),
-    );
-    const app_map = new Map(
-      (apps || []).map((a: { id: number; slug: string }) => [a.id, a.slug]),
-    );
-    const result: Record<string, string> = {};
-    for (const row of assignments) {
-      const role = role_map.get(row.role_id);
-      const app_slug = app_map.get(row.app_id);
-      if (role && app_slug) result[app_slug] = role.slug;
-    }
-    return result;
-  } catch {
-    return {};
-  }
-}
-
 async function isUsuarioCoordinadorForDepartment(
   usuarioId: number,
   deptName: string | null | undefined,
 ): Promise<boolean> {
-  if (!deptName) return false;
-  const roles = await loadUsuarioRolesByApp(usuarioId);
-  return dept_in_keys(deptName, stamp_coord_dept_keys(roles));
+  if (!deptName?.trim()) return false;
+  try {
+    const admin = await createAdminClient();
+    const { data } = await admin
+      .from("departamentos")
+      .select("coordinador")
+      .ilike("nombre", deptName.trim())
+      .maybeSingle();
+    return data?.coordinador === usuarioId;
+  } catch {
+    return false;
+  }
 }
 
 export const isCoordinadorForDepartment = cache(async (deptName: string | null | undefined): Promise<boolean> => {
@@ -166,10 +140,9 @@ export const isCoordinadorForDepartment = cache(async (deptName: string | null |
   const access = await getRequisicionAccess();
   return (
     access.can_approve_coord &&
-    (access.coord_depts.some(
+    access.coord_depts.some(
       (nombre) => nombre.toLowerCase() === deptName.trim().toLowerCase(),
-    ) ||
-      dept_in_keys(deptName, stamp_coord_dept_keys(access.roles_by_app)))
+    )
   );
 });
 
@@ -189,42 +162,21 @@ export const isLiderForInternaApproval = cache(async (deptName: string | null | 
   return access.can_approve_lider && deptNameInList(deptName, access.lider_depts);
 });
 
+/** True when the department organigram has a `coordinador` assigned. */
 export const departmentHasCoordinador = cache(async (deptName: string | null | undefined): Promise<boolean> => {
-  if (!deptName) return false;
+  if (!deptName?.trim()) return false;
   try {
     const admin = await createAdminClient();
-    const { data: assignments } = await admin
-      .schema("authprisma")
-      .from("user_app_roles")
-      .select("usuario_id, app_id, role_id");
-    if (!assignments?.length) return false;
-    const { data: roles } = await admin
-      .schema("authprisma")
-      .from("roles")
-      .select("id, slug, app_id");
-    const { data: apps } = await admin
-      .schema("authprisma")
-      .from("apps")
-      .select("id, slug");
-    const role_map = new Map(
-      (roles || []).map((r: { id: number; slug: string }) => [r.id, r.slug]),
-    );
-    const app_map = new Map(
-      (apps || []).map((a: { id: number; slug: string }) => [a.id, a.slug]),
-    );
-    const by_user = new Map<number, Record<string, string>>();
-    for (const row of assignments) {
-      const app_slug = app_map.get(row.app_id);
-      const role_slug = role_map.get(row.role_id);
-      if (!app_slug || !role_slug) continue;
-      const current = by_user.get(row.usuario_id) || {};
-      current[app_slug] = role_slug;
-      by_user.set(row.usuario_id, current);
+    const { data, error } = await admin
+      .from("departamentos")
+      .select("coordinador")
+      .ilike("nombre", deptName.trim())
+      .maybeSingle();
+    if (error) {
+      console.error("[departmentHasCoordinador]", error);
+      return false;
     }
-    for (const roles_by_app of by_user.values()) {
-      if (dept_in_keys(deptName, stamp_coord_dept_keys(roles_by_app))) return true;
-    }
-    return false;
+    return data?.coordinador != null;
   } catch {
     return false;
   }
@@ -929,17 +881,28 @@ async function annotateRequisicionApproverFlags(
   }
   try {
     const depts = [...new Set(rows.map((row) => row.departamento).filter(Boolean))];
-    const hasCoordByDept = new Map<string, boolean>();
-    await Promise.all(
-      depts.map(async (dept) => {
-        hasCoordByDept.set(dept, await departmentHasCoordinador(dept));
-      }),
-    );
-    for (const row of rows) {
-      row._deptHasCoordinador = hasCoordByDept.get(row.departamento) === true;
-    }
+    if (depts.length === 0) return;
 
     const admin = await createAdminClient();
+    const { data: deptRows } = await admin
+      .from("departamentos")
+      .select("nombre, coordinador")
+      .in("nombre", depts);
+
+    const coordByDept = new Map<string, number | null>();
+    for (const dept of depts) {
+      const match = (deptRows || []).find(
+        (row: { nombre: string | null }) =>
+          (row.nombre || "").toLowerCase() === String(dept).toLowerCase(),
+      );
+      coordByDept.set(dept, match?.coordinador ?? null);
+      // also mark via departmentHasCoordinador semantics
+    }
+    for (const row of rows) {
+      const coordId = coordByDept.get(row.departamento) ?? null;
+      row._deptHasCoordinador = coordId != null;
+    }
+
     const authIds = [
       ...new Set(
         rows
@@ -957,19 +920,11 @@ async function annotateRequisicionApproverFlags(
         .filter((u: { id: number; id_auth: string | null }) => u.id_auth)
         .map((u: { id: number; id_auth: string }) => [u.id_auth, u.id]),
     );
-    const rolesByUsuario = new Map<number, Record<string, string>>();
-    await Promise.all(
-      [...new Set(authToUsuario.values())].map(async (usuarioId) => {
-        rolesByUsuario.set(usuarioId, await loadUsuarioRolesByApp(usuarioId));
-      }),
-    );
     for (const row of rows) {
       const usuarioId = authToUsuario.get(row.created_by);
       if (!usuarioId) continue;
-      row._creatorIsDeptCoordinador = dept_in_keys(
-        row.departamento,
-        stamp_coord_dept_keys(rolesByUsuario.get(usuarioId) || {}),
-      );
+      const coordId = coordByDept.get(row.departamento) ?? null;
+      row._creatorIsDeptCoordinador = coordId != null && coordId === usuarioId;
     }
   } catch (error) {
     console.error("[annotateRequisicionApproverFlags]", error);
@@ -1289,6 +1244,7 @@ export async function setRequisicionEstatus(
       .select(`
         created_by,
         tipo_solicitud,
+        departamento,
         v_osi_formato_completo!left (nro_osi)
       `)
       .eq("id", id)
@@ -1302,7 +1258,12 @@ export async function setRequisicionEstatus(
         : `de la OSI N° ${(req.v_osi_formato_completo as any)?.nro_osi || ""}`;
       if (estatus === "procesada") {
         console.log(`[setRequisicionEstatus] Calling notifyCreatorOfProcesada for creator ${req.created_by}`);
-        await notifyCreatorOfProcesada(id, req.created_by, requisicionLabel);
+        await notifyCreatorOfProcesada(
+          id,
+          req.created_by,
+          requisicionLabel,
+          req.departamento,
+        );
       } else if (estatus === "rechazada") {
         console.log(`[setRequisicionEstatus] Calling notifyCreatorOfRechazada for creator ${req.created_by}`);
         await notifyCreatorOfRechazada(id, req.created_by, requisicionLabel, motivoRechazo!.trim());
@@ -1540,8 +1501,8 @@ export async function approveRequisicionByLider(id: number) {
     throw error;
   }
 
-  // Now that the lider approved, surface the requisicion to Administración.
-  await notifyAdminsOfNewRequisicion(id, existing.solicitante || "", "interna");
+  // Now that the lider approved costs, Admin can process (distinct event).
+  await notifyAdminsOfCostosAprobados(id, existing.solicitante || "", "interna");
 
   revalidatePath("/requisiciones");
   revalidatePath("/requisiciones/gestion");
@@ -1707,7 +1668,7 @@ export async function updateRequisicionByApprover(
         if (hasCoord) {
           throw new Error("Solo el coordinador del departamento puede editar esta requisición externa.");
         }
-        const isLider = await isLiderForDepartmentGerencia(existing.departamento);
+        const isLider = await isLiderForInternaApproval(existing.departamento);
         if (!isLider) {
           throw new Error("Solo el lider de la gerencia puede editar esta requisición externa (el departamento no tiene coordinador).");
         }
