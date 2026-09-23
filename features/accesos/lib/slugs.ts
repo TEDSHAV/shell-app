@@ -88,6 +88,9 @@ export const MODULE_LABELS: Record<string, string> = {
   inventario: "Inventario",
   shell: "Shell",
   requisiciones: "Requisiciones",
+  "planificacion-ted": "Planificación TED",
+  "objetivos-ted": "Objetivos TED",
+  "gestion-usuarios-prisma": "Usuarios Prisma",
 };
 
 /** App where that module is used (permissions are global; this is orientation). */
@@ -107,6 +110,9 @@ export const MODULE_HOME_APP: Record<string, string> = {
   inventario: "inventario",
   shell: "shell",
   requisiciones: "sadministracion",
+  "planificacion-ted": "ted",
+  "objetivos-ted": "ted",
+  "gestion-usuarios-prisma": "ted",
 };
 
 /** Modules that appear in every app's role editor (same global slugs). */

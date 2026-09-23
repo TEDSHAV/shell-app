@@ -13,7 +13,7 @@ import {
   Target,
   Shield,
 } from "lucide-react";
-import { isTedMember } from "@/actions/ted";
+import { canAccessTedApp, isTedMember, isPlanGerenciaUser } from "@/actions/ted";
 import { cookies } from "next/headers";
 import { TedDevDbSwitcher } from "@/features/ted/components/ted-dev-db-switcher";
 import {
@@ -25,8 +25,18 @@ import {
 export const dynamic = "force-dynamic";
 
 export default async function TedPage() {
-  const allowed = await isTedMember();
-  if (!allowed) {
+  const [operator, gerencia, can_app] = await Promise.all([
+    isTedMember(),
+    isPlanGerenciaUser(),
+    canAccessTedApp(),
+  ]);
+  if (!can_app) {
+    redirect("/dashboard");
+  }
+  if (!operator && gerencia) {
+    redirect("/ted/planificacion/objetivos");
+  }
+  if (!operator) {
     redirect("/dashboard");
   }
 

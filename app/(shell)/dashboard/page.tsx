@@ -11,7 +11,7 @@ import {
 import { cn } from "@/lib/utils";
 import { getUserRolesByApp, getUserRole } from "@/actions/apps";
 import { can_access_shell_app } from "@/lib/shell-app-access";
-import { isTedMember } from "@/actions/ted";
+import { canAccessTedApp, isTedMember } from "@/actions/ted";
 
 function flattenNavLinks(navLinks: (NavLink | NavGroup)[]): NavLink[] {
   return navLinks.flatMap((item) =>
@@ -20,10 +20,11 @@ function flattenNavLinks(navLinks: (NavLink | NavGroup)[]): NavLink[] {
 }
 
 export default async function DashboardPage() {
-  const [userRolesByApp, globalRole, tedMember] = await Promise.all([
+  const [userRolesByApp, globalRole, tedMember, canTedApp] = await Promise.all([
     getUserRolesByApp(),
     getUserRole(),
     isTedMember(),
+    canAccessTedApp(),
   ]);
 
   const canAccessApp = (app: AppConfig) =>
@@ -68,7 +69,7 @@ export default async function DashboardPage() {
             >
               {group.apps.map((app, index) => {
                 const isPlaceholder = app.basePath === "#";
-                const isTedLocked = app.id === "ted" && !tedMember;
+                const isTedLocked = app.id === "ted" && !canTedApp;
                 const isLocked = isPlaceholder || isTedLocked;
                 const external = opens_in_new_tab(app);
                 const iconStyle = get_app_icon_style(app.brandColor);
@@ -78,6 +79,10 @@ export default async function DashboardPage() {
                 };
                 const isAccessible = !isLocked;
                 const navLinks = flattenNavLinks(app.navLinks);
+                const tedHref =
+                  app.id === "ted" && !tedMember && canTedApp
+                    ? "/ted/planificacion/objetivos"
+                    : app.basePath;
 
                 const cardContent = (
                   <>
@@ -154,7 +159,7 @@ export default async function DashboardPage() {
                 }
 
                 return (
-                  <Link key={app.id} href={app.basePath} className={cardClassName}>
+                  <Link key={app.id} href={tedHref} className={cardClassName}>
                     {cardContent}
                   </Link>
                 );
