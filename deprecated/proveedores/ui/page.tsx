@@ -1,7 +1,7 @@
 import {
   fetchProveedores,
   fetchCatalogoEstados,
-} from "@/actions/proveedores";
+} from "../actions/proveedores";
 import ProveedoresClient from "./ProveedoresClient";
 
 export const metadata = {

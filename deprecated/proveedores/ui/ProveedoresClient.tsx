@@ -23,12 +23,12 @@ import type {
   ImpactoNivel,
   EstadoOperativoProveedor,
   DatoBancarioProveedor,
-} from "@/types/proveedores";
+} from "../types/proveedores";
 import {
   PROVEEDOR_IMPACTO_COLORS,
   PROVEEDOR_ESTADO_LABELS,
   PROVEEDOR_ESTADO_COLORS,
-} from "@/types/proveedores";
+} from "../types/proveedores";
 import ProveedorFormModal from "./ProveedorFormModal";
 import ProveedorDetailDrawer from "./ProveedorDetailDrawer";
 import ProveedorFichaModal from "./ProveedorFichaModal";

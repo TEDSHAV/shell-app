@@ -118,17 +118,6 @@ const administracionNavGroup: NavGroup = {
   ],
 };
 
-const administracionProveedoresNavGroup: NavGroup = {
-  groupLabel: "Proveedores",
-  links: [
-    {
-      label: "Gestión de Proveedores",
-      path: "/proveedores",
-      icon: Building2,
-    },
-  ],
-};
-
 const administracionFacturacionNavGroup: NavGroup = {
   groupLabel: "Facturación",
   links: [
@@ -700,7 +689,7 @@ export const apps: AppConfig[] = [
     id: "administracion",
     dbSlug: "sgestion",
     name: "Administración",
-    description: "Procesos administrativos, proveedores y requisiciones",
+    description: "Procesos administrativos, requisiciones y facturación",
     basePath: "/administracion",
     icon: Landmark,
     brandColor: "#0C3F69",
@@ -712,7 +701,6 @@ export const apps: AppConfig[] = [
     navLinks: [
       administracionDashboardNavGroup,
       administracionNavGroup,
-      administracionProveedoresNavGroup,
       administracionFacturacionNavGroup,
     ],
   }),
@@ -1119,12 +1107,6 @@ export const apps: AppConfig[] = [
         label: "Directorio",
         path: "/dashboard/rh/directorio",
         icon: Users,
-        requiredPermissions: ["srh:all:access"],
-      },
-      {
-        label: "Proveedores",
-        path: "/dashboard/rh/proveedores",
-        icon: Building2,
         requiredPermissions: ["srh:all:access"],
       },
       ...[buildRequisicionesNavGroup("recursos-humanos")],

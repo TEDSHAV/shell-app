@@ -11,7 +11,7 @@ import type {
   CiudadVenezuela,
   ImpactoNivel,
   EstadoOperativoProveedor,
-} from "@/types/proveedores";
+} from "../types/proveedores";
 
 /**
  * Helper to get the current authenticated user's local usuario id

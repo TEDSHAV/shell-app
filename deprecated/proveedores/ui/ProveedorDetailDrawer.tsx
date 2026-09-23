@@ -23,19 +23,19 @@ import type {
   DatoBancarioProveedor,
   ProveedorNota,
   ProveedorAuditoria,
-} from "@/types/proveedores";
+} from "../types/proveedores";
 import {
   PROVEEDOR_IMPACTO_LABELS,
   PROVEEDOR_IMPACTO_COLORS,
   PROVEEDOR_ESTADO_LABELS,
   PROVEEDOR_ESTADO_COLORS,
-} from "@/types/proveedores";
+} from "../types/proveedores";
 import {
   fetchProveedorById,
   saveProveedorBanco,
   deleteProveedorBanco,
   addProveedorNota,
-} from "@/actions/proveedores";
+} from "../actions/proveedores";
 
 interface ProveedorDetailDrawerProps {
   proveedorId: number | null;

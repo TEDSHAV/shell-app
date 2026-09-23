@@ -2,8 +2,8 @@
 
 import React, { useRef } from "react";
 import { X, Printer, Building2, MapPin, CreditCard, ShieldCheck } from "lucide-react";
-import type { ProveedorWithDetails, DatoBancarioProveedor } from "@/types/proveedores";
-import { PROVEEDOR_IMPACTO_LABELS, PROVEEDOR_ESTADO_LABELS } from "@/types/proveedores";
+import type { ProveedorWithDetails, DatoBancarioProveedor } from "../types/proveedores";
+import { PROVEEDOR_IMPACTO_LABELS, PROVEEDOR_ESTADO_LABELS } from "../types/proveedores";
 
 interface ProveedorFichaModalProps {
   proveedor: ProveedorWithDetails | null;

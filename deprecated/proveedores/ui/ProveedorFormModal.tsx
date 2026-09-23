@@ -10,12 +10,12 @@ import type {
   ImpactoNivel,
   EstadoOperativoProveedor,
   MonedaHabitual,
-} from "@/types/proveedores";
+} from "../types/proveedores";
 import {
   createProveedor,
   updateProveedor,
   fetchCatalogoCiudades,
-} from "@/actions/proveedores";
+} from "../actions/proveedores";
 
 interface ProveedorFormModalProps {
   proveedor?: ProveedorWithDetails | null;
