@@ -74,7 +74,7 @@ export function requisicion_items_total(items: CostItem[] | null | undefined): n
 
 export function interna_needs_lider(
   total: number,
-  umbral_lider_usd: number,
+  limite_lider_usd: number,
 ): boolean {
-  return total > Number(umbral_lider_usd);
+  return total > Number(limite_lider_usd);
 }

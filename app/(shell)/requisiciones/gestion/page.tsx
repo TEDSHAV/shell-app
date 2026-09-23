@@ -43,7 +43,7 @@ export default async function GestionRequisicionesPage() {
         {access.can_edit_config ? (
           <p className="mt-2 text-sm">
             <a href="/requisiciones/configuracion" className="text-blue-700 hover:underline">
-              Configurar umbral de líder
+              Configurar límite de líder
             </a>
           </p>
         ) : null}

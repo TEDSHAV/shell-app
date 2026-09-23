@@ -25,7 +25,7 @@ export default function RequisicionView({
   isLider = false,
   liderDepts = [],
   banks = [],
-  umbralLiderUsd = 100,
+  limiteLiderUsd = 100,
 }: {
   record: any,
   osiData: any,
@@ -38,7 +38,7 @@ export default function RequisicionView({
   /** All departments inside the gerencia(s) the current user leads. */
   liderDepts?: string[],
   banks?: { id: number; nombre: string }[],
-  umbralLiderUsd?: number,
+  limiteLiderUsd?: number,
 }) {
   const router = useRouter();
   const [isUpdating, setIsUpdating] = useState(false);
@@ -175,7 +175,7 @@ export default function RequisicionView({
       const result = await confirmInternaCostos(record.id, editedItems);
       alert(
         result.needsLider
-          ? `Total $${result.total.toFixed(2)} supera el umbral ($${result.umbral}). Se envió al líder para aprobación.`
+          ? `Total $${result.total.toFixed(2)} supera el límite ($${result.limite}). Se envió al líder para aprobación.`
           : `Total $${result.total.toFixed(2)}. Puede procesar sin sello de líder.`,
       );
       router.refresh();
@@ -714,7 +714,7 @@ export default function RequisicionView({
             <span className="text-sm font-semibold text-gray-800">
               Estimado ${totalGeneral.toFixed(2)}
               <span className="ml-2 text-xs font-medium text-gray-500">
-                umbral ${Number(umbralLiderUsd).toFixed(2)}
+                límite ${Number(limiteLiderUsd).toFixed(2)}
               </span>
             </span>
           )}
@@ -835,8 +835,8 @@ export default function RequisicionView({
                     className="h-8 px-3 text-xs flex gap-1 border-blue-300 text-blue-700 hover:bg-blue-50"
                   >
                     {liderEstatus === "pendiente" || liderEstatus === "rechazada"
-                      ? `Reemitir al líder (umbral $${umbralLiderUsd})`
-                      : `Confirmar costos (umbral $${umbralLiderUsd})`}
+                      ? `Reemitir al líder (límite $${limiteLiderUsd})`
+                      : `Confirmar costos (límite $${limiteLiderUsd})`}
                   </Button>
                 ) : null}
                 {verifiedCount > 0 && verifiedCount < totalCount && (

@@ -7,14 +7,14 @@ import { NumberInput } from "@/components/ui/number-input";
 import { Label } from "@/components/ui/label";
 
 export function RequisicionesConfigForm({
-  initialUmbral,
+  initialLimite,
   saveAction,
 }: {
-  initialUmbral: number;
-  saveAction: (umbral: number) => Promise<void>;
+  initialLimite: number;
+  saveAction: (limite: number) => Promise<void>;
 }) {
   const router = useRouter();
-  const [umbral, setUmbral] = useState(initialUmbral);
+  const [limite, setLimite] = useState(initialLimite);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -22,7 +22,7 @@ export function RequisicionesConfigForm({
     setSaving(true);
     setError("");
     try {
-      await saveAction(umbral);
+      await saveAction(limite);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo guardar");
@@ -34,11 +34,11 @@ export function RequisicionesConfigForm({
   return (
     <div className="mt-6 space-y-4 rounded-lg border border-gray-200 bg-white p-4">
       <div className="space-y-2">
-        <Label htmlFor="umbral">Umbral para sello de líder (USD)</Label>
+        <Label htmlFor="limite">Límite para sello de líder (USD)</Label>
         <NumberInput
-          id="umbral"
-          value={umbral}
-          onValueChange={(n) => setUmbral(Number(n) || 0)}
+          id="limite"
+          value={limite}
+          onValueChange={(n) => setLimite(Number(n) || 0)}
           allowDecimal
           min={0}
           step={1}

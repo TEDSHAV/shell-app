@@ -109,7 +109,7 @@ const administracionNavGroup: NavGroup = {
       icon: FilePlus2,
     },
     {
-      label: "Umbral de aprobación",
+      label: "Límite de aprobación",
       path: "/requisiciones/configuracion",
       href: "/requisiciones/configuracion",
       icon: Settings,

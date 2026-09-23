@@ -31,7 +31,7 @@ Casa del módulo: app **Administración** (`sadministracion`). El permiso es glo
 |---------|------------|----------|
 | `solicitud` | Solicitante: Mis requisiciones, crear, editar lo propio | `access`, `create`, `edit`, `access-depto` |
 | `gestion` | Trámite: colas de sello y proceso de Administración | `access`, `approve-coordinador`, `approve-lider`, `process`, `edit` |
-| `config` | Umbral USD de internas (quién debe pasar por líder) | `manage` |
+| `config` | Límite USD de internas (quién debe pasar por líder) | `manage` |
 
 El permiso es global. No se duplica por app.
 
@@ -52,11 +52,11 @@ Interna vs externa no es un slug.
 
 ## `config`
 
-Página **Umbral de aprobación** (`/requisiciones/configuracion`). Define `requisiciones_ajustes.umbral_lider_usd`: si Administración estima una interna por encima de ese monto, entra el sello del líder; si no, pasa directo a proceso.
+Página **Límite de aprobación** (`/requisiciones/configuracion`). Define `requisiciones_ajustes.umbral_lider_usd` (columna histórica; en UI se llama **límite**): si Administración estima una interna por encima de ese monto, entra el sello del líder; si no, pasa directo a proceso.
 
 | Slug | Efecto |
 |------|--------|
-| `requisiciones:config:manage` | Ver el ítem de menú, abrir la página y guardar el umbral. Sin este slug el enlace no aparece (tampoco el atajo en Gestión). |
+| `requisiciones:config:manage` | Ver el ítem de menú, abrir la página y guardar el límite. Sin este slug el enlace no aparece (tampoco el atajo en Gestión). |
 
 ---
 
@@ -114,7 +114,7 @@ Nombres reales en consola (no `solicitante-general`):
 |-----|------------|----------|
 | `solicitante-requisiciones` | Cualquier empleado de base que deba pedir compras | `requisiciones:solicitud:access`, `create`, `edit` (solo las propias). Si necesita mural de equipo: `requisiciones:solicitud:access-depto`. |
 | `aprobador-coordinador-requisiciones` | Quien da el **1.er sello** | `requisiciones:gestion:access`, `approve-coordinador` (hoy el rol en BD **no** tiene `gestion:access`; colgarlo). |
-| `aprobador-lider-requisiciones` | Líderes de departamento (2.º sello post-umbral) | `requisiciones:gestion:access`, `approve-lider` |
+| `aprobador-lider-requisiciones` | Líderes de departamento (2.º sello post-límite) | `requisiciones:gestion:access`, `approve-lider` |
 
 En producción también sellan/procesan los roles operativos `coordinador`, `lider`, `gestor` y `admin-ted` de Administración, que ya tienen los slugs colgados. Coordinador y gestores de Admin cubren **también** el depto `recursos_humanos` (misma gerencia). La app `srh` no cuelga `requisiciones:*`.
 
@@ -188,7 +188,7 @@ El precio: si editas `solicitante-general` después, `admin` **no** se actualiza
 
 ---
 
-Orden sugerido: crear permisos → crear/ajustar roles transversales → componer `gestor`/`admin` con el atajo de copia → asignar gente. **Runtime:** slugs + territorio de ficha. Internas: coordinador → Admin estima → líder solo si total > umbral (`requisiciones_ajustes.umbral_lider_usd`, default 100) → Admin procesa.
+Orden sugerido: crear permisos → crear/ajustar roles transversales → componer `gestor`/`admin` con el atajo de copia → asignar gente. **Runtime:** slugs + territorio de ficha. Internas: coordinador → Admin estima → líder solo si total > límite (`requisiciones_ajustes.umbral_lider_usd`, default 100) → Admin procesa.
 
 El depto de la solicitud: contexto `?from=` o el departamento de casa. El **selector** (Administración vs Recursos Humanos) solo lo ven miembros operativos de Administración (`gestor`, `coordinador`, `lider`, `admin-ted`, `aprobador-*`). Un `solicitante-requisiciones` de otra gerencia no elige depto. `usuarios.departamento` no es multi.
 

@@ -470,7 +470,7 @@ export async function createRequisicionRecord(
   const primaryOSI = formData.selectedOSIs[0] || null;
   const isInterna = formData.is_general;
 
-  // Internas: coordinador → Admin estima montos → líder solo si supera umbral.
+  // Internas: coordinador → Admin estima montos → líder solo si supera el límite.
   // Externas: directo a Administración.
   let needsCoordinadorApproval = false;
 
@@ -1224,12 +1224,12 @@ export async function setRequisicionEstatus(
       if (!gate.costos_confirmados_at) {
         throw new Error("Debe confirmar los montos estimados antes de procesar.");
       }
-      const umbral = await getUmbralLiderUsd();
+      const limite = await getLimiteLiderUsd();
       const total = requisicion_items_total(
         (gate.additional_items || []) as Parameters<typeof requisicion_items_total>[0],
       );
-      if (interna_needs_lider(total, umbral) && gate.lider_estatus !== "aprobada") {
-        throw new Error("Esta interna supera el umbral y requiere aprobación del líder.");
+      if (interna_needs_lider(total, limite) && gate.lider_estatus !== "aprobada") {
+        throw new Error("Esta interna supera el límite y requiere aprobación del líder.");
       }
     }
   }
@@ -2324,9 +2324,10 @@ export async function acknowledgeRequisicionReceipt(id: number) {
   revalidatePath(`/requisiciones/view/${id}`);
 }
 
-const DEFAULT_UMBRAL_LIDER_USD = 100;
+const DEFAULT_LIMITE_LIDER_USD = 100;
 
-export async function getUmbralLiderUsd(): Promise<number> {
+/** Lee el límite USD (columna histórica `umbral_lider_usd`). */
+export async function getLimiteLiderUsd(): Promise<number> {
   try {
     const admin = await createAdminClient();
     const { data, error } = await admin
@@ -2334,21 +2335,21 @@ export async function getUmbralLiderUsd(): Promise<number> {
       .select("umbral_lider_usd")
       .eq("id", 1)
       .maybeSingle();
-    if (error || data?.umbral_lider_usd == null) return DEFAULT_UMBRAL_LIDER_USD;
+    if (error || data?.umbral_lider_usd == null) return DEFAULT_LIMITE_LIDER_USD;
     return Number(data.umbral_lider_usd);
   } catch {
-    return DEFAULT_UMBRAL_LIDER_USD;
+    return DEFAULT_LIMITE_LIDER_USD;
   }
 }
 
-export async function updateUmbralLiderUsd(umbral: number) {
+export async function updateLimiteLiderUsd(limite: number) {
   const access = await getRequisicionAccess();
   if (!access.can_edit_config) {
-    throw new Error("Solo el líder de Administración o Admin TED pueden cambiar el umbral.");
+    throw new Error("Solo el líder de Administración o Admin TED pueden cambiar el límite.");
   }
-  const value = Number(umbral);
+  const value = Number(limite);
   if (!Number.isFinite(value) || value < 0) {
-    throw new Error("El umbral debe ser un número mayor o igual a 0.");
+    throw new Error("El límite debe ser un número mayor o igual a 0.");
   }
   const admin = await createAdminClient();
   const { error } = await admin.from("requisiciones_ajustes").upsert({
@@ -2397,8 +2398,8 @@ export async function confirmInternaCostos(id: number, items: RequisicionItem[])
     });
   });
   const total = requisicion_items_total(normalized);
-  const umbral = await getUmbralLiderUsd();
-  const needsLider = interna_needs_lider(total, umbral);
+  const limite = await getLimiteLiderUsd();
+  const needsLider = interna_needs_lider(total, limite);
   const now = new Date().toISOString();
 
   const { error } = await admin
@@ -2418,5 +2419,5 @@ export async function confirmInternaCostos(id: number, items: RequisicionItem[])
   revalidatePath("/requisiciones");
   revalidatePath("/requisiciones/gestion");
   revalidatePath(`/requisiciones/view/${id}`);
-  return { needsLider, total, umbral };
+  return { needsLider, total, limite };
 }
