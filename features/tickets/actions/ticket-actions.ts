@@ -35,7 +35,7 @@ async function notify_ticket_requester(
   const closed = estado === "cerrado";
   const titulo = row.titulo ?? "tu requerimiento";
   const { error } = await supabase.schema("notify").from("inbox").insert({
-    app_slug: "sgestion",
+    app_slug: "ted",
     event_key: closed ? "ticket_completado" : "ticket_no_procede",
     recipient_id_auth: auth_id,
     title: closed
