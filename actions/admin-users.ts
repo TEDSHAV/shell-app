@@ -1,7 +1,7 @@
 "use server";
 
 import { createAdminClient, createClient } from "@/lib/supabase/server";
-import { isTedMember } from "@/actions/ted";
+import { canManageUsuariosPrisma } from "@/actions/ted";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LENGTH = 8;
@@ -110,7 +110,7 @@ export async function createUser(
 ): Promise<CreateUserResult> {
   try {
     // --- Authorization: TED members only ---
-    const allowed = await isTedMember();
+    const allowed = await canManageUsuariosPrisma();
     if (!allowed) {
       return { error: "No tienes permisos para realizar esta acción." };
     }
@@ -235,7 +235,7 @@ export async function getAllUsersAdmin(): Promise<{
   error?: string;
 }> {
   try {
-    const allowed = await isTedMember();
+    const allowed = await canManageUsuariosPrisma();
     if (!allowed) {
       return { error: "No tienes permisos para realizar esta acción." };
     }
@@ -277,7 +277,7 @@ export async function setUserActiveStatus(
   input: { usuarioId: number; isActive: boolean },
 ): Promise<{ success?: boolean; error?: string }> {
   try {
-    const allowed = await isTedMember();
+    const allowed = await canManageUsuariosPrisma();
     if (!allowed) {
       return { error: "No tienes permisos para realizar esta acción." };
     }

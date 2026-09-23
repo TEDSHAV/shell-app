@@ -27,9 +27,10 @@ export function ObjetivosManual() {
                 dice de dónde nació el trabajo, no reemplaza al objetivo.
               </p>
               <p>
-                Usuarios 1 y 13 (gerencia, hasta que exista el rol) pueden
-                crear y editar objetivos, ver Cubrir e Informe. No cubren:
-                no crean, vinculan ni descolgan tareas.
+                Quien tenga el rol <strong>gerencia</strong> en la app TED (o el
+                permiso <code>objetivos-ted:access-all</code>) puede crear y
+                editar objetivos, ver Cubrir e Informe. No cubren: no crean,
+                vinculan ni descolgan tareas (eso es rol <strong>ted</strong>).
               </p>
             </>
           ),

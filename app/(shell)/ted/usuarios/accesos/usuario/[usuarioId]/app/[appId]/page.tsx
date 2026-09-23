@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation";
-import { isTedMember } from "@/actions/ted";
+import { canManageUsuariosPrisma } from "@/actions/ted";
 import {
   load_acceso_catalog,
   load_usuario_ficha,
@@ -13,7 +13,7 @@ export default async function ElegirRolPersonaPage({
 }: {
   params: Promise<{ usuarioId: string; appId: string }>;
 }) {
-  const allowed = await isTedMember();
+  const allowed = await canManageUsuariosPrisma();
   if (!allowed) redirect("/dashboard");
 
   const { usuarioId, appId } = await params;

@@ -49,6 +49,11 @@ export const ACTION_CATALOG = [
     nombre: "Ejecutivo",
     descripcion: "Operar el flujo de campo o de ejecución (p. ej. OSI).",
   },
+  {
+    slug: "access-all",
+    nombre: "Acceso completo",
+    descripcion: "Acceso total al módulo (atajo de catálogo).",
+  },
 ] as const;
 
 export const PERMISSION_ACTIONS = ACTION_CATALOG.map((a) => a.slug);

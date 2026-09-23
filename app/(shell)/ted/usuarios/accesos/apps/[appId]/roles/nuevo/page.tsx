@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation";
-import { isTedMember } from "@/actions/ted";
+import { canManageUsuariosPrisma } from "@/actions/ted";
 import { load_acceso_catalog } from "@/features/accesos/actions/list-accesos";
 import { RoleEditor } from "@/features/accesos/components/role-editor";
 
@@ -10,7 +10,7 @@ export default async function NuevoRolPage({
 }: {
   params: Promise<{ appId: string }>;
 }) {
-  const allowed = await isTedMember();
+  const allowed = await canManageUsuariosPrisma();
   if (!allowed) redirect("/dashboard");
 
   const { appId } = await params;

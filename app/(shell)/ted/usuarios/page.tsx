@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Users } from "lucide-react";
-import { isTedMember } from "@/actions/ted";
+import { canManageUsuariosPrisma } from "@/actions/ted";
 import { getAllDepartments } from "@/actions/directory";
 import { getAllAppRoles, getAllUsersAdmin } from "@/actions/admin-users";
 import { PasswordResetCard } from "@/components/admin/PasswordResetCard";
@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 
 export default async function TedUsuariosPage() {
   const [allowed, departments, appRoles, usersResult] = await Promise.all([
-    isTedMember(),
+    canManageUsuariosPrisma(),
     getAllDepartments(),
     getAllAppRoles(),
     getAllUsersAdmin(),

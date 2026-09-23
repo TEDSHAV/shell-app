@@ -1147,6 +1147,7 @@ export const apps: AppConfig[] = [
     embedMode: "native",
     groupId: "procesos-de-apoyo",
     dashboardOrder: 6,
+    requiredRoles: ["ted", "gerencia"],
     navLinks: [
       {
         groupLabel: "Planificación",
