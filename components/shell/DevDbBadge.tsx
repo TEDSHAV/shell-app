@@ -2,21 +2,24 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import type { DevDbTarget } from "@/lib/supabase/dev-db";
-
-type Injected = {
-  target: DevDbTarget;
-  staging: { url: string } | null;
-  production: { url: string } | null;
-};
+import { usePathname } from "next/navigation";
+import {
+  is_dev_db_switcher_enabled,
+  sync_browser_dev_db_target,
+  type DevDbTarget,
+} from "@/lib/supabase/dev-db";
 
 export function DevDbBadge() {
+  const pathname = usePathname();
   const [target, setTarget] = useState<DevDbTarget | null>(null);
 
   useEffect(() => {
-    const injected = (window as unknown as { __SHA_DEV_SB?: Injected }).__SHA_DEV_SB;
-    if (injected?.target) setTarget(injected.target);
-  }, []);
+    if (!is_dev_db_switcher_enabled()) {
+      setTarget(null);
+      return;
+    }
+    setTarget(sync_browser_dev_db_target());
+  }, [pathname]);
 
   if (!target) return null;
 

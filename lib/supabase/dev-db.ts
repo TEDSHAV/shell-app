@@ -118,3 +118,18 @@ export function read_target_from_cookie_header(cookie_header: string): DevDbTarg
   const match = cookie_header.match(new RegExp(`(?:^|;\\s*)${DEV_DB_COOKIE}=([^;]*)`));
   return parse_dev_db_target(match ? decodeURIComponent(match[1]) : undefined);
 }
+
+/** Cookie is source of truth; keep window.__SHA_DEV_SB.target in sync after soft nav. */
+export function sync_browser_dev_db_target(): DevDbTarget {
+  if (typeof document === "undefined") {
+    return parse_dev_db_target(undefined);
+  }
+  const target = read_target_from_cookie_header(document.cookie);
+  const scope = window as unknown as {
+    __SHA_DEV_SB?: { target: DevDbTarget } & Record<string, unknown>;
+  };
+  if (scope.__SHA_DEV_SB && scope.__SHA_DEV_SB.target !== target) {
+    scope.__SHA_DEV_SB = { ...scope.__SHA_DEV_SB, target };
+  }
+  return target;
+}

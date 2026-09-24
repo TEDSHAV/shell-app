@@ -4,7 +4,7 @@ import {
   DEV_DB_COOKIE,
   is_dev_db_switcher_enabled,
   parse_dev_db_target,
-  read_target_from_cookie_header,
+  sync_browser_dev_db_target,
   type DevDbTarget,
 } from "./dev-db";
 
@@ -27,11 +27,12 @@ function injected_snapshot(): Injected | null {
 }
 
 function browser_target(): DevDbTarget {
+  // Prefer cookie over layout inject: soft nav does not re-run the root <script>.
+  if (typeof document !== "undefined") {
+    return sync_browser_dev_db_target();
+  }
   const injected = injected_snapshot();
   if (injected?.target) return injected.target;
-  if (typeof document !== "undefined") {
-    return read_target_from_cookie_header(document.cookie);
-  }
   return parse_dev_db_target(undefined);
 }
 
