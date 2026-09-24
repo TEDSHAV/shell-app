@@ -15,6 +15,7 @@ export function GrantPermissionDialog({
   permissions,
   roles,
   apps,
+  initial_permission_id = null,
 }: {
   open: boolean;
   onClose: () => void;
@@ -22,6 +23,8 @@ export function GrantPermissionDialog({
   permissions: AccesoPermission[];
   roles: AccesoRole[];
   apps: AccesoApp[];
+  /** Prefill when opening from a permission row. */
+  initial_permission_id?: number | null;
 }) {
   const [permission_id, set_permission_id] = useState<number | null>(null);
   const [role_ids, set_role_ids] = useState<number[]>([]);
@@ -32,10 +35,10 @@ export function GrantPermissionDialog({
 
   useEffect(() => {
     if (!open) return;
-    set_permission_id(null);
+    set_permission_id(initial_permission_id);
     set_role_ids([]);
     set_error(null);
-  }, [open]);
+  }, [open, initial_permission_id]);
 
   useEffect(() => {
     if (!selected) {

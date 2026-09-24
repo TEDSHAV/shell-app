@@ -5,8 +5,15 @@ import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { NumberInput } from "@/components/ui/number-input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { RequisicionItem, OSIFixedItem } from "@/types/requisiciones";
-import { setRequisicionEstatus, updateItemVerificacion, updateFixedItemVerificacion, markAllItemsVerificadas, saveVerificacionProgress, getExchangeRate, updateFacilitadorBankingDetails, acknowledgeRequisicionReceipt, approveRequisicionByCoordinador, rejectRequisicionByCoordinador, approveRequisicionByLider, rejectRequisicionByLider, updateRequisicionByApprover, confirmInternaCostos } from "@/actions/requisiciones";
+import { setRequisicionEstatus, updateItemVerificacion, updateFixedItemVerificacion, markAllItemsVerificadas, saveVerificacionProgress, getExchangeRate, updateFacilitadorBankingDetails, acknowledgeRequisicionReceipt, approveRequisicionByCoordinador, rejectRequisicionByCoordinador, approveRequisicionByLider, rejectRequisicionByLider, updateRequisicionByApprover, confirmInternaCostos, updateRequisicionDepartamento } from "@/actions/requisiciones";
 import { CheckCircle2, XCircle, Undo2, Clock, AlertTriangle, CalendarClock, Copy, Check, Download, Save, Printer, PackageCheck, Plus, Trash2 } from "lucide-react";
 import MotivoModal from "../../../components/MotivoModal";
 import ApproverDiff from "./ApproverDiff";
@@ -26,6 +33,8 @@ export default function RequisicionView({
   liderDepts = [],
   banks = [],
   limiteLiderUsd = 100,
+  canEditDepartamento = false,
+  deptCatalog = [],
 }: {
   record: any,
   osiData: any,
@@ -39,6 +48,9 @@ export default function RequisicionView({
   liderDepts?: string[],
   banks?: { id: number; nombre: string }[],
   limiteLiderUsd?: number,
+  /** Administración operativa con requisiciones:gestion:edit. */
+  canEditDepartamento?: boolean,
+  deptCatalog?: { nombre: string; gerencia: string }[],
 }) {
   const router = useRouter();
   const [isUpdating, setIsUpdating] = useState(false);
@@ -125,6 +137,53 @@ export default function RequisicionView({
   const [editedFecha, setEditedFecha] = useState<string>(record.fecha_solicitud || "");
   const [editedSolicitante, setEditedSolicitante] = useState<string>(record.solicitante || "");
   const [isSavingApproverEdit, setIsSavingApproverEdit] = useState(false);
+  const [editedDepartamento, setEditedDepartamento] = useState<string>(
+    record.departamento || "",
+  );
+  const [isSavingDepartamento, setIsSavingDepartamento] = useState(false);
+
+  useEffect(() => {
+    setEditedDepartamento(record.departamento || "");
+  }, [record.departamento]);
+
+  const departamentoOptions = (() => {
+    const rows = [...deptCatalog];
+    const current = (record.departamento || "").trim();
+    if (
+      current &&
+      !rows.some((row) => row.nombre.trim().toLowerCase() === current.toLowerCase())
+    ) {
+      rows.unshift({
+        nombre: current,
+        gerencia: record.gerencia_solicitante || "",
+      });
+    }
+    return rows;
+  })();
+
+  const handleSaveDepartamento = async () => {
+    if (!canEditDepartamento) return;
+    const next = editedDepartamento.trim();
+    if (!next) {
+      alert("Seleccione un departamento.");
+      return;
+    }
+    if (next === (record.departamento || "").trim()) return;
+    setIsSavingDepartamento(true);
+    try {
+      await updateRequisicionDepartamento(record.id, next);
+      router.refresh();
+    } catch (e) {
+      console.error("Error updating departamento:", e);
+      alert(
+        e instanceof Error
+          ? e.message
+          : "No se pudo actualizar el departamento.",
+      );
+    } finally {
+      setIsSavingDepartamento(false);
+    }
+  };
 
   const handleAddApproverItem = () => {
     setEditedItems(prev => [...prev, {
@@ -963,8 +1022,46 @@ export default function RequisicionView({
             <div className="col-span-3 p-3 border-r border-gray-300 bg-gray-50 flex flex-col justify-center">
               <span className="font-bold text-sm">Departamento:</span>
             </div>
-            <div className="col-span-3 p-3 flex items-center uppercase font-medium">
-              {record.departamento || "-"}
+            <div className="col-span-3 min-w-0 p-3 flex items-center gap-1.5 uppercase font-medium">
+              {canEditDepartamento ? (
+                <>
+                  <Select
+                    value={editedDepartamento}
+                    onValueChange={setEditedDepartamento}
+                    disabled={isSavingDepartamento}
+                  >
+                    <SelectTrigger className="h-8 min-w-0 flex-1 text-sm font-medium uppercase">
+                      <SelectValue placeholder="Seleccione departamento…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {departamentoOptions.map((row) => (
+                        <SelectItem key={row.nombre} value={row.nombre}>
+                          {row.nombre}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="outline"
+                    className="h-8 w-8 shrink-0"
+                    title="Guardar departamento"
+                    aria-label="Guardar departamento"
+                    disabled={
+                      isSavingDepartamento ||
+                      !editedDepartamento.trim() ||
+                      editedDepartamento.trim() ===
+                        (record.departamento || "").trim()
+                    }
+                    onClick={() => void handleSaveDepartamento()}
+                  >
+                    <Save className="h-3.5 w-3.5" />
+                  </Button>
+                </>
+              ) : (
+                record.departamento || "-"
+              )}
             </div>
           </div>
 

@@ -75,6 +75,8 @@ export type RequisicionAccess = {
   can_edit_own: boolean;
   can_process: boolean;
   can_edit_tramite: boolean;
+  /** Admin operativo + gestion:edit: puede corregir departamento tras emitir. */
+  can_edit_departamento_emitida: boolean;
   can_approve_coord: boolean;
   can_approve_lider: boolean;
   can_edit_config: boolean;
@@ -192,6 +194,8 @@ export const getRequisicionAccess = cache(async (): Promise<RequisicionAccess> =
     can_edit_own: slug_set.has(REQ_SOLICITUD_EDIT),
     can_process: slug_set.has(REQ_GESTION_PROCESS),
     can_edit_tramite: slug_set.has(REQ_GESTION_EDIT) || slug_set.has(REQ_GESTION_PROCESS),
+    can_edit_departamento_emitida:
+      slug_set.has(REQ_GESTION_EDIT) && is_admin_operative(roles_by_app),
     can_approve_coord,
     can_approve_lider,
     can_edit_config: slug_set.has(REQ_CONFIG_MANAGE),
@@ -221,4 +225,16 @@ export async function list_request_departments() {
     nombre,
     gerencia: access.catalog.find((row) => row.nombre === nombre)?.gerencia || "",
   }));
+}
+
+/** Catálogo completo (activos) para reasignar departamento en trámite Admin. */
+export async function list_catalog_departments_for_admin_edit() {
+  const access = await getRequisicionAccess();
+  if (!access.can_edit_departamento_emitida) return [];
+  return access.catalog
+    .map((row) => ({
+      nombre: row.nombre,
+      gerencia: row.gerencia || "",
+    }))
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 }

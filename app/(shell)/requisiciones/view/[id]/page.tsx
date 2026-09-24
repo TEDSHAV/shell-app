@@ -8,6 +8,10 @@ import {
   getDepartmentsInLedGerencias,
   getLimiteLiderUsd,
 } from "@/actions/requisiciones";
+import {
+  getRequisicionAccess,
+  list_catalog_departments_for_admin_edit,
+} from "@/actions/requisiciones-access-context";
 import RequisicionView from "./components/RequisicionView";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -24,13 +28,15 @@ export default async function ViewRequisicionPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params;
-  const [record, isAdminView, banks, coordinadorDepts, liderDepts, limiteLiderUsd] = await Promise.all([
+  const [record, isAdminView, banks, coordinadorDepts, liderDepts, limiteLiderUsd, access, deptCatalog] = await Promise.all([
     getRequisicionRecord(parseInt(id)),
     isRequisicionesAdmin(),
     getBanksForDropdown(),
     getCoordinatedDepartments(),
     getDepartmentsInLedGerencias(),
     getLimiteLiderUsd(),
+    getRequisicionAccess(),
+    list_catalog_departments_for_admin_edit(),
   ]);
 
   if (!record) {
@@ -40,6 +46,7 @@ export default async function ViewRequisicionPage({
   const isCoordinador = coordinadorDepts.length > 0;
   const isLider = liderDepts.length > 0;
   const approverEdited = record?.aprobador_edito === true;
+  const canEditDepartamento = access.can_edit_departamento_emitida;
 
   let osiData = null;
   const osiLookup = new Map<number, string>();
@@ -128,7 +135,20 @@ export default async function ViewRequisicionPage({
         ) : null}
       </div>
 
-      <RequisicionView record={record} osiData={osiData} osiLookup={osiLookup} isAdminView={isAdminView} isCoordinador={isCoordinador} coordinadorDepts={coordinadorDepts} isLider={isLider} liderDepts={liderDepts} banks={banks} limiteLiderUsd={limiteLiderUsd} />
+      <RequisicionView
+        record={record}
+        osiData={osiData}
+        osiLookup={osiLookup}
+        isAdminView={isAdminView}
+        isCoordinador={isCoordinador}
+        coordinadorDepts={coordinadorDepts}
+        isLider={isLider}
+        liderDepts={liderDepts}
+        banks={banks}
+        limiteLiderUsd={limiteLiderUsd}
+        canEditDepartamento={canEditDepartamento}
+        deptCatalog={deptCatalog}
+      />
     </div>
   );
 }

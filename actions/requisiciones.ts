@@ -2382,3 +2382,70 @@ export async function confirmInternaCostos(id: number, items: RequisicionItem[])
   revalidatePath(`/requisiciones/view/${id}`);
   return { needsLider, total, limite };
 }
+
+/**
+ * Corrige el departamento (y gerencia derivada) de una requisición ya emitida.
+ * Solo Administración operativa con `requisiciones:gestion:edit`.
+ */
+export async function updateRequisicionDepartamento(
+  id: number,
+  departamento: string,
+) {
+  const access = await getRequisicionAccess();
+  if (!access.can_edit_departamento_emitida) {
+    throw new Error(
+      "No tiene permiso para editar el departamento de una requisición emitida.",
+    );
+  }
+
+  const nombre = (departamento || "").trim();
+  if (!nombre) {
+    throw new Error("Seleccione un departamento válido.");
+  }
+
+  const catalogHit = access.catalog.find(
+    (row) => row.nombre.trim().toLowerCase() === nombre.toLowerCase(),
+  );
+  if (!catalogHit) {
+    throw new Error("El departamento seleccionado no existe o no está activo.");
+  }
+
+  const admin = await createAdminClient();
+  const { data: existing, error: fetchError } = await admin
+    .from("requisiciones")
+    .select("id, departamento, gerencia_solicitante")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (fetchError || !existing) {
+    throw new Error("Requisición no encontrada.");
+  }
+
+  const gerencia = (catalogHit.gerencia || "").trim() || existing.gerencia_solicitante || null;
+
+  const { error } = await admin
+    .from("requisiciones")
+    .update({
+      departamento: catalogHit.nombre,
+      gerencia_solicitante: gerencia,
+    })
+    .eq("id", id);
+
+  if (error) {
+    throw new Error(
+      typeof error.message === "string" && error.message.trim()
+        ? `No se pudo actualizar el departamento: ${error.message}`
+        : "No se pudo actualizar el departamento.",
+    );
+  }
+
+  revalidatePath("/requisiciones");
+  revalidatePath("/requisiciones/gestion");
+  revalidatePath(`/requisiciones/view/${id}`);
+  revalidatePath(`/requisiciones/edit/${id}`);
+
+  return {
+    departamento: catalogHit.nombre,
+    gerencia_solicitante: gerencia,
+  };
+}

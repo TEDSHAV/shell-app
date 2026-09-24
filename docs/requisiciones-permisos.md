@@ -87,7 +87,7 @@ El depto que cubre un coordinador/líder **no** va en el slug: sale del **organi
 | `requisiciones:gestion:approve-coordinador` | 1.er sello (internas). |
 | `requisiciones:gestion:approve-lider` | 2.º sello **y** el 1.º (herencia). Si el creador es ese líder, se salta coordinación igual que hoy. |
 | `requisiciones:gestion:process` | Verificar ítems, procesar, rechazar en Admin, tasa, OSI, banco del facilitador. |
-| `requisiciones:gestion:edit` | Editar como tramitador (req ajena), con diff al creador. |
+| `requisiciones:gestion:edit` | Editar como tramitador (req ajena), con diff al creador. También permite a **Administración operativa** corregir el **departamento** de una requisición ya emitida (detalle). |
 
 Nadie aprueba la suya. Externas hoy no usan sellos: las ve quien tiene `process`.
 

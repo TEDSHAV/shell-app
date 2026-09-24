@@ -1,7 +1,7 @@
 "use server";
 
 import { cache } from "react";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { buildFrameUrl } from "@/lib/frame-url";
 
 /**
@@ -145,10 +145,30 @@ export const getUsuarioRecord = cache(async (): Promise<{
       .from("usuarios")
       .select("id, esta_activo, departamento")
       .eq("id_auth", user.id)
-      .single();
+      .maybeSingle();
 
-    if (error || !usuario) return null;
-    return usuario as { id: number; esta_activo: boolean | null; departamento: number | null };
+    if (!error && usuario) {
+      return usuario as {
+        id: number;
+        esta_activo: boolean | null;
+        departamento: number | null;
+      };
+    }
+
+    // Fallback: lectura con service role si RLS/cliente de sesión falla.
+    const admin = await createAdminClient();
+    const { data: admin_usuario, error: admin_error } = await admin
+      .from("usuarios")
+      .select("id, esta_activo, departamento")
+      .eq("id_auth", user.id)
+      .maybeSingle();
+
+    if (admin_error || !admin_usuario) return null;
+    return admin_usuario as {
+      id: number;
+      esta_activo: boolean | null;
+      departamento: number | null;
+    };
   } catch {
     return null;
   }
@@ -173,33 +193,171 @@ export const getUsuarioDepartamento = cache(async (): Promise<string | null> => 
       .from("departamentos")
       .select("nombre")
       .eq("id", usuario.departamento)
-      .single();
+      .maybeSingle();
 
-    if (error || !depto) return null;
-    return depto.nombre ?? null;
+    if (!error && depto?.nombre) return depto.nombre;
+
+    const admin = await createAdminClient();
+    const { data: admin_depto } = await admin
+      .from("departamentos")
+      .select("nombre")
+      .eq("id", usuario.departamento)
+      .maybeSingle();
+    return admin_depto?.nombre ?? null;
   } catch {
     return null;
   }
 });
 
+async function load_roles_by_usuario_id(
+  usuario_id: number,
+): Promise<Record<string, string>> {
+  const map_rows = (
+    rows: Array<{ app_slug: string; role_slug: string }> | null | undefined,
+  ): Record<string, string> => {
+    const result: Record<string, string> = {};
+    for (const row of rows || []) {
+      if (row.app_slug && row.role_slug) {
+        result[row.app_slug] = row.role_slug;
+      }
+    }
+    return result;
+  };
+
+  // 1) RPC con sesión de usuario
+  try {
+    const user_client = await createClient();
+    const { data, error } = await user_client.rpc("get_user_roles_by_app", {
+      p_usuario_id: usuario_id,
+    });
+    if (!error && Array.isArray(data) && data.length > 0) {
+      return map_rows(data as Array<{ app_slug: string; role_slug: string }>);
+    }
+    if (error) {
+      console.error(
+        "[getUserRolesByApp] user RPC:",
+        error.message || error.code || error,
+      );
+    }
+  } catch (error) {
+    console.error("[getUserRolesByApp] user RPC unexpected:", error);
+  }
+
+  const admin = await createAdminClient();
+
+  // 2) RPC con service role
+  try {
+    const { data, error } = await admin.rpc("get_user_roles_by_app", {
+      p_usuario_id: usuario_id,
+    });
+    if (!error && Array.isArray(data) && data.length > 0) {
+      return map_rows(data as Array<{ app_slug: string; role_slug: string }>);
+    }
+    if (error) {
+      console.error(
+        "[getUserRolesByApp] admin RPC:",
+        error.message || error.code || error,
+      );
+    }
+  } catch (error) {
+    console.error("[getUserRolesByApp] admin RPC unexpected:", error);
+  }
+
+  // 3) Join directo authprisma
+  try {
+    const { data, error } = await admin
+      .schema("authprisma")
+      .from("user_app_roles")
+      .select("apps(slug), roles(slug)")
+      .eq("usuario_id", usuario_id);
+
+    if (error) {
+      console.error(
+        "[getUserRolesByApp] admin select:",
+        error.message || error.code || error,
+      );
+      return {};
+    }
+
+    const result: Record<string, string> = {};
+    for (const row of (data || []) as Array<{
+      apps: { slug: string } | { slug: string }[] | null;
+      roles: { slug: string } | { slug: string }[] | null;
+    }>) {
+      const app = Array.isArray(row.apps) ? row.apps[0] : row.apps;
+      const role = Array.isArray(row.roles) ? row.roles[0] : row.roles;
+      if (app?.slug && role?.slug) {
+        result[app.slug] = role.slug;
+      }
+    }
+    return result;
+  } catch (error) {
+    console.error("[getUserRolesByApp] admin select unexpected:", error);
+    return {};
+  }
+}
+
+async function load_permissions_by_usuario_id(
+  usuario_id: number,
+): Promise<Record<string, string[]>> {
+  const map_rows = (
+    rows:
+      | Array<{ app_slug: string; permission_slug: string }>
+      | null
+      | undefined,
+  ): Record<string, string[]> => {
+    const result: Record<string, string[]> = {};
+    for (const row of rows || []) {
+      if (!row.app_slug || !row.permission_slug) continue;
+      if (!result[row.app_slug]) result[row.app_slug] = [];
+      result[row.app_slug].push(row.permission_slug);
+    }
+    return result;
+  };
+
+  try {
+    const user_client = await createClient();
+    const { data, error } = await user_client.rpc(
+      "get_user_permissions_by_app",
+      { p_usuario_id: usuario_id },
+    );
+    if (!error && Array.isArray(data) && data.length > 0) {
+      return map_rows(
+        data as Array<{ app_slug: string; permission_slug: string }>,
+      );
+    }
+  } catch (error) {
+    console.error("[getUserPermissionsByApp] user RPC unexpected:", error);
+  }
+
+  try {
+    const admin = await createAdminClient();
+    const { data, error } = await admin.rpc("get_user_permissions_by_app", {
+      p_usuario_id: usuario_id,
+    });
+    if (!error && Array.isArray(data)) {
+      return map_rows(
+        data as Array<{ app_slug: string; permission_slug: string }>,
+      );
+    }
+    if (error) {
+      console.error(
+        "[getUserPermissionsByApp] admin RPC:",
+        error.message || error.code || error,
+      );
+    }
+  } catch (error) {
+    console.error("[getUserPermissionsByApp] admin RPC unexpected:", error);
+  }
+
+  return {};
+}
+
 export const getUserPermissionsByApp = cache(async (): Promise<Record<string, string[]>> => {
   try {
     const usuario = await getUsuarioRecord();
     if (!usuario) return {};
-
-    const supabase = await createClient();
-    const { data: rows, error } = await supabase
-      .rpc("get_user_permissions_by_app", { p_usuario_id: usuario.id });
-
-    if (error || !rows) return {};
-
-    const result: Record<string, string[]> = {};
-    for (const row of rows as { app_slug: string; permission_slug: string }[]) {
-      if (!result[row.app_slug]) result[row.app_slug] = [];
-      result[row.app_slug].push(row.permission_slug);
-    }
-
-    return result;
+    return await load_permissions_by_usuario_id(usuario.id);
   } catch {
     return {};
   }
@@ -209,29 +367,7 @@ export const getUserRolesByApp = cache(async (): Promise<Record<string, string>>
   try {
     const usuario = await getUsuarioRecord();
     if (!usuario) return {};
-
-    const supabase = await createClient();
-    const { data: rows, error } = await supabase.rpc("get_user_roles_by_app", {
-      p_usuario_id: usuario.id,
-    });
-
-    if (error) {
-      console.error(
-        "[getUserRolesByApp] Roles error:",
-        error.message || error.code || error,
-        error.details || "",
-        error.hint || "",
-      );
-      return {};
-    }
-
-    const result: Record<string, string> = {};
-    for (const row of (rows || []) as { app_slug: string; role_slug: string }[]) {
-      if (row.app_slug && row.role_slug) {
-        result[row.app_slug] = row.role_slug;
-      }
-    }
-    return result;
+    return await load_roles_by_usuario_id(usuario.id);
   } catch (error) {
     console.error("[getUserRolesByApp] Unexpected error:", error);
     return {};
