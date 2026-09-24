@@ -7,10 +7,10 @@ import {
   PLAN_SELECT_CLASS,
 } from "./plan-form-ui";
 import { TedPersonPicker } from "./ted-person-picker";
+import { PrismaRouteSelect } from "./prisma-route-select";
 import { PLAN_TRIMESTRES } from "../schemas";
 import { ORIGIN_LABELS } from "../lib/display";
 import { origenes_for_editor } from "../lib/origen-policy";
-import { PRISMA_VIEW_SHORTCUTS } from "../lib/prisma-routes";
 import { PLAN_RELEASE_UNITS } from "../lib/release-units";
 import type {
   EntregableTipo,
@@ -318,21 +318,11 @@ export function TareaEditForm({
         </PlanField>
         {entregable_tipo === "vista" ? (
           <PlanField label="Ruta" htmlFor="tar-ruta">
-            <Input
+            <PrismaRouteSelect
               id="tar-ruta"
-              className={PLAN_INPUT_CLASS}
-              placeholder="/crm/leads"
               value={ruta}
-              onChange={(e) => on_ruta(e.target.value)}
-              list="prisma-routes"
+              on_change={on_ruta}
             />
-            <datalist id="prisma-routes">
-              {PRISMA_VIEW_SHORTCUTS.map((item) => (
-                <option key={item.path} value={item.path}>
-                  {item.label}
-                </option>
-              ))}
-            </datalist>
           </PlanField>
         ) : null}
         {entregable_tipo === "version" ? (
