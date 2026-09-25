@@ -35,6 +35,7 @@ export async function load_ticket_catalog(): Promise<
   ]);
 
   if (apps_res.error) {
+    console.error("[tickets] catalog apps:", apps_res.error);
     return { ok: false, error: "No se pudieron cargar las apps." };
   }
 

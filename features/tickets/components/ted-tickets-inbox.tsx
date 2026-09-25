@@ -14,14 +14,14 @@ import {
   reply_ticket,
 } from "../actions/ticket-actions";
 import { ESTADO_LABEL, PRIORIDAD_LABEL } from "../lib/labels";
+import { ticket_en_nombre_de } from "../lib/ticket-display";
 import type { TicketEstado, TicketPrioridad, TicketRow } from "../lib/types";
+import { TicketListCard } from "./ticket-list-card";
+import { TicketOnBehalfBadge } from "./ticket-on-behalf-badge";
 import { TimeFilterControl } from "@/components/time-filter-control";
 import { SortControl } from "@/components/sort-control";
 import { format_ve_datetime } from "@/lib/date-range";
-import {
-  compare_time,
-  type TimeOrder,
-} from "@/lib/date-range";
+import { compare_time, type TimeOrder } from "@/lib/date-range";
 import {
   DEFAULT_TIME_FILTER,
   stamp_for_date_field,
@@ -140,48 +140,23 @@ export function TedTicketsInbox({
           />
         </div>
       </div>
-      <div className="space-y-2">
+      <div className="space-y-2.5">
         {filtered.map((ticket) => (
-          <button
+          <TicketListCard
             key={`${ticket.source ?? "nativo"}-${ticket.id}`}
-            type="button"
+            ticket={ticket}
+            viewer="inbox"
+            as="button"
             onClick={() => {
               set_open(ticket);
               set_respuesta(ticket.respuesta ?? "");
               set_asig(ticket.asignado_id ? String(ticket.asignado_id) : "");
-              set_colab(ticket.colaborador_ids[0] ? String(ticket.colaborador_ids[0]) : "");
+              set_colab(
+                ticket.colaborador_ids[0] ? String(ticket.colaborador_ids[0]) : "",
+              );
               set_error(null);
             }}
-            className="flex w-full items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-4 text-left shadow-[0_1px_2px_rgba(15,23,42,0.05)] hover:shadow-md"
-          >
-            <div className="min-w-0">
-              <p className="truncate text-[15px] font-semibold text-slate-900">
-                {ticket.app_nombre}
-              </p>
-              <p className="truncate text-xs font-semibold text-violet-700">
-                {ticket.modulo_nombre}
-              </p>
-              <p className="mt-1 truncate text-sm text-slate-600">{ticket.titulo}</p>
-              <p className="mt-0.5 truncate text-xs text-slate-400">
-                Solicitó {ticket.solicitante}
-                {ticket.created_at
-                  ? ` · ${format_ve_datetime(ticket.created_at)}`
-                  : ""}
-              </p>
-            </div>
-            <div className="flex shrink-0 flex-col items-end gap-1 text-xs font-semibold">
-              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600">
-                {ESTADO_LABEL[ticket.estado]}
-              </span>
-              {ticket.source === "plan" ? (
-                <span className="text-[10px] font-medium uppercase tracking-wide text-violet-600">
-                  Plan · TICKET
-                </span>
-              ) : (
-                <span className="text-slate-400">{PRIORIDAD_LABEL[ticket.prioridad]}</span>
-              )}
-            </div>
-          </button>
+          />
         ))}
         {filtered.length === 0 ? (
           <p className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-10 text-center text-sm text-slate-400">
@@ -199,12 +174,17 @@ export function TedTicketsInbox({
             onClick={() => set_open(null)}
           />
           <div className="relative max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
-            <h2 className="text-lg font-semibold text-slate-900">{open.titulo}</h2>
+            <div className="flex flex-wrap items-center gap-2">
+              <TicketOnBehalfBadge ticket={open} viewer="inbox" />
+            </div>
+            <h2 className="mt-2 text-lg font-semibold text-slate-900">{open.titulo}</h2>
             <p className="text-[15px] font-semibold text-slate-800">
               {open.app_nombre}
             </p>
             <p className="text-xs text-slate-500">
-              Solicitó {open.solicitante}
+              {ticket_en_nombre_de(open)
+                ? `Para ${open.solicitante} · lo registró ${open.registrado_por ?? "TED"}`
+                : `Solicitó ${open.solicitante}`}
               {open.created_at ? ` · ${format_ve_datetime(open.created_at)}` : ""}
             </p>
             <p className="text-xs font-semibold text-violet-700">
@@ -221,136 +201,138 @@ export function TedTicketsInbox({
               </p>
             )}
             {open.source !== "plan" ? (
-            <div>
-            <div className="mt-4 space-y-2">
-              <Label>Asignado</Label>
-              <SearchSelect
-                value={asig}
-                onChange={set_asig}
-                placeholder="Persona"
-                options={usuarios.map((u) => ({
-                  value: String(u.id),
-                  label: u.label,
-                }))}
-              />
-              <Label>Colaborador</Label>
-              <SearchSelect
-                value={colab}
-                onChange={set_colab}
-                placeholder="Opcional"
-                options={[
-                  { value: "", label: "Ninguno" },
-                  ...usuarios.map((u) => ({
-                    value: String(u.id),
-                    label: u.label,
-                  })),
-                ]}
-              />
-              <Button
-                type="button"
-                variant="outline"
-                disabled={pending}
-                onClick={() =>
-                  run(() =>
-                    assign_ticket({
-                      ticket_id: open.id,
-                      asignado_id: asig ? Number(asig) : null,
-                      colaborador_ids: colab ? [Number(colab)] : [],
-                    }),
-                  )
-                }
-              >
-                Guardar asignación
-              </Button>
-            </div>
-            <div className="mt-4 space-y-2">
-              <Label>Respuesta</Label>
-              <Textarea
-                value={respuesta}
-                onChange={(e) => set_respuesta(e.target.value)}
-                rows={4}
-              />
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  disabled={pending}
-                  onClick={() =>
-                    run(() =>
-                      reply_ticket({
-                        ticket_id: open.id,
-                        estado: "cerrado",
-                        respuesta,
-                      }),
-                    )
-                  }
-                >
-                  Cerrar
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={pending}
-                  onClick={() =>
-                    run(() =>
-                      reply_ticket({
-                        ticket_id: open.id,
-                        estado: "no_procede",
-                        respuesta,
-                      }),
-                    )
-                  }
-                >
-                  No procede
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={pending}
-                  onClick={() =>
-                    run(() =>
-                      reply_ticket({
-                        ticket_id: open.id,
-                        estado: "en_curso",
-                        respuesta,
-                      }),
-                    )
-                  }
-                >
-                  En curso
-                </Button>
+              <div>
+                <div className="mt-4 space-y-2">
+                  <Label>Asignado</Label>
+                  <SearchSelect
+                    value={asig}
+                    onChange={set_asig}
+                    placeholder="Persona"
+                    searchPlaceholder="Buscar persona…"
+                    options={usuarios.map((u) => ({
+                      value: String(u.id),
+                      label: u.label,
+                    }))}
+                  />
+                  <Label>Colaborador</Label>
+                  <SearchSelect
+                    value={colab}
+                    onChange={set_colab}
+                    placeholder="Opcional"
+                    searchPlaceholder="Buscar persona…"
+                    options={[
+                      { value: "", label: "Ninguno" },
+                      ...usuarios.map((u) => ({
+                        value: String(u.id),
+                        label: u.label,
+                      })),
+                    ]}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={pending}
+                    onClick={() =>
+                      run(() =>
+                        assign_ticket({
+                          ticket_id: open.id,
+                          asignado_id: asig ? Number(asig) : null,
+                          colaborador_ids: colab ? [Number(colab)] : [],
+                        }),
+                      )
+                    }
+                  >
+                    Guardar asignación
+                  </Button>
+                </div>
+                <div className="mt-4 space-y-2">
+                  <Label>Respuesta</Label>
+                  <Textarea
+                    value={respuesta}
+                    onChange={(e) => set_respuesta(e.target.value)}
+                    rows={4}
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      disabled={pending}
+                      onClick={() =>
+                        run(() =>
+                          reply_ticket({
+                            ticket_id: open.id,
+                            estado: "cerrado",
+                            respuesta,
+                          }),
+                        )
+                      }
+                    >
+                      Cerrar
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={pending}
+                      onClick={() =>
+                        run(() =>
+                          reply_ticket({
+                            ticket_id: open.id,
+                            estado: "no_procede",
+                            respuesta,
+                          }),
+                        )
+                      }
+                    >
+                      No procede
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={pending}
+                      onClick={() =>
+                        run(() =>
+                          reply_ticket({
+                            ticket_id: open.id,
+                            estado: "en_curso",
+                            respuesta,
+                          }),
+                        )
+                      }
+                    >
+                      En curso
+                    </Button>
+                  </div>
+                </div>
+                <div className="mt-4 space-y-2">
+                  <Label>Pasar a planificación</Label>
+                  <select
+                    className="flex h-9 w-full rounded-md border px-3 text-sm"
+                    value={trim}
+                    onChange={(e) => set_trim(e.target.value as PlanTrimestre | "")}
+                  >
+                    <option value="">Sin trimestre</option>
+                    {PLAN_TRIMESTRES.map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
+                  </select>
+                  <Button
+                    type="button"
+                    className="bg-violet-600 text-white hover:bg-violet-500"
+                    disabled={pending}
+                    onClick={() =>
+                      run(() =>
+                        promote_ticket({
+                          ticket_id: open.id,
+                          trimestre: trim || null,
+                        }),
+                      )
+                    }
+                  >
+                    Promover a Prisma
+                  </Button>
+                </div>
               </div>
-            </div>
-            <div className="mt-4 space-y-2">
-              <Label>Pasar a planificación</Label>
-              <select
-                className="flex h-9 w-full rounded-md border px-3 text-sm"
-                value={trim}
-                onChange={(e) => set_trim(e.target.value as PlanTrimestre | "")}
-              >
-                <option value="">Sin trimestre</option>
-                {PLAN_TRIMESTRES.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </select>
-              <Button
-                type="button"
-                className="bg-violet-600 text-white hover:bg-violet-500"
-                disabled={pending}
-                onClick={() =>
-                  run(() =>
-                    promote_ticket({
-                      ticket_id: open.id,
-                      trimestre: trim || null,
-                    }),
-                  )
-                }
-              >
-                Promover a Prisma
-              </Button>
-            </div>
-            </div>
             ) : null}
             {open.eventos.length > 0 ? (
               <ul className="mt-4 space-y-1 border-t pt-3 text-xs text-slate-500">

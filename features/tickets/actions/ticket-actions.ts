@@ -177,32 +177,6 @@ async function ensure_modulo(
   return { ok: true, id };
 }
 
-async function default_asignado(
-  supabase: Awaited<ReturnType<typeof createAdminClient>>,
-  modulo_id: number,
-  app_id: number,
-): Promise<number | null> {
-  const { data: parts } = await supabase
-    .from("ted_plan_modulo_participantes" as never)
-    .select("usuario_id")
-    .eq("modulo_id", modulo_id)
-    .limit(1);
-  const first = ((parts ?? []) as Array<{ usuario_id: number }>)[0];
-  if (first) return first.usuario_id;
-  const { data: links } = await supabase
-    .from("ted_plan_modulo_apps" as never)
-    .select("modulo_id")
-    .eq("app_id", app_id);
-  const ids = ((links ?? []) as Array<{ modulo_id: number }>).map((row) => row.modulo_id);
-  if (ids.length === 0) return null;
-  const { data: more } = await supabase
-    .from("ted_plan_modulo_participantes" as never)
-    .select("usuario_id")
-    .in("modulo_id", ids)
-    .limit(1);
-  return ((more ?? []) as Array<{ usuario_id: number }>)[0]?.usuario_id ?? null;
-}
-
 export async function create_ticket(raw: unknown) {
   const parsed = ticket_create_schema.safeParse(raw);
   if (!parsed.success) {
@@ -219,9 +193,6 @@ export async function create_ticket(raw: unknown) {
       : user_id;
   const modulo = await ensure_modulo(supabase, input.app_id, input.modulo_id, user_id);
   if (!modulo.ok) return modulo;
-  const asignado_id =
-    input.asignado_id ??
-    (await default_asignado(supabase, modulo.id, input.app_id));
 
   const { data: ticket, error: t_err } = await supabase
     .from("ted_plan_tickets" as never)
@@ -229,10 +200,11 @@ export async function create_ticket(raw: unknown) {
       titulo: input.titulo,
       descripcion: input.descripcion,
       solicitado_por,
+      created_by: user_id,
       app_id: input.app_id,
       modulo_id: modulo.id,
       prioridad: input.prioridad,
-      asignado_id,
+      asignado_id: null,
       estado: "abierto",
     } as never)
     .select("id")
@@ -265,7 +237,7 @@ export async function create_ticket(raw: unknown) {
       entregable_tipo: "ninguno",
       ticket_id,
       created_by: user_id,
-      asignado_id,
+      asignado_id: null,
       orden,
       en_planificacion: false,
     } as never)
@@ -281,12 +253,6 @@ export async function create_ticket(raw: unknown) {
     .update({ tarea_id } as never)
     .eq("id", ticket_id);
 
-  const extra = input.colaborador_ids.filter((id) => id !== asignado_id);
-  if (extra.length > 0) {
-    await supabase.from("ted_plan_ticket_colaboradores" as never).insert(
-      extra.map((usuario_id) => ({ ticket_id, usuario_id })) as never,
-    );
-  }
   await add_evento(
     supabase,
     ticket_id,

@@ -41,6 +41,8 @@ export type TicketRow = {
   modulo_nombre: string;
   solicitado_por: number | null;
   solicitante: string;
+  created_by: number | null;
+  registrado_por: string | null;
   asignado_id: number | null;
   asignado: string | null;
   colaborador_ids: number[];

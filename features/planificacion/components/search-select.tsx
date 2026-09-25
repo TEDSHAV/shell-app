@@ -15,12 +15,14 @@ export function SearchSelect({
   value,
   onChange,
   placeholder = "Buscar…",
+  searchPlaceholder = "Buscar…",
   disabled = false,
 }: {
   options: SearchSelectOption[];
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  searchPlaceholder?: string;
   disabled?: boolean;
 }) {
   const [open, set_open] = useState(false);
@@ -91,7 +93,7 @@ export function SearchSelect({
               type="text"
               value={query}
               onChange={(event) => set_query(event.target.value)}
-              placeholder="Buscar módulo…"
+              placeholder={searchPlaceholder}
               className="h-8 w-full rounded-md border border-gray-200 pl-8 pr-2 text-xs focus:border-blue-500 focus:outline-none"
             />
           </div>

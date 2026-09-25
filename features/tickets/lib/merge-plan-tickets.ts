@@ -44,6 +44,8 @@ export function merge_ticket_inbox(
       modulo_nombre: item.modulo_nombre,
       solicitado_por: null,
       solicitante: "Plan",
+      created_by: null,
+      registrado_por: null,
       asignado_id: people[0]?.usuario_id ?? item.tarea.asignado_id,
       asignado: people.map((person) => given_name(person.nombre)).join(", ") || null,
       colaborador_ids: [],
