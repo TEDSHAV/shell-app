@@ -11,7 +11,10 @@ import {
 } from "@/actions/requisiciones";
 import RequisicionesTable from "./components/RequisicionesTable";
 import { FilePlus2 } from "lucide-react";
-import { isPendingForCurrentApprover } from "@/lib/requisiciones-gerencia";
+import {
+  isPendingForCurrentApprover,
+  type ApproverRecordFlags,
+} from "@/lib/requisiciones-gerencia";
 
 export const metadata = {
   title: "Mis Requisiciones | PRISMA",
@@ -37,8 +40,12 @@ export default async function RequisicionesPage() {
     }
   });
 
-  const pendingApprovalCount = (records || []).filter((r: any) =>
-    isPendingForCurrentApprover(r, liderDepts, coordinadorDepts),
+  const pendingApprovalCount = (records || []).filter((r) =>
+    isPendingForCurrentApprover(
+      r as unknown as ApproverRecordFlags,
+      liderDepts,
+      coordinadorDepts,
+    ),
   ).length;
 
   return (
@@ -69,6 +76,23 @@ export default async function RequisicionesPage() {
           </Button>
         </Link>
       </div>
+
+      {isAdminView && (
+        <div className="flex items-center gap-2 border-b border-gray-200 mb-6">
+          <Link
+            href="/requisiciones"
+            className="px-4 py-2.5 text-sm font-semibold border-b-2 border-blue-600 text-blue-600 -mb-px"
+          >
+            Mis Requisiciones
+          </Link>
+          <Link
+            href="/requisiciones/gestion"
+            className="px-4 py-2.5 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300 border-b-2 border-transparent -mb-px transition-colors"
+          >
+            Gestión de Requisiciones
+          </Link>
+        </div>
+      )}
 
       <RequisicionesTable
         records={records || []}

@@ -63,6 +63,7 @@ export const tarea_schema = z.object({
   modulo_id: z.number().int().positive().optional(),
   modulo_nombre_nuevo: z.string().trim().max(160).optional().nullable(),
   titulo: z.string().trim().min(1, "El título es obligatorio").max(240),
+  descripcion: z.string().trim().max(8000).optional().nullable(),
   origen: z.enum(PLAN_ORIGENES),
   avance: z.number().int().min(0).max(100),
   no_solicitada: z.boolean().default(false),

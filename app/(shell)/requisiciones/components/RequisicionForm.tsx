@@ -13,6 +13,8 @@ import {
   getFacilitatorsForDropdown,
 } from "@/actions/requisiciones";
 import { mapGerenciaSolicitante } from "@/lib/requisiciones-gerencia";
+import { apply_item_money_updates } from "@/lib/requisiciones-totals";
+import { RequisicionTotalPriceInput, RequisicionUnitPriceInput } from "./RequisicionItemMoneyInputs";
 import { Input } from "@/components/ui/input";
 import { NumberInput } from "@/components/ui/number-input";
 import { Label } from "@/components/ui/label";
@@ -39,6 +41,8 @@ export default function RequisicionForm({
   banks = [],
   osiSessions = [],
   isLider = false,
+  allowedDepts = [],
+  lockDepartment = true,
 }: {
   osis?: OSIFullData[],
   facilitators?: any[],
@@ -51,6 +55,8 @@ export default function RequisicionForm({
   banks?: { id: number; nombre: string }[],
   osiSessions?: { id: number; id_osi: number; nro_sesion: number; fecha: string | null; hora_inicio: string | null; hora_fin: string | null }[],
   isLider?: boolean,
+  allowedDepts?: { nombre: string; gerencia: string }[],
+  lockDepartment?: boolean,
 }) {
   return (
     <Suspense fallback={<div>Cargando formulario...</div>}>
@@ -66,6 +72,8 @@ export default function RequisicionForm({
         banks={banks}
         osiSessions={osiSessions}
         isLider={isLider}
+        allowedDepts={allowedDepts}
+        lockDepartment={lockDepartment}
       />
     </Suspense>
   );
@@ -83,6 +91,8 @@ function RequisicionFormContent({
   banks,
   osiSessions,
   isLider,
+  allowedDepts = [],
+  lockDepartment = true,
 }: {
   initialOsis: OSIFullData[],
   initialFacilitators: any[],
@@ -95,6 +105,8 @@ function RequisicionFormContent({
   banks: { id: number; nombre: string }[],
   osiSessions: { id: number; id_osi: number; nro_sesion: number; fecha: string | null; hora_inicio: string | null; hora_fin: string | null }[],
   isLider: boolean,
+  allowedDepts?: { nombre: string; gerencia: string }[],
+  lockDepartment?: boolean,
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -509,12 +521,8 @@ function RequisicionFormContent({
     setFormData((prev) => ({
       ...prev,
       additional_items: prev.additional_items.map((item) => {
-        if (item.id === id) {
-          const updatedItem = { ...item, ...updates };
-          updatedItem.total = updatedItem.cant * updatedItem.costo_unitario;
-          return updatedItem;
-        }
-        return item;
+        if (item.id !== id) return item;
+        return apply_item_money_updates(item, updates);
       }),
     }));
   };
@@ -726,11 +734,36 @@ function RequisicionFormContent({
               <span className="font-bold text-sm">Departamento:</span>
             </div>
             <div className="col-span-3 p-3">
-              <Input
-                value={formData.departamento}
-                readOnly
-                className="h-8 border-none focus-visible:ring-0 px-0 text-sm font-medium uppercase bg-gray-50/50 cursor-not-allowed"
-              />
+              {lockDepartment || editRecord || allowedDepts.length <= 1 ? (
+                <Input
+                  value={formData.departamento}
+                  readOnly
+                  className="h-8 border-none focus-visible:ring-0 px-0 text-sm font-medium uppercase bg-gray-50/50 cursor-not-allowed"
+                />
+              ) : (
+                <Select
+                  value={formData.departamento}
+                  onValueChange={(nombre: string) => {
+                    const hit = allowedDepts.find((row) => row.nombre === nombre);
+                    setFormData((p) => ({
+                      ...p,
+                      departamento: nombre,
+                      gerencia_solicitante: hit?.gerencia || p.gerencia_solicitante,
+                    }));
+                  }}
+                >
+                  <SelectTrigger className="h-8 border-none focus:ring-0 px-0 text-sm font-medium uppercase">
+                    <SelectValue placeholder="Departamento" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {allowedDepts.map((row) => (
+                      <SelectItem key={row.nombre} value={row.nombre}>
+                        {row.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
           </div>
 
@@ -786,7 +819,10 @@ function RequisicionFormContent({
                 <th className="p-2 border-r border-gray-300 w-20">CANT</th>
                 <th className="p-2 border-r border-gray-300">DESCRIPCIÓN</th>
                 {!isGeneralMode && (
-                  <th className="p-2 border-r border-gray-300 w-32">PRECIO U.</th>
+                  <th className="p-2 border-r border-gray-300 w-28">
+                    P. UNIT.
+                    <div className="font-normal text-[9px] text-gray-500 normal-case leading-tight">por unidad</div>
+                  </th>
                 )}
                 {formData.selectedOSIs.length > 1 && (
                   <th className="p-2 border-r border-gray-300 w-32">OSI</th>
@@ -794,7 +830,10 @@ function RequisicionFormContent({
                 {isGeneralMode ? (
                   <th className="p-2 w-24">VERIF.</th>
                 ) : (
-                  <th className="p-2 w-32">TOTAL</th>
+                  <th className="p-2 w-28">
+                    TOTAL
+                    <div className="font-normal text-[9px] text-gray-500 normal-case leading-tight">cant. × unit.</div>
+                  </th>
                 )}
                 <th className="p-2 w-10"></th>
               </tr>
@@ -1013,19 +1052,11 @@ function RequisicionFormContent({
                       />
                     </td>
                     {!isGeneralMode && (
-                      <td className="p-2 border-r border-gray-300">
-                        <div className="flex items-center gap-1">
-                          <span>$</span>
-                          <NumberInput
-                            value={item.costo_unitario}
-                            onValueChange={(n) => updateAdditionalItem(item.id, { costo_unitario: n })}
-                            allowDecimal
-                            min={0}
-                            step={0.01}
-                            className="h-6 w-full border-gray-300 p-1 font-bold text-center"
-                          />
-                        </div>
-                      </td>
+                      <RequisicionUnitPriceInput
+                        value={item.costo_unitario}
+                        onChange={(n) => updateAdditionalItem(item.id, { costo_unitario: n })}
+                        inputClassName="h-6 w-full border-gray-300 p-1 font-bold text-center"
+                      />
                     )}
                     {formData.selectedOSIs.length > 1 && (
                       <td className="p-2 border-r border-gray-300">
@@ -1055,9 +1086,11 @@ function RequisicionFormContent({
                         </span>
                       </td>
                     ) : (
-                      <td className="p-2 text-center font-bold">
-                        ${item.total.toFixed(2)}
-                      </td>
+                      <RequisicionTotalPriceInput
+                        value={item.total}
+                        onChange={(n) => updateAdditionalItem(item.id, { total: n })}
+                        inputClassName="h-6 w-full border-gray-300 p-1 font-bold text-center"
+                      />
                     )}
                     <td className="p-2 border-l border-gray-300 text-center">
                       <Button
@@ -1109,19 +1142,11 @@ function RequisicionFormContent({
                       />
                     </td>
                     {!isGeneralMode && (
-                      <td className="p-2 border-r border-gray-300">
-                        <div className="flex items-center gap-1">
-                          <span>$</span>
-                          <NumberInput
-                            value={item.costo_unitario}
-                            onValueChange={(n) => updateAdditionalItem(item.id, { costo_unitario: n })}
-                            allowDecimal
-                            min={0}
-                            step={0.01}
-                            className="h-6 w-full border-gray-300 p-1 font-bold text-center"
-                          />
-                        </div>
-                      </td>
+                      <RequisicionUnitPriceInput
+                        value={item.costo_unitario}
+                        onChange={(n) => updateAdditionalItem(item.id, { costo_unitario: n })}
+                        inputClassName="h-6 w-full border-gray-300 p-1 font-bold text-center"
+                      />
                     )}
                     {formData.selectedOSIs.length > 1 && (
                       <td className="p-2 border-r border-gray-300">
@@ -1151,9 +1176,11 @@ function RequisicionFormContent({
                         </span>
                       </td>
                     ) : (
-                      <td className="p-2 text-center font-bold">
-                        ${item.total.toFixed(2)}
-                      </td>
+                      <RequisicionTotalPriceInput
+                        value={item.total}
+                        onChange={(n) => updateAdditionalItem(item.id, { total: n })}
+                        inputClassName="h-6 w-full border-gray-300 p-1 font-bold text-center"
+                      />
                     )}
                     <td className="p-2 border-l border-gray-300 text-center">
                       <Button
@@ -1204,19 +1231,11 @@ function RequisicionFormContent({
                     />
                   </td>
                   {!isGeneralMode && (
-                    <td className="p-2 border-r border-gray-300">
-                      <div className="flex items-center gap-1">
-                        <span>$</span>
-                        <NumberInput
-                          value={item.costo_unitario}
-                          onValueChange={(n) => updateAdditionalItem(item.id, { costo_unitario: n })}
-                          allowDecimal
-                          min={0}
-                          step={0.01}
-                          className="h-6 w-full border-gray-300 p-1 font-bold text-center"
-                        />
-                      </div>
-                    </td>
+                    <RequisicionUnitPriceInput
+                      value={item.costo_unitario}
+                      onChange={(n) => updateAdditionalItem(item.id, { costo_unitario: n })}
+                      inputClassName="h-6 w-full border-gray-300 p-1 font-bold text-center"
+                    />
                   )}
                   {formData.selectedOSIs.length > 1 && (
                     <td className="p-2 border-r border-gray-300">
@@ -1246,9 +1265,11 @@ function RequisicionFormContent({
                       </span>
                     </td>
                   ) : (
-                    <td className="p-2 text-center font-bold">
-                      ${item.total.toFixed(2)}
-                    </td>
+                    <RequisicionTotalPriceInput
+                      value={item.total}
+                      onChange={(n) => updateAdditionalItem(item.id, { total: n })}
+                      inputClassName="h-6 w-full border-gray-300 p-1 font-bold text-center"
+                    />
                   )}
                   <td className="p-2 border-l border-gray-300 text-center">
                     <Button

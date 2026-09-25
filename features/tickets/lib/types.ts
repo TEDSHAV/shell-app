@@ -41,6 +41,8 @@ export type TicketRow = {
   modulo_nombre: string;
   solicitado_por: number | null;
   solicitante: string;
+  created_by: number | null;
+  registrado_por: string | null;
   asignado_id: number | null;
   asignado: string | null;
   colaborador_ids: number[];
@@ -48,6 +50,7 @@ export type TicketRow = {
   respondido_at: string | null;
   tarea_id: number | null;
   created_at: string;
+  updated_at: string | null;
   eventos: TicketEvento[];
   source?: "nativo" | "plan";
   avance?: number;

@@ -1,10 +1,10 @@
-import { isTedMember } from "@/actions/ted";
+import { canManageUsuariosPrisma } from "@/actions/ted";
 import { createAdminClient } from "@/lib/supabase/server";
 
 export async function require_ted_accesos() {
-  const allowed = await isTedMember();
+  const allowed = await canManageUsuariosPrisma();
   if (!allowed) {
-    throw new Error("Solo TED puede gestionar accesos.");
+    throw new Error("Solo TED con permiso de usuarios puede gestionar accesos.");
   }
   return createAdminClient();
 }

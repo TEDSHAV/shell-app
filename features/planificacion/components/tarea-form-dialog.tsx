@@ -57,6 +57,7 @@ export function TareaFormDialog({
   );
   const [nuevo_modulo, set_nuevo_modulo] = useState("");
   const [titulo, set_titulo] = useState(tarea?.titulo ?? "");
+  const [descripcion, set_descripcion] = useState(tarea?.descripcion ?? "");
   const [origen, set_origen] = useState(
     tarea?.origen ?? default_new_origen(),
   );
@@ -110,6 +111,7 @@ export function TareaFormDialog({
       modulo_id: selected_modulo > 0 ? selected_modulo : undefined,
       modulo_nombre_nuevo: selected_modulo > 0 ? null : nuevo_modulo,
       titulo,
+      descripcion,
       origen,
       avance: no_solicitada ? 0 : avance,
       no_solicitada,
@@ -229,6 +231,7 @@ export function TareaFormDialog({
           modulo_id={modulo_id}
           nuevo_modulo={nuevo_modulo}
           titulo={titulo}
+          descripcion={descripcion}
           origen={origen}
           avance={avance}
           no_solicitada={no_solicitada}
@@ -247,6 +250,7 @@ export function TareaFormDialog({
           on_modulo={set_modulo_id}
           on_nuevo_modulo={set_nuevo_modulo}
           on_titulo={set_titulo}
+          on_descripcion={set_descripcion}
           on_origen={set_origen}
           on_avance={set_avance}
           on_no_solicitada={set_no_solicitada}

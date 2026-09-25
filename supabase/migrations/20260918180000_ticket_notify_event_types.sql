@@ -1,7 +1,8 @@
+-- Ticket notifications: TED closes tickets; badge/inbox must use TED app_slug.
 INSERT INTO notify.event_types (app_slug, event_key, default_priority, channel_mask, title, description, trigger_kind, is_active)
 VALUES
   (
-    'sgestion',
+    'ted',
     'ticket_completado',
     2,
     '{"in_app": true}'::jsonb,
@@ -11,7 +12,7 @@ VALUES
     true
   ),
   (
-    'sgestion',
+    'ted',
     'ticket_no_procede',
     2,
     '{"in_app": true}'::jsonb,

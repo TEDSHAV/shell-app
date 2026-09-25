@@ -133,6 +133,15 @@ export const ORIGIN_LABELS: Record<PlanOrigen, string> = {
   ADICIONAL: "Adicional",
 };
 
+export const ORIGIN_BLURBS: Record<PlanOrigen, string> = {
+  PLAN: "Tareas del plan congelado al arrancar Prisma. Ya no se crean nuevas con este origen.",
+  TICKET: "Nacieron de un ticket de usuario y se pasaron al plan de trabajo.",
+  GERENCIA: "Origen legado de pedidos de gerencia. Las altas nuevas van como Requerimiento.",
+  USUARIO: "Pedido directo de un usuario, sin un ticket formal de por medio.",
+  REQUERIMIENTO: "Pedido formal o de gerencia que hay que cubrir en el trimestre.",
+  ADICIONAL: "Trabajo extra, fuera del compromiso del mes o del plan inicial.",
+};
+
 export const ORIGIN_COLORS: Record<PlanOrigen, string> = {
   PLAN: "bg-blue-600 text-white border-blue-700 shadow-sm",
   TICKET: "bg-violet-600 text-white border-violet-700 shadow-sm",

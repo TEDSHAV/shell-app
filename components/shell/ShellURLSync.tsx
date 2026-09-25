@@ -8,6 +8,25 @@ import { setActiveFramePath } from "@/lib/active-frame-path";
 
 const ADMIN_FACTURACION_PREFIX = "/requisiciones/facturacion";
 
+/** Keep iframe `/` inside the current embed app (avoid dumping to Shell home). */
+function rewrite_embed_root_href(current_path: string, href: string): string {
+  if (href !== "/") return href;
+  const embed = apps.find(
+    (app) =>
+      app.embedMode === "shell" &&
+      app.basePath !== "/" &&
+      (current_path === app.basePath ||
+        current_path.startsWith(`${app.basePath}/`)),
+  );
+  return embed?.basePath ?? href;
+}
+
+function join_app_browser_path(base_path: string, path_only: string): string {
+  if (!path_only || path_only === "/") return base_path;
+  const suffix = path_only.startsWith("/") ? path_only : `/${path_only}`;
+  return `${base_path}${suffix}`;
+}
+
 /** Remapea rutas de facturación de Negocios al embed de Administración. */
 function rewrite_admin_facturacion_href(href: string): string {
   if (href.startsWith("/negocios/facturacion")) {
@@ -34,8 +53,12 @@ export function ShellURLSync() {
         ) {
           href = rewrite_admin_facturacion_href(href);
         }
-        if (href.startsWith("/") && window.location.pathname !== href) {
-          router.push(href);
+        const next_href = rewrite_embed_root_href(
+          window.location.pathname,
+          href,
+        );
+        if (next_href.startsWith("/") && window.location.pathname !== next_href) {
+          router.push(next_href);
         }
         return;
       }
@@ -87,7 +110,7 @@ export function ShellURLSync() {
           // equality check to always fail — which creates a replaceState loop
           // when multiple cached iframes fire their URLSync messages.
           const pathOnly = String(path ?? "").split("?")[0];
-          const newBrowserPath = `${app.basePath}${pathOnly}`;
+          const newBrowserPath = join_app_browser_path(app.basePath, pathOnly);
 
           // Record the active iframe's logical current path so
           // PersistentAppFrame can detect that this URL change came

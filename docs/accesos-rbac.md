@@ -65,7 +65,10 @@ crea y cuelga los slugs en la consola. El runtime del módulo aún busca
   `isTedMember()`. `authenticated` solo tiene SELECT en catálogo;
   `user_app_roles` solo SELECT propio.
 - No se borra un rol si todavía hay asignaciones (CASCADE sería peligroso).
-- Gate v1: miembro TED. Más adelante se puede exigir `shell:accesos:manage`.
+- Gate de la consola: permiso `gestion-usuarios-prisma:access-all` (rol
+  `ted` en app TED). Planificación writable: rol `ted`. Objetivos /
+  observar periodo: permiso `objetivos-ted:access-all` (roles `ted` y
+  `gerencia`). Ya no se usa el departamento ni la allowlist de usuarios.
 
 ## UX de referencia
 

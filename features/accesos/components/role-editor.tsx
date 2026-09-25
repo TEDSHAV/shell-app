@@ -9,11 +9,21 @@ import { Label } from "@/components/ui/label";
 import { PermissionMatrix } from "./permission-matrix";
 import { PermissionFormDialog } from "./permission-form-dialog";
 import {
+  CopyFromRolePanel,
+  type CopiedRoleBundle,
+} from "./copy-from-role-panel";
+import { RolePeersSyncDialog } from "./role-peers-sync-dialog";
+import {
   slugify_kebab,
   group_permissions_by_module,
   module_label,
   permission_related_to_app,
 } from "../lib/slugs";
+import {
+  find_overlapping_roles,
+  permission_delta,
+  role_permission_ids,
+} from "../lib/role-compose";
 import { upsert_acceso_role } from "../actions/catalog-actions";
 import type {
   AccesoAction,
@@ -53,20 +63,29 @@ export function RoleEditor({
   const app_nombre = app.nombre;
   const existing_ids = useMemo(() => {
     if (!role) return [];
-    return permissions
-      .filter((p) => role.permission_slugs.includes(p.slug))
-      .map((p) => p.id);
+    return role_permission_ids(role, permissions);
   }, [role, permissions]);
+
+  const app_roles = useMemo(
+    () => roles.filter((r) => r.app_id === app_id),
+    [roles, app_id],
+  );
 
   const [step, set_step] = useState(1);
   const [nombre, set_nombre] = useState(role?.nombre ?? "");
   const [slug, set_slug] = useState(role?.slug ?? "");
   const [descripcion, set_descripcion] = useState(role?.descripcion ?? "");
   const [permission_ids, set_permission_ids] = useState<number[]>(existing_ids);
+  const [copy_bundles, set_copy_bundles] = useState<CopiedRoleBundle[]>([]);
   const [error, set_error] = useState<string | null>(null);
   const [saving, set_saving] = useState(false);
   const [slug_touched, set_slug_touched] = useState(Boolean(role));
   const [perm_open, set_perm_open] = useState(false);
+  const [peer_sync, set_peer_sync] = useState<{
+    peers: AccesoRole[];
+    added: number[];
+    removed: number[];
+  } | null>(null);
 
   const scoped_permissions = useMemo(
     () =>
@@ -86,6 +105,11 @@ export function RoleEditor({
   const selected_perms = permissions.filter((p) => permission_ids.includes(p.id));
   const review_groups = group_permissions_by_module(selected_perms);
 
+  function finish() {
+    router.push(back_href);
+    router.refresh();
+  }
+
   async function save() {
     set_saving(true);
     set_error(null);
@@ -102,8 +126,32 @@ export function RoleEditor({
       set_error(result.error);
       return;
     }
-    router.push(back_href);
-    router.refresh();
+
+    const { added, removed } = permission_delta(existing_ids, permission_ids);
+    // Compose via “Añadir desde otro rol” is a paste, not a propagate case.
+    if (
+      !role ||
+      copy_bundles.length > 0 ||
+      (added.length === 0 && removed.length === 0)
+    ) {
+      finish();
+      return;
+    }
+
+    const peers = find_overlapping_roles({
+      app_id,
+      exclude_role_id: role.id,
+      roles,
+      permissions,
+      before_ids: existing_ids,
+    });
+
+    if (peers.length === 0) {
+      finish();
+      return;
+    }
+
+    set_peer_sync({ peers, added, removed });
   }
 
   return (
@@ -231,12 +279,22 @@ export function RoleEditor({
           <div className="flex flex-wrap items-start justify-between gap-3">
             <p className="max-w-2xl text-sm text-slate-600">
               Solo aparecen permisos de {app_nombre} (módulos de esta app o
-              ya usados por sus roles). Marca lo que puede hacer este rol.
+              ya usados por sus roles). Marca lo que puede hacer este rol, o
+              copia el paquete de otro rol de la app.
             </p>
             <Button type="button" variant="outline" onClick={() => set_perm_open(true)}>
               Nuevo permiso
             </Button>
           </div>
+          <CopyFromRolePanel
+            app_roles={app_roles}
+            exclude_role_id={role?.id ?? null}
+            permissions={permissions}
+            selected_ids={permission_ids}
+            onChange={set_permission_ids}
+            bundles={copy_bundles}
+            onBundlesChange={set_copy_bundles}
+          />
           {scoped_permissions.length === 0 ? (
             <p className="rounded-xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">
               Esta app aún no tiene permisos relacionados. Crea el primero
@@ -255,6 +313,8 @@ export function RoleEditor({
             apps={apps}
             modules={modules}
             actions={actions}
+            permissions={permissions}
+            roles={roles}
             locked_app={app}
             onSaved={(created) => {
               set_permission_ids((ids) =>
@@ -330,6 +390,15 @@ export function RoleEditor({
           </Button>
         )}
       </div>
+
+      <RolePeersSyncDialog
+        open={peer_sync != null}
+        peers={peer_sync?.peers ?? []}
+        permissions={permissions}
+        added_ids={peer_sync?.added ?? []}
+        removed_ids={peer_sync?.removed ?? []}
+        onDone={finish}
+      />
     </div>
   );
 }

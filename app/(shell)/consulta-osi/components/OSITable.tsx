@@ -402,6 +402,9 @@ export default function OSITable({
             <th className="px-2 py-2 text-center text-[11px] font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
               Part.
             </th>
+            <th className="px-2 py-2 text-center text-[11px] font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
+              Ses.
+            </th>
             <th className="px-2 py-2 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
               Estado
             </th>
@@ -506,6 +509,11 @@ export default function OSITable({
                   {osi.participantes ?? "-"}
                 </span>
               </td>
+              <td className="px-2 py-2 text-center">
+                <span className="text-sm text-gray-700">
+                  {osi.total_sesiones ?? osi.sesiones_ejecucion ?? "-"}
+                </span>
+              </td>
               <td className="px-2 py-2">
                 {canChangeStatus && osi.id_osi ? (
                   <div className="relative inline-block">
@@ -598,7 +606,7 @@ export default function OSITable({
                       disabled={hideLoadingId === osi.id_osi}
                       className={`inline-flex items-center justify-center rounded-md border p-1.5 transition-colors disabled:opacity-50 ${
                         isHidden
-                          ? "border-amber-300 text-amber-700 hover:bg-amber-50"
+                           ? "border-amber-300 text-amber-700 hover:bg-amber-50"
                           : "border-red-200 text-red-700 hover:bg-red-50"
                       }`}
                       title={isHidden ? "Mostrar para cliente" : "Ocultar para cliente"}
@@ -639,7 +647,7 @@ export default function OSITable({
             {isExpanded && osi.id_osi && (
               sessionsLoading === osi.id_osi ? (
                 <tr className="bg-gray-50/50">
-                  <td colSpan={11} className="px-2 py-2">
+                  <td colSpan={12} className="px-2 py-2">
                     <div className="flex items-center gap-2 text-xs text-gray-500 pl-10">
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       Cargando sesiones...
@@ -648,7 +656,7 @@ export default function OSITable({
                 </tr>
               ) : (sessionsByOSI[osi.id_osi] || []).length === 0 ? (
                 <tr className="bg-gray-50/50">
-                  <td colSpan={11} className="px-2 py-2">
+                  <td colSpan={12} className="px-2 py-2">
                     <p className="text-xs text-gray-500 italic pl-10">Esta OSI no tiene sesiones registradas.</p>
                   </td>
                 </tr>
@@ -665,6 +673,7 @@ export default function OSITable({
                     <td className="px-2 py-1.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Fecha planificada</td>
                     <td className="px-2 py-1.5"></td>
                     <td className="px-2 py-1.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Fecha ejecutada</td>
+                    <td className="px-2 py-1.5"></td>
                     <td className="px-2 py-1.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Estado</td>
                     <td className="px-2 py-1.5"></td>
                   </tr>
@@ -697,6 +706,7 @@ export default function OSITable({
                           )}
                         </div>
                       </td>
+                      <td className="px-2 py-1.5"></td>
                       <td className="px-2 py-1.5">
                         {canChangeStatus && onSessionStatusChange ? (
                           <div className="relative inline-block">
@@ -760,7 +770,7 @@ export default function OSITable({
                   ))}
                   {allFinalBanner[osi.id_osi] && (
                     <tr className="bg-gray-50/50">
-                      <td colSpan={11} className="px-2 py-2">
+                      <td colSpan={12} className="px-2 py-2">
                         <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-300 rounded text-xs text-amber-800">
                           <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
                           <span>Todas las sesiones están en estado final.</span>

@@ -1,12 +1,14 @@
 "use client";
 
 import { useRef } from "react";
-import { ORIGIN_LABELS, STATUS_COLORS } from "../lib/display";
+import { STATUS_COLORS } from "../lib/display";
 import { PLAN_ORIGENES, PLAN_TRIMESTRES } from "../schemas";
 import type { PlanOrigen, PlanSalud, PlanTrimestre } from "../lib/types";
 import type { PlanQuery, PlanSortKey } from "../lib/plan-filters";
 import type { PlanUsuarioOption } from "../lib/types";
+import { TedOriginPicker } from "./ted-origin-picker";
 import { TedPersonPicker } from "./ted-person-picker";
+import { FilterExpand } from "./filter-expand";
 import { Search, SlidersHorizontal } from "lucide-react";
 import { useState } from "react";
 
@@ -29,12 +31,14 @@ export function PlanToolbar({
   query,
   years,
   counts,
+  origin_counts,
   usuarios,
   on_change,
 }: {
   query: PlanQuery;
   years: number[];
   counts: Record<string, number>;
+  origin_counts?: Map<PlanOrigen | "Todos", number>;
   usuarios: PlanUsuarioOption[];
   on_change: (next: Partial<PlanQuery>) => void;
 }) {
@@ -52,7 +56,7 @@ export function PlanToolbar({
               key={item}
               type="button"
               onClick={() => on_change({ salud: item })}
-              className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+              className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-all duration-300 ease-out ${
                 active
                   ? item === "Todos"
                     ? "bg-violet-600 text-white"
@@ -83,7 +87,7 @@ export function PlanToolbar({
         <button
           type="button"
           onClick={() => set_more((value) => !value)}
-          className={`inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-xs font-semibold ring-1 ${
+          className={`inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-xs font-semibold ring-1 transition-all duration-300 ease-out ${
             more
               ? "bg-slate-900 text-white ring-slate-900"
               : "bg-white text-slate-500 ring-slate-200"
@@ -93,7 +97,7 @@ export function PlanToolbar({
           Filtros
         </button>
       </div>
-      {more ? (
+      <FilterExpand open={more}>
         <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-white px-3 py-2 ring-1 ring-slate-200">
           <select
             value={query.anio}
@@ -103,20 +107,6 @@ export function PlanToolbar({
             {years.map((year) => (
               <option key={year} value={year}>
                 {year}
-              </option>
-            ))}
-          </select>
-          <select
-            value={query.origen}
-            onChange={(event) =>
-              on_change({ origen: event.target.value as PlanOrigen | "Todos" })
-            }
-            className="h-8 rounded-lg border-0 bg-slate-50 px-2 text-sm text-slate-700"
-          >
-            <option value="Todos">Origen</option>
-            {PLAN_ORIGENES.map((origen) => (
-              <option key={origen} value={origen}>
-                {ORIGIN_LABELS[origen]}
               </option>
             ))}
           </select>
@@ -151,6 +141,20 @@ export function PlanToolbar({
           </select>
           <div className="w-full">
             <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+              Origen
+            </p>
+            <TedOriginPicker
+              origins={PLAN_ORIGENES.filter(
+                (item) =>
+                  item !== "GERENCIA" || (origin_counts?.get(item) ?? 0) > 0,
+              )}
+              counts={origin_counts}
+              value={query.origen}
+              on_change={(next) => on_change({ origen: next })}
+            />
+          </div>
+          <div className="w-full">
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
               Responsable TED
             </p>
             <TedPersonPicker
@@ -180,7 +184,8 @@ export function PlanToolbar({
             ) : null}
           </div>
         </div>
-      ) : query.asignado !== "Todos" ? (
+      </FilterExpand>
+      {!more && query.asignado !== "Todos" ? (
         <button
           type="button"
           className="text-xs font-semibold text-violet-700"

@@ -58,12 +58,14 @@ export type PlanTarea = {
   id: number;
   modulo_id: number;
   titulo: string;
+  descripcion: string | null;
   origen: PlanOrigen;
   avance: number;
   no_solicitada: boolean;
   completada: boolean;
   completada_at: string | null;
   created_at: string | null;
+  updated_at: string | null;
   entregable_tipo: EntregableTipo;
   entregable_ruta: string | null;
   entregable_unidad: string | null;

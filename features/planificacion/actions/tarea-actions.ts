@@ -106,6 +106,7 @@ export async function save_plan_tarea(
   const payload = {
     modulo_id,
     titulo: input.titulo,
+    descripcion: (input.descripcion ?? "").trim() || null,
     origen: input.origen,
     avance,
     no_solicitada,

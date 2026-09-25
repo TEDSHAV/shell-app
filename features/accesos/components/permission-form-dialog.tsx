@@ -8,19 +8,20 @@ import { AccesosModal } from "./accesos-modal";
 import { AppGlyph } from "./catalog-glyphs";
 import { ModuleGlyph } from "./module-glyph";
 import { PermissionActionPicker } from "./permission-action-picker";
+import { PermissionResourcePicker } from "./permission-resource-picker";
 import { create_acceso_permission } from "../actions/catalog-actions";
 import { build_permission_slug, CROSS_APP_MODULES, slugify_kebab } from "../lib/slugs";
 import type {
   AccesoAction,
   AccesoApp,
   AccesoModule,
+  AccesoPermission,
+  AccesoRole,
 } from "../lib/types";
 
 const FIELD_HELP = {
   modulo:
     "Área funcional de la app (Finanzas, Ventas). Agrupa permisos que se usan juntos.",
-  recurso:
-    "Opcional. El objeto concreto (ecc, facturas). Si el módulo es pequeño, déjalo vacío: el permiso aplica a todo el módulo.",
   descripcion:
     "Texto para personas. Explica el efecto, no copies el slug.",
 } as const;
@@ -32,6 +33,8 @@ export function PermissionFormDialog({
   apps,
   modules,
   actions,
+  permissions,
+  roles,
   locked_app,
 }: {
   open: boolean;
@@ -40,6 +43,8 @@ export function PermissionFormDialog({
   apps: AccesoApp[];
   modules: AccesoModule[];
   actions: AccesoAction[];
+  permissions: AccesoPermission[];
+  roles: AccesoRole[];
   locked_app?: AccesoApp | null;
 }) {
   const start_step = locked_app ? 2 : 1;
@@ -54,7 +59,7 @@ export function PermissionFormDialog({
   const [creating_action, set_creating_action] = useState(false);
   const [action_nombre, set_action_nombre] = useState("");
   const [action_descripcion, set_action_descripcion] = useState("");
-  const [save_action, set_save_action] = useState(true);
+  const [save_action, set_save_action] = useState(false);
   const [descripcion, set_descripcion] = useState("");
   const [error, set_error] = useState<string | null>(null);
   const [saving, set_saving] = useState(false);
@@ -72,7 +77,7 @@ export function PermissionFormDialog({
     set_creating_action(false);
     set_action_nombre("");
     set_action_descripcion("");
-    set_save_action(true);
+    set_save_action(false);
     set_descripcion("");
     set_error(null);
   }, [open, locked_app]);
@@ -318,16 +323,14 @@ export function PermissionFormDialog({
 
       {step === 3 ? (
         <div className="space-y-4">
-          <div>
-            <Label htmlFor="perm-rec">Recurso (opcional)</Label>
-            <p className="mb-1 text-xs text-slate-500">{FIELD_HELP.recurso}</p>
-            <Input
-              id="perm-rec"
-              value={recurso}
-              onChange={(e) => set_recurso(slugify_kebab(e.target.value))}
-              placeholder="ecc — o vacío si cubre todo el módulo"
-            />
-          </div>
+          <PermissionResourcePicker
+            modulo={modulo}
+            recurso={recurso}
+            permissions={permissions}
+            roles={roles}
+            apps={apps}
+            onChange={set_recurso}
+          />
           <PermissionActionPicker
             actions={actions}
             accion={accion}
@@ -345,7 +348,7 @@ export function PermissionFormDialog({
               set_accion("");
               set_action_nombre("");
               set_action_descripcion("");
-              set_save_action(true);
+              set_save_action(false);
             }}
             onNombre={(value) => {
               set_action_nombre(value);

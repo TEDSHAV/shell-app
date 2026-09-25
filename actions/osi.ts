@@ -2,7 +2,8 @@
 
 import { cache } from "react";
 import { unstable_cache } from "next/cache";
-import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { createAdminClient, createClient, peek_dev_db_target } from "@/lib/supabase/server";
+import type { DevDbTarget } from "@/lib/supabase/dev-db";
 import { notifySessionStatusChange } from "@/actions/osi-session-notifications";
 import {
   getUserRole,
@@ -27,6 +28,98 @@ import type {
   SessionExecutionPayload,
 } from "@/types/osi";
 
+// --- Server-side memory cache for default page 1 OSI list ---
+interface OsiListCacheEntry {
+  result: OSIListResult;
+  timestamp: number;
+}
+const osiListServerCache = new Map<string, OsiListCacheEntry>();
+const OSI_LIST_SERVER_CACHE_TTL = 30_000; // 30 seconds
+
+export async function clearOsiListServerCache() {
+  osiListServerCache.clear();
+}
+
+// --- Caches for OSI Preview ---
+let catalogoServiciosCache: { data: Record<number, string>; timestamp: number } | null = null;
+const CATALOGO_SERVICIOS_TTL = 300_000; // 5 minutes
+
+async function getCachedServicioNombreById(supabase: any): Promise<Record<number, string>> {
+  const now = Date.now();
+  if (catalogoServiciosCache && now - catalogoServiciosCache.timestamp < CATALOGO_SERVICIOS_TTL) {
+    return catalogoServiciosCache.data;
+  }
+  const { data: servicios_rows } = await supabase
+    .from("catalogo_servicios")
+    .select("id, nombre")
+    .limit(500);
+
+  const map: Record<number, string> = {};
+  for (const row of servicios_rows ?? []) {
+    const id = Number((row as { id?: number }).id ?? 0);
+    const nombre = String((row as { nombre?: string }).nombre ?? "").trim();
+    if (id > 0 && nombre) {
+      map[id] = nombre;
+    }
+  }
+  catalogoServiciosCache = { data: map, timestamp: now };
+  return map;
+}
+
+let visibilityConfigCache: {
+  data: Map<string, ReturnType<typeof parse_osi_cost_visibility_row>>;
+  timestamp: number;
+} | null = null;
+const VISIBILITY_CONFIG_TTL = 300_000; // 5 minutes
+
+async function getCachedVisibilityByFormato(supabase: any) {
+  const now = Date.now();
+  if (visibilityConfigCache && now - visibilityConfigCache.timestamp < VISIBILITY_CONFIG_TTL) {
+    return visibilityConfigCache.data;
+  }
+  const { data: visibility_rows } = await supabase
+    .from("osi_cost_visibility_config")
+    .select("*");
+
+  const map = new Map<string, ReturnType<typeof parse_osi_cost_visibility_row>>();
+  for (const row of visibility_rows ?? []) {
+    const parsed = parse_osi_cost_visibility_row(row as Record<string, unknown>);
+    if (parsed) map.set(parsed.formato, parsed);
+  }
+  visibilityConfigCache = { data: map, timestamp: now };
+  return map;
+}
+
+async function getPreviewUserContext(supabase: any) {
+  const [userRes, appRoles, permsByApp] = await Promise.all([
+    supabase.auth.getUser(),
+    getUserRolesByApp(),
+    getUserPermissionsByApp(),
+  ]);
+
+  let departamento_id: number | null = null;
+  const user = userRes?.data?.user;
+  if (user) {
+    const { data: usuario } = await supabase
+      .from("usuarios")
+      .select("departamento")
+      .eq("id_auth", user.id)
+      .maybeSingle();
+    departamento_id =
+      typeof usuario?.departamento === "number" ? usuario.departamento : null;
+  }
+
+  const role_slugs = Object.values(appRoles || {}).filter(Boolean) as string[];
+  const permission_slugs = Object.values(permsByApp || {}).flat() as string[];
+
+  return {
+    appRoles: appRoles || {},
+    role_slugs,
+    departamento_id,
+    permission_slugs,
+  };
+}
+
 export async function getOSIList(
   filters: OSIListFilters = {},
   page = 1,
@@ -35,6 +128,27 @@ export async function getOSIList(
   try {
     const accessFilter = await getUserOSIAccessFilter();
     if (accessFilter === "none") return { osis: [], totalCount: 0 };
+
+    const isDefaultQuery =
+      page === 1 &&
+      limit === 20 &&
+      !filters.nroOsi &&
+      !filters.companyName &&
+      !filters.ciudad &&
+      !filters.ejecutivo &&
+      !filters.dateFrom &&
+      !filters.dateTo &&
+      !filters.status &&
+      !filters.attachmentReceived &&
+      !filters.tipoServicio;
+
+    const serverCacheKey = `${accessFilter}`;
+    if (isDefaultQuery) {
+      const cached = osiListServerCache.get(serverCacheKey);
+      if (cached && Date.now() - cached.timestamp < OSI_LIST_SERVER_CACHE_TTL) {
+        return cached.result;
+      }
+    }
 
     const supabase = await createClient();
 
@@ -142,8 +256,10 @@ export async function getOSIList(
       .map((osi: any) => osi.id_osi)
       .filter((id: number | null) => id !== null) as number[];
 
+    const adminClientPromise = pageOsiIds.length > 0 ? createAdminClient() : null;
+
     const [statuses, cityResult, visibleOsiIds, sesionesProgramadasResult, attachmentResult] = await Promise.all([
-      getOSIStatuses(),
+      getOSIStatuses(await peek_dev_db_target()),
       uniqueCityIds.length > 0
         ? supabase
             .from("cat_ciudades")
@@ -151,26 +267,20 @@ export async function getOSIList(
             .in("id", uniqueCityIds)
         : Promise.resolve({ data: null }),
       getVisibleOsiIdsForList(pageOsiIds),
-      // sesiones_programadas is the authoritative JSONB array of scheduled
-      // sessions on ejecucion_osi (populated at creation, kept in sync by the
-      // trg_osi_sesion_after_change trigger). sesiones_ejecucion (numeric) and
-      // osi_sesion rows can both diverge from it, so we count this array's
-      // length to drive the expandable check in OSITable. Primary-key lookup
-      // for ~20 ids, runs in parallel — no extra round-trip on the critical path.
       pageOsiIds.length > 0
         ? supabase
             .from("ejecucion_osi")
             .select("id, sesiones_programadas")
             .in("id", pageOsiIds)
         : Promise.resolve({ data: null }),
-      // Fetch attachment-received flags from active facilitador assignments.
-      // Uses admin client to avoid RLS on the assignments table.
-      pageOsiIds.length > 0
-        ? (await createAdminClient())
-            .from("facilitador_osi_assignments")
-            .select("osi_id, attachment_received, attachment_received_at, attachment_received_by")
-            .in("osi_id", pageOsiIds)
-            .eq("is_active", true)
+      adminClientPromise
+        ? adminClientPromise.then((admin) =>
+            admin
+              .from("facilitador_osi_assignments")
+              .select("osi_id, attachment_received, attachment_received_at, attachment_received_by")
+              .in("osi_id", pageOsiIds)
+              .eq("is_active", true)
+          )
         : Promise.resolve({ data: null }),
     ]);
 
@@ -222,10 +332,19 @@ export async function getOSIList(
       };
     });
 
-    return {
+    const finalResult: OSIListResult = {
       osis: enrichedOSIs,
       totalCount: count || 0,
     };
+
+    if (isDefaultQuery) {
+      osiListServerCache.set(serverCacheKey, {
+        result: finalResult,
+        timestamp: Date.now(),
+      });
+    }
+
+    return finalResult;
   } catch (err) {
     console.error("Unexpected error in getOSIList:", err);
     return { osis: [], totalCount: 0 };
@@ -236,12 +355,12 @@ export async function getOSIList(
 // different departments get different filter options. Revalidated every 5
 // minutes via the "osi-filters" tag.
 const getOSIListFilterOptionsCached = unstable_cache(
-  async (accessFilter: OSIAccessFilter): Promise<OSIListFilterOptions> => {
+  async (accessFilter: OSIAccessFilter, target: DevDbTarget): Promise<OSIListFilterOptions> => {
     if (accessFilter === "none") {
       return { companies: [], ejecutivos: [], cityOptions: [], statuses: [], accessFilter };
     }
 
-    const supabase = await createAdminClient();
+    const supabase = await createAdminClient(target);
 
     const tipoServicioOr = accessFilter === "servicios_tecnicos"
       ? "tipo_servicio.ilike.%servicios tecnicos%,tipo_servicio.ilike.%servicio tecnico%"
@@ -262,7 +381,7 @@ const getOSIListFilterOptionsCached = unstable_cache(
 
     const [viewResult, statuses] = await Promise.all([
       viewQuery,
-      getOSIStatuses(),
+      getOSIStatuses(target),
     ]);
 
     const viewRows = viewResult.data || [];
@@ -318,7 +437,8 @@ const getOSIListFilterOptionsCached = unstable_cache(
 export async function getOSIListFilterOptions(): Promise<OSIListFilterOptions> {
   try {
     const accessFilter = await getUserOSIAccessFilter();
-    return getOSIListFilterOptionsCached(accessFilter);
+    const target = await peek_dev_db_target();
+    return getOSIListFilterOptionsCached(accessFilter, target);
   } catch (err) {
     console.error("Error fetching OSI filter options:", err);
     return { companies: [], ejecutivos: [], cityOptions: [], statuses: [], accessFilter: "none" };
@@ -326,9 +446,9 @@ export async function getOSIListFilterOptions(): Promise<OSIListFilterOptions> {
 }
 
 const getOSIStatuses = unstable_cache(
-  async (): Promise<OSIStatusOption[]> => {
+  async (target: DevDbTarget): Promise<OSIStatusOption[]> => {
     try {
-      const supabase = await createAdminClient();
+      const supabase = await createAdminClient(target);
       const { data, error } = await supabase
         .from("conf_estatus")
         .select("id, nombre_estado, color_hex, orden, es_estado_final")
@@ -361,18 +481,55 @@ export async function getOSIPreviewBundle(
   if (!Number.isFinite(osiId) || osiId <= 0) return null;
 
   try {
-    const accessFilter = await getUserOSIAccessFilter();
+    const supabase = await createClient();
+
+    // Fire all independent queries concurrently in parallel
+    const [
+      accessFilter,
+      viewRowResult,
+      baseRowResult,
+      recursosResult,
+      sesionesResult,
+      stepsResult,
+      servicio_nombre_by_id,
+      visibility_by_formato,
+      userCtx,
+    ] = await Promise.all([
+      getUserOSIAccessFilter(),
+      supabase
+        .from("v_osi_formato_completo")
+        .select("*")
+        .eq("id_osi", osiId)
+        .single(),
+      supabase
+        .from("ejecucion_osi")
+        .select("id, pretenciones_adicionales_osi, observaciones_adicionales_osi")
+        .eq("id", osiId)
+        .maybeSingle(),
+      supabase
+        .from("osi_recursos_estimados")
+        .select("id_sesion, public_cost_mask")
+        .eq("id_osi", osiId)
+        .limit(50),
+      supabase
+        .from("osi_sesion")
+        .select("nro_sesion, fecha, hora_inicio, fecha_ejecutada, hora_ejecutada")
+        .eq("id_osi", osiId)
+        .order("nro_sesion", { ascending: true }),
+      supabase
+        .from("capacitacion_proceso_steps")
+        .select("step_key, completed")
+        .eq("osi_id", osiId),
+      getCachedServicioNombreById(supabase),
+      getCachedVisibilityByFormato(supabase),
+      getPreviewUserContext(supabase),
+    ]);
+
     if (accessFilter === "none") return null;
 
-    const supabase = await createClient();
-    const { data: view_row, error } = await supabase
-      .from("v_osi_formato_completo")
-      .select("*")
-      .eq("id_osi", osiId)
-      .single();
-
-    if (error || !view_row) {
-      console.error("Error fetching OSI preview view:", error);
+    const view_row = viewRowResult.data;
+    if (viewRowResult.error || !view_row) {
+      console.error("Error fetching OSI preview view:", viewRowResult.error);
       return null;
     }
 
@@ -393,20 +550,10 @@ export async function getOSIPreviewBundle(
       return null;
     }
 
-    const { data: osi_base_row } = await supabase
-      .from("ejecucion_osi")
-      .select("id, pretenciones_adicionales_osi, observaciones_adicionales_osi")
-      .eq("id", osiId)
-      .maybeSingle();
-
-    const { data: recursos_rows, error: recursos_error } = await supabase
-      .from("osi_recursos_estimados")
-      .select("id_sesion, public_cost_mask")
-      .eq("id_osi", osiId)
-      .limit(50);
-
-    if (recursos_error) {
-      console.error("Error fetching OSI recursos mask:", recursos_error);
+    const osi_base_row = baseRowResult.data;
+    const recursos_rows = recursosResult.data;
+    if (recursosResult.error) {
+      console.error("Error fetching OSI recursos mask:", recursosResult.error);
     }
 
     // Prefer global mask; else first session row with a non-empty mask object.
@@ -435,69 +582,17 @@ export async function getOSIPreviewBundle(
       ecc_children = (children ?? []) as Record<string, unknown>[];
     }
 
-    const { data: servicios_rows } = await supabase
-      .from("catalogo_servicios")
-      .select("id, nombre")
-      .limit(500);
-
-    const servicio_nombre_by_id: Record<number, string> = {};
-    for (const row of servicios_rows ?? []) {
-      const id = Number((row as { id?: number }).id ?? 0);
-      const nombre = String((row as { nombre?: string }).nombre ?? "").trim();
-      if (id > 0 && nombre) {
-        servicio_nombre_by_id[id] = nombre;
-      }
-    }
-
-    const { data: osi_sesiones_rows } = await supabase
-      .from("osi_sesion")
-      .select(
-        "nro_sesion, fecha, hora_inicio, fecha_ejecutada, hora_ejecutada",
-      )
-      .eq("id_osi", osiId)
-      .order("nro_sesion", { ascending: true });
-
-    const { data: visibility_rows } = await supabase
-      .from("osi_cost_visibility_config")
-      .select("*");
-
-    const visibility_by_formato = new Map<
-      string,
-      ReturnType<typeof parse_osi_cost_visibility_row>
-    >();
-    for (const row of visibility_rows ?? []) {
-      const parsed = parse_osi_cost_visibility_row(
-        row as Record<string, unknown>,
-      );
-      if (parsed) visibility_by_formato.set(parsed.formato, parsed);
-    }
-
-    const { data: { user } } = await supabase.auth.getUser();
-    let departamento_id: number | null = null;
-    if (user) {
-      const { data: usuario } = await supabase
-        .from("usuarios")
-        .select("departamento")
-        .eq("id_auth", user.id)
-        .maybeSingle();
-      departamento_id =
-        typeof usuario?.departamento === "number" ? usuario.departamento : null;
-    }
-
-    const appRoles = await getUserRolesByApp();
-    const role_slugs = Object.values(appRoles).filter(Boolean);
-    const permsByApp = await getUserPermissionsByApp();
-    const permission_slugs = Object.values(permsByApp).flat();
+    const osi_sesiones_rows = sesionesResult.data;
 
     const is_cap = tipoServicio.includes("CAPACITACION");
     const visibility_formato = is_cap ? "capacitacion" : "servicios_tecnicos";
     const visibility_config =
       visibility_by_formato.get(visibility_formato) ?? null;
     const visibility_ctx = {
-      role: appRoles.sgestion ?? appRoles.scapacitacion ?? null,
-      role_slugs,
-      departamento_id,
-      permission_slugs,
+      role: userCtx.appRoles.sgestion ?? userCtx.appRoles.scapacitacion ?? null,
+      role_slugs: userCtx.role_slugs,
+      departamento_id: userCtx.departamento_id,
+      permission_slugs: userCtx.permission_slugs,
     };
     const can_reveal_costs = user_can_reveal_osi_costs(
       visibility_formato,
@@ -516,16 +611,11 @@ export async function getOSIPreviewBundle(
       visibility_by_formato.get("servicios_tecnicos")?.default_hide_monetary ??
       true;
 
-    const { data: cap_proceso_steps, error: cap_proceso_steps_error } =
-      await supabase
-        .from("capacitacion_proceso_steps")
-        .select("step_key, completed")
-        .eq("osi_id", osiId);
-
-    if (cap_proceso_steps_error) {
+    const cap_proceso_steps = stepsResult.data;
+    if (stepsResult.error) {
       console.warn(
         "capacitacion_proceso_steps no disponible para preview OSI:",
-        cap_proceso_steps_error.message,
+        stepsResult.error.message,
       );
     }
 

@@ -2,8 +2,8 @@
 
 import { revalidatePath, revalidateTag, unstable_cache } from "next/cache";
 import { cache } from "react";
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/server";
+import { createAdminClient, createClient, peek_dev_db_target } from "@/lib/supabase/server";
+import type { DevDbTarget } from "@/lib/supabase/dev-db";
 import {
   RequisicionFormData,
   OSIFullData,
@@ -13,6 +13,7 @@ import {
 } from "@/types/requisiciones";
 import {
   notifyAdminsOfNewRequisicion,
+  notifyAdminsOfCostosAprobados,
   notifyCreatorOfProcesada,
   notifyCreatorOfRechazada,
   notifyCreatorOfPartialVerificacion,
@@ -24,19 +25,25 @@ import {
   notifyCoordinadorOfPendingExterna,
 } from "@/actions/requisicion-notifications";
 import { getUsdToVesRate } from "@/lib/exchange-rate";
+import { deptNameInList, isCapacitacionDept } from "@/lib/requisiciones-gerencia";
 import {
-  isCapacitacionDept,
-  isServiciosTecnicosDept,
-  isAdministracionDept,
-  resolveInternaApprovalGerencia,
-} from "@/lib/requisiciones-gerencia";
-import { getUserRolesByApp } from "@/actions/apps";
+  getCurrentUserDepartment,
+  getCurrentUserUsuarioId,
+  getRequisicionAccess,
+} from "@/actions/requisiciones-access-context";
 import {
-  COORDINADOR_ROLE_IDS,
-  REQUISICION_COORDINADOR_ROLES,
-  coordinadorMatchersForAssignments,
-  deptCoveredByCoordinadorMatchers,
-} from "@/lib/requisiciones-approver-roles";
+  apply_item_money_updates,
+  interna_needs_lider,
+  requisicion_items_total,
+} from "@/lib/requisiciones-totals";
+import {
+  ADMIN_APP_SLUG,
+} from "@/lib/requisiciones-slugs";
+
+export {
+  getCurrentUserUsuarioId,
+  getCurrentUserDepartment,
+};
 
 // Build a JSON snapshot of the editable content fields of a requisicion record.
 // Captured at creation and on every creator save (so it always reflects the
@@ -82,79 +89,13 @@ function buildRequisicionSnapshot(rec: Record<string, any>): Record<string, any>
 // Department-based only — role (admin/superadmin) is NOT considered.
 // Wrapped in cache() to deduplicate across multiple calls in the same request
 export const isRequisicionesAdmin = cache(async (): Promise<boolean> => {
-  try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return false;
-
-    const { data: usuario } = await supabase
-      .from("usuarios")
-      .select("departamentos!usuarios_departamento_fkey(nombre)")
-      .eq("id_auth", user.id)
-      .single();
-
-    const deptName = (usuario?.departamentos as any)?.nombre?.toLowerCase() || "";
-    return deptName.includes("admin");
-  } catch {
-    return false;
-  }
+  const access = await getRequisicionAccess();
+  return access.can_process;
 });
 
-// True when the current user belongs to the Capacitación department.
 export const isCurrentUserCapacitacion = cache(async (): Promise<boolean> => {
-  try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return false;
-
-    const { data: usuario } = await supabase
-      .from("usuarios")
-      .select("departamentos!usuarios_departamento_fkey(nombre)")
-      .eq("id_auth", user.id)
-      .single();
-
-    const deptName = (usuario?.departamentos as any)?.nombre || "";
-    return isCapacitacionDept(deptName);
-  } catch {
-    return false;
-  }
-});
-
-// Returns the current user's `usuarios.id` (the integer PK, not id_auth).
-// Cached per request. Used to match gerencias.lider and authprisma roles.
-export const getCurrentUserUsuarioId = cache(async (): Promise<number | null> => {
-  try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
-    const admin = await createAdminClient();
-    const { data: usuario } = await admin
-      .from("usuarios")
-      .select("id")
-      .eq("id_auth", user.id)
-      .single();
-    return usuario?.id ?? null;
-  } catch {
-    return null;
-  }
-});
-
-// Returns the current user's department name (or null). Cached per request.
-export const getCurrentUserDepartment = cache(async (): Promise<string | null> => {
-  try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
-    const admin = await createAdminClient();
-    const { data: usuario } = await admin
-      .from("usuarios")
-      .select("departamentos!usuarios_departamento_fkey(nombre)")
-      .eq("id_auth", user.id)
-      .single();
-    return (usuario?.departamentos as any)?.nombre || null;
-  } catch {
-    return null;
-  }
+  const access = await getRequisicionAccess();
+  return isCapacitacionDept(access.home_dept);
 });
 
 // Returns the gerencia name for the current user's department (via
@@ -176,308 +117,100 @@ export const getCurrentUserGerencia = cache(async (): Promise<string | null> => 
   }
 });
 
-async function getUsuarioCoordinadorAssignments(
-  usuarioId: number,
-): Promise<Array<{ role_id: number; app_id: number }>> {
-  try {
-    const admin = await createAdminClient();
-    const { data } = await admin
-      .schema("authprisma")
-      .from("user_app_roles")
-      .select("role_id, app_id")
-      .eq("usuario_id", usuarioId)
-      .in("role_id", COORDINADOR_ROLE_IDS);
-    return (data || []) as Array<{ role_id: number; app_id: number }>;
-  } catch {
-    return [];
-  }
-}
-
 async function isUsuarioCoordinadorForDepartment(
   usuarioId: number,
   deptName: string | null | undefined,
 ): Promise<boolean> {
-  if (!deptName) return false;
-  const assignments = await getUsuarioCoordinadorAssignments(usuarioId);
-  return deptCoveredByCoordinadorMatchers(
-    deptName,
-    coordinadorMatchersForAssignments(assignments),
-  );
+  if (!deptName?.trim()) return false;
+  try {
+    const admin = await createAdminClient();
+    const { data } = await admin
+      .from("departamentos")
+      .select("coordinador")
+      .ilike("nombre", deptName.trim())
+      .maybeSingle();
+    return data?.coordinador === usuarioId;
+  } catch {
+    return false;
+  }
 }
 
 export const isCoordinadorForDepartment = cache(async (deptName: string | null | undefined): Promise<boolean> => {
   if (!deptName) return false;
-  const usuarioId = await getCurrentUserUsuarioId();
-  if (!usuarioId) return false;
-  return isUsuarioCoordinadorForDepartment(usuarioId, deptName);
+  const access = await getRequisicionAccess();
+  return (
+    access.can_approve_coord &&
+    access.coord_depts.some(
+      (nombre) => nombre.toLowerCase() === deptName.trim().toLowerCase(),
+    )
+  );
 });
 
-// True when the current user is the lider registered on the gerencias row
-// matching the given gerencia name (case-insensitive). Driven by
-// gerencias.lider (not role slugs).
 export const isStAppLider = cache(async (): Promise<boolean> => {
-  try {
-    const roles = await getUserRolesByApp();
-    return roles.st?.toLowerCase() === "lider";
-  } catch {
-    return false;
-  }
+  const access = await getRequisicionAccess();
+  return access.roles_by_app.st?.toLowerCase() === "lider";
 });
 
 export const isSadministracionAppLider = cache(async (): Promise<boolean> => {
-  try {
-    const roles = await getUserRolesByApp();
-    return roles.sadministracion?.toLowerCase() === "lider";
-  } catch {
-    return false;
-  }
+  const access = await getRequisicionAccess();
+  return access.roles_by_app[ADMIN_APP_SLUG]?.toLowerCase() === "lider";
 });
 
-async function isUsuarioAppLider(usuarioId: number, appId: number): Promise<boolean> {
-  try {
-    const admin = await createAdminClient();
-    const { data: role } = await admin
-      .schema("authprisma")
-      .from("roles")
-      .select("id")
-      .eq("app_id", appId)
-      .eq("slug", "lider")
-      .maybeSingle();
-    if (!role?.id) return false;
-    const { data: assignment } = await admin
-      .schema("authprisma")
-      .from("user_app_roles")
-      .select("id")
-      .eq("usuario_id", usuarioId)
-      .eq("app_id", appId)
-      .eq("role_id", role.id)
-      .maybeSingle();
-    return Boolean(assignment);
-  } catch {
-    return false;
-  }
-}
-
-async function isUsuarioStAppLider(usuarioId: number): Promise<boolean> {
-  return isUsuarioAppLider(usuarioId, 5);
-}
-
-async function isUsuarioSadministracionAppLider(usuarioId: number): Promise<boolean> {
-  return isUsuarioAppLider(usuarioId, 4);
-}
-
-async function matchesAppScopedLiderDept(
-  deptName: string | null | undefined,
-): Promise<boolean | null> {
-  if (!deptName) return false;
-  const [st, admin] = await Promise.all([
-    isStAppLider(),
-    isSadministracionAppLider(),
-  ]);
-  if (!st && !admin) return null;
-  if (st && isServiciosTecnicosDept(deptName)) return true;
-  if (admin && isAdministracionDept(deptName)) return true;
-  return false;
-}
-
-export const isLiderForGerencia = cache(async (gerenciaName: string | null | undefined): Promise<boolean> => {
-  if (!gerenciaName) return false;
-  const usuarioId = await getCurrentUserUsuarioId();
-  if (!usuarioId) return false;
-  try {
-    const supabase = await createAdminClient();
-    const { data: g } = await supabase
-      .from("gerencias")
-      .select("lider")
-      .ilike("nombre", gerenciaName)
-      .maybeSingle();
-    return g?.lider === usuarioId;
-  } catch {
-    return false;
-  }
-});
-
-// True when the current user is the lider of the gerencia that the given
-// department belongs to (departamentos.gerencia → gerencias.nombre).
-export const isLiderForDepartmentGerencia = cache(async (deptName: string | null | undefined): Promise<boolean> => {
-  if (!deptName) return false;
-  const scoped = await matchesAppScopedLiderDept(deptName);
-  if (scoped !== null) return scoped;
-  try {
-    const supabase = await createAdminClient();
-    const { data: dept } = await supabase
-      .from("departamentos")
-      .select("gerencia")
-      .ilike("nombre", deptName)
-      .maybeSingle();
-    if (!dept?.gerencia) return false;
-    return isLiderForGerencia(dept.gerencia);
-  } catch {
-    return false;
-  }
-});
-
-// True when the current user is the lider who must approve INTERNAS for the given
-// department. Honours the TEMPORARY interna routing override
-// (resolveInternaApprovalGerencia); otherwise falls back to the lider of the
-// department's own gerencia. Externas intentionally keep using
-// isLiderForDepartmentGerencia.
 export const isLiderForInternaApproval = cache(async (deptName: string | null | undefined): Promise<boolean> => {
   if (!deptName) return false;
-  const scoped = await matchesAppScopedLiderDept(deptName);
-  if (scoped !== null) return scoped;
-  const overrideGerencia = resolveInternaApprovalGerencia(deptName);
-  if (overrideGerencia) return isLiderForGerencia(overrideGerencia);
-  return isLiderForDepartmentGerencia(deptName);
+  const access = await getRequisicionAccess();
+  return access.can_approve_lider && deptNameInList(deptName, access.lider_depts);
 });
 
-// True when any user has a mapped coordinador role that covers this department.
+/** True when the department organigram has a `coordinador` assigned. */
 export const departmentHasCoordinador = cache(async (deptName: string | null | undefined): Promise<boolean> => {
-  if (!deptName) return false;
-  const matchingIds = REQUISICION_COORDINADOR_ROLES.filter((entry) =>
-    entry.matchesDept(deptName),
-  ).map((entry) => entry.roleId);
-  if (matchingIds.length === 0) return false;
+  if (!deptName?.trim()) return false;
   try {
     const admin = await createAdminClient();
-    const { data } = await admin
-      .schema("authprisma")
-      .from("user_app_roles")
-      .select("id")
-      .in("role_id", matchingIds)
-      .limit(1)
+    const { data, error } = await admin
+      .from("departamentos")
+      .select("coordinador")
+      .ilike("nombre", deptName.trim())
       .maybeSingle();
-    return Boolean(data);
+    if (error) {
+      console.error("[departmentHasCoordinador]", error);
+      return false;
+    }
+    return data?.coordinador != null;
   } catch {
     return false;
   }
 });
 
-// True when the current user can place an Interna for the given department:
-//   - they are the department's coordinador, OR
-//   - the department has no coordinador (anyone in the department may place it;
-//     it will then route to the approving lider for approval — see
-//     resolveInternaApprovalGerencia for the temporary override — unless the
-//     creator IS that approving lider, in which case it skips approval and goes
-//     straight to admin).
 export const canPlaceInterna = cache(async (deptName: string | null | undefined): Promise<boolean> => {
   if (!deptName) return false;
-  const isCoord = await isCoordinadorForDepartment(deptName);
-  if (isCoord) return true;
-  const hasCoord = await departmentHasCoordinador(deptName);
-  if (hasCoord) return false;
-  // No coordinador → anyone in the department can place an interna. The
-  // workflow step in createRequisicionRecord decides whether it needs lider
-  // approval (creator is not the approving lider) or skips it (creator is).
-  return true;
+  const access = await getRequisicionAccess();
+  if (!access.can_create) return false;
+  return access.request_depts.some(
+    (nombre) => nombre.toLowerCase() === deptName.trim().toLowerCase(),
+  );
 });
 
-// Departments covered by the current user's authprisma coordinador role(s).
 export const getCoordinatedDepartments = cache(async (): Promise<string[]> => {
-  const usuarioId = await getCurrentUserUsuarioId();
-  if (!usuarioId) return [];
-  try {
-    const matchers = coordinadorMatchersForAssignments(
-      await getUsuarioCoordinadorAssignments(usuarioId),
-    );
-    if (matchers.length === 0) return [];
-    const supabase = await createAdminClient();
-    const { data, error } = await supabase.from("departamentos").select("nombre");
-    if (error) {
-      console.error("[getCoordinatedDepartments] Error:", error);
-      return [];
-    }
-    return (data || [])
-      .map((d: { nombre: string | null }) => d.nombre)
-      .filter(
-        (n): n is string =>
-          Boolean(n) && deptCoveredByCoordinadorMatchers(n, matchers),
-      );
-  } catch {
-    return [];
-  }
+  const access = await getRequisicionAccess();
+  return access.can_approve_coord ? access.coord_depts : [];
 });
 
-// Names of ALL gerencias the current user leads (gerencias.lider). Same rationale
-// as getCoordinatedDepartments: never derive this from the user's own department.
 export const getLedGerencias = cache(async (): Promise<string[]> => {
-  const usuarioId = await getCurrentUserUsuarioId();
-  if (!usuarioId) return [];
-  try {
-    const supabase = await createAdminClient();
-    const { data, error } = await supabase
-      .from("gerencias")
-      .select("nombre")
-      .eq("lider", usuarioId);
-    if (error) {
-      console.error("[getLedGerencias] Error:", error);
-      return [];
+  const access = await getRequisicionAccess();
+  if (!access.can_approve_lider) return [];
+  const names = new Set<string>();
+  for (const row of access.catalog) {
+    if (row.gerencia && deptNameInList(row.nombre, access.lider_depts)) {
+      names.add(row.gerencia);
     }
-    return (data || []).map((g: { nombre: string | null }) => g.nombre).filter((n): n is string => !!n);
-  } catch {
-    return [];
   }
+  return [...names];
 });
 
-// Department names whose INTERNAS the current user approves as lider.
-//
-// Base set: every department in the gerencia(s) they lead. Then the TEMPORARY
-// interna routing override is applied — overridden departments are removed from
-// their natural gerencia's lider and added to the lider of their target gerencia.
 export const getDepartmentsInLedGerencias = cache(async (): Promise<string[]> => {
-  const [st, admin] = await Promise.all([
-    isStAppLider(),
-    isSadministracionAppLider(),
-  ]);
-  if (st || admin) {
-    try {
-      const supabase = await createAdminClient();
-      const { data, error } = await supabase.from("departamentos").select("nombre");
-      if (error) {
-        console.error("[getDepartmentsInLedGerencias] Error:", error);
-        return [];
-      }
-      return (data || [])
-        .map((d: { nombre: string | null }) => d.nombre)
-        .filter(
-          (n): n is string =>
-            Boolean(n) &&
-            ((st && isServiciosTecnicosDept(n)) ||
-              (admin && isAdministracionDept(n))),
-        );
-    } catch {
-      return [];
-    }
-  }
-
-  const gerencias = await getLedGerencias();
-  if (gerencias.length === 0) return [];
-  try {
-    const supabase = await createAdminClient();
-    // All departments, so overridden ones can be re-assigned to the lider of
-    // their target gerencia even when that department sits elsewhere.
-    const { data, error } = await supabase
-      .from("departamentos")
-      .select("nombre, gerencia");
-    if (error) {
-      console.error("[getDepartmentsInLedGerencias] Error:", error);
-      return [];
-    }
-    const ledLower = gerencias.map((g) => g.trim().toLowerCase());
-    const result: string[] = [];
-    for (const d of (data || []) as { nombre: string | null; gerencia: string | null }[]) {
-      if (!d.nombre) continue;
-      const overrideGerencia = resolveInternaApprovalGerencia(d.nombre);
-      const effectiveGerencia = overrideGerencia || d.gerencia;
-      if (!effectiveGerencia) continue;
-      if (ledLower.includes(effectiveGerencia.trim().toLowerCase())) {
-        result.push(d.nombre);
-      }
-    }
-    return result;
-  } catch {
-    return [];
-  }
+  const access = await getRequisicionAccess();
+  return access.can_approve_lider ? access.lider_depts : [];
 });
 
 // Department names WITHOUT a coordinador inside the gerencias the current user
@@ -517,12 +250,13 @@ export const isRequisicionesCoordinador = cache(async (): Promise<boolean> => {
 
 // True when the current user is the lider of AT LEAST ONE gerencia.
 export const isRequisicionesLider = cache(async (): Promise<boolean> => {
-  if (await isStAppLider()) return true;
-  return (await getLedGerencias()).length > 0;
+  const access = await getRequisicionAccess();
+  return access.can_approve_lider;
 });
 
 export const canAccessRequisicionesGestion = cache(async (): Promise<boolean> => {
-  return await isRequisicionesAdmin();
+  const access = await getRequisicionAccess();
+  return access.can_process;
 });
 
 // Derive whether a requisicion record is a "Capacitacion" record based on the
@@ -533,9 +267,9 @@ function recordIsCapacitacion(record: { departamento?: string | null; gerencia_s
 }
 
 // Get all OSIs for the dropdown (cached 5 minutes)
-export const getAllOSIsForRequisiciones = unstable_cache(
-  async () => {
-    const supabase = await createAdminClient();
+const getAllOSIsForRequisicionesCached = unstable_cache(
+  async (target: DevDbTarget) => {
+    const supabase = await createAdminClient(target);
     const { data, error } = await supabase
       .from("v_osi_formato_completo")
       .select("*")
@@ -551,10 +285,13 @@ export const getAllOSIsForRequisiciones = unstable_cache(
   { tags: ["osis"], revalidate: 300 }
 );
 
-// Get lightweight OSI id→nro_osi pairs for lookup maps (cached 5 minutes)
-export const getOsiNumbersForLookup = unstable_cache(
-  async () => {
-    const supabase = await createAdminClient();
+export async function getAllOSIsForRequisiciones() {
+  return getAllOSIsForRequisicionesCached(await peek_dev_db_target());
+}
+
+const getOsiNumbersForLookupCached = unstable_cache(
+  async (target: DevDbTarget) => {
+    const supabase = await createAdminClient(target);
     const { data, error } = await supabase
       .from("v_osi_lista")
       .select("id_osi, nro_osi")
@@ -570,13 +307,13 @@ export const getOsiNumbersForLookup = unstable_cache(
   { tags: ["osi-numbers"], revalidate: 300 }
 );
 
-// Get all OSI sessions from the osi_sesion table (cached 5 minutes).
-// Returns a flat list; the form groups by id_osi.
-// Used as a fallback when v_osi_formato_completo.desglose_recursos_sesiones
-// is empty (which happens when no recursos are assigned per session).
-export const getAllOsiSessions = unstable_cache(
-  async () => {
-    const supabase = await createAdminClient();
+export async function getOsiNumbersForLookup() {
+  return getOsiNumbersForLookupCached(await peek_dev_db_target());
+}
+
+const getAllOsiSessionsCached = unstable_cache(
+  async (target: DevDbTarget) => {
+    const supabase = await createAdminClient(target);
     const { data, error } = await supabase
       .from("osi_sesion")
       .select("id, id_osi, nro_sesion, fecha, hora_inicio, hora_fin")
@@ -600,10 +337,13 @@ export const getAllOsiSessions = unstable_cache(
   { tags: ["osi-numbers"], revalidate: 300 }
 );
 
-// Get all banks for the dropdown (cached 1 hour)
-export const getBanksForDropdown = unstable_cache(
-  async () => {
-    const supabase = await createAdminClient();
+export async function getAllOsiSessions() {
+  return getAllOsiSessionsCached(await peek_dev_db_target());
+}
+
+const getBanksForDropdownCached = unstable_cache(
+  async (target: DevDbTarget) => {
+    const supabase = await createAdminClient(target);
     const { data, error } = await supabase
       .from("cat_bancos")
       .select("id, nombre")
@@ -618,6 +358,10 @@ export const getBanksForDropdown = unstable_cache(
   ["banks-for-dropdown"],
   { tags: ["banks"], revalidate: 3600 }
 );
+
+export async function getBanksForDropdown() {
+  return getBanksForDropdownCached(await peek_dev_db_target());
+}
 
 // Get current logged in user details
 export async function getCurrentUser() {
@@ -663,50 +407,31 @@ export async function createRequisicionRecord(
   const userResponse = await supabase.auth.getUser();
   const userId = userResponse.data.user?.id || null;
 
+  const access = await getRequisicionAccess();
+  if (!access.can_create) {
+    throw new Error("No tiene permiso para crear requisiciones.");
+  }
+  const deptOk = !formData.departamento || access.request_depts.some(
+    (nombre) => nombre.toLowerCase() === formData.departamento.trim().toLowerCase(),
+  );
+  if (!deptOk) {
+    throw new Error("No puede crear requisiciones para ese departamento.");
+  }
+
   const isCapacitacion = !formData.is_general && isCapacitacionDept(formData.departamento);
   const primaryOSI = formData.selectedOSIs[0] || null;
   const isInterna = formData.is_general;
 
-  // --- Workflow ---
-  // Internas: Coordinador (authprisma role map) then Lider, then Administración.
-  // If the creator holds the coordinador role for that department, or the
-  // department has no coordinador role at all, skip coordinador and go to lider.
-  // Externas: placed by anyone. No approval gate — go straight to Administración.
-  let needsLiderApproval = false;       // internas that need lider gate now
-  let liderBypassApproval = false;      // internas that skip lider approval
-  let needsCoordinadorApproval = false; // internas placed by analyst
-  let coordinadorBypassApproval = false;// internas placed by coordinador (or no coordinador)
+  // Internas: coordinador → Admin estima montos → líder solo si supera el límite.
+  // Externas: directo a Administración.
+  let needsCoordinadorApproval = false;
 
   if (isInterna) {
     const isCoord = await isCoordinadorForDepartment(formData.departamento);
-    if (isCoord) {
-      // Coordinador placed it → skip coordinador gate, check lider gate.
-      coordinadorBypassApproval = true;
-      const creatorIsLider = await isLiderForInternaApproval(formData.departamento);
-      if (creatorIsLider) {
-        liderBypassApproval = true;
-      } else {
-        needsLiderApproval = true;
-      }
-    } else {
-      const hasCoord = await departmentHasCoordinador(formData.departamento);
-      if (!hasCoord) {
-        // No coordinador → skip coordinador gate, check lider gate.
-        coordinadorBypassApproval = true;
-        const creatorIsLider = await isLiderForInternaApproval(formData.departamento);
-        if (creatorIsLider) {
-          liderBypassApproval = true;
-        } else {
-          needsLiderApproval = true;
-        }
-      } else {
-        // Analyst placed it, department has coordinador → needs coordinador approval.
-        // The lider gate will be activated after the coordinador approves.
-        needsCoordinadorApproval = true;
-      }
+    if (!isCoord && (await departmentHasCoordinador(formData.departamento))) {
+      needsCoordinadorApproval = true;
     }
   }
-  // Externas: no approval gate at all.
 
   // Calculate totals for fixed items as requested (Cant is removed from UI, so we use 1)
   const totalTraslado = (formData.dias_traslado || 0) * (formData.costo_traslado || 0);
@@ -777,10 +502,8 @@ export async function createRequisicionRecord(
     // department that has a coordinador) before reaching the lider gate.
     // Externas never use coordinador_estatus.
     coordinador_estatus: isInterna && needsCoordinadorApproval ? "pendiente" : null,
-    // Internas that skip the coordinador gate (placed by coordinador, or no
-    // coordinador in the department) need lider approval — unless the creator
-    // IS the approving lider. Externas never use lider_estatus.
-    lider_estatus: isInterna && needsLiderApproval ? "pendiente" : null,
+    lider_estatus: null,
+    costos_confirmados_at: null,
     // Locked at creation: rev.01 / 20/08/2026 for all new requisiciones.
     revision: "01",
     fecha_revision: "20/08/2026",
@@ -815,14 +538,12 @@ export async function createRequisicionRecord(
   // - Internas that skip coordinador gate but need lider → notify the gerencia's lider.
   // - Internas that need coordinador approval → notify the department's coordinador.
   // - Externas → notify Administración directly (no approval gate).
-  if (isInterna && liderBypassApproval) {
-    await notifyAdminsOfNewRequisicion(data.id, formData.solicitante, "interna");
-  } else if (isInterna && needsLiderApproval) {
-    await notifyLiderOfPendingInterna(data.id, formData.solicitante, formData.departamento || "");
-  } else if (isInterna && needsCoordinadorApproval) {
+  if (isInterna && needsCoordinadorApproval) {
     await notifyCoordinadorOfPendingExterna(data.id, formData.solicitante, formData.departamento || "");
-  } else if (!isInterna) {
-    const label = `de la OSI N° ${primaryOSI?.nro_osi || ""}`;
+  } else {
+    const label = isInterna
+      ? "interna"
+      : `de la OSI N° ${primaryOSI?.nro_osi || ""}`;
     await notifyAdminsOfNewRequisicion(data.id, formData.solicitante, label);
   }
 
@@ -1008,7 +729,10 @@ export async function updateRequisicionRecord(
     .eq("id", id)
     .single();
 
-  const isLocked = existing?.estatus_admin === "procesada" || existing?.estatus_admin === "rechazada";
+  const isLocked =
+    existing?.estatus_admin === "procesada" ||
+    existing?.estatus_admin === "rechazada" ||
+    existing?.estatus_admin === "parcial";
   if (isLocked && !(await isRequisicionesAdmin())) {
     throw new Error("Esta requisición ya fue procesada por Administración y no puede editarse.");
   }
@@ -1159,20 +883,27 @@ async function annotateRequisicionApproverFlags(
     row._deptHasCoordinador = false;
   }
   try {
+    const depts = [...new Set(rows.map((row) => row.departamento).filter(Boolean))];
+    if (depts.length === 0) return;
+
     const admin = await createAdminClient();
-    const { data: assignedRoles } = await admin
-      .schema("authprisma")
-      .from("user_app_roles")
-      .select("role_id")
-      .in("role_id", COORDINADOR_ROLE_IDS);
-    const assignedIds = new Set(
-      (assignedRoles || []).map((row: { role_id: number }) => row.role_id),
-    );
-    for (const row of rows) {
-      row._deptHasCoordinador = REQUISICION_COORDINADOR_ROLES.some(
-        (entry) =>
-          entry.matchesDept(row.departamento) && assignedIds.has(entry.roleId),
+    const { data: deptRows } = await admin
+      .from("departamentos")
+      .select("nombre, coordinador")
+      .in("nombre", depts);
+
+    const coordByDept = new Map<string, number | null>();
+    for (const dept of depts) {
+      const match = (deptRows || []).find(
+        (row: { nombre: string | null }) =>
+          (row.nombre || "").toLowerCase() === String(dept).toLowerCase(),
       );
+      coordByDept.set(dept, match?.coordinador ?? null);
+      // also mark via departmentHasCoordinador semantics
+    }
+    for (const row of rows) {
+      const coordId = coordByDept.get(row.departamento) ?? null;
+      row._deptHasCoordinador = coordId != null;
     }
 
     const authIds = [
@@ -1192,27 +923,11 @@ async function annotateRequisicionApproverFlags(
         .filter((u: { id: number; id_auth: string | null }) => u.id_auth)
         .map((u: { id: number; id_auth: string }) => [u.id_auth, u.id]),
     );
-    const usuarioIds = [...new Set(authToUsuario.values())];
-    if (usuarioIds.length === 0) return;
-    const { data: roles } = await admin
-      .schema("authprisma")
-      .from("user_app_roles")
-      .select("usuario_id, role_id, app_id")
-      .in("usuario_id", usuarioIds)
-      .in("role_id", COORDINADOR_ROLE_IDS);
-    const byUsuario = new Map<number, Array<{ role_id: number; app_id: number }>>();
-    for (const row of roles || []) {
-      const list = byUsuario.get(row.usuario_id) || [];
-      list.push({ role_id: row.role_id, app_id: row.app_id });
-      byUsuario.set(row.usuario_id, list);
-    }
     for (const row of rows) {
       const usuarioId = authToUsuario.get(row.created_by);
       if (!usuarioId) continue;
-      row._creatorIsDeptCoordinador = deptCoveredByCoordinadorMatchers(
-        row.departamento,
-        coordinadorMatchersForAssignments(byUsuario.get(usuarioId) || []),
-      );
+      const coordId = coordByDept.get(row.departamento) ?? null;
+      row._creatorIsDeptCoordinador = coordId != null && coordId === usuarioId;
     }
   } catch (error) {
     console.error("[annotateRequisicionApproverFlags]", error);
@@ -1252,9 +967,9 @@ async function fetchRequisicionesList(scope: "own" | "gestion" | "inbox") {
 
   if (scope === "gestion") {
     if (!isAdmin) return [];
-    const adminQuery = query
-      .or("lider_estatus.is.null,lider_estatus.eq.aprobada")
-      .or("coordinador_estatus.is.null,coordinador_estatus.eq.aprobada");
+    const adminQuery = query.or(
+      "coordinador_estatus.is.null,coordinador_estatus.eq.aprobada",
+    );
     let { data, error } = await adminQuery;
     if (error && (error.message || "").includes("column") && (error.message || "").includes("does not exist")) {
       console.warn("[getAllRequisiciones] approval columns not found, admin sees all");
@@ -1275,45 +990,40 @@ async function fetchRequisicionesList(scope: "own" | "gestion" | "inbox") {
     return adminRows;
   }
 
-  if (scope === "own" || scope === "inbox") {
-    const isCapDept = await isCurrentUserCapacitacion();
-    if (isCapDept) {
-      const { data: dept } = await supabase
-        .from("departamentos")
-        .select("id")
-        .ilike("nombre", "%capacitacion%")
-        .maybeSingle();
-      let creatorIds: string[] = [userId];
-      if (dept?.id) {
-        const { data: deptUsers } = await supabase
-          .from("usuarios")
-          .select("id_auth")
-          .eq("departamento", dept.id)
-          .not("id_auth", "is", null)
-          .eq("esta_activo", true);
-        creatorIds = (deptUsers || [])
-          .map((u: any) => u.id_auth)
-          .filter((id: string | null): id is string => Boolean(id));
-        if (!creatorIds.includes(userId)) creatorIds.push(userId);
-      }
-      query = query.in("created_by", creatorIds);
-    } else {
-      query = query.eq("created_by", userId);
-    }
 
-    const { data: ownData, error: ownError } = await query;
+  if (scope === "own" || scope === "inbox") {
+    const access = await getRequisicionAccess();
+    const { data: ownData, error: ownError } = await query.eq("created_by", userId);
     if (ownError) {
       console.error("Error fetching requisiciones:", ownError);
       return [];
     }
-    if (scope === "own") {
-      const ownRows = ownData || [];
-      await annotateRequisicionApproverFlags(ownRows, userId);
-      return ownRows;
-    }
-
     const merged: any[] = [...(ownData || [])];
     const ownIds = new Set<number>(merged.map((r: any) => r.id));
+
+    if (access.can_access_depto && access.request_depts.length > 0) {
+      const { data: mural, error: muralErr } = await supabase
+        .from("requisiciones")
+        .select(REQUISICION_LIST_SELECT)
+        .in("departamento", access.request_depts)
+        .is("deleted_at", null)
+        .order("id", { ascending: false });
+      if (muralErr) {
+        console.error("Error fetching mural requisiciones:", muralErr);
+      } else {
+        for (const row of mural || []) {
+          if (!ownIds.has(row.id)) {
+            merged.push(row);
+            ownIds.add(row.id);
+          }
+        }
+      }
+    }
+
+    if (scope === "own") {
+      await annotateRequisicionApproverFlags(merged, userId);
+      return merged;
+    }
 
     const addPending = (rows: any[] | null) => {
       for (const r of rows || []) {
@@ -1325,111 +1035,82 @@ async function fetchRequisicionesList(scope: "own" | "gestion" | "inbox") {
     };
 
     const SELECT_RELATIONS = REQUISICION_LIST_SELECT;
-    const isLider =
-      (await getLedGerencias()).length > 0 ||
-      (await isStAppLider()) ||
-      (await isSadministracionAppLider());
     const coordDepts = await getCoordinatedDepartments();
     const isCoord = coordDepts.length > 0;
+    const isLider = (await getDepartmentsInLedGerencias()).length > 0;
 
-  // Líderes see ALL pending approvals; buttons stay scoped in the UI.
-  if (isLider) {
-    const { data: pendingAll, error: pendingErr } = await supabase
-      .from("requisiciones")
-      .select(SELECT_RELATIONS)
-      .or("lider_estatus.eq.pendiente,coordinador_estatus.eq.pendiente")
-      .neq("created_by", userId)
-      .is("deleted_at", null)
-      .order("id", { ascending: false });
-    if (pendingErr && (pendingErr.message || "").includes("column") && (pendingErr.message || "").includes("does not exist")) {
-      console.warn("[getAllRequisiciones] approval columns not found, skipping lider queue");
-    } else if (pendingErr) {
-      console.error("[getAllRequisiciones] Error fetching pending approvals for lider:", pendingErr);
-    } else {
-      addPending(pendingAll);
-    }
-  } else if (isCoord && coordDepts.length > 0) {
-    // Coordinadores only see pending items of the departments they coordinate.
-    const { data: pendingCoord, error: pendingErr } = await supabase
-      .from("requisiciones")
-      .select(SELECT_RELATIONS)
-      .eq("coordinador_estatus", "pendiente")
-      .neq("created_by", userId)
-      .is("deleted_at", null)
-      .in("departamento", coordDepts)
-      .order("id", { ascending: false });
-    if (pendingErr && (pendingErr.message || "").includes("column") && (pendingErr.message || "").includes("does not exist")) {
-      console.warn("[getAllRequisiciones] coordinador_estatus column not found, skipping coordinador queue");
-    } else if (pendingErr) {
-      console.error("[getAllRequisiciones] Error fetching pending for coordinador:", pendingErr);
-    } else {
-      addPending(pendingCoord);
-    }
-  }
-
-  // --- Approval history for non-admin users ---
-  // Liders/coordinadors keep seeing requisiciones they've already approved/rejected
-  // (tagged with _isApprovalHistory = true) so they have a record instead of those
-  // vanishing once acted on. Driven by lider_por / coordinador_por (already persisted
-  // by the approve/reject actions), so no schema changes are required for this part.
-  const historyUsuarioId = await getCurrentUserUsuarioId();
-  const addHistory = (rows: any[] | null) => {
-    for (const r of rows || []) {
-      if (!r) continue;
-      r._isApprovalHistory = true;
-      if (!ownIds.has(r.id)) {
-        merged.push(r);
-        ownIds.add(r.id);
+    if (isLider) {
+      const { data: pendingAll, error: pendingErr } = await supabase
+        .from("requisiciones")
+        .select(SELECT_RELATIONS)
+        .eq("lider_estatus", "pendiente")
+        .neq("created_by", userId)
+        .is("deleted_at", null)
+        .order("id", { ascending: false });
+      if (pendingErr) {
+        console.error("[getAllRequisiciones] Error fetching pending approvals for lider:", pendingErr);
       } else {
-        const existing = merged.find((m: any) => m.id === r.id);
-        if (existing) existing._isApprovalHistory = true;
+        addPending(pendingAll);
       }
     }
-  };
-
-  // 3) Lider history: internas the current user approved/rejected as lider.
-  if (isLider && historyUsuarioId) {
-    const { data: liderHistory, error: histErr } = await supabase
-      .from("requisiciones")
-      .select(SELECT_RELATIONS)
-      .eq("tipo_solicitud", "Interno")
-      .eq("lider_por", historyUsuarioId)
-      .in("lider_estatus", ["aprobada", "rechazada"])
-      .is("deleted_at", null)
-      .order("id", { ascending: false });
-    if (histErr && (histErr.message || "").includes("column") && (histErr.message || "").includes("does not exist")) {
-      console.warn("[getAllRequisiciones] lider_por column not found, skipping lider history");
-    } else if (histErr) {
-      console.error("[getAllRequisiciones] Error fetching lider history:", histErr);
-    } else {
-      addHistory(liderHistory);
+    if (isCoord && coordDepts.length > 0) {
+      const { data: pendingCoord, error: pendingErr } = await supabase
+        .from("requisiciones")
+        .select(SELECT_RELATIONS)
+        .eq("coordinador_estatus", "pendiente")
+        .neq("created_by", userId)
+        .is("deleted_at", null)
+        .in("departamento", coordDepts)
+        .order("id", { ascending: false });
+      if (pendingErr) {
+        console.error("[getAllRequisiciones] Error fetching pending for coordinador:", pendingErr);
+      } else {
+        addPending(pendingCoord);
+      }
     }
-  }
 
-  // 4) Coordinador history: internas the current user approved/rejected as coordinador.
-  //    NOTE: coordinador_por is a UUID column (stores auth uid), unlike lider_por
-  //    which is int4 (stores usuarios.id). Filter by the auth UUID here.
-  if (isCoord && userId) {
-    const { data: coordHistory, error: histErr } = await supabase
-      .from("requisiciones")
-      .select(SELECT_RELATIONS)
-      .eq("tipo_solicitud", "Interno")
-      .eq("coordinador_por", userId)
-      .in("coordinador_estatus", ["aprobada", "rechazada"])
-      .is("deleted_at", null)
-      .order("id", { ascending: false });
-    if (histErr && (histErr.message || "").includes("column") && (histErr.message || "").includes("does not exist")) {
-      console.warn("[getAllRequisiciones] coordinador_por column not found, skipping coordinador history");
-    } else if (histErr) {
-      console.error("[getAllRequisiciones] Error fetching coordinador history:", histErr);
-    } else {
-      addHistory(coordHistory);
+    const historyUsuarioId = await getCurrentUserUsuarioId();
+    const addHistory = (rows: any[] | null) => {
+      for (const r of rows || []) {
+        if (!r) continue;
+        r._isApprovalHistory = true;
+        if (!ownIds.has(r.id)) {
+          merged.push(r);
+          ownIds.add(r.id);
+        } else {
+          const existing = merged.find((m: any) => m.id === r.id);
+          if (existing) existing._isApprovalHistory = true;
+        }
+      }
+    };
+
+    if (isLider && historyUsuarioId) {
+      const { data: liderHistory, error: histErr } = await supabase
+        .from("requisiciones")
+        .select(SELECT_RELATIONS)
+        .eq("tipo_solicitud", "Interno")
+        .eq("lider_por", historyUsuarioId)
+        .in("lider_estatus", ["aprobada", "rechazada"])
+        .is("deleted_at", null)
+        .order("id", { ascending: false });
+      if (!histErr) addHistory(liderHistory);
     }
-  }
 
-  merged.sort((a: any, b: any) => b.id - a.id);
-  await annotateRequisicionApproverFlags(merged, userId);
-  return merged;
+    if (isCoord && userId) {
+      const { data: coordHistory, error: histErr } = await supabase
+        .from("requisiciones")
+        .select(SELECT_RELATIONS)
+        .eq("tipo_solicitud", "Interno")
+        .eq("coordinador_por", userId)
+        .in("coordinador_estatus", ["aprobada", "rechazada"])
+        .is("deleted_at", null)
+        .order("id", { ascending: false });
+      if (!histErr) addHistory(coordHistory);
+    }
+
+    merged.sort((a: any, b: any) => b.id - a.id);
+    await annotateRequisicionApproverFlags(merged, userId);
+    return merged;
   }
 
   return [];
@@ -1446,7 +1127,10 @@ export async function deleteRequisicionRecord(id: number) {
     .eq("id", id)
     .single();
 
-  const isLocked = existing?.estatus_admin === "procesada" || existing?.estatus_admin === "rechazada";
+  const isLocked =
+    existing?.estatus_admin === "procesada" ||
+    existing?.estatus_admin === "rechazada" ||
+    existing?.estatus_admin === "parcial";
   if (isLocked && !(await isRequisicionesAdmin())) {
     throw new Error("Esta requisición ya fue procesada por Administración y no puede eliminarse.");
   }
@@ -1478,12 +1162,61 @@ export async function deleteRequisicionRecord(id: number) {
 // creator notification.
 export async function setRequisicionEstatus(
   id: number,
-  estatus: "pendiente" | "procesada" | "rechazada",
+  estatus: "pendiente" | "parcial" | "procesada" | "rechazada",
   motivoRechazo?: string,
   tasaCambio?: number | null,
 ) {
   if (!(await isRequisicionesAdmin())) {
     throw new Error("No tiene permisos para cambiar el estatus de requisiciones.");
+  }
+
+  if (estatus === "procesada" || estatus === "parcial") {
+    const gateClient = await createAdminClient();
+    const { data: gate } = await gateClient
+      .from("requisiciones")
+      .select("tipo_solicitud, coordinador_estatus, lider_estatus, costos_confirmados_at, additional_items")
+      .eq("id", id)
+      .maybeSingle();
+    if (gate?.tipo_solicitud === "Interno") {
+      const coordDone = !gate.coordinador_estatus || gate.coordinador_estatus === "aprobada";
+      if (!coordDone) {
+        throw new Error("La interna aún no tiene el sello del coordinador.");
+      }
+      // El sello de líder pendiente/rechazado bloquea. Si costos ya fueron
+      // confirmados con lider_estatus null (lote ≤ límite), NO se recalcula
+      // el umbral sobre todos los ítems (permite procesado parcial).
+      if (gate.lider_estatus === "pendiente") {
+        throw new Error(
+          "Esta interna supera el límite y está pendiente de aprobación del líder.",
+        );
+      }
+      if (gate.lider_estatus === "rechazada") {
+        throw new Error(
+          "El líder rechazó la estimación. Solicite aprobación de nuevo tras ajustar montos.",
+        );
+      }
+      if (!gate.costos_confirmados_at) {
+        const limite = await getLimiteLiderUsd();
+        const total = requisicion_items_total(
+          (gate.additional_items || []) as Parameters<typeof requisicion_items_total>[0],
+        );
+        if (interna_needs_lider(total, limite)) {
+          throw new Error(
+            "El total supera el límite. Solicite aprobación del líder antes de procesar.",
+          );
+        }
+        // Auto-sello de estimación cuando el total no requiere líder.
+        await gateClient
+          .from("requisiciones")
+          .update({
+            costos_confirmados_at: new Date().toISOString(),
+            lider_estatus: null,
+            lider_por: null,
+            lider_at: null,
+          })
+          .eq("id", id);
+      }
+    }
   }
 
   if (estatus === "rechazada" && !motivoRechazo?.trim()) {
@@ -1494,19 +1227,24 @@ export async function setRequisicionEstatus(
   const userResponse = await userClient.auth.getUser();
   const userId = userResponse.data.user?.id || null;
 
-  const isResolved = estatus === "procesada" || estatus === "rechazada";
+  const isClosed = estatus === "procesada" || estatus === "rechazada";
+  const isProcessedStep = estatus === "procesada" || estatus === "parcial";
 
   const update: Record<string, unknown> = {
     estatus_admin: estatus,
-    procesada_por: isResolved ? userId : null,
-    procesada_at: isResolved ? new Date().toISOString() : null,
+    procesada_por: isProcessedStep || isClosed ? userId : null,
+    procesada_at: isProcessedStep || isClosed ? new Date().toISOString() : null,
   };
   if (estatus === "rechazada") {
     update.motivo_rechazo = motivoRechazo!.trim();
   }
   // Snapshot the exchange rate when processing so future views show the rate
   // that was actually used at payment time, not today's live rate.
-  if (estatus === "procesada" && tasaCambio != null && !isNaN(tasaCambio)) {
+  if (
+    (estatus === "procesada" || estatus === "parcial") &&
+    tasaCambio != null &&
+    !isNaN(tasaCambio)
+  ) {
     update.tasa_cambio = tasaCambio;
     update.tasa_cambio_at = new Date().toISOString();
   }
@@ -1535,12 +1273,15 @@ export async function setRequisicionEstatus(
     throw error;
   }
 
-  if (isResolved) {
+  if (isClosed || estatus === "parcial") {
     const { data: req, error: fetchError } = await adminClient
       .from("requisiciones")
       .select(`
         created_by,
         tipo_solicitud,
+        departamento,
+        additional_items,
+        osi_fixed_items,
         v_osi_formato_completo!left (nro_osi)
       `)
       .eq("id", id)
@@ -1554,7 +1295,35 @@ export async function setRequisicionEstatus(
         : `de la OSI N° ${(req.v_osi_formato_completo as any)?.nro_osi || ""}`;
       if (estatus === "procesada") {
         console.log(`[setRequisicionEstatus] Calling notifyCreatorOfProcesada for creator ${req.created_by}`);
-        await notifyCreatorOfProcesada(id, req.created_by, requisicionLabel);
+        await notifyCreatorOfProcesada(
+          id,
+          req.created_by,
+          requisicionLabel,
+          req.departamento,
+        );
+      } else if (estatus === "parcial") {
+        const fixedItems = (req.osi_fixed_items || []) as OSIFixedItem[];
+        const additionalItems = (req.additional_items || []) as RequisicionItem[];
+        const fixedVerified = fixedItems.reduce(
+          (sum, fi) =>
+            sum +
+            (fi.verificacion_traslado === "listo" ? 1 : 0) +
+            (fi.verificacion_impresion === "listo" ? 1 : 0) +
+            (fi.verificacion_honorarios === "listo" ? 1 : 0) +
+            (fi.verificacion_informe_final === "listo" ? 1 : 0),
+          0,
+        );
+        const verifiedCount =
+          fixedVerified +
+          additionalItems.filter((item) => item.verificacion === "listo").length;
+        const totalCount = fixedItems.length * 4 + additionalItems.length;
+        await notifyCreatorOfPartialVerificacion(
+          id,
+          req.created_by,
+          verifiedCount,
+          totalCount,
+          requisicionLabel,
+        );
       } else if (estatus === "rechazada") {
         console.log(`[setRequisicionEstatus] Calling notifyCreatorOfRechazada for creator ${req.created_by}`);
         await notifyCreatorOfRechazada(id, req.created_by, requisicionLabel, motivoRechazo!.trim());
@@ -1617,7 +1386,7 @@ export async function approveRequisicionByCoordinador(id: number) {
       creatorUser?.id &&
       (await isUsuarioCoordinadorForDepartment(creatorUser.id, existing.departamento))
     ) {
-      throw new Error("Esta requisición la creó un coordinador y pasa directo al lider.");
+      throw new Error("Esta requisición la creó un coordinador y pasa directo a Administración.");
     }
   }
   // Verify the caller is the coordinador of the requisicion's department.
@@ -1628,68 +1397,12 @@ export async function approveRequisicionByCoordinador(id: number) {
     }
   }
 
-  // After coordinador approval, check whether the Lider gate is needed.
-  // If the creator IS the approving lider, skip the lider gate and notify
-  // Administración directly. Otherwise, activate the lider gate.
-  let creatorIsLider = false;
-  let creatorUsuarioId: number | null = null;
-  if (existing.departamento) {
-    // Resolve the creator's usuarios.id from their auth UUID (created_by).
-    if (existing.created_by) {
-      const { data: creatorUser } = await admin
-        .from("usuarios")
-        .select("id")
-        .eq("id_auth", existing.created_by)
-        .maybeSingle();
-      creatorUsuarioId = creatorUser?.id ?? null;
-    }
-    if (creatorUsuarioId) {
-      const overrideGerencia = resolveInternaApprovalGerencia(existing.departamento);
-      const gerenciaName = overrideGerencia
-        ? overrideGerencia
-        : (await admin
-            .from("departamentos")
-            .select("gerencia")
-            .ilike("nombre", existing.departamento)
-            .maybeSingle()).data?.gerencia || null;
-      if (gerenciaName) {
-        const { data: gerencia } = await admin
-          .from("gerencias")
-          .select("lider")
-          .ilike("nombre", gerenciaName)
-          .maybeSingle();
-        creatorIsLider = gerencia?.lider === creatorUsuarioId;
-      }
-      if (!creatorIsLider && isServiciosTecnicosDept(existing.departamento)) {
-        creatorIsLider = await isUsuarioStAppLider(creatorUsuarioId);
-      }
-      if (
-        !creatorIsLider &&
-        isAdministracionDept(existing.departamento)
-      ) {
-        creatorIsLider = await isUsuarioSadministracionAppLider(creatorUsuarioId);
-      }
-    }
-  }
-
-  // Try updating with new columns; fall back to just notifying admin if they don't exist.
-  // NOTE: coordinador_por is a UUID column (stores auth uid), unlike lider_por
-  // which is int4 (stores usuarios.id). Use the auth UUID here.
   const updateData: Record<string, any> = {
     coordinador_estatus: "aprobada",
     coordinador_por: userId,
     coordinador_at: new Date().toISOString(),
+    lider_estatus: null,
   };
-
-  if (creatorIsLider) {
-    // Creator is the lider → skip lider gate, go straight to Administración.
-    updateData.lider_estatus = "aprobada";
-    updateData.lider_por = creatorUsuarioId;
-    updateData.lider_at = new Date().toISOString();
-  } else {
-    // Activate the lider gate.
-    updateData.lider_estatus = "pendiente";
-  }
 
   const { error } = await admin
     .from("requisiciones")
@@ -1702,13 +1415,7 @@ export async function approveRequisicionByCoordinador(id: number) {
     throw error;
   }
 
-  if (creatorIsLider) {
-    // Both gates passed → surface to Administración.
-    await notifyAdminsOfNewRequisicion(id, existing.solicitante || "", "interna");
-  } else {
-    // Notify the lider that there is a pending interna to approve.
-    await notifyLiderOfPendingInterna(id, existing.solicitante || "", existing.departamento || "");
-  }
+  await notifyAdminsOfNewRequisicion(id, existing.solicitante || "", "interna");
 
   revalidatePath("/requisiciones");
   revalidatePath("/requisiciones/gestion");
@@ -1805,7 +1512,9 @@ export async function approveRequisicionByLider(id: number) {
   let fetchError: any;
   ({ data: existing, error: fetchError } = await admin
     .from("requisiciones")
-    .select("tipo_solicitud, lider_estatus, coordinador_estatus, solicitante, created_by, departamento, v_osi_formato_completo!left (nro_osi)")
+    .select(
+      "tipo_solicitud, lider_estatus, coordinador_estatus, costos_confirmados_at, additional_items, solicitante, created_by, departamento, v_osi_formato_completo!left (nro_osi)",
+    )
     .eq("id", id)
     .single());
 
@@ -1823,32 +1532,29 @@ export async function approveRequisicionByLider(id: number) {
   if (existing.tipo_solicitud !== "Interno") {
     throw new Error("Solo las requisiciones internas requieren aprobación del lider.");
   }
-  let skipCoordGate = false;
-  if (existing.departamento) {
-    skipCoordGate = !(await departmentHasCoordinador(existing.departamento));
-    if (!skipCoordGate && existing.created_by) {
-      const { data: creatorUser } = await admin
-        .from("usuarios")
-        .select("id")
-        .eq("id_auth", existing.created_by)
-        .maybeSingle();
-      skipCoordGate = Boolean(
-        creatorUser?.id &&
-          (await isUsuarioCoordinadorForDepartment(
-            creatorUser.id,
-            existing.departamento,
-          )),
-      );
-    }
+  const coordDone =
+    !existing.coordinador_estatus || existing.coordinador_estatus === "aprobada";
+  if (!coordDone) {
+    throw new Error(
+      "El coordinador debe sellar antes. El líder solo aprueba costos ya estimados por Administración.",
+    );
   }
-  if (
-    existing.lider_estatus === "aprobada" ||
-    existing.lider_estatus === "rechazada" ||
-    (existing.lider_estatus !== undefined &&
-      existing.lider_estatus !== "pendiente" &&
-      !skipCoordGate)
-  ) {
-    throw new Error("Esta requisición interna ya fue procesada por el lider.");
+  if (!existing.costos_confirmados_at) {
+    throw new Error(
+      "Administración aún no confirmó la estimación de costos. El líder no puede aprobar sin montos.",
+    );
+  }
+  if (existing.lider_estatus !== "pendiente") {
+    throw new Error("Esta requisición no está pendiente de aprobación del líder.");
+  }
+  const limite = await getLimiteLiderUsd();
+  const total = requisicion_items_total(
+    (existing.additional_items || []) as Parameters<typeof requisicion_items_total>[0],
+  );
+  if (!interna_needs_lider(total, limite)) {
+    throw new Error(
+      `El total ($${total.toFixed(2)}) no supera el límite ($${limite}). No requiere sello del líder.`,
+    );
   }
   // A creator can never approve their own interna.
   if (existing.created_by && userId && existing.created_by === userId) {
@@ -1869,7 +1575,6 @@ export async function approveRequisicionByLider(id: number) {
       lider_estatus: "aprobada",
       lider_por: usuarioId,
       lider_at: new Date().toISOString(),
-      ...(skipCoordGate ? { coordinador_estatus: null } : {}),
     })
     .eq("id", id);
 
@@ -1879,8 +1584,8 @@ export async function approveRequisicionByLider(id: number) {
     throw error;
   }
 
-  // Now that the lider approved, surface the requisicion to Administración.
-  await notifyAdminsOfNewRequisicion(id, existing.solicitante || "", "interna");
+  // Now that the lider approved costs, Admin can process (distinct event).
+  await notifyAdminsOfCostosAprobados(id, existing.solicitante || "", "interna");
 
   revalidatePath("/requisiciones");
   revalidatePath("/requisiciones/gestion");
@@ -1906,7 +1611,9 @@ export async function rejectRequisicionByLider(id: number, motivo: string) {
   let fetchError: any;
   ({ data: existing, error: fetchError } = await admin
     .from("requisiciones")
-    .select("tipo_solicitud, lider_estatus, coordinador_estatus, solicitante, created_by, departamento, v_osi_formato_completo!left (nro_osi)")
+    .select(
+      "tipo_solicitud, lider_estatus, coordinador_estatus, costos_confirmados_at, solicitante, created_by, departamento, v_osi_formato_completo!left (nro_osi)",
+    )
     .eq("id", id)
     .single());
 
@@ -1924,32 +1631,13 @@ export async function rejectRequisicionByLider(id: number, motivo: string) {
   if (existing.tipo_solicitud !== "Interno") {
     throw new Error("Solo las requisiciones internas requieren aprobación del lider.");
   }
-  let skipCoordGate = false;
-  if (existing.departamento) {
-    skipCoordGate = !(await departmentHasCoordinador(existing.departamento));
-    if (!skipCoordGate && existing.created_by) {
-      const { data: creatorUser } = await admin
-        .from("usuarios")
-        .select("id")
-        .eq("id_auth", existing.created_by)
-        .maybeSingle();
-      skipCoordGate = Boolean(
-        creatorUser?.id &&
-          (await isUsuarioCoordinadorForDepartment(
-            creatorUser.id,
-            existing.departamento,
-          )),
-      );
-    }
+  if (!existing.costos_confirmados_at) {
+    throw new Error(
+      "Administración aún no confirmó la estimación. No hay costos que rechazar.",
+    );
   }
-  if (
-    existing.lider_estatus === "aprobada" ||
-    existing.lider_estatus === "rechazada" ||
-    (existing.lider_estatus !== undefined &&
-      existing.lider_estatus !== "pendiente" &&
-      !skipCoordGate)
-  ) {
-    throw new Error("Esta requisición interna ya fue procesada por el lider.");
+  if (existing.lider_estatus !== "pendiente") {
+    throw new Error("Esta requisición no está pendiente de aprobación del líder.");
   }
   // A creator can never reject their own interna.
   if (existing.created_by && userId && existing.created_by === userId) {
@@ -1971,7 +1659,6 @@ export async function rejectRequisicionByLider(id: number, motivo: string) {
       lider_por: usuarioId,
       lider_at: new Date().toISOString(),
       motivo_rechazo_lider: motivo.trim(),
-      ...(skipCoordGate ? { coordinador_estatus: null } : {}),
     })
     .eq("id", id);
 
@@ -2071,7 +1758,7 @@ export async function updateRequisicionByApprover(
         if (hasCoord) {
           throw new Error("Solo el coordinador del departamento puede editar esta requisición externa.");
         }
-        const isLider = await isLiderForDepartmentGerencia(existing.departamento);
+        const isLider = await isLiderForInternaApproval(existing.departamento);
         if (!isLider) {
           throw new Error("Solo el lider de la gerencia puede editar esta requisición externa (el departamento no tiene coordinador).");
         }
@@ -2256,6 +1943,51 @@ export async function updateFixedItemVerificacion(
   revalidatePath("/requisiciones/gestion");
 }
 
+/** Admin con gestion:edit/process puede agregar/editar ítems de una req abierta. */
+export async function updateRequisicionItemsByGestion(
+  id: number,
+  items: RequisicionItem[],
+) {
+  const access = await getRequisicionAccess();
+  if (!access.can_edit_tramite) {
+    throw new Error("No tiene permiso para editar ítems de la requisición.");
+  }
+
+  const admin = await createAdminClient();
+  const { data: existing, error: fetchError } = await admin
+    .from("requisiciones")
+    .select("estatus_admin")
+    .eq("id", id)
+    .maybeSingle();
+  if (fetchError || !existing) throw new Error("Requisición no encontrada.");
+  if (
+    existing.estatus_admin === "procesada" ||
+    existing.estatus_admin === "rechazada"
+  ) {
+    throw new Error("No se pueden editar ítems de una requisición ya cerrada.");
+  }
+
+  const normalized = (items || []).map((item) => {
+    const total = Number(item.total) || 0;
+    if (total > 0) {
+      return apply_item_money_updates(item, { total });
+    }
+    return apply_item_money_updates(item, {
+      costo_unitario: Number(item.costo_unitario) || 0,
+    });
+  });
+
+  const { error } = await admin
+    .from("requisiciones")
+    .update({ additional_items: normalized })
+    .eq("id", id);
+  if (error) throw error;
+
+  revalidatePath("/requisiciones");
+  revalidatePath("/requisiciones/gestion");
+  revalidatePath(`/requisiciones/view/${id}`);
+}
+
 // Mark all additional_items and osi_fixed_items as "listo" (Administración only)
 export async function markAllItemsVerificadas(requisicionId: number) {
   if (!(await isRequisicionesAdmin())) {
@@ -2374,9 +2106,9 @@ export async function saveVerificacionProgress(requisicionId: number) {
 }
 
 // Get facilitators for dropdown with banking details (cached 5 minutes)
-export const getFacilitatorsForDropdown = unstable_cache(
-  async () => {
-    const supabase = await createAdminClient();
+const getFacilitatorsForDropdownCached = unstable_cache(
+  async (target: DevDbTarget) => {
+    const supabase = await createAdminClient(target);
     const { data, error } = await supabase
       .from("facilitadores")
       .select(`
@@ -2401,6 +2133,10 @@ export const getFacilitatorsForDropdown = unstable_cache(
   ["facilitators-for-dropdown"],
   { tags: ["facilitators"], revalidate: 300 }
 );
+
+export async function getFacilitatorsForDropdown() {
+  return getFacilitatorsForDropdownCached(await peek_dev_db_target());
+}
 
 // Get USD→VES exchange rate for display in requisicion view
 export async function getExchangeRate(): Promise<number | null> {
@@ -2682,4 +2418,208 @@ export async function acknowledgeRequisicionReceipt(id: number) {
   revalidatePath("/requisiciones");
   revalidatePath("/requisiciones/gestion");
   revalidatePath(`/requisiciones/view/${id}`);
+}
+
+const DEFAULT_LIMITE_LIDER_USD = 100;
+
+/** Lee el límite USD (columna histórica `umbral_lider_usd`). */
+export async function getLimiteLiderUsd(): Promise<number> {
+  try {
+    const admin = await createAdminClient();
+    const { data, error } = await admin
+      .from("requisiciones_ajustes")
+      .select("umbral_lider_usd")
+      .eq("id", 1)
+      .maybeSingle();
+    if (error || data?.umbral_lider_usd == null) return DEFAULT_LIMITE_LIDER_USD;
+    return Number(data.umbral_lider_usd);
+  } catch {
+    return DEFAULT_LIMITE_LIDER_USD;
+  }
+}
+
+export async function updateLimiteLiderUsd(limite: number) {
+  const access = await getRequisicionAccess();
+  if (!access.can_edit_config) {
+    throw new Error("Solo el líder de Administración o Admin TED pueden cambiar el límite.");
+  }
+  const value = Number(limite);
+  if (!Number.isFinite(value) || value < 0) {
+    throw new Error("El límite debe ser un número mayor o igual a 0.");
+  }
+  const admin = await createAdminClient();
+  const { error } = await admin.from("requisiciones_ajustes").upsert({
+    id: 1,
+    umbral_lider_usd: value,
+    updated_at: new Date().toISOString(),
+  });
+  if (error) throw error;
+  revalidatePath("/requisiciones");
+  revalidatePath("/requisiciones/gestion");
+  revalidatePath("/requisiciones/configuracion");
+}
+
+export async function confirmInternaCostos(
+  id: number,
+  items: RequisicionItem[],
+  opts?: { selected_item_ids?: string[] },
+) {
+  if (!(await isRequisicionesAdmin())) {
+    throw new Error("Solo Administración puede confirmar la estimación de costos.");
+  }
+  const admin = await createAdminClient();
+  const { data: existing, error: fetchError } = await admin
+    .from("requisiciones")
+    .select(
+      "tipo_solicitud, coordinador_estatus, lider_estatus, costos_confirmados_at, solicitante, departamento, estatus_admin",
+    )
+    .eq("id", id)
+    .single();
+  if (fetchError || !existing) throw new Error("Requisición no encontrada.");
+  if (existing.tipo_solicitud !== "Interno") {
+    throw new Error("La confirmación de costos aplica a requisiciones internas.");
+  }
+  if (existing.estatus_admin === "procesada" || existing.estatus_admin === "rechazada") {
+    throw new Error("No se puede reestimar una requisición ya tramitada.");
+  }
+  const coordDone = !existing.coordinador_estatus || existing.coordinador_estatus === "aprobada";
+  if (!coordDone) {
+    throw new Error("Espere el sello del coordinador antes de estimar montos.");
+  }
+  // Bloquear reestimación solo si el líder ya aprobó UNA estimación real.
+  if (
+    existing.lider_estatus === "aprobada" &&
+    existing.costos_confirmados_at
+  ) {
+    throw new Error("El líder ya aprobó los costos. No se puede cambiar la estimación.");
+  }
+
+  const normalized = (items || []).map((item) => {
+    const total = Number(item.total) || 0;
+    if (total > 0) {
+      return apply_item_money_updates(item, { total });
+    }
+    return apply_item_money_updates(item, {
+      costo_unitario: Number(item.costo_unitario) || 0,
+    });
+  });
+
+  const selectedIds = (opts?.selected_item_ids || []).filter(Boolean);
+  const multi = normalized.length > 1;
+  if (multi && selectedIds.length === 0) {
+    throw new Error(
+      "Hay varios ítems. Marque en la columna Procesar cuáles confirmar ahora.",
+    );
+  }
+  const forGate =
+    multi && selectedIds.length > 0
+      ? normalized.filter((item) => selectedIds.includes(String(item.id)))
+      : normalized;
+  if (multi && forGate.length === 0) {
+    throw new Error("Ningún ítem marcado coincide con la selección.");
+  }
+
+  const total = requisicion_items_total(forGate);
+  const limite = await getLimiteLiderUsd();
+  const needsLider = interna_needs_lider(total, limite);
+  const now = new Date().toISOString();
+
+  // Si había un sello de líder prematuro (sin estimación), se anula / se reabre.
+  const updatePayload: Record<string, unknown> = {
+    additional_items: normalized,
+    costos_confirmados_at: now,
+    lider_estatus: needsLider ? "pendiente" : null,
+  };
+  if (!needsLider || existing.lider_estatus === "aprobada") {
+    updatePayload.lider_por = null;
+    updatePayload.lider_at = null;
+  }
+
+  const { error } = await admin
+    .from("requisiciones")
+    .update(updatePayload)
+    .eq("id", id);
+  if (error) throw error;
+
+  if (needsLider) {
+    await notifyLiderOfPendingInterna(id, existing.solicitante || "", existing.departamento || "");
+  }
+
+  revalidatePath("/requisiciones");
+  revalidatePath("/requisiciones/gestion");
+  revalidatePath(`/requisiciones/view/${id}`);
+  return {
+    needsLider,
+    total,
+    limite,
+    selectedCount: forGate.length,
+    totalItems: normalized.length,
+  };
+}
+
+/**
+ * Corrige el departamento (y gerencia derivada) de una requisición ya emitida.
+ * Solo Administración operativa con `requisiciones:gestion:edit`.
+ */
+export async function updateRequisicionDepartamento(
+  id: number,
+  departamento: string,
+) {
+  const access = await getRequisicionAccess();
+  if (!access.can_edit_departamento_emitida) {
+    throw new Error(
+      "No tiene permiso para editar el departamento de una requisición emitida.",
+    );
+  }
+
+  const nombre = (departamento || "").trim();
+  if (!nombre) {
+    throw new Error("Seleccione un departamento válido.");
+  }
+
+  const catalogHit = access.catalog.find(
+    (row) => row.nombre.trim().toLowerCase() === nombre.toLowerCase(),
+  );
+  if (!catalogHit) {
+    throw new Error("El departamento seleccionado no existe o no está activo.");
+  }
+
+  const admin = await createAdminClient();
+  const { data: existing, error: fetchError } = await admin
+    .from("requisiciones")
+    .select("id, departamento, gerencia_solicitante")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (fetchError || !existing) {
+    throw new Error("Requisición no encontrada.");
+  }
+
+  const gerencia = (catalogHit.gerencia || "").trim() || existing.gerencia_solicitante || null;
+
+  const { error } = await admin
+    .from("requisiciones")
+    .update({
+      departamento: catalogHit.nombre,
+      gerencia_solicitante: gerencia,
+    })
+    .eq("id", id);
+
+  if (error) {
+    throw new Error(
+      typeof error.message === "string" && error.message.trim()
+        ? `No se pudo actualizar el departamento: ${error.message}`
+        : "No se pudo actualizar el departamento.",
+    );
+  }
+
+  revalidatePath("/requisiciones");
+  revalidatePath("/requisiciones/gestion");
+  revalidatePath(`/requisiciones/view/${id}`);
+  revalidatePath(`/requisiciones/edit/${id}`);
+
+  return {
+    departamento: catalogHit.nombre,
+    gerencia_solicitante: gerencia,
+  };
 }

@@ -14,7 +14,8 @@ type SolicitudTipo =
   | "restablecer_contrasena"
   | "cambio_email"
   | "cambio_permisos"
-  | "cambio_firma";
+  | "cambio_firma"
+  | "solicitud_marketing";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -25,11 +26,14 @@ function buildCompletionBody(
   nombreApellido: string,
   solicitarEmail: boolean,
   solicitarFirmaEmail: boolean,
+  solicitarCarnet?: boolean,
+  solicitarHablador?: boolean,
 ): string {
-  const parts: string[] = [];
-  if (solicitarEmail) parts.push("el usuario y el email corporativo");
-  else if (solicitarFirmaEmail) parts.push("el usuario y la firma de email");
-  else parts.push("el usuario");
+  const parts: string[] = ["el usuario"];
+  if (solicitarEmail) parts.push("el email corporativo");
+  if (solicitarFirmaEmail) parts.push("la firma de email");
+  if (solicitarCarnet) parts.push("el carnet institucional");
+  if (solicitarHablador) parts.push("el hablador de escritorio");
   return `Tu solicitud para crear ${parts.join(", ")} para ${nombreApellido} ha sido completada por TED.`;
 }
 
@@ -52,7 +56,8 @@ function buildTipoCompletionBody(
     case "cambio_permisos":
       return `El cambio de permisos para ${nombreApellido} ha sido completado por TED.`;
     case "cambio_firma":
-      return `La solicitud de firma de correo para ${nombreApellido} ha sido procesada por TED / Marketing.`;
+    case "solicitud_marketing":
+      return `La solicitud de material institucional (firma/carnet/hablador) para ${nombreApellido} ha sido procesada por TED / Marketing.`;
     default:
       return `Tu solicitud para ${nombreApellido} ha sido completada por TED.`;
   }
@@ -81,7 +86,8 @@ function buildRejectionBody(
       case "cambio_permisos":
         return `Tu solicitud de cambio de permisos para ${nombreApellido}`;
       case "cambio_firma":
-        return `Tu solicitud de cambio de firma de correo para ${nombreApellido}`;
+      case "solicitud_marketing":
+        return `Tu solicitud de material institucional para ${nombreApellido}`;
       default:
         return `Tu solicitud para ${nombreApellido}`;
     }
@@ -275,8 +281,9 @@ async function executeSolicitudAction(
       return { success: true };
     }
 
-    case "cambio_firma": {
-      // Signature actions are handled with Marketing; completing the solicitud notifies requester
+    case "cambio_firma":
+    case "solicitud_marketing": {
+      // Marketing items are handled with Marketing; completing the solicitud notifies requester
       return { success: true };
     }
 
@@ -335,7 +342,7 @@ export async function updateRhSolicitudStatus(
     // Fetch the solicitud to get tipo + usuario_id + valor_nuevo
     const { data: solicitud, error: fetchError } = await admin
       .from("rh_solicitudes")
-      .select("tipo, usuario_id, valor_nuevo, solicitado_por, nombre_apellido, solicitar_email, solicitar_firma_email")
+      .select("tipo, usuario_id, valor_nuevo, solicitado_por, nombre_apellido, solicitar_email, solicitar_firma_email, solicitar_carnet, solicitar_hablador")
       .eq("id", id)
       .maybeSingle();
 
@@ -421,6 +428,7 @@ export async function updateRhSolicitudStatus(
                   case "cambio_email": return "Solicitud de Cambio de Email Rechazada";
                   case "cambio_permisos": return "Solicitud de Cambio de Permisos Rechazada";
                   case "cambio_firma": return "Solicitud de Firma Rechazada";
+                  case "solicitud_marketing": return "Solicitud de Marketing Rechazada";
                   default: return "Solicitud Rechazada";
                 }
               })()
@@ -433,6 +441,7 @@ export async function updateRhSolicitudStatus(
                   case "cambio_email": return "Cambio de Email Completado";
                   case "cambio_permisos": return "Cambio de Permisos Completado";
                   case "cambio_firma": return "Solicitud de Firma Completada";
+                  case "solicitud_marketing": return "Solicitud de Marketing Completada";
                   default: return "Solicitud Completada";
                 }
               })();
@@ -444,6 +453,8 @@ export async function updateRhSolicitudStatus(
                   solicitud.nombre_apellido,
                   solicitud.solicitar_email,
                   solicitud.solicitar_firma_email,
+                  solicitud.solicitar_carnet,
+                  solicitud.solicitar_hablador,
                 )
               : buildTipoCompletionBody(solicitud.nombre_apellido, tipo);
 

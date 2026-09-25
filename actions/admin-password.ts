@@ -1,7 +1,7 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/server";
-import { isTedMember } from "@/actions/ted";
+import { canManageUsuariosPrisma } from "@/actions/ted";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LENGTH = 8;
@@ -21,7 +21,7 @@ export async function resetUserPassword(
 ): Promise<{ success?: boolean; error?: string }> {
   try {
     // --- Authorization: TED members only ---
-    const allowed = await isTedMember();
+    const allowed = await canManageUsuariosPrisma();
     if (!allowed) {
       return { error: "No tienes permisos para realizar esta acción." };
     }

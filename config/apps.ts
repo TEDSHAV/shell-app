@@ -9,8 +9,6 @@ import {
   Award,
   UserCheck,
   FilePlus2,
-  CreditCard,
-  LayoutTemplate,
   ListOrdered,
   PenLine,
   Building2,
@@ -40,7 +38,6 @@ import {
   LayoutList,
   Shield,
   Code2,
-  Layers,
   Bell,
   UserPlus,
   FileStack,
@@ -50,27 +47,41 @@ import {
 import { build_app_config } from "@/lib/app-theme";
 import { AppConfig, AppGroupConfig, NavGroup } from "@/types";
 
-const requisicionesNavGroup: NavGroup = {
-  groupLabel: "Requisiciones",
+function buildRequisicionesNavGroup(fromApp: string): NavGroup {
+  const q = `?from=${fromApp}`;
+  return {
+    groupLabel: "Requisiciones",
+    links: [
+      {
+        label: "Mis Requisiciones",
+        path: "/",
+        href: `/requisiciones${q}`,
+        icon: ListOrdered,
+      },
+      {
+        label: "Gestión de Requisiciones",
+        path: "/gestion",
+        href: `/requisiciones/gestion${q}`,
+        icon: ClipboardList,
+        requiresRequisicionesGestion: true,
+      },
+      {
+        label: "Nueva Requisición",
+        path: "/create",
+        href: `/requisiciones/create${q}`,
+        icon: FilePlus2,
+      },
+    ],
+  };
+}
+
+const administracionDashboardNavGroup: NavGroup = {
+  groupLabel: "General",
   links: [
     {
-      label: "Mis Requisiciones",
+      label: "Dashboard",
       path: "/",
-      href: "/requisiciones",
-      icon: ListOrdered,
-    },
-    {
-      label: "Gestión de Requisiciones",
-      path: "/gestion",
-      href: "/requisiciones/gestion",
-      icon: ClipboardList,
-      requiresRequisicionesGestion: true,
-    },
-    {
-      label: "Nueva Requisición",
-      path: "/create",
-      href: "/requisiciones/create",
-      icon: FilePlus2,
+      icon: LayoutDashboard,
     },
   ],
 };
@@ -80,19 +91,29 @@ const administracionNavGroup: NavGroup = {
   links: [
     {
       label: "Mis Requisiciones",
-      path: "/",
+      path: "/requisiciones",
+      href: "/requisiciones",
       icon: ListOrdered,
     },
     {
       label: "Gestión de Requisiciones",
-      path: "/gestion",
+      path: "/requisiciones/gestion",
+      href: "/requisiciones/gestion",
       icon: ClipboardList,
       requiresRequisicionesGestion: true,
     },
     {
       label: "Nueva Requisición",
-      path: "/create",
+      path: "/requisiciones/create",
+      href: "/requisiciones/create?from=administracion",
       icon: FilePlus2,
+    },
+    {
+      label: "Límite de aprobación",
+      path: "/requisiciones/configuracion",
+      href: "/requisiciones/configuracion",
+      icon: Settings,
+      requiredPermissions: ["requisiciones:config:manage"],
     },
   ],
 };
@@ -104,6 +125,7 @@ const administracionFacturacionNavGroup: NavGroup = {
       label: "Facturación",
       // Ruta bajo Administración (/requisiciones/facturacion); embebe UI de Negocios.
       path: "/facturacion",
+      href: "/requisiciones/facturacion",
       icon: Landmark,
       requiredPermissions: [
         "admin:facturacion:access",
@@ -158,6 +180,7 @@ export const UTILIDADES_HEADER_APP_IDS = [
   "drive",
   "inventario",
   "directorio",
+  "cedula",
   "administracion",
 ] as const;
 
@@ -604,7 +627,6 @@ export const apps: AppConfig[] = [
             label: "Inicio",
             path: "/",
             icon: LayoutDashboard,
-            requiredPermissions: ["pipeline:access"],
           },
           {
             label: "Pipeline",
@@ -648,22 +670,38 @@ export const apps: AppConfig[] = [
           },
         ],
       },
+      {
+        groupLabel: "Herramientas",
+        icon: UserCheck,
+        links: [
+          {
+            label: "Verificar Cédula",
+            path: "/verificar-cedula",
+            href: "/verificar-cedula",
+            icon: UserCheck,
+          },
+        ],
+      },
     ],
   }),
   build_app_config({
     id: "administracion",
     dbSlug: "sgestion",
     name: "Administración",
-    description: "Procesos administrativos y requisiciones",
-    basePath: "/requisiciones",
+    description: "Procesos administrativos, requisiciones y facturación",
+    basePath: "/administracion",
     icon: Landmark,
-    brandColor: "#4F46E5",
+    brandColor: "#0C3F69",
     embedMode: "native",
     groupId: "procesos-de-apoyo",
     headerGroupId: "utilidades",
-    headerLabel: "Requisiciones",
+    headerLabel: "Administración",
     dashboardOrder: 1,
-    navLinks: [administracionNavGroup, administracionFacturacionNavGroup],
+    navLinks: [
+      administracionDashboardNavGroup,
+      administracionNavGroup,
+      administracionFacturacionNavGroup,
+    ],
   }),
   build_app_config({
     id: "capacitacion",
@@ -683,7 +721,7 @@ export const apps: AppConfig[] = [
     navLinks: [
       {
         label: "Dashboard",
-        path: "/",
+        path: "/dashboard/capacitacion",
         icon: LayoutDashboard,
         requiredPermissions: ["scapacitacion:all:access"],
       },
@@ -692,6 +730,12 @@ export const apps: AppConfig[] = [
         path: "/consulta-osi",
         href: "/consulta-osi",
         icon: Search,
+      },
+      {
+        label: "Verificar Cédula",
+        path: "/verificar-cedula",
+        href: "/verificar-cedula",
+        icon: UserCheck,
       },
       {
         groupLabel: "Planificación y Ejecución",
@@ -906,7 +950,7 @@ export const apps: AppConfig[] = [
       { label: "Control de Calibración", path: "/dashboard/control-calibracion", icon: Gauge },
       { label: "Entrada y Salida de Equipos", path: "/dashboard/entrada-salida-equipos", icon: ArrowLeftRight },
       { label: "Formulario de Novedades", path: "/dashboard/formulario-novedades", icon: FileText },
-      ...[requisicionesNavGroup],
+      ...[buildRequisicionesNavGroup("servicios-tecnicos")],
     ],
   }),
   build_app_config({
@@ -961,6 +1005,19 @@ export const apps: AppConfig[] = [
     dashboardOrder: 8,
     navLinks: [],
   }),
+  build_app_config({
+    id: "cedula",
+    name: "Verificar Cédula",
+    description: "Consulta y verificación oficial de identidad por cédula",
+    basePath: "/verificar-cedula",
+    icon: UserCheck,
+    brandColor: "#0284C7",
+    embedMode: "native",
+    hiddenFromDashboard: true,
+    groupId: "utilidades",
+    dashboardOrder: 9,
+    navLinks: [],
+  }),
   // Placeholders: módulos visibles en dashboard para completar el mapa de procesos
   build_app_config({
     id: "calidad",
@@ -969,6 +1026,7 @@ export const apps: AppConfig[] = [
     description: "Políticas, manuales y control de procesos corporativos",
     basePath: "/calidad",
     dashboardOrder: 1,
+    defaultSubPath: "dashboard/calidad",
     upstreamUrl:
       process.env.NEXT_PUBLIC_CALIDAD_URL ||
       "https://calidad.shadevenezuela.com.ve",
@@ -978,8 +1036,8 @@ export const apps: AppConfig[] = [
     groupId: "procesos-estrategicos",
     navLinks: [
       {
-        label: "Inicio",
-        path: "/",
+        label: "Dashboard",
+        path: "/dashboard/calidad",
         icon: LayoutDashboard,
         requiredPermissions: ["scalidad:all:access"],
       },
@@ -995,6 +1053,13 @@ export const apps: AppConfig[] = [
         icon: Shield,
         requiredPermissions: ["scalidad:all:access"],
       },
+      {
+        label: "Formularios",
+        path: "/dashboard/calidad/formularios",
+        icon: ClipboardList,
+        requiredPermissions: ["scalidad:all:access"],
+      },
+      ...[buildRequisicionesNavGroup("calidad")],
     ],
   }),
   build_app_config({
@@ -1043,6 +1108,7 @@ export const apps: AppConfig[] = [
         icon: Users,
         requiredPermissions: ["srh:all:access"],
       },
+      ...[buildRequisicionesNavGroup("recursos-humanos")],
     ],
   }),
   build_app_config({
@@ -1071,6 +1137,7 @@ export const apps: AppConfig[] = [
   }),
   build_app_config({
     id: "ted",
+    dbSlug: "ted",
     name: "TED",
     description: "Tecnología, equipos y desarrollo",
     basePath: "/ted",
@@ -1079,6 +1146,7 @@ export const apps: AppConfig[] = [
     embedMode: "native",
     groupId: "procesos-de-apoyo",
     dashboardOrder: 6,
+    requiredRoles: ["ted", "gerencia"],
     navLinks: [
       {
         groupLabel: "Planificación",
@@ -1090,16 +1158,22 @@ export const apps: AppConfig[] = [
             label: "Vista general",
             path: "/planificacion",
             icon: LayoutList,
+            requiredRoles: ["ted"],
+            requiredPermissions: ["planificacion-ted:access-all"],
           },
           {
             label: "Tareas",
             path: "/planificacion/tareas",
             icon: LayoutGrid,
+            requiredRoles: ["ted"],
+            requiredPermissions: ["planificacion-ted:access-all"],
           },
           {
             label: "Inbox tickets",
             path: "/planificacion/tickets",
             icon: Ticket,
+            requiredRoles: ["ted"],
+            requiredPermissions: ["planificacion-ted:access-all"],
           },
         ],
       },
@@ -1113,16 +1187,19 @@ export const apps: AppConfig[] = [
             label: "Objetivos",
             path: "/planificacion/objetivos",
             icon: Target,
+            requiredPermissions: ["objetivos-ted:access-all"],
           },
           {
             label: "Cubrir",
             path: "/planificacion/cubrir",
             icon: GitBranch,
+            requiredPermissions: ["objetivos-ted:access-all"],
           },
           {
             label: "Informe",
             path: "/planificacion/informe",
             icon: BarChart2,
+            requiredPermissions: ["objetivos-ted:access-all"],
           },
         ],
       },
@@ -1135,6 +1212,15 @@ export const apps: AppConfig[] = [
             label: "Manejo de usuarios",
             path: "/usuarios",
             icon: UserPlus,
+            requiredRoles: ["ted"],
+            requiredPermissions: ["gestion-usuarios-prisma:access-all"],
+          },
+          {
+            label: "Accesos y roles",
+            path: "/usuarios/accesos",
+            icon: Shield,
+            requiredRoles: ["ted"],
+            requiredPermissions: ["gestion-usuarios-prisma:access-all"],
           },
           {
             label: "Accesos y roles",
@@ -1152,11 +1238,13 @@ export const apps: AppConfig[] = [
             label: "Catálogo de notificaciones",
             path: "/notificaciones",
             icon: Bell,
+            requiredRoles: ["ted"],
           },
           {
             label: "Por usuario",
             path: "/notificaciones/usuarios",
             icon: Users,
+            requiredRoles: ["ted"],
           },
         ],
       },
@@ -1165,6 +1253,9 @@ export const apps: AppConfig[] = [
 ];
 
 export function getAppByPath(pathname: string): AppConfig | undefined {
+  if (pathname.startsWith("/requisiciones")) {
+    return apps.find((app) => app.id === "administracion");
+  }
   return apps.find((app) => pathname.startsWith(app.basePath));
 }
 

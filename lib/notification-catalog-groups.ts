@@ -52,6 +52,9 @@ const GENERAL_SGESION_EVENT_KEYS = new Set([
   "user_reminder",
   "scheduled_reminder",
   "comment_mention",
+]);
+
+const TED_TICKET_EVENT_KEYS = new Set([
   "ticket_completado",
   "ticket_no_procede",
 ]);
@@ -119,6 +122,9 @@ export function resolve_catalog_group(event: {
   event_key: string;
 }): NotificationCatalogGroupId {
   if (event.app_slug === "shell") return "general";
+  if (event.app_slug === "ted" || TED_TICKET_EVENT_KEYS.has(event.event_key)) {
+    return "general";
+  }
   if (
     event.app_slug === "administracion" ||
     event.app_slug === "sadministracion"

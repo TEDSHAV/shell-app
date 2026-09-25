@@ -160,6 +160,17 @@ export function TareaViewPanel({
         ) : null}
       </div>
 
+      {tarea.descripcion?.trim() ? (
+        <div className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+            Descripción
+          </p>
+          <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-800">
+            {tarea.descripcion}
+          </p>
+        </div>
+      ) : null}
+
       <div className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm">
         <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
           Entregable

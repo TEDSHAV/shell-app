@@ -35,7 +35,7 @@ async function notify_ticket_requester(
   const closed = estado === "cerrado";
   const titulo = row.titulo ?? "tu requerimiento";
   const { error } = await supabase.schema("notify").from("inbox").insert({
-    app_slug: "sgestion",
+    app_slug: "ted",
     event_key: closed ? "ticket_completado" : "ticket_no_procede",
     recipient_id_auth: auth_id,
     title: closed
@@ -177,32 +177,6 @@ async function ensure_modulo(
   return { ok: true, id };
 }
 
-async function default_asignado(
-  supabase: Awaited<ReturnType<typeof createAdminClient>>,
-  modulo_id: number,
-  app_id: number,
-): Promise<number | null> {
-  const { data: parts } = await supabase
-    .from("ted_plan_modulo_participantes" as never)
-    .select("usuario_id")
-    .eq("modulo_id", modulo_id)
-    .limit(1);
-  const first = ((parts ?? []) as Array<{ usuario_id: number }>)[0];
-  if (first) return first.usuario_id;
-  const { data: links } = await supabase
-    .from("ted_plan_modulo_apps" as never)
-    .select("modulo_id")
-    .eq("app_id", app_id);
-  const ids = ((links ?? []) as Array<{ modulo_id: number }>).map((row) => row.modulo_id);
-  if (ids.length === 0) return null;
-  const { data: more } = await supabase
-    .from("ted_plan_modulo_participantes" as never)
-    .select("usuario_id")
-    .in("modulo_id", ids)
-    .limit(1);
-  return ((more ?? []) as Array<{ usuario_id: number }>)[0]?.usuario_id ?? null;
-}
-
 export async function create_ticket(raw: unknown) {
   const parsed = ticket_create_schema.safeParse(raw);
   if (!parsed.success) {
@@ -219,9 +193,6 @@ export async function create_ticket(raw: unknown) {
       : user_id;
   const modulo = await ensure_modulo(supabase, input.app_id, input.modulo_id, user_id);
   if (!modulo.ok) return modulo;
-  const asignado_id =
-    input.asignado_id ??
-    (await default_asignado(supabase, modulo.id, input.app_id));
 
   const { data: ticket, error: t_err } = await supabase
     .from("ted_plan_tickets" as never)
@@ -229,10 +200,11 @@ export async function create_ticket(raw: unknown) {
       titulo: input.titulo,
       descripcion: input.descripcion,
       solicitado_por,
+      created_by: user_id,
       app_id: input.app_id,
       modulo_id: modulo.id,
       prioridad: input.prioridad,
-      asignado_id,
+      asignado_id: null,
       estado: "abierto",
     } as never)
     .select("id")
@@ -257,6 +229,7 @@ export async function create_ticket(raw: unknown) {
     .insert({
       modulo_id: modulo.id,
       titulo: input.titulo,
+      descripcion: input.descripcion?.trim() || null,
       origen: "TICKET",
       avance: 0,
       no_solicitada: false,
@@ -264,7 +237,7 @@ export async function create_ticket(raw: unknown) {
       entregable_tipo: "ninguno",
       ticket_id,
       created_by: user_id,
-      asignado_id,
+      asignado_id: null,
       orden,
       en_planificacion: false,
     } as never)
@@ -280,12 +253,6 @@ export async function create_ticket(raw: unknown) {
     .update({ tarea_id } as never)
     .eq("id", ticket_id);
 
-  const extra = input.colaborador_ids.filter((id) => id !== asignado_id);
-  if (extra.length > 0) {
-    await supabase.from("ted_plan_ticket_colaboradores" as never).insert(
-      extra.map((usuario_id) => ({ ticket_id, usuario_id })) as never,
-    );
-  }
   await add_evento(
     supabase,
     ticket_id,
@@ -408,26 +375,68 @@ export async function promote_ticket(raw: unknown) {
   const { supabase, user_id } = gate.ctx;
   const { data: ticket, error } = await supabase
     .from("ted_plan_tickets" as never)
-    .select("id, tarea_id")
+    .select("id, tarea_id, titulo, descripcion, modulo_id, asignado_id")
     .eq("id", parsed.data.ticket_id)
     .maybeSingle();
   if (error || !ticket) {
     return { ok: false as const, error: "Ticket no encontrado." };
   }
-  const tarea_id = Number((ticket as { tarea_id?: number }).tarea_id ?? 0);
+  const row = ticket as {
+    tarea_id?: number;
+    titulo: string;
+    descripcion: string | null;
+    modulo_id: number | null;
+    asignado_id?: number | null;
+  };
+  const tarea_id = Number(row.tarea_id ?? 0);
   await supabase
     .from("ted_plan_tickets" as never)
     .update({ estado: "planificado" } as never)
     .eq("id", parsed.data.ticket_id);
+  const tarea_patch = {
+    titulo: row.titulo,
+    descripcion: row.descripcion?.trim() || null,
+    en_planificacion: true,
+    trimestre: parsed.data.trimestre ?? null,
+    no_solicitada: false,
+  };
   if (tarea_id > 0) {
     await supabase
       .from("ted_plan_tareas" as never)
-      .update({
-        en_planificacion: true,
-        trimestre: parsed.data.trimestre ?? null,
-        no_solicitada: false,
-      } as never)
+      .update(tarea_patch as never)
       .eq("id", tarea_id);
+  } else if (row.modulo_id) {
+    const { data: orden_row } = await supabase
+      .from("ted_plan_tareas" as never)
+      .select("orden")
+      .eq("modulo_id", row.modulo_id)
+      .order("orden", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const orden = Number((orden_row as { orden?: number } | null)?.orden ?? 0) + 1;
+    const { data: created } = await supabase
+      .from("ted_plan_tareas" as never)
+      .insert({
+        ...tarea_patch,
+        modulo_id: row.modulo_id,
+        origen: "TICKET",
+        avance: 0,
+        completada: false,
+        entregable_tipo: "ninguno",
+        ticket_id: parsed.data.ticket_id,
+        created_by: user_id,
+        asignado_id: row.asignado_id ?? null,
+        orden,
+      } as never)
+      .select("id")
+      .single();
+    const created_id = Number((created as { id?: number } | null)?.id ?? 0);
+    if (created_id > 0) {
+      await supabase
+        .from("ted_plan_tickets" as never)
+        .update({ tarea_id: created_id } as never)
+        .eq("id", parsed.data.ticket_id);
+    }
   }
   await add_evento(
     supabase,

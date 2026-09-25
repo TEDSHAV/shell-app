@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation";
-import { isTedMember } from "@/actions/ted";
+import { canManageUsuariosPrisma } from "@/actions/ted";
 import { load_acceso_catalog } from "@/features/accesos/actions/list-accesos";
 import { RoleView } from "@/features/accesos/components/role-view";
 
@@ -10,7 +10,7 @@ export default async function VerRolPage({
 }: {
   params: Promise<{ appId: string; roleId: string }>;
 }) {
-  const allowed = await isTedMember();
+  const allowed = await canManageUsuariosPrisma();
   if (!allowed) redirect("/dashboard");
 
   const { appId, roleId } = await params;

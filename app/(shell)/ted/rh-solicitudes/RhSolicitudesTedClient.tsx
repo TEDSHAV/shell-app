@@ -15,6 +15,7 @@ import {
   Calendar,
   MapPin,
   FileCheck,
+  IdCard,
 } from "lucide-react";
 import { updateRhSolicitudStatus } from "@/app/actions/ted-rh-solicitudes";
 
@@ -26,7 +27,8 @@ type SolicitudTipo =
   | "restablecer_contrasena"
   | "cambio_email"
   | "cambio_permisos"
-  | "cambio_firma";
+  | "cambio_firma"
+  | "solicitud_marketing";
 
 type RhSolicitudRow = {
   id: number;
@@ -38,6 +40,8 @@ type RhSolicitudRow = {
   telefono: string | null;
   solicitar_email: boolean;
   solicitar_firma_email: boolean;
+  solicitar_carnet?: boolean;
+  solicitar_hablador?: boolean;
   tipo_contrato?: string | null;
   regimen_contrato?: string | null;
   duracion_cantidad?: number | null;
@@ -83,6 +87,7 @@ const TIPO_FILTERS: { key: TipoFilter; label: string }[] = [
   { key: "cambio_email", label: "Email" },
   { key: "cambio_permisos", label: "Permisos" },
   { key: "cambio_firma", label: "Firma" },
+  { key: "solicitud_marketing", label: "Marketing" },
 ];
 
 const ESTADO_BADGE: Record<SolicitudEstado, string> = {
@@ -107,6 +112,7 @@ const TIPO_BADGE: Record<SolicitudTipo, string> = {
   cambio_email: "bg-sky-100 text-sky-700",
   cambio_permisos: "bg-violet-100 text-violet-700",
   cambio_firma: "bg-teal-100 text-teal-700",
+  solicitud_marketing: "bg-teal-100 text-teal-700",
 };
 
 const TIPO_LABEL: Record<SolicitudTipo, string> = {
@@ -117,6 +123,7 @@ const TIPO_LABEL: Record<SolicitudTipo, string> = {
   cambio_email: "Email",
   cambio_permisos: "Permisos",
   cambio_firma: "Firma",
+  solicitud_marketing: "Marketing",
 };
 
 function formatDate(iso: string): string {
@@ -285,6 +292,18 @@ export function RhSolicitudesTedClient({
                       <span className="inline-flex items-center gap-1 text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-md">
                         <Mail className="h-3 w-3" />
                         Firma
+                      </span>
+                    )}
+                    {s.tipo === "creacion" && s.solicitar_carnet && (
+                      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-md">
+                        <IdCard className="h-3 w-3" />
+                        Carnet
+                      </span>
+                    )}
+                    {s.tipo === "creacion" && s.solicitar_hablador && (
+                      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-md">
+                        <FileText className="h-3 w-3" />
+                        Hablador
                       </span>
                     )}
                   </div>

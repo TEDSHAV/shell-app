@@ -3,7 +3,7 @@ export type RequisicionMode = "general" | "capacitacion" | "servicios tecnicos";
 
 export type VerificacionStatus = "listo" | "pendiente";
 
-export type EstatusAdmin = "pendiente" | "procesada" | "rechazada";
+export type EstatusAdmin = "pendiente" | "parcial" | "procesada" | "rechazada";
 
 export type CoordinadorEstatus = "pendiente" | "aprobada" | "rechazada" | null;
 

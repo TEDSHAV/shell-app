@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PermissionFormDialog } from "./permission-form-dialog";
+import { GrantPermissionDialog } from "./grant-permission-dialog";
 import {
   group_permissions_by_module,
   module_label,
@@ -13,6 +14,8 @@ import {
 } from "../lib/slugs";
 import { update_acceso_permission } from "../actions/catalog-actions";
 import type { AccesoAction, AccesoApp, AccesoModule, AccesoPermission, AccesoRole } from "../lib/types";
+
+type RoleWithApp = AccesoRole & { app_nombre: string };
 
 export function PermissionsPanel({
   permissions,
@@ -31,6 +34,10 @@ export function PermissionsPanel({
   const [query, set_query] = useState("");
   const [module_filter, set_module_filter] = useState("todos");
   const [open, set_open] = useState(false);
+  const [grant_open, set_grant_open] = useState(false);
+  const [grant_permission_id, set_grant_permission_id] = useState<number | null>(
+    null,
+  );
   const [drafts, set_drafts] = useState<Record<number, string>>({});
   const [error, set_error] = useState<string | null>(null);
 
@@ -40,18 +47,40 @@ export function PermissionsPanel({
   );
   const app_by_id = useMemo(() => new Map(apps.map((a) => [a.id, a])), [apps]);
 
+  const roles_by_permission_slug = useMemo(() => {
+    const map = new Map<string, RoleWithApp[]>();
+    for (const role of roles) {
+      const app_nombre = app_by_id.get(role.app_id)?.nombre || "App";
+      for (const slug of role.permission_slugs) {
+        const list = map.get(slug) || [];
+        list.push({ ...role, app_nombre });
+        map.set(slug, list);
+      }
+    }
+    for (const [, list] of map) {
+      list.sort((a, b) => {
+        const by_app = a.app_nombre.localeCompare(b.app_nombre, "es");
+        if (by_app !== 0) return by_app;
+        return a.nombre.localeCompare(b.nombre, "es");
+      });
+    }
+    return map;
+  }, [roles, app_by_id]);
+
   function apps_for(perm: AccesoPermission): string {
     const names = new Set<string>();
     const home = permission_home_app_slug(perm.slug);
     if (home) {
       names.add(app_by_slug.get(home)?.nombre || home);
     }
-    for (const role of roles) {
-      if (!role.permission_slugs.includes(perm.slug)) continue;
-      const app = app_by_id.get(role.app_id);
-      if (app) names.add(app.nombre);
+    for (const role of roles_by_permission_slug.get(perm.slug) || []) {
+      names.add(role.app_nombre);
     }
     return [...names].join(", ") || "Global";
+  }
+
+  function roles_for(perm: AccesoPermission): RoleWithApp[] {
+    return roles_by_permission_slug.get(perm.slug) || [];
   }
 
   const groups = useMemo(
@@ -68,13 +97,18 @@ export function PermissionsPanel({
       }
       if (!q) return true;
       const app_label = apps_for(p).toLowerCase();
+      const role_haystack = roles_for(p)
+        .map((r) => `${r.nombre} ${r.slug} ${r.app_nombre}`)
+        .join(" ")
+        .toLowerCase();
       return (
         p.slug.toLowerCase().includes(q) ||
         (p.descripcion || "").toLowerCase().includes(q) ||
-        app_label.includes(q)
+        app_label.includes(q) ||
+        role_haystack.includes(q)
       );
     });
-  }, [permissions, query, module_filter, apps, roles]);
+  }, [permissions, query, module_filter, roles_by_permission_slug, app_by_slug]);
 
   async function save_desc(id: number) {
     const descripcion = drafts[id];
@@ -93,15 +127,21 @@ export function PermissionsPanel({
     router.refresh();
   }
 
+  function open_grant(permission_id?: number) {
+    set_grant_permission_id(permission_id ?? null);
+    set_grant_open(true);
+  }
+
   return (
     <div className="space-y-4">
       <p className="text-xs text-slate-500">
         El permiso es global; la app es orientación (módulo y roles que lo usan).
+        En cada fila ves qué roles lo tienen colgado.
       </p>
       <div className="flex flex-wrap items-end gap-2">
         <Input
           className="max-w-sm"
-          placeholder="Filtrar slug, app o descripción…"
+          placeholder="Filtrar slug, app, rol o descripción…"
           value={query}
           onChange={(e) => set_query(e.target.value)}
         />
@@ -117,6 +157,9 @@ export function PermissionsPanel({
             </option>
           ))}
         </select>
+        <Button type="button" variant="outline" onClick={() => open_grant()}>
+          Colgar en roles
+        </Button>
         <Button type="button" onClick={() => set_open(true)}>
           Nuevo permiso
         </Button>
@@ -131,48 +174,106 @@ export function PermissionsPanel({
               <th className="px-3 py-2">App</th>
               <th className="px-3 py-2">Slug</th>
               <th className="px-3 py-2">Módulo</th>
+              <th className="px-3 py-2">Roles con el permiso</th>
               <th className="px-3 py-2">Descripción</th>
             </tr>
           </thead>
           <tbody>
-            {filtered.map((p) => (
-              <tr key={p.id} className="border-t border-slate-100">
-                <td className="px-3 py-2 text-slate-700">{apps_for(p)}</td>
-                <td className="px-3 py-2 font-mono text-xs">{p.slug}</td>
-                <td className="px-3 py-2 text-slate-500">
-                  {module_label(p.slug)}
-                </td>
-                <td className="px-3 py-2">
-                  <div className="flex gap-2">
-                    <Input
-                      value={drafts[p.id] ?? p.descripcion ?? ""}
-                      onChange={(e) =>
-                        set_drafts((prev) => ({ ...prev, [p.id]: e.target.value }))
-                      }
-                    />
-                    {drafts[p.id] !== undefined ? (
-                      <Button
+            {filtered.map((p) => {
+              const hung = roles_for(p);
+              return (
+                <tr key={p.id} className="border-t border-slate-100 align-top">
+                  <td className="px-3 py-2 text-slate-700">{apps_for(p)}</td>
+                  <td className="px-3 py-2 font-mono text-xs">{p.slug}</td>
+                  <td className="px-3 py-2 text-slate-500">
+                    {module_label(p.slug)}
+                  </td>
+                  <td className="px-3 py-2">
+                    {hung.length === 0 ? (
+                      <button
                         type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() => void save_desc(p.id)}
+                        className="text-xs text-slate-400 underline-offset-2 hover:text-indigo-700 hover:underline"
+                        onClick={() => open_grant(p.id)}
                       >
-                        Guardar
-                      </Button>
-                    ) : null}
-                  </div>
-                </td>
-              </tr>
-            ))}
+                        Sin roles — colgar…
+                      </button>
+                    ) : (
+                      <div className="flex flex-col gap-1.5">
+                        <div className="flex flex-wrap gap-1.5">
+                          {hung.map((role) => (
+                            <span
+                              key={role.id}
+                              title={`${role.app_nombre} · ${role.slug}`}
+                              className="inline-flex max-w-full items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] text-slate-700"
+                            >
+                              <span className="truncate font-medium">
+                                {role.nombre}
+                              </span>
+                              <span className="truncate text-slate-400">
+                                · {role.app_nombre}
+                              </span>
+                            </span>
+                          ))}
+                        </div>
+                        <button
+                          type="button"
+                          className="self-start text-[11px] text-indigo-700 underline-offset-2 hover:underline"
+                          onClick={() => open_grant(p.id)}
+                        >
+                          Editar colgado ({hung.length})
+                        </button>
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-3 py-2">
+                    <div className="flex gap-2">
+                      <Input
+                        value={drafts[p.id] ?? p.descripcion ?? ""}
+                        onChange={(e) =>
+                          set_drafts((prev) => ({
+                            ...prev,
+                            [p.id]: e.target.value,
+                          }))
+                        }
+                      />
+                      {drafts[p.id] !== undefined ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => void save_desc(p.id)}
+                        >
+                          Guardar
+                        </Button>
+                      ) : null}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
+      <GrantPermissionDialog
+        open={grant_open}
+        onClose={() => {
+          set_grant_open(false);
+          set_grant_permission_id(null);
+        }}
+        apps={apps}
+        roles={roles}
+        permissions={permissions}
+        initial_permission_id={grant_permission_id}
+        onSaved={() => router.refresh()}
+      />
       <PermissionFormDialog
         open={open}
         onClose={() => set_open(false)}
         apps={apps}
         modules={modules}
         actions={actions}
+        permissions={permissions}
+        roles={roles}
         onSaved={() => router.refresh()}
       />
     </div>

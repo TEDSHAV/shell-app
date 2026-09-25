@@ -1,21 +1,40 @@
 "use client";
 
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
 import { RoleFichaCard } from "./role-ficha-card";
 import { AppGlyph } from "./catalog-glyphs";
-import type { AccesoApp, AccesoPermission, AccesoRole } from "../lib/types";
+import { AssignRolePeopleDialog } from "./assign-role-people-dialog";
+import type {
+  AccesoApp,
+  AccesoPermission,
+  AccesoRole,
+  AccesoUsuarioListItem,
+} from "../lib/types";
 
 export function RolesCatalogPanel({
   apps,
   roles,
   permissions,
+  users,
 }: {
   apps: AccesoApp[];
   roles: AccesoRole[];
   permissions: AccesoPermission[];
+  users: AccesoUsuarioListItem[];
 }) {
+  const router = useRouter();
+  const [assign_open, set_assign_open] = useState(false);
+
   return (
     <div className="space-y-8">
+      <div className="flex justify-end">
+        <Button type="button" onClick={() => set_assign_open(true)}>
+          Asignar a personas
+        </Button>
+      </div>
       {apps.map((app) => {
         const app_roles = roles.filter((r) => r.app_id === app.id);
         return (
@@ -58,6 +77,15 @@ export function RolesCatalogPanel({
           </section>
         );
       })}
+      <AssignRolePeopleDialog
+        open={assign_open}
+        onClose={() => set_assign_open(false)}
+        apps={apps}
+        roles={roles}
+        permissions={permissions}
+        users={users}
+        onSaved={() => router.refresh()}
+      />
     </div>
   );
 }

@@ -64,6 +64,7 @@ type TareaRow = {
   id: number;
   modulo_id: number;
   titulo: string;
+  descripcion?: string | null;
   origen: PlanOrigen;
   avance: number | null;
   no_solicitada?: boolean | null;
@@ -83,6 +84,7 @@ type TareaRow = {
   ticket_id?: number | null;
   objetivo_id?: number | null;
   created_at?: string | null;
+  updated_at?: string | null;
 };
 
 let shell_apps_synced = false;
@@ -178,7 +180,7 @@ export async function query_plan_workspace(
     supabase
       .from("ted_plan_tareas" as never)
       .select(
-        "id, modulo_id, titulo, origen, avance, no_solicitada, completada, completada_at, created_at, entregable_tipo, entregable_ruta, entregable_unidad, entregable_version, entregable_comentario, fecha_inicio, fecha_fin, orden, trimestre, asignado_id, en_planificacion, ticket_id, objetivo_id",
+        "id, modulo_id, titulo, descripcion, origen, avance, no_solicitada, completada, completada_at, created_at, updated_at, entregable_tipo, entregable_ruta, entregable_unidad, entregable_version, entregable_comentario, fecha_inicio, fecha_fin, orden, trimestre, asignado_id, en_planificacion, ticket_id, objetivo_id",
       )
       .order("orden")
       .order("id"),
@@ -209,7 +211,7 @@ export async function query_plan_workspace(
     tareas = await supabase
       .from("ted_plan_tareas" as never)
       .select(
-        "id, modulo_id, titulo, origen, completada, completada_at, entregable_tipo, entregable_ruta, entregable_unidad, entregable_version, entregable_comentario",
+        "id, modulo_id, titulo, descripcion, origen, completada, completada_at, entregable_tipo, entregable_ruta, entregable_unidad, entregable_version, entregable_comentario",
       )
       .order("id");
   }
@@ -322,6 +324,7 @@ export async function query_plan_workspace(
     ]);
     list.push({
       ...row,
+      descripcion: row.descripcion ?? null,
       avance: tarea_avance(row),
       no_solicitada: is_tarea_no_solicitada(row),
       fecha_inicio: row.fecha_inicio ?? null,
@@ -332,6 +335,7 @@ export async function query_plan_workspace(
       en_planificacion: row.en_planificacion !== false,
       ticket_id: row.ticket_id ?? null,
       created_at: row.created_at ?? null,
+      updated_at: row.updated_at ?? null,
       objetivo_id: row.objetivo_id ?? null,
       objetivo_titulo: row.objetivo_id
         ? (objetivo_titulo.get(row.objetivo_id) ?? null)
@@ -489,7 +493,7 @@ export async function load_plan_ticket_inbox(): Promise<
     supabase
       .from("ted_plan_tareas" as never)
       .select(
-        "id, modulo_id, titulo, origen, avance, no_solicitada, completada, completada_at, created_at, entregable_tipo, entregable_ruta, entregable_unidad, entregable_version, entregable_comentario, fecha_inicio, fecha_fin, orden, trimestre, asignado_id, en_planificacion, ticket_id, objetivo_id",
+        "id, modulo_id, titulo, descripcion, origen, avance, no_solicitada, completada, completada_at, created_at, updated_at, entregable_tipo, entregable_ruta, entregable_unidad, entregable_version, entregable_comentario, fecha_inicio, fecha_fin, orden, trimestre, asignado_id, en_planificacion, ticket_id, objetivo_id",
       )
       .eq("origen", "TICKET")
       .order("id"),
@@ -612,6 +616,7 @@ export async function load_plan_ticket_inbox(): Promise<
     ]);
     const tarea: PlanTarea = {
       ...row,
+      descripcion: row.descripcion ?? null,
       avance: tarea_avance(row),
       no_solicitada: is_tarea_no_solicitada(row),
       fecha_inicio: row.fecha_inicio ?? null,
@@ -622,6 +627,7 @@ export async function load_plan_ticket_inbox(): Promise<
       en_planificacion: row.en_planificacion !== false,
       ticket_id: row.ticket_id ?? null,
       created_at: row.created_at ?? null,
+      updated_at: row.updated_at ?? null,
       objetivo_id: row.objetivo_id ?? null,
       objetivo_titulo: null,
       asignado: asignados[0] ?? null,

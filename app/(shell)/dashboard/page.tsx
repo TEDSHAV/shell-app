@@ -11,7 +11,7 @@ import {
 import { cn } from "@/lib/utils";
 import { getUserRolesByApp, getUserRole } from "@/actions/apps";
 import { can_access_shell_app } from "@/lib/shell-app-access";
-import { isTedMember, isPlanGerenciaUser } from "@/actions/ted";
+import { canAccessTedApp, isTedMember } from "@/actions/ted";
 
 function flattenNavLinks(navLinks: (NavLink | NavGroup)[]): NavLink[] {
   return navLinks.flatMap((item) =>
@@ -20,11 +20,11 @@ function flattenNavLinks(navLinks: (NavLink | NavGroup)[]): NavLink[] {
 }
 
 export default async function DashboardPage() {
-  const [userRolesByApp, globalRole, tedMember, gerencia] = await Promise.all([
+  const [userRolesByApp, globalRole, tedMember, canTedApp] = await Promise.all([
     getUserRolesByApp(),
     getUserRole(),
     isTedMember(),
-    isPlanGerenciaUser(),
+    canAccessTedApp(),
   ]);
 
   const canAccessApp = (app: AppConfig) =>
@@ -47,27 +47,6 @@ export default async function DashboardPage() {
   return (
     <div className="p-8 w-full max-w-7xl mx-auto">
       <div className="space-y-12">
-        {gerencia ? (
-          <section>
-            <div className="w-full rounded-xl px-6 py-4 mb-6 text-center" style={{ backgroundColor: "#0C3F69" }}>
-              <h2 className="text-sm font-bold text-white tracking-[0.15em] uppercase">
-                Periodo TED
-              </h2>
-            </div>
-            <Link
-              href="/ted/planificacion/objetivos"
-              className="group relative flex flex-col gap-4 p-6 pt-7 rounded-xl border border-border bg-white hover:bg-accent/40 hover:border-border/80 transition-all duration-150 overflow-hidden min-h-[140px] max-w-md"
-            >
-              <div className="absolute inset-x-0 top-0 h-1 rounded-t-xl bg-violet-600" />
-              <h3 className="font-semibold text-foreground text-base">
-                Objetivos
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                Compromiso del periodo, cubrir e informe.
-              </p>
-            </Link>
-          </section>
-        ) : null}
         {activeGroups.map((group) => (
           <section key={group.id}>
             <div className="w-full rounded-xl px-6 py-4 mb-2 text-center" style={{ backgroundColor: "#0C3F69" }}>
@@ -90,7 +69,7 @@ export default async function DashboardPage() {
             >
               {group.apps.map((app, index) => {
                 const isPlaceholder = app.basePath === "#";
-                const isTedLocked = app.id === "ted" && !tedMember;
+                const isTedLocked = app.id === "ted" && !canTedApp;
                 const isLocked = isPlaceholder || isTedLocked;
                 const external = opens_in_new_tab(app);
                 const iconStyle = get_app_icon_style(app.brandColor);
@@ -100,6 +79,10 @@ export default async function DashboardPage() {
                 };
                 const isAccessible = !isLocked;
                 const navLinks = flattenNavLinks(app.navLinks);
+                const tedHref =
+                  app.id === "ted" && !tedMember && canTedApp
+                    ? "/ted/planificacion/objetivos"
+                    : app.basePath;
 
                 const cardContent = (
                   <>
@@ -176,7 +159,7 @@ export default async function DashboardPage() {
                 }
 
                 return (
-                  <Link key={app.id} href={app.basePath} className={cardClassName}>
+                  <Link key={app.id} href={tedHref} className={cardClassName}>
                     {cardContent}
                   </Link>
                 );

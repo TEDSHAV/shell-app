@@ -23,8 +23,8 @@ Hay **dos tipos**:
 
 En la práctica:
 
-- **Interna** = pedido interno del departamento (materiales, etc.). Pasa por **aprobación de coordinador y/o líder** y después llega a Administración.
-- **Externa** = pedido ligado a un servicio/OSI (cliente). **Hoy va directo a Administración**, sin esa cadena de aprobación.
+- **Interna** = pedido interno del departamento (materiales, etc.). Pasa por **coordinador**, luego **Administración estima montos**; el **líder** solo si el total supera el límite. Después Administración procesa.
+- **Externa** = pedido ligado a un servicio/OSI (cliente). **Va directo a Administración**, sin cadena de aprobación.
 
 El documento se imprime/PDF como formato RG-ADM-003 (revisión persistida en cada fila).
 
@@ -45,8 +45,8 @@ El documento se imprime/PDF como formato RG-ADM-003 (revisión persistida en cad
 | Vista detalle / aprobación / gestión                     | `.../view/[id]/components/RequisicionView.tsx`                                                                                     |
 | Listados                                                 | `RequisicionesTable.tsx`, `RequisicionRow.tsx`                                                                                     |
 | Páginas                                                  | `/requisiciones` (mis + cola de aprobación), `/requisiciones/gestion` (solo Administración), `/create`, `/edit/[id]`, `/view/[id]` |
-| Departamentos, gerencias, override temporal de líder     | `lib/requisiciones-gerencia.ts`                                                                                                    |
-| Roles de coordinador                                     | `lib/requisiciones-approver-roles.ts`                                                                                              |
+| Departamentos / gerencias                                | `lib/requisiciones-gerencia.ts`, `lib/requisiciones-dept-context.ts`                                                               |
+| Acceso / territorio de sello                             | `actions/requisiciones-access-context.ts`                                                                                          |
 | Tipos                                                    | `types/requisiciones.ts`                                                                                                           |
 | Tabla BD                                                 | `requisiciones` (+ `requisiciones_osis` para varias OSI)                                                                           |
 
@@ -79,32 +79,23 @@ Ese departamento trae `nombre` y `gerencia` (FK a `gerencias.nombre`).
 
 
 
-### 3.2 Coordinador (roles Prisma, no el campo `departamentos.coordinador`)
+### 3.2 Coordinador
 
-Hay un mapa fijo en código:
+**Sello (verbo):** slug `requisiciones:gestion:approve-coordinador` (rol transversal TED) o rol de producto legacy `coordinador`.
 
+**Territorio:** `departamentos.coordinador` + mapa de producto (ST/Cap/Calidad/Admin).
 
-| Role id (prod) | App                       | Departamento que cubre            |
-| -------------- | ------------------------- | --------------------------------- |
-| 21             | `st` (Servicios Técnicos) | nombre con “servicios” y “tecnic” |
-| 22             | `scapacitacion`           | nombre con “capacitacion”         |
-| 23             | `sadministracion`         | nombre con “admin”                |
-
-
-Se lee `authprisma.user_app_roles`. **No** se usa `departamentos.coordinador` para este flujo.
-
-Un coordinador **aprueba internas de los departamentos que cubre su rol**, aunque su propio `usuarios.departamento` sea otro.
+**Notificación** (`requisicion_pending_coordinador`): TED resuelve organigrama ∩ (permiso o roles coord). Configurable en `/ted/notificaciones`.
 
 ### 3.3 Líder
 
-Principal: persona marcada en `gerencias.lider` (`usuarios.id`).
+**Sello:** slug `approve-lider` o rol producto `lider`.
 
-Extras:
+**Territorio:** `gerencias.lider` + mapa de producto.
 
-- Rol `lider` de la app ST → trata como líder de **Servicios Técnicos**.
-- Rol `lider` de `sadministracion` → trata como líder de **Administración**.
+**Notificación** (`requisicion_pending_lider`): organigrama ∩ permiso, editable en TED.
 
-**Workaround temporal (importante):** las internas de Capacitación, Servicios Técnicos, Calidad, SIG, SSST y TED **no las aprueba el líder de Servicios**, sino el líder de **Negocios**. Está documentado en código como ausencia temporal del líder de Servicios. Cuando vuelva, hay que quitar `INTERNA_LIDER_GERENCIA_OVERRIDES` en `lib/requisiciones-gerencia.ts`.
+**Cola Admin** (`requisicion_pending_admin`): por defecto roles `sadministracion:gestor` + `sadministracion:coordinador` (no líder). Editable en TED → Notificaciones.
 
 ### 3.4 Solicitante
 
@@ -142,8 +133,8 @@ Existe `canPlaceInterna` (coordinador del depto, o cualquiera si el depto no tie
 
 Lo que sí puede pasar:
 
-- Una persona es de Marketing y además tiene rol coordinador de Capacitación: **pide** siempre como Marketing; **aprueba** internas de Capacitación.
-- Una persona es líder de varias gerencias: aprueba internas de todos los departamentos de esas gerencias (más el override hacia Negocios).
+- Una persona es de Marketing y además es `departamentos.coordinador` de Capacitación: **pide** siempre como Marketing; **aprueba** internas de Capacitación.
+- Una persona es líder de varias gerencias: aprueba internas de todos los departamentos de esas gerencias.
 
 Si en la vida real alguien “está en dos áreas”, el sistema solo reconoce el departamento que tenga en `usuarios`. Para pedir por el otro habría que cambiarle ese campo (o el código tendría que permitir elegir departamento; hoy no).
 
@@ -162,12 +153,12 @@ Solicitante crea
         │
         ├─ ¿El creador es coordinador de ese depto?
         │     SÍ → se salta coordinador
-        │     NO → ¿existe algún usuario con rol coordinador de ese depto?
+        │     NO → ¿el depto tiene `departamentos.coordinador`?
         │           SÍ → coordinador_estatus = pendiente  → notifica coordinador
         │           NO → se salta coordinador
         │
         ├─ (si se saltó coordinador)
-        │     ¿El creador es el líder que aprueba ese depto (con override)?
+        │     ¿El creador es el líder que aprueba ese depto?
         │           SÍ → llega ya a Administración; notifica admin
         │           NO → lider_estatus = pendiente; notifica líder
         │
@@ -286,14 +277,16 @@ Eventos (app slug `administracion`), modo TED o fallback legacy:
 
 | Evento                            | Cuándo                                                     | A quién                                                               |
 | --------------------------------- | ---------------------------------------------------------- | --------------------------------------------------------------------- |
-| `requisicion_created`             | Externa nueva, o interna que ya no necesita más aprobación | Usuarios de dpto Administración (legacy) o destinatarios configurados |
-| `requisicion_pending_coordinador` | Interna de un analista en depto con coordinador            | Quienes tienen el rol coordinador de ese depto                        |
-| `requisicion_pending_lider`       | Interna que espera al líder                                | `gerencias.lider` (o override Negocios) + líderes ST/sadmin si aplica |
-| `requisicion_procesada`           | Admin marca procesada                                      | Creador                                                               |
-| `requisicion_rechazada`           | Admin, coordinador o líder rechazan                        | Creador                                                               |
-| `requisicion_parcial`             | Admin guarda avance de verificación                        | Creador                                                               |
-| `requisicion_aprobador_cambios`   | Primera edición del aprobador                              | Creador                                                               |
-| `requisicion_acuse`               | Creador confirma recepción                                 | Admin que procesó                                                     |
+| `requisicion_pending_admin`       | Interna/externa lista para cola Admin (estimar / trámite)  | TED: roles `sadministracion:gestor` + `coordinador` (editable) |
+| `requisicion_costos_aprobados`    | Líder aprueba costos (monto > límite)                      | Mismo set operativo Admin; mensaje distinto                    |
+| `requisicion_pending_coordinador` | Interna de un analista en depto con coordinador            | TED: organigrama ∩ (permiso/roles coord) — editable            |
+| `requisicion_pending_lider`       | Interna que espera al líder                                | TED: organigrama ∩ (permiso/roles lider) — editable            |
+| `requisicion_created`             | Legacy; preferir `pending_admin`                           | Mismo default que pending_admin                                |
+| `requisicion_procesada`           | Admin marca procesada                                      | TED: creador + coordinador del depto (editable)                |
+| `requisicion_rechazada`           | Admin, coordinador o líder rechazan                        | Creador                                                        |
+| `requisicion_parcial`             | Admin guarda avance de verificación                        | Creador                                                        |
+| `requisicion_aprobador_cambios`   | Primera edición del aprobador                              | Creador                                                        |
+| `requisicion_acuse`               | Creador confirma recepción                                 | Admin que procesó                                              |
 
 
 Otros efectos:
@@ -338,14 +331,12 @@ Tabla `requisiciones`: encabezado (solicitante, depto, gerencia, tipo, prioridad
 
 1. **Comentarios vs código:** varios comentarios dicen que las externas las aprueba el coordinador; el create las manda a Admin. La UI de aprobación aún habla de “externa” en un confirm.
 2. `canPlaceInterna` **no se usa:** la regla de “solo el coordinador pide internas” no está en el formulario.
-3. **Override de líder a Negocios:** temporal; fácil olvidarlo.
-4. **Coordinador = roles hardcodeados (ids 21, 22, 23),** no el campo coordinador del departamento. Si cambian ids en otro ambiente, el fallback es app_id + slug `coordinador`.
-5. **Un usuario = un departamento.** Doble pertenencia no está modelada.
-6. **Aprobación no es por línea.** La “parcial” es verificación de Admin, y al procesar se tiende a marcar todo Listo.
-7. **Internas sin monto** en UI; externas sí. Mezclar expectativas de “presupuesto de la req” puede confundir.
-8. `actions/requisiciones.ts` **es un monolito** difícil de tocar sin regresiones.
-9. **Capacitación ve el listado de todo el depto;** el resto no.
-10. **Nombres engañosos:** `notifyCoordinadorOfPendingExterna` notifica internas; `is_general` = interna.
+3. **Un usuario = un departamento.** Doble pertenencia no está modelada.
+4. **Aprobación no es por línea.** La “parcial” es verificación de Admin, y al procesar se tiende a marcar todo Listo.
+5. **Internas sin monto** en UI; externas sí. Mezclar expectativas de “presupuesto de la req” puede confundir.
+6. `actions/requisiciones.ts` **es un monolito** difícil de tocar sin regresiones.
+7. **Capacitación ve el listado de todo el depto;** el resto no.
+8. **Nombres engañosos:** `notifyCoordinadorOfPendingExterna` notifica internas; `is_general` = interna.
 
 ---
 

@@ -1,19 +1,19 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import { Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { SearchSelect } from "@/features/planificacion/components/search-select";
-import {
-  PlanField,
-  PLAN_SELECT_CLASS,
-} from "@/features/planificacion/components/plan-form-ui";
+import { PlanField } from "@/features/planificacion/components/plan-form-ui";
 import { create_ticket } from "../actions/ticket-actions";
 import { TICKET_PRIORIDADES } from "../schemas";
 import { PRIORIDAD_LABEL } from "../lib/labels";
+import { PRIORIDAD_TONE } from "../lib/ticket-display";
 import type { TicketCatalog } from "../lib/types";
+import { cn } from "@/lib/utils";
 
 export function TicketForm({ catalog }: { catalog: TicketCatalog }) {
   const router = useRouter();
@@ -24,8 +24,6 @@ export function TicketForm({ catalog }: { catalog: TicketCatalog }) {
   const [prioridad, set_prioridad] = useState<(typeof TICKET_PRIORIDADES)[number]>(
     "media",
   );
-  const [asignado_id, set_asignado_id] = useState("");
-  const [colab, set_colab] = useState("");
   const [solicitado_por, set_solicitado_por] = useState("");
   const [error, set_error] = useState<string | null>(null);
   const [pending, start] = useTransition();
@@ -35,28 +33,16 @@ export function TicketForm({ catalog }: { catalog: TicketCatalog }) {
     [catalog.modulos, app_id],
   );
 
-  const default_asig = useMemo(() => {
-    const mod = modulos.find((m) => String(m.id) === modulo_id);
-    const from_mod = mod?.default_asignado_id;
-    const from_app = modulos.find((m) => m.default_asignado_id)?.default_asignado_id;
-    return from_mod ?? from_app ?? null;
-  }, [modulos, modulo_id]);
-
-  const assigned = asignado_id || (default_asig ? String(default_asig) : "");
-
   function on_submit(event: React.FormEvent) {
     event.preventDefault();
     start(async () => {
       set_error(null);
-      const extra = colab ? [Number(colab)] : [];
       const result = await create_ticket({
         titulo,
         descripcion,
         app_id: Number(app_id),
         modulo_id: modulo_id ? Number(modulo_id) : null,
         prioridad,
-        asignado_id: assigned ? Number(assigned) : null,
-        colaborador_ids: extra,
         solicitado_por:
           catalog.is_ted && solicitado_por ? Number(solicitado_por) : undefined,
       });
@@ -72,135 +58,130 @@ export function TicketForm({ catalog }: { catalog: TicketCatalog }) {
   return (
     <form
       onSubmit={on_submit}
-      className="mx-auto max-w-2xl space-y-5 rounded-3xl border border-slate-200 bg-white p-7 shadow-sm"
+      className="mx-auto max-w-2xl overflow-hidden rounded-3xl border border-violet-100 bg-white shadow-[0_12px_40px_rgba(76,29,149,0.08)]"
     >
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight text-slate-900">
-          Ticket Prisma
+      <div className="relative overflow-hidden bg-gradient-to-br from-violet-700 via-violet-600 to-indigo-700 px-7 py-6 text-white">
+        <Sparkles className="absolute -right-4 -top-4 h-28 w-28 text-white/10" />
+        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-violet-200">
+          Prisma · TED
+        </p>
+        <h1 className="mt-1 text-2xl font-semibold tracking-tight">
+          Nuevo ticket
         </h1>
-        <p className="mt-1 text-sm text-slate-500">
+        <p className="mt-1.5 max-w-md text-sm text-violet-100/90">
           {catalog.is_ted
-            ? "Puedes registrar una solicitud de otro usuario. Al completarla, esa persona recibe la respuesta."
-            : "Requerimientos o errores. TED te responde y queda el registro."}
+            ? "Si lo cargas a nombre de alguien más, esa persona lo verá en Mis tickets y recibirá la respuesta."
+            : "Cuéntanos el requerimiento o el error. TED asigna y responde; tú solo describes el caso."}
         </p>
       </div>
-      {catalog.is_ted ? (
-        <PlanField
-          label="Solicitado por"
-          hint="La notificación de cierre llega a esta persona."
-        >
-          <SearchSelect
-            value={solicitado_por}
-            placeholder="Quién hizo el requerimiento"
-            onChange={set_solicitado_por}
-            options={[
-              { value: "", label: "Yo (TED)" },
-              ...catalog.usuarios.map((u) => ({
-                value: String(u.id),
-                label: u.label,
-              })),
-            ]}
+      <div className="space-y-5 p-7">
+        {catalog.is_ted ? (
+          <PlanField
+            label="Solicitado por"
+            hint="La notificación de cierre llega a esta persona. Quedará marcado como registro TED."
+          >
+            <SearchSelect
+              value={solicitado_por}
+              placeholder="Quién hizo el requerimiento"
+              searchPlaceholder="Buscar persona…"
+              onChange={set_solicitado_por}
+              options={[
+                { value: "", label: "Yo (TED)" },
+                ...catalog.usuarios.map((u) => ({
+                  value: String(u.id),
+                  label: u.label,
+                })),
+              ]}
+            />
+          </PlanField>
+        ) : null}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <PlanField label="App">
+            <SearchSelect
+              value={app_id}
+              placeholder="Buscar app"
+              searchPlaceholder="Buscar app…"
+              onChange={(next) => {
+                set_app_id(next);
+                set_modulo_id("");
+              }}
+              options={catalog.apps.map((app) => ({
+                value: String(app.id),
+                label: app.nombre,
+              }))}
+            />
+          </PlanField>
+          <PlanField label="Módulo">
+            <SearchSelect
+              value={modulo_id}
+              placeholder="Buscar módulo (vacío = GENERAL)"
+              searchPlaceholder="Buscar módulo…"
+              onChange={set_modulo_id}
+              options={[
+                { value: "", label: "GENERAL (si no encaja otro)" },
+                ...modulos.map((m) => ({
+                  value: String(m.id),
+                  label: m.nombre,
+                })),
+              ]}
+            />
+          </PlanField>
+        </div>
+        <PlanField label="Título" htmlFor="tic-tit">
+          <Input
+            id="tic-tit"
+            value={titulo}
+            onChange={(e) => set_titulo(e.target.value)}
+            required
+            placeholder="Qué hay que resolver"
+            className="h-11 rounded-xl border-slate-200 bg-slate-50"
           />
         </PlanField>
-      ) : null}
-      <PlanField label="App">
-        <select
-          className={PLAN_SELECT_CLASS}
-          value={app_id}
-          onChange={(e) => {
-            set_app_id(e.target.value);
-            set_modulo_id("");
-            set_asignado_id("");
-          }}
-        >
-          {catalog.apps.map((app) => (
-            <option key={app.id} value={app.id}>
-              {app.nombre}
-            </option>
-          ))}
-        </select>
-      </PlanField>
-      <PlanField label="Módulo">
-        <SearchSelect
-          value={modulo_id}
-          placeholder="Buscar módulo (vacío = GENERAL)"
-          onChange={set_modulo_id}
-          options={[
-            { value: "", label: "GENERAL (si no encaja otro)" },
-            ...modulos.map((m) => ({ value: String(m.id), label: m.nombre })),
-          ]}
-        />
-      </PlanField>
-      <PlanField label="Título" htmlFor="tic-tit">
-        <Input
-          id="tic-tit"
-          value={titulo}
-          onChange={(e) => set_titulo(e.target.value)}
-          required
-        />
-      </PlanField>
-      <PlanField label="Detalle / comportamiento esperado" htmlFor="tic-des">
-        <Textarea
-          id="tic-des"
-          value={descripcion}
-          onChange={(e) => set_descripcion(e.target.value)}
-          required
-          rows={5}
-        />
-      </PlanField>
-      <PlanField label="Prioridad">
-        <select
-          className={PLAN_SELECT_CLASS}
-          value={prioridad}
-          onChange={(e) =>
-            set_prioridad(e.target.value as (typeof TICKET_PRIORIDADES)[number])
-          }
-        >
-          {TICKET_PRIORIDADES.map((item) => (
-            <option key={item} value={item}>
-              {PRIORIDAD_LABEL[item]}
-              {item === "alta" ? " (bloquea operación)" : ""}
-              {item === "media" ? " (necesaria, hay alternativa)" : ""}
-              {item === "baja" ? " (mejora visual o sugerencia)" : ""}
-            </option>
-          ))}
-        </select>
-      </PlanField>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <PlanField label="Asignado (dueño del módulo/app)">
-          <SearchSelect
-            value={assigned}
-            placeholder="Persona a cargo"
-            onChange={set_asignado_id}
-            options={catalog.usuarios.map((u) => ({
-              value: String(u.id),
-              label: u.label,
-            }))}
+        <PlanField label="Detalle / comportamiento esperado" htmlFor="tic-des">
+          <Textarea
+            id="tic-des"
+            value={descripcion}
+            onChange={(e) => set_descripcion(e.target.value)}
+            required
+            rows={5}
+            placeholder="Contexto, pasos y qué debería pasar"
+            className="rounded-xl border-slate-200 bg-slate-50"
           />
         </PlanField>
-        <PlanField label="Colaborador extra">
-          <SearchSelect
-            value={colab}
-            placeholder="Opcional"
-            onChange={set_colab}
-            options={[
-              { value: "", label: "Ninguno" },
-              ...catalog.usuarios.map((u) => ({
-                value: String(u.id),
-                label: u.label,
-              })),
-            ]}
-          />
+        <PlanField label="Prioridad">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {TICKET_PRIORIDADES.map((item) => {
+              const active = prioridad === item;
+              return (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => set_prioridad(item)}
+                  className={cn(
+                    "rounded-xl px-2 py-2 text-xs font-bold transition",
+                    active
+                      ? PRIORIDAD_TONE[item].chip
+                      : "bg-slate-50 text-slate-500 ring-1 ring-slate-200 hover:bg-white",
+                  )}
+                >
+                  {PRIORIDAD_LABEL[item]}
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-1.5 text-[11px] text-slate-400">
+            Alta bloquea operación · Media hay alternativa · Baja es mejora
+          </p>
         </PlanField>
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
+        <Button
+          type="submit"
+          disabled={pending}
+          className="h-11 w-full rounded-full bg-violet-700 text-sm font-semibold text-white hover:bg-violet-600"
+        >
+          {pending ? "Enviando…" : "Enviar ticket"}
+        </Button>
       </div>
-      {error ? <p className="text-sm text-red-600">{error}</p> : null}
-      <Button
-        type="submit"
-        disabled={pending}
-        className="bg-slate-900 text-white hover:bg-slate-800"
-      >
-        {pending ? "Enviando…" : "Enviar ticket"}
-      </Button>
     </form>
   );
 }

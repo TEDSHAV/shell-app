@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { isTedMember } from "@/actions/ted";
+import { canManageUsuariosPrisma } from "@/actions/ted";
 import { load_acceso_catalog, load_usuario_ficha } from "@/features/accesos/actions/list-accesos";
 import {
   AccesosWorkspace,
@@ -27,7 +27,7 @@ export default async function TedAccesosPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const allowed = await isTedMember();
+  const allowed = await canManageUsuariosPrisma();
   if (!allowed) {
     redirect("/dashboard");
   }

@@ -19,11 +19,13 @@ type RawTicket = {
   app_id: number | null;
   modulo_id: number | null;
   solicitado_por: number | null;
+  created_by: number | null;
   asignado_id: number | null;
   respuesta: string | null;
   respondido_at: string | null;
   tarea_id: number | null;
   created_at: string;
+  updated_at: string | null;
 };
 
 async function hydrate(
@@ -35,7 +37,9 @@ async function hydrate(
   const ids = rows.map((row) => row.id);
   const user_ids = [
     ...new Set(
-      rows.flatMap((row) => [row.solicitado_por, row.asignado_id].filter(Boolean) as number[]),
+      rows.flatMap((row) =>
+        [row.solicitado_por, row.asignado_id, row.created_by].filter(Boolean) as number[],
+      ),
     ),
   ];
   const app_ids = [...new Set(rows.map((row) => row.app_id).filter(Boolean) as number[])];
@@ -109,6 +113,10 @@ async function hydrate(
     solicitante: row.solicitado_por
       ? (name_by.get(row.solicitado_por) ?? "Usuario")
       : "Usuario",
+    created_by: row.created_by,
+    registrado_por: row.created_by
+      ? (name_by.get(row.created_by) ?? "TED")
+      : null,
     asignado_id: row.asignado_id,
     asignado: row.asignado_id ? (name_by.get(row.asignado_id) ?? "Usuario") : null,
     colaborador_ids: cols_by.get(row.id) ?? [],
@@ -116,13 +124,14 @@ async function hydrate(
     respondido_at: row.respondido_at,
     tarea_id: row.tarea_id,
     created_at: row.created_at,
+    updated_at: row.updated_at ?? null,
     eventos: events_by.get(row.id) ?? [],
     source: "nativo",
   }));
 }
 
 const SELECT =
-  "id, titulo, descripcion, prioridad, estado, app_id, modulo_id, solicitado_por, asignado_id, respuesta, respondido_at, tarea_id, created_at";
+  "id, titulo, descripcion, prioridad, estado, app_id, modulo_id, solicitado_por, created_by, asignado_id, respuesta, respondido_at, tarea_id, created_at, updated_at";
 
 export async function list_my_tickets(): Promise<
   { ok: true; tickets: TicketRow[]; queues: Record<number, TicketQueueItem[]> } | { ok: false; error: string }

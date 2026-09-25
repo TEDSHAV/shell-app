@@ -100,6 +100,7 @@ export function AccesosWorkspace({
           apps={catalog.apps}
           roles={catalog.roles}
           permissions={catalog.permissions}
+          users={catalog.users}
         />
       ) : null}
 

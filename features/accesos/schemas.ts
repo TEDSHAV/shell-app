@@ -77,3 +77,19 @@ export const role_permission_set_schema = z.object({
   role_id: z.number().int().positive(),
   permission_ids: z.array(z.number().int().positive()),
 });
+
+export const sync_permission_roles_schema = z.object({
+  permission_id: z.number().int().positive(),
+  role_ids: z.array(z.number().int().positive()),
+});
+
+export const assign_role_to_users_schema = z.object({
+  role_id: z.number().int().positive(),
+  usuario_ids: z.array(z.number().int().positive()),
+});
+
+export const apply_permission_delta_schema = z.object({
+  role_ids: z.array(z.number().int().positive()).min(1),
+  add_permission_ids: z.array(z.number().int().positive()).default([]),
+  remove_permission_ids: z.array(z.number().int().positive()).default([]),
+});

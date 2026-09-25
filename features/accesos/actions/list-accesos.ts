@@ -272,20 +272,47 @@ export async function load_usuario_ficha(
       "app_id, app_nombre, app_slug, role_id, role_nombre, role_slug, permisos_slugs, asignacion_fecha",
     )
     .eq("usuario_id", usuario_id);
-  if (error) throw new Error(error.message);
 
-  const apps = (
-    (data || []) as Array<{
-      app_id: number | null;
-      app_nombre: string | null;
-      app_slug: string | null;
-      role_id: number | null;
-      role_nombre: string | null;
-      role_slug: string | null;
-      permisos_slugs: string[] | null;
-      asignacion_fecha: string | null;
-    }>
-  )
+  type FichaRow = {
+    app_id: number | null;
+    app_nombre: string | null;
+    app_slug: string | null;
+    role_id: number | null;
+    role_nombre: string | null;
+    role_slug: string | null;
+    permisos_slugs: string[] | null;
+    asignacion_fecha: string | null;
+  };
+
+  let rows: FichaRow[] = (data || []) as FichaRow[];
+  if (error) {
+    const { data: uar, error: uar_error } = await supabase
+      .schema("authprisma")
+      .from("user_app_roles")
+      .select("app_id, role_id, created_at")
+      .eq("usuario_id", usuario_id);
+    if (uar_error) throw new Error(error.message);
+    rows = ((uar || []) as Array<{
+      app_id: number;
+      role_id: number;
+      created_at: string | null;
+    }>).map((row) => {
+      const app = catalog.apps.find((a) => a.id === num(row.app_id));
+      const role = catalog.roles.find((r) => r.id === num(row.role_id));
+      return {
+        app_id: row.app_id,
+        app_nombre: app?.nombre ?? null,
+        app_slug: app?.slug ?? null,
+        role_id: row.role_id,
+        role_nombre: role?.nombre ?? null,
+        role_slug: role?.slug ?? null,
+        permisos_slugs: role?.permission_slugs ?? [],
+        asignacion_fecha: row.created_at,
+      };
+    });
+  }
+
+  const apps = rows
     .filter((row) => row.app_id != null && row.role_id != null)
     .map((row) => {
       const role = catalog.roles.find((r) => r.id === num(row.role_id));
