@@ -4,7 +4,7 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { deleteRequisicionRecord, setRequisicionEstatus, markAllItemsVerificadas, acknowledgeRequisicionReceipt, approveRequisicionByCoordinador, rejectRequisicionByCoordinador, approveRequisicionByLider, rejectRequisicionByLider } from "@/actions/requisiciones";
+import { deleteRequisicionRecord, setRequisicionEstatus, acknowledgeRequisicionReceipt, approveRequisicionByCoordinador, rejectRequisicionByCoordinador, approveRequisicionByLider, rejectRequisicionByLider } from "@/actions/requisiciones";
 import { Eye, Edit, Trash2, Lock, CheckCircle2, Undo2, XCircle, CalendarClock, AlertTriangle, PackageCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/utils";
@@ -41,7 +41,9 @@ export default function RequisicionRow({
   const estatus = localEstatus;
   const isProcesada = estatus === "procesada";
   const isRechazada = estatus === "rechazada";
+  const isParcial = estatus === "parcial";
   const isPendiente = estatus === "pendiente";
+  const isOpenForAdmin = isPendiente || isParcial;
   const isResolved = isProcesada || isRechazada;
   const isAcuseRecibido = record.acuse_recibido === true;
   const canAcknowledge = isProcesada && !isAcuseRecibido && !isAdminView;
@@ -164,33 +166,38 @@ export default function RequisicionRow({
       setRejectModalOpen(true);
       return;
     }
-    if (target === "procesada" && totalCount > 0 && verifiedCount < totalCount) {
-      if (!confirm(`Hay ${verifiedCount} de ${totalCount} items verificados. ¿Marcar todos como Listo y procesar?`)) return;
+    if (target === "procesada") {
+      const needsSelection = totalCount > 1;
+      if (needsSelection && verifiedCount === 0) {
+        alert("Hay varios ítems. Ábralos en el detalle y marque con ✓ cuáles procesar ahora.");
+        return;
+      }
+      const isPartial = needsSelection && verifiedCount < totalCount;
+      const nextStatus: "parcial" | "procesada" = isPartial ? "parcial" : "procesada";
+      const msg = isPartial
+        ? `Se procesarán ${verifiedCount} de ${totalCount} ítems. El resto queda pendiente (Parcial). ¿Continuar?`
+        : totalCount === 1
+          ? "¿Procesar esta requisición (único ítem)?"
+          : "¿Marcar esta requisición como Procesada? El solicitante ya no podrá editarla.";
+      if (!confirm(msg)) return;
       const prevEstatus = localEstatus;
-      const prevItems = localItems;
-      // Optimistic: mark all as listo + set procesada
-      setLocalItems(prev => prev.map(item => ({ ...item, verificacion: "listo" })));
-      setLocalEstatus("procesada");
+      setLocalEstatus(nextStatus);
       setIsUpdating(true);
       try {
-        await markAllItemsVerificadas(record.id);
-        await setRequisicionEstatus(record.id, "procesada");
+        await setRequisicionEstatus(record.id, nextStatus);
       } catch (error) {
         console.error("Error updating estatus:", error);
-        // Rollback
         setLocalEstatus(prevEstatus);
-        setLocalItems(prevItems);
-        alert("Error al actualizar el estatus");
+        alert(error instanceof Error ? error.message : "Error al actualizar el estatus");
       } finally {
         setIsUpdating(false);
       }
       return;
     }
     const messages: Record<string, string> = {
-      procesada: "¿Marcar esta requisición como Procesada? El solicitante ya no podrá editarla.",
       pendiente: "¿Revertir esta requisición a Pendiente?",
     };
-    if (!confirm(messages[target])) return;
+    if (!confirm(messages[target] || "¿Continuar?")) return;
     const prevEstatus = localEstatus;
     // Optimistic update
     setLocalEstatus(target);
@@ -293,9 +300,12 @@ export default function RequisicionRow({
       </td>
       <td className="px-4 py-4 whitespace-nowrap text-sm">
         <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
-          isProcesada ? 'bg-emerald-100 text-emerald-800' : isRechazada ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'
+          isProcesada ? 'bg-emerald-100 text-emerald-800'
+            : isParcial ? 'bg-sky-100 text-sky-800'
+            : isRechazada ? 'bg-red-100 text-red-800'
+            : 'bg-amber-100 text-amber-800'
         }`}>
-          {isProcesada ? "Procesada" : isRechazada ? "Rechazada" : "Pendiente"}
+          {isProcesada ? "Procesada" : isParcial ? "Parcial" : isRechazada ? "Rechazada" : "Pendiente"}
         </span>
         {isProcesada && isAcuseRecibido && (
           <span className="ml-1 px-2 py-1 rounded-full text-[10px] font-bold uppercase bg-blue-100 text-blue-800">
@@ -319,10 +329,12 @@ export default function RequisicionRow({
           <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
             record.lider_estatus === "aprobada" ? 'bg-blue-100 text-blue-800'
             : record.lider_estatus === "rechazada" ? 'bg-red-100 text-red-800'
+            : record.costos_confirmados_at ? 'bg-violet-100 text-violet-800'
             : 'bg-amber-100 text-amber-800'
           }`}>
             {record.lider_estatus === "aprobada" ? "Aprobada (Lider)"
               : record.lider_estatus === "rechazada" ? "Rechazada (Lider)"
+              : record.costos_confirmados_at ? "En espera (Líder)"
               : "Pendiente (Lider)"}
           </span>
         ) : (
@@ -435,7 +447,7 @@ export default function RequisicionRow({
               </Button>
             </>
           )}
-          {isAdminView && isPendiente && (
+          {isAdminView && isOpenForAdmin && (
             <>
               <Button
                 type="button"

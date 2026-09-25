@@ -92,6 +92,7 @@ export type ApproverRecordFlags = {
   departamento?: string | null;
   lider_estatus?: string | null;
   coordinador_estatus?: string | null;
+  costos_confirmados_at?: string | null;
   _isApprovalHistory?: boolean;
   _isOwn?: boolean;
   _creatorIsDeptCoordinador?: boolean;
@@ -104,9 +105,12 @@ export function skipsCoordinadorGate(record: ApproverRecordFlags): boolean {
   return false;
 }
 
+/** Líder solo actúa tras estimación Admin (costos_confirmados_at). */
 export function isLiderGatePending(record: ApproverRecordFlags): boolean {
   if (!isInternaRecord(record)) return false;
-  return record.lider_estatus === "pendiente";
+  if (record.lider_estatus !== "pendiente") return false;
+  if (!record.costos_confirmados_at) return false;
+  return true;
 }
 
 export function isPendingForCurrentApprover(

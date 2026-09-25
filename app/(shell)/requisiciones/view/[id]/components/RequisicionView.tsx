@@ -13,13 +13,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { RequisicionItem, OSIFixedItem } from "@/types/requisiciones";
-import { setRequisicionEstatus, updateItemVerificacion, updateFixedItemVerificacion, markAllItemsVerificadas, saveVerificacionProgress, getExchangeRate, updateFacilitadorBankingDetails, acknowledgeRequisicionReceipt, approveRequisicionByCoordinador, rejectRequisicionByCoordinador, approveRequisicionByLider, rejectRequisicionByLider, updateRequisicionByApprover, confirmInternaCostos, updateRequisicionDepartamento } from "@/actions/requisiciones";
-import { CheckCircle2, XCircle, Undo2, Clock, AlertTriangle, CalendarClock, Copy, Check, Download, Save, Printer, PackageCheck, Plus, Trash2 } from "lucide-react";
+import { setRequisicionEstatus, updateItemVerificacion, updateFixedItemVerificacion, saveVerificacionProgress, getExchangeRate, updateFacilitadorBankingDetails, acknowledgeRequisicionReceipt, approveRequisicionByCoordinador, rejectRequisicionByCoordinador, approveRequisicionByLider, rejectRequisicionByLider, updateRequisicionByApprover, confirmInternaCostos, updateRequisicionDepartamento, updateRequisicionItemsByGestion, markAllItemsVerificadas } from "@/actions/requisiciones";
+import { CheckCircle2, XCircle, Undo2, Clock, AlertTriangle, CalendarClock, Copy, Check, Download, Save, Printer, PackageCheck, Plus, Trash2, DollarSign } from "lucide-react";
 import MotivoModal from "../../../components/MotivoModal";
 import ApproverDiff from "./ApproverDiff";
 import { formatDate } from "@/lib/utils";
 import { deptInList, isLiderGatePending, skipsCoordinadorGate } from "@/lib/requisiciones-gerencia";
-import { apply_item_money_updates, requisicion_items_total } from "@/lib/requisiciones-totals";
+import { apply_item_money_updates, interna_needs_lider, requisicion_items_total } from "@/lib/requisiciones-totals";
 import { RequisicionItemMoneyInputs, RequisicionPriceHeaders } from "../../../components/RequisicionItemMoneyInputs";
 
 export default function RequisicionView({
@@ -34,6 +34,7 @@ export default function RequisicionView({
   banks = [],
   limiteLiderUsd = 100,
   canEditDepartamento = false,
+  canEditTramite = false,
   deptCatalog = [],
 }: {
   record: any,
@@ -50,6 +51,8 @@ export default function RequisicionView({
   limiteLiderUsd?: number,
   /** Administración operativa con requisiciones:gestion:edit. */
   canEditDepartamento?: boolean,
+  /** gestion:edit o process: agregar/editar ítems en trámite. */
+  canEditTramite?: boolean,
   deptCatalog?: { nombre: string; gerencia: string }[],
 }) {
   const router = useRouter();
@@ -129,8 +132,16 @@ export default function RequisicionView({
     || canCoordinadorEditPostApproval;
   const coordDoneForAdmin = !coordinadorEstatus || coordinadorEstatus === "aprobada";
   const canEstimateEdit = isAdminView && isGeneralMode && coordDoneForAdmin && !adminProcessed;
-  const liderAlreadyApproved = liderEstatus === "aprobada";
-  const canConfirmCostos = canEstimateEdit && !liderAlreadyApproved;
+  const canAdminGestionEdit =
+    isAdminView && canEditTramite && !adminProcessed && (!isGeneralMode || coordDoneForAdmin);
+  const canEditItems = canApproverEdit || canEstimateEdit || canAdminGestionEdit;
+  const costsConfirmed = !!record.costos_confirmados_at;
+  // Mostrar confirmar si Admin puede estimar y aún no hay sello válido de líder
+  // sobre una estimación real (recupera casos donde el líder selló sin montos).
+  const canConfirmCostos =
+    canEstimateEdit && (!costsConfirmed || liderEstatus !== "aprobada");
+  const prematureLiderSeal =
+    isGeneralMode && liderEstatus === "aprobada" && !costsConfirmed;
   const [editedItems, setEditedItems] = useState<any[]>(record.additional_items || []);
   const [editedObservaciones, setEditedObservaciones] = useState<string>(record.observaciones_compras || "");
   const [editedPrioridad, setEditedPrioridad] = useState<string>(record.prioridad || "");
@@ -145,6 +156,13 @@ export default function RequisicionView({
   useEffect(() => {
     setEditedDepartamento(record.departamento || "");
   }, [record.departamento]);
+
+  // Tras solicitar / cambiar sello de líder, alinear ítems locales con el servidor
+  // para no quedar en "cambios sin guardar" falsos que ocultan el estado de espera.
+  useEffect(() => {
+    setEditedItems(record.additional_items || []);
+    setLocalItems(record.additional_items || []);
+  }, [record.id, record.costos_confirmados_at, record.lider_estatus]);
 
   const departamentoOptions = (() => {
     const rows = [...deptCatalog];
@@ -193,6 +211,7 @@ export default function RequisicionView({
       descripcion: "",
       costo_unitario: 0,
       total: 0,
+      verificacion: "pendiente" as const,
     }]);
   };
 
@@ -207,8 +226,29 @@ export default function RequisicionView({
     }));
   };
 
+  const handleSaveGestionItems = async (): Promise<boolean> => {
+    if (!canAdminGestionEdit && !canEstimateEdit) return true;
+    setIsSavingApproverEdit(true);
+    try {
+      await updateRequisicionItemsByGestion(record.id, editedItems);
+      setLocalItems(editedItems);
+      return true;
+    } catch (e) {
+      console.error("Error saving gestion items:", e);
+      alert(e instanceof Error ? e.message : "Error al guardar los ítems");
+      return false;
+    } finally {
+      setIsSavingApproverEdit(false);
+    }
+  };
+
   const handleSaveApproverEdits = async (): Promise<boolean> => {
-    if (!canApproverEdit) return true;
+    if (!canApproverEdit) {
+      if (canAdminGestionEdit || canEstimateEdit) {
+        return handleSaveGestionItems();
+      }
+      return true;
+    }
     setIsSavingApproverEdit(true);
     try {
       await updateRequisicionByApprover(record.id, {
@@ -228,18 +268,50 @@ export default function RequisicionView({
     }
   };
 
-  const handleConfirmCostos = async () => {
+  const getSelectedItemIdsForBatch = () => {
+    if (needsItemSelection) {
+      return workingItems
+        .filter((item) => item.verificacion === "listo")
+        .map((item) => String(item.id));
+    }
+    return workingItems.map((item) => String(item.id));
+  };
+
+  /** Confirma el lote (montos + umbral líder). Usado por «Solicitar aprobación» y al procesar sin líder. */
+  const confirmBatchCostos = async () => {
+    const selectedIds = getSelectedItemIdsForBatch();
+    if (needsItemSelection && selectedIds.length === 0) {
+      throw new Error(
+        "Hay varios ítems. Marque en la columna Procesar cuáles incluirá en este lote.",
+      );
+    }
+    return confirmInternaCostos(record.id, editedItems, {
+      selected_item_ids: selectedIds,
+    });
+  };
+
+  const handleSolicitarAprobacion = async () => {
     setIsUpdating(true);
     try {
-      const result = await confirmInternaCostos(record.id, editedItems);
-      alert(
-        result.needsLider
-          ? `Total $${result.total.toFixed(2)} supera el límite ($${result.limite}). Se envió al líder para aprobación.`
-          : `Total $${result.total.toFixed(2)}. Puede procesar sin sello de líder.`,
-      );
+      const result = await confirmBatchCostos();
+      // Evita falso "sin guardar" tras el sello (mismatched JSON / refresh).
+      setLocalItems(editedItems);
+      const scope =
+        result.totalItems > 1
+          ? ` (${result.selectedCount} de ${result.totalItems} ítems)`
+          : "";
+      if (result.needsLider) {
+        alert(
+          `Solicitud enviada al líder · $${result.total.toFixed(2)}${scope} (límite $${result.limite}).`,
+        );
+      } else {
+        alert(
+          `Total $${result.total.toFixed(2)}${scope} no supera el límite. Ya puede procesar.`,
+        );
+      }
       router.refresh();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "No se pudo confirmar la estimación");
+      alert(e instanceof Error ? e.message : "No se pudo solicitar la aprobación");
     } finally {
       setIsUpdating(false);
     }
@@ -296,7 +368,9 @@ export default function RequisicionView({
   const estatus = record.estatus_admin || "pendiente";
   const isProcesada = estatus === "procesada";
   const isRechazada = estatus === "rechazada";
+  const isParcial = estatus === "parcial";
   const isPendiente = estatus === "pendiente";
+  const isOpenForAdmin = isPendiente || isParcial;
   const isResolved = isProcesada || isRechazada;
   const isAcuseRecibido = record.acuse_recibido === true;
   const canAcknowledge = isProcesada && !isAcuseRecibido && !isAdminView;
@@ -308,23 +382,11 @@ export default function RequisicionView({
     (fi.impresion_total || 0) +
     (fi.honorarios_total || 0) +
     (fi.informe_final_total || 0), 0);
-  const workingItems = (canApproverEdit || canEstimateEdit) ? editedItems : additionalItems;
+  const workingItems = (canEditItems) ? editedItems : additionalItems;
   const totalAdditional = requisicion_items_total(workingItems);
   const totalGeneral = totalFixed + totalAdditional;
 
-  // Total of only verified ("listo") items — used for copy-all VES calculation
-  const verifiedFixedTotal = osiFixedItems.reduce((sum, fi) =>
-    sum +
-    (fi.verificacion_traslado === "listo" ? (fi.dias_traslado || 0) * (fi.costo_traslado || 0) : 0) +
-    (fi.verificacion_impresion === "listo" ? (fi.impresion_total || 0) : 0) +
-    (fi.verificacion_honorarios === "listo" ? (fi.honorarios_total || 0) : 0) +
-    (fi.verificacion_informe_final === "listo" ? (fi.informe_final_total || 0) : 0), 0);
-  const verifiedAdditionalTotal = additionalItems
-    .filter(item => item.verificacion === "listo")
-    .reduce((sum, item) => sum + (item.total || 0), 0);
-  const verifiedTotal = verifiedFixedTotal + verifiedAdditionalTotal;
-
-  // Item verification progress (fixed items + additional items)
+  // Item selection counts (same marks for confirm estimation + process)
   const fixedVerifiedCount = osiFixedItems.reduce((sum, fi) =>
     sum +
     (fi.verificacion_traslado === "listo" ? 1 : 0) +
@@ -332,10 +394,101 @@ export default function RequisicionView({
     (fi.verificacion_honorarios === "listo" ? 1 : 0) +
     (fi.verificacion_informe_final === "listo" ? 1 : 0), 0);
   const fixedTotalCount = osiFixedItems.length * 4;
-  const additionalVerifiedCount = additionalItems.filter(item => item.verificacion === "listo").length;
+  const additionalVerifiedCount = workingItems.filter(item => item.verificacion === "listo").length;
   const verifiedCount = fixedVerifiedCount + additionalVerifiedCount;
-  const totalCount = fixedTotalCount + additionalItems.length;
-  const progressPct = totalCount > 0 ? (verifiedCount / totalCount) * 100 : 0;
+  const totalCount = fixedTotalCount + workingItems.length;
+  const isSingleItemProcess = totalCount === 1;
+  const needsItemSelection = totalCount > 1;
+  const effectiveVerifiedCount = isSingleItemProcess
+    ? Math.max(verifiedCount, 1)
+    : verifiedCount;
+  const progressPct = totalCount > 0 ? (effectiveVerifiedCount / totalCount) * 100 : 0;
+  const processButtonLabel = needsItemSelection
+    ? effectiveVerifiedCount === 0
+      ? "Procesar (marque ítems)"
+      : effectiveVerifiedCount < totalCount
+        ? `Procesar ${effectiveVerifiedCount} de ${totalCount} seleccionados`
+        : `Procesar todos (${totalCount})`
+    : "Procesar";
+
+  const selectedWorkingItems = workingItems.filter(
+    (item) => item.verificacion === "listo",
+  );
+  const selectedAdditionalTotal = requisicion_items_total(selectedWorkingItems);
+  const gateTotalForConfirm =
+    workingItems.length > 1 && selectedWorkingItems.length > 0
+      ? selectedAdditionalTotal
+      : workingItems.length > 1
+        ? 0
+        : totalAdditional;
+  const batchTotalForGate =
+    gateTotalForConfirm > 0 ? gateTotalForConfirm : totalAdditional;
+  const limiteUsd = Number(limiteLiderUsd) || 100;
+  const estimatedNeedsLider =
+    isGeneralMode && interna_needs_lider(batchTotalForGate, limiteUsd);
+
+  const itemsDirty =
+    (canAdminGestionEdit || canEstimateEdit) &&
+    JSON.stringify(editedItems) !== JSON.stringify(record.additional_items || []);
+
+  const selectionMissing =
+    needsItemSelection && selectedWorkingItems.length === 0;
+  const processBlockedByCoord =
+    isGeneralMode && coordinadorEstatus === "pendiente";
+  // Ya se solicitó y el líder aún no sella (independiente de dirty local).
+  const awaitingLider =
+    isGeneralMode && costsConfirmed && liderEstatus === "pendiente";
+  const liderApprovedForBatch =
+    isGeneralMode && costsConfirmed && liderEstatus === "aprobada";
+  // «Solicitar» solo si aún no está en espera; si hay dirty en espera, permitir reenviar.
+  const showSolicitarAprobacion =
+    canConfirmCostos &&
+    estimatedNeedsLider &&
+    !liderApprovedForBatch &&
+    (!awaitingLider || itemsDirty);
+  // Procesar: nunca junto con Solicitar. Bajo el límite → directo. Sobre el límite → solo tras sello.
+  const showProcesar =
+    isOpenForAdmin &&
+    !processBlockedByCoord &&
+    !showSolicitarAprobacion &&
+    !awaitingLider &&
+    (!isGeneralMode || !estimatedNeedsLider || liderApprovedForBatch);
+  const processDisabled =
+    isUpdating ||
+    selectionMissing ||
+    processBlockedByCoord ||
+    awaitingLider ||
+    (isGeneralMode && estimatedNeedsLider && !liderApprovedForBatch);
+  const flowHint = processBlockedByCoord
+    ? "Espere el sello del coordinador."
+    : selectionMissing
+      ? "Marque en Procesar los ítems de este lote."
+      : awaitingLider && itemsDirty
+        ? "Solicitud ya enviada al líder. Si cambió montos, pulse «Actualizar solicitud»."
+        : awaitingLider
+          ? null // el banner dedicado lo explica
+          : prematureLiderSeal
+            ? "Había un sello de líder sin montos. Ajuste costos y solicite aprobación de nuevo."
+            : showSolicitarAprobacion
+              ? `Lote $${batchTotalForGate.toFixed(2)} > $${limiteUsd.toFixed(0)} · solicite aprobación del líder.`
+              : showProcesar && isGeneralMode && !estimatedNeedsLider
+                ? `Lote $${batchTotalForGate.toFixed(2)} ≤ $${limiteUsd.toFixed(0)} · sin aprobación de líder.`
+                : null;
+  const solicitarLabel = awaitingLider && itemsDirty
+    ? "Actualizar solicitud"
+    : needsItemSelection && selectedWorkingItems.length > 0
+      ? `Solicitar aprobación · ${selectedWorkingItems.length} de ${workingItems.length}`
+      : "Solicitar aprobación";
+
+  // Total of only selected items — used for copy-all VES calculation
+  const verifiedFixedTotal = osiFixedItems.reduce((sum, fi) =>
+    sum +
+    (fi.verificacion_traslado === "listo" ? (fi.dias_traslado || 0) * (fi.costo_traslado || 0) : 0) +
+    (fi.verificacion_impresion === "listo" ? (fi.impresion_total || 0) : 0) +
+    (fi.verificacion_honorarios === "listo" ? (fi.honorarios_total || 0) : 0) +
+    (fi.verificacion_informe_final === "listo" ? (fi.informe_final_total || 0) : 0), 0);
+  const verifiedAdditionalTotal = selectedAdditionalTotal;
+  const verifiedTotal = verifiedFixedTotal + verifiedAdditionalTotal;
 
   // Execution date alert
   const executionDate = osiData?.fecha_inicio_real;
@@ -384,54 +537,67 @@ export default function RequisicionView({
     }
   };
 
-  const handleSetEstatus = async (target: "pendiente" | "procesada" | "rechazada") => {
+  const handleSetEstatus = async (target: "pendiente" | "parcial" | "procesada" | "rechazada") => {
     // Rejection is handled via the MotivoModal (which captures a reason).
     if (target === "rechazada") {
       setRejectModalOpen(true);
       return;
     }
-    if (target === "procesada" && totalCount > 0 && verifiedCount < totalCount) {
-      if (!confirm(`Hay ${verifiedCount} de ${totalCount} items verificados. ¿Marcar todos como Listo y procesar?`)) return;
+    if (target === "procesada") {
+      if (needsItemSelection && verifiedCount === 0) {
+        alert(
+          "Hay varios ítems. Marque con ✓ cuáles desea procesar ahora. El resto quedará pendiente (Parcial).",
+        );
+        return;
+      }
+      const isPartial = needsItemSelection && verifiedCount < totalCount;
+      const nextStatus: "parcial" | "procesada" = isPartial ? "parcial" : "procesada";
+      const msg = isPartial
+        ? `Se procesarán ${verifiedCount} de ${totalCount} ítems marcados. Los no marcados quedan pendientes (estatus Parcial). ¿Continuar?`
+        : isSingleItemProcess
+          ? "¿Procesar esta requisición (único ítem)?"
+          : "¿Marcar esta requisición como Procesada? El solicitante ya no podrá editarla.";
+      if (!confirm(msg)) return;
       setIsUpdating(true);
       try {
-        // Save banking details as a best-effort side effect — a banking failure
-        // should NOT block processing.
         try { await saveBankingDetails(); } catch (e) { console.error("Banking details save failed (non-blocking):", e); }
-        await markAllItemsVerificadas(record.id);
-        setLocalItems(prev => prev.map(item => ({ ...item, verificacion: "listo" as const })));
-        setLocalFixedItems(prev => prev.map(fi => ({
-          ...fi,
-          verificacion_traslado: "listo" as const,
-          verificacion_impresion: "listo" as const,
-          verificacion_honorarios: "listo" as const,
-          verificacion_informe_final: "listo" as const,
-        })));
-        await setRequisicionEstatus(record.id, "procesada", undefined, parseFloat(exchangeRateInput) || null);
+        // Internas ≤ límite: confirmar lote al vuelo (sin botón aparte).
+        if (
+          isGeneralMode &&
+          (!costsConfirmed || itemsDirty) &&
+          !estimatedNeedsLider
+        ) {
+          await confirmBatchCostos();
+        }
+        if (isSingleItemProcess && verifiedCount === 0) {
+          await markAllItemsVerificadas(record.id);
+        }
+        await setRequisicionEstatus(
+          record.id,
+          nextStatus,
+          undefined,
+          parseFloat(exchangeRateInput) || null,
+        );
         router.refresh();
       } catch (error) {
         console.error("Error updating estatus:", error);
-        alert("Error al actualizar el estatus");
+        alert(error instanceof Error ? error.message : "Error al actualizar el estatus");
       } finally {
         setIsUpdating(false);
       }
       return;
     }
     const messages: Record<string, string> = {
-      procesada: "¿Marcar esta requisición como Procesada? El solicitante ya no podrá editarla.",
       pendiente: "¿Revertir esta requisición a Pendiente?",
     };
-    if (!confirm(messages[target])) return;
+    if (!confirm(messages[target] || "¿Continuar?")) return;
     setIsUpdating(true);
     try {
-      if (target === "procesada") {
-        // Best-effort: don't let a banking failure block the estatus change.
-        try { await saveBankingDetails(); } catch (e) { console.error("Banking details save failed (non-blocking):", e); }
-      }
-      await setRequisicionEstatus(record.id, target, undefined, target === "procesada" ? (parseFloat(exchangeRateInput) || null) : undefined);
+      await setRequisicionEstatus(record.id, target);
       router.refresh();
     } catch (error) {
       console.error("Error updating estatus:", error);
-      alert("Error al actualizar el estatus");
+      alert(error instanceof Error ? error.message : "Error al actualizar el estatus");
     } finally {
       setIsUpdating(false);
     }
@@ -635,6 +801,9 @@ export default function RequisicionView({
     setLocalItems(prev => prev.map(item =>
       item.id === itemId ? { ...item, verificacion: newStatus as "listo" | "pendiente" } : item
     ));
+    setEditedItems(prev => prev.map(item =>
+      item.id === itemId ? { ...item, verificacion: newStatus as "listo" | "pendiente" } : item
+    ));
     setTogglingItemId(itemId);
     try {
       await updateItemVerificacion(record.id, itemId, newStatus as "listo" | "pendiente");
@@ -642,6 +811,9 @@ export default function RequisicionView({
       console.error("Error updating item verification:", error);
       // Rollback on error
       setLocalItems(prev => prev.map(item =>
+        item.id === itemId ? { ...item, verificacion: currentStatus as "listo" | "pendiente" } : item
+      ));
+      setEditedItems(prev => prev.map(item =>
         item.id === itemId ? { ...item, verificacion: currentStatus as "listo" | "pendiente" } : item
       ));
       alert("Error al actualizar el item");
@@ -755,25 +927,48 @@ export default function RequisicionView({
 
       {/* Lider status bar (internas only) */}
       {isGeneralMode && liderEstatus && (
-        <div className="mb-4 flex flex-wrap items-center gap-3 px-4 py-3 bg-white border border-gray-200 rounded-lg shadow-sm">
+        <div className={`mb-4 flex flex-wrap items-center gap-3 px-4 py-3 rounded-lg shadow-sm border ${
+          awaitingLider
+            ? "bg-violet-50 border-violet-300"
+            : isLiderAprobada
+              ? "bg-white border-gray-200"
+              : isLiderRechazada
+                ? "bg-red-50 border-red-200"
+                : "bg-white border-gray-200"
+        }`}>
           <span className="text-sm font-medium text-gray-600">Lider:</span>
           <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
             isLiderAprobada ? 'bg-blue-100 text-blue-800'
             : isLiderRechazada ? 'bg-red-100 text-red-800'
+            : awaitingLider ? 'bg-violet-200 text-violet-900'
             : 'bg-amber-100 text-amber-800'
           }`}>
-            {isLiderAprobada ? "Aprobada" : isLiderRechazada ? "Rechazada" : "Pendiente"}
+            {isLiderAprobada
+              ? "Aprobada"
+              : isLiderRechazada
+                ? "Rechazada"
+                : awaitingLider
+                  ? "En espera de sello"
+                  : "Pendiente"}
           </span>
+          {awaitingLider && (
+            <span className="text-sm font-semibold text-violet-900">
+              Solicitud enviada · esperando aprobación del líder
+              {record.costos_confirmados_at
+                ? ` · ${new Date(record.costos_confirmados_at).toLocaleString("es-VE", { dateStyle: "short", timeStyle: "short" })}`
+                : ""}
+            </span>
+          )}
           {isLiderRechazada && record.motivo_rechazo_lider && (
             <span className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1">
               Motivo: {record.motivo_rechazo_lider}
             </span>
           )}
-          {liderDeptMatches && (
+          {(liderDeptMatches || awaitingLider) && (
             <span className="text-sm font-semibold text-gray-800">
-              Estimado ${totalGeneral.toFixed(2)}
+              Lote ${batchTotalForGate.toFixed(2)}
               <span className="ml-2 text-xs font-medium text-gray-500">
-                límite ${Number(limiteLiderUsd).toFixed(2)}
+                límite ${limiteUsd.toFixed(2)}
               </span>
             </span>
           )}
@@ -803,6 +998,24 @@ export default function RequisicionView({
               </Button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Banner claro: ya se solicitó, no hace falta volver a pulsar */}
+      {isAdminView && awaitingLider && isOpenForAdmin && (
+        <div className="mb-4 flex items-start gap-3 px-4 py-3 bg-violet-100 border border-violet-300 rounded-lg">
+          <Clock className="h-5 w-5 text-violet-700 flex-shrink-0 mt-0.5" />
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-violet-950">
+              En espera de aprobación del líder
+            </p>
+            <p className="text-xs text-violet-900/90 mt-0.5">
+              La solicitud ya fue enviada
+              {batchTotalForGate > 0 ? ` (lote $${batchTotalForGate.toFixed(2)})` : ""}.
+              Cuando el líder selle, podrá procesar. No es necesario solicitar de nuevo
+              {itemsDirty ? " salvo que cambie los montos" : ""}.
+            </p>
+          </div>
         </div>
       )}
 
@@ -861,16 +1074,20 @@ export default function RequisicionView({
 
       {/* Admin action bar */}
       {isAdminView && (
-        <div className="mb-4 flex items-center gap-3 px-4 py-3 bg-white border border-gray-200 rounded-lg shadow-sm">
+        <div className="mb-4 flex flex-col gap-2 px-4 py-3 bg-white border border-gray-200 rounded-lg shadow-sm">
+          <div className="flex items-center gap-3 flex-wrap">
           <span className="text-sm font-medium text-gray-600">Estatus:</span>
           <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
-            isProcesada ? 'bg-emerald-100 text-emerald-800' : isRechazada ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'
+            isProcesada ? 'bg-emerald-100 text-emerald-800'
+              : isParcial ? 'bg-sky-100 text-sky-800'
+              : isRechazada ? 'bg-red-100 text-red-800'
+              : 'bg-amber-100 text-amber-800'
           }`}>
-            {isProcesada ? "Procesada" : isRechazada ? "Rechazada" : "Pendiente"}
+            {isProcesada ? "Procesada" : isParcial ? "Parcial" : isRechazada ? "Rechazada" : "Pendiente"}
           </span>
-          {isResolved && record.procesada_por_nombre && (
+          {(isResolved || isParcial) && record.procesada_por_nombre && (
             <span className="text-xs text-gray-500">
-              {isProcesada ? "Procesada" : "Rechazada"} por <span className="font-medium text-gray-700">{record.procesada_por_nombre}</span>
+              {isProcesada ? "Procesada" : isParcial ? "Avance" : "Rechazada"} por <span className="font-medium text-gray-700">{record.procesada_por_nombre}</span>
               {record.procesada_at && ` el ${new Date(record.procesada_at).toLocaleString("es-VE", { dateStyle: "short", timeStyle: "short" })}`}
             </span>
           )}
@@ -881,47 +1098,56 @@ export default function RequisicionView({
               {isAcuseRecibido ? "Recibido" : "Pendiente recepción"}
             </span>
           )}
-          <div className="ml-auto flex gap-2">
-            {isPendiente && (
+          {awaitingLider && (
+            <span className="px-2 py-1 rounded-full text-[10px] font-bold uppercase bg-violet-100 text-violet-800">
+              Esperando líder
+            </span>
+          )}
+          {isOpenForAdmin && isGeneralMode && !estimatedNeedsLider && !processBlockedByCoord && !selectionMissing && (
+            <span className="px-2 py-1 rounded-full text-[10px] font-bold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">
+              Sin aprobación · ≤ ${limiteUsd.toFixed(0)}
+            </span>
+          )}
+          <div className="ml-auto flex gap-2 flex-wrap items-center">
+            {isOpenForAdmin && (
               <>
-                {canConfirmCostos ? (
+                {showSolicitarAprobacion ? (
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    disabled={isUpdating}
-                    onClick={handleConfirmCostos}
-                    className="h-8 px-3 text-xs flex gap-1 border-blue-300 text-blue-700 hover:bg-blue-50"
+                    disabled={isUpdating || selectionMissing}
+                    onClick={() => void handleSolicitarAprobacion()}
+                    title={
+                      selectionMissing
+                        ? "Marque al menos un ítem en la columna Procesar"
+                        : `Total del lote $${batchTotalForGate.toFixed(2)}`
+                    }
+                    className="h-8 px-3 text-xs flex gap-1 border-violet-300 text-violet-800 hover:bg-violet-50"
                   >
-                    {liderEstatus === "pendiente" || liderEstatus === "rechazada"
-                      ? `Reemitir al líder (límite $${limiteLiderUsd})`
-                      : `Confirmar costos (límite $${limiteLiderUsd})`}
+                    <DollarSign className="h-3.5 w-3.5" />
+                    {solicitarLabel}
                   </Button>
                 ) : null}
-                {verifiedCount > 0 && verifiedCount < totalCount && (
+                {isAdminView && isGeneralMode && !coordDoneForAdmin && !adminProcessed ? (
+                  <span className="text-[11px] text-amber-700 self-center">
+                    Disponible tras sello del coordinador
+                  </span>
+                ) : null}
+                {showProcesar ? (
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    disabled={isUpdating}
-                    onClick={handleSaveProgress}
-                    className="h-8 px-3 text-xs flex gap-1 border-blue-300 text-blue-700 hover:bg-blue-50"
+                    disabled={processDisabled}
+                    onClick={() => handleSetEstatus("procesada")}
+                    title={flowHint || undefined}
+                    className="h-8 px-3 text-xs flex gap-1 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
                   >
-                    <Save className="h-3.5 w-3.5" />
-                    Guardar Avance
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    {processButtonLabel}
                   </Button>
-                )}
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={isUpdating || (isGeneralMode && (!record.costos_confirmados_at || record.lider_estatus === "pendiente"))}
-                  onClick={() => handleSetEstatus("procesada")}
-                  className="h-8 px-3 text-xs flex gap-1 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
-                >
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  Procesar
-                </Button>
+                ) : null}
                 <Button
                   type="button"
                   variant="outline"
@@ -949,24 +1175,56 @@ export default function RequisicionView({
               </Button>
             )}
           </div>
+          </div>
+          {isOpenForAdmin && flowHint ? (
+            <p className="text-[11px] text-slate-600">{flowHint}</p>
+          ) : null}
+          {isOpenForAdmin && itemsDirty ? (
+            <div className="flex items-center justify-between gap-2 pt-1 border-t border-dashed border-slate-200">
+              <span className="text-[11px] text-amber-700">Hay cambios en ítems sin guardar.</span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isUpdating || isSavingApproverEdit}
+                onClick={() => void handleSaveGestionItems().then((ok) => { if (ok) router.refresh(); })}
+                className="h-7 px-2.5 text-[11px] flex gap-1 border-slate-300 text-slate-700 hover:bg-slate-50"
+              >
+                <Save className="h-3 w-3" />
+                {isSavingApproverEdit ? "Guardando…" : "Guardar ítems"}
+              </Button>
+            </div>
+          ) : null}
         </div>
       )}
 
-      {/* Verification progress (admin only) */}
-      {isAdminView && totalCount > 0 && (
-        <div className="mb-4 px-4 py-3 bg-white border border-gray-200 rounded-lg shadow-sm">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-gray-600">Progreso de verificación de items:</span>
-            <span className={`text-xs font-bold ${
-              verifiedCount === totalCount ? "text-emerald-600" : verifiedCount > 0 ? "text-amber-600" : "text-gray-400"
-            }`}>
-              {verifiedCount} de {totalCount} verificados
+      {/* Selection guide — compact */}
+      {isAdminView && needsItemSelection && isOpenForAdmin && (
+        <div className="mb-4 px-4 py-2.5 bg-sky-50 border border-sky-200 rounded-lg">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <span className="text-sm font-semibold text-sky-900">
+              Lote: {verifiedCount} de {totalCount} marcados
             </span>
+            {needsItemSelection && verifiedCount > 0 && verifiedCount < totalCount ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={isUpdating}
+                onClick={handleSaveProgress}
+                className="h-7 px-2 text-[11px] text-sky-800 hover:bg-sky-100"
+              >
+                Avisar al solicitante
+              </Button>
+            ) : null}
           </div>
-          <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-            <div 
+          <p className="text-[11px] text-sky-800/80 mt-1">
+            Marque la columna Procesar. El umbral del líder (${limiteUsd.toFixed(0)}) y el cierre aplican solo a lo marcado; el resto queda Parcial.
+          </p>
+          <div className="mt-2 w-full h-1.5 bg-white/80 rounded-full overflow-hidden border border-sky-100">
+            <div
               className={`h-full rounded-full transition-all ${
-                verifiedCount === totalCount ? "bg-emerald-500" : verifiedCount > 0 ? "bg-amber-500" : "bg-gray-300"
+                verifiedCount === totalCount ? "bg-emerald-500" : verifiedCount > 0 ? "bg-sky-500" : "bg-gray-200"
               }`}
               style={{ width: `${progressPct}%` }}
             />
@@ -1154,12 +1412,16 @@ export default function RequisicionView({
                 {isGeneralMode && isAdminView && linkedOSIs.length > 1 && (
                   <th className="p-2 border-r border-gray-300 w-28">OSI</th>
                 )}
-                {isGeneralMode ? (
-                  <th className="p-2 w-24">VERIF.</th>
+                {isGeneralMode && canEditItems ? (
+                  <th className="p-2 w-24">Acciones</th>
+                ) : isGeneralMode && !isAdminView ? (
+                  <th className="p-2 w-24">Estado</th>
                 ) : null}
-                {isAdminView && (
-                  <th className="p-2 w-20 border-l border-gray-300">✓</th>
-                )}
+                {isAdminView && needsItemSelection ? (
+                  <th className="p-2 w-24 border-l border-gray-300" title="Marque el lote a estimar/procesar">
+                    Procesar
+                  </th>
+                ) : null}
               </tr>
             </thead>
             <tbody>
@@ -1204,7 +1466,7 @@ export default function RequisicionView({
                 <td className="p-2 text-center font-bold bg-gray-50/50">
                   {""}
                 </td>
-                {isAdminView && (
+                {isAdminView && needsItemSelection && (
                   <td className="p-2 text-center border-l border-gray-300">
                     <input
                       type="checkbox"
@@ -1238,7 +1500,7 @@ export default function RequisicionView({
                 <td className="p-2 text-center font-bold bg-gray-50/50">
                   {""}
                 </td>
-                {isAdminView && (
+                {isAdminView && needsItemSelection && (
                   <td className="p-2 text-center border-l border-gray-300">
                     <input
                       type="checkbox"
@@ -1275,7 +1537,7 @@ export default function RequisicionView({
                 <td className="p-2 text-center font-bold bg-gray-50/50">
                   {""}
                 </td>
-                {isAdminView && (
+                {isAdminView && needsItemSelection && (
                   <td className="p-2 text-center border-l border-gray-300">
                     <input
                       type="checkbox"
@@ -1309,7 +1571,7 @@ export default function RequisicionView({
                 <td className="p-2 text-center font-bold bg-gray-50/50">
                   {""}
                 </td>
-                {isAdminView && (
+                {isAdminView && needsItemSelection && (
                   <td className="p-2 text-center border-l border-gray-300">
                     <input
                       type="checkbox"
@@ -1337,7 +1599,7 @@ export default function RequisicionView({
                 <td className="p-2 text-center font-bold text-xs bg-yellow-50">
                   ${osiTotal.toFixed(2)}
                 </td>
-                {isAdminView && <td className="p-2 border-l border-gray-300"></td>}
+                {isAdminView && needsItemSelection && <td className="p-2 border-l border-gray-300"></td>}
               </tr>
               {/* Dynamic items assigned to this OSI */}
               {osiAddlItems.length > 0 && (
@@ -1374,7 +1636,7 @@ export default function RequisicionView({
                     <td className="p-2 text-center font-bold bg-blue-50/20">
                       ${item.total?.toFixed(2) || "0.00"}
                     </td>
-                    {isAdminView && (
+                    {isAdminView && needsItemSelection && (
                       <td className="p-2 text-center border-l border-gray-300">
                         <input
                           type="checkbox"
@@ -1405,7 +1667,7 @@ export default function RequisicionView({
                   <td className="p-2 text-center font-bold text-xs bg-yellow-50">
                     ${osiAddlTotal.toFixed(2)}
                   </td>
-                  {isAdminView && <td className="p-2 border-l border-gray-300"></td>}
+                  {isAdminView && needsItemSelection && <td className="p-2 border-l border-gray-300"></td>}
                 </tr>
               )}
                 </Fragment>
@@ -1449,7 +1711,7 @@ export default function RequisicionView({
                           <td className="p-2 text-center font-bold bg-amber-50/20">
                             ${item.total?.toFixed(2) || "0.00"}
                           </td>
-                          {isAdminView && (
+                          {isAdminView && needsItemSelection && (
                             <td className="p-2 text-center border-l border-gray-300">
                               <input
                                 type="checkbox"
@@ -1472,7 +1734,7 @@ export default function RequisicionView({
               })()}
 
               {/* Additional Items (non-Capacitación) */}
-              {!isCapacitacion && !canApproverEdit && !canEstimateEdit && additionalItems.map((item, index) => (
+              {!isCapacitacion && !canEditItems && additionalItems.map((item, index) => (
                 <tr key={item.id} className="border-b border-gray-300 bg-blue-50/10">
                   <td className="p-2 text-center border-r border-gray-300 font-bold">{index + 1}</td>
                   <td className="p-2 border-r border-gray-300 text-center uppercase font-bold">
@@ -1501,16 +1763,16 @@ export default function RequisicionView({
                       {item.id_osi != null ? (osiLookup?.get(item.id_osi) || `#${item.id_osi}`) : "Sin asignar"}
                     </td>
                   )}
-                  {isGeneralMode ? (
+                  {isGeneralMode && !isAdminView ? (
                     <td className="p-2 text-center">
                       <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
                         item.verificacion === "listo" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
                       }`}>
-                        {item.verificacion === "listo" ? "Listo" : "Pendiente"}
+                        {item.verificacion === "listo" ? "Tramitado" : "Pendiente"}
                       </span>
                     </td>
                   ) : null}
-                  {isAdminView && (
+                  {isAdminView && needsItemSelection && (
                     <td className="p-2 text-center border-l border-gray-300">
                       <input
                         type="checkbox"
@@ -1525,8 +1787,8 @@ export default function RequisicionView({
                 </tr>
               ))}
 
-              {/* Additional Items — Approver editable mode (non-Capacitación) */}
-              {!isCapacitacion && (canApproverEdit || canEstimateEdit) && editedItems.map((item, index) => (
+              {/* Additional Items — editable mode (aprobador / Admin gestion:edit) */}
+              {!isCapacitacion && canEditItems && editedItems.map((item, index) => (
                 <tr key={item.id} className="border-b border-gray-300 bg-blue-50/30">
                   <td className="p-2 text-center border-r border-gray-300 font-bold">{index + 1}</td>
                   <td className="p-2 border-r border-gray-300 text-center">
@@ -1556,7 +1818,7 @@ export default function RequisicionView({
                       placeholder="Descripción..."
                     />
                   </td>
-                  {(!isGeneralMode || canEstimateEdit) ? (
+                  {(!isGeneralMode || canEstimateEdit || canAdminGestionEdit) ? (
                     <RequisicionItemMoneyInputs
                       costo_unitario={item.costo_unitario || 0}
                       total={item.total || 0}
@@ -1595,12 +1857,30 @@ export default function RequisicionView({
                       </button>
                     </td>
                   )}
+                  {isAdminView && needsItemSelection && (
+                    <td className="p-2 text-center border-l border-gray-300">
+                      <input
+                        type="checkbox"
+                        checked={item.verificacion === "listo"}
+                        disabled={togglingItemId === item.id || !isOpenForAdmin}
+                        onChange={() =>
+                          handleToggleItem(item.id, item.verificacion || "pendiente")
+                        }
+                        className="h-4 w-4 cursor-pointer accent-emerald-600"
+                        title={formatVerificadoTitle(
+                          item.verificacion === "listo",
+                          item.verificado_por,
+                          item.verificado_en,
+                        )}
+                      />
+                    </td>
+                  )}
                 </tr>
               ))}
-              {/* Add item button (approver editable mode) */}
-              {!isCapacitacion && canApproverEdit && (
+              {/* Add item button */}
+              {!isCapacitacion && canEditItems && (
                 <tr className="border-b border-gray-300 bg-blue-50/20">
-                  <td colSpan={isGeneralMode ? (isAdminView ? 8 : showInternaMontos ? 7 : 6) : 7} className="p-2">
+                  <td colSpan={isGeneralMode ? (isAdminView && needsItemSelection ? 8 : 7) : 7} className="p-2">
                     <button
                       type="button"
                       onClick={handleAddApproverItem}
@@ -1622,7 +1902,7 @@ export default function RequisicionView({
                 {isGeneralMode && (
                   <td className="p-2 bg-gray-100"></td>
                 )}
-                {isAdminView && (
+                {isAdminView && needsItemSelection && (
                   <td className="p-2 border-l border-gray-300 bg-gray-100"></td>
                 )}
               </tr>
@@ -1859,35 +2139,39 @@ export default function RequisicionView({
 
       {/* Bottom admin action bar */}
       {isAdminView && (
-        <div className="mt-4 flex items-center gap-3 px-4 py-3 bg-white border border-gray-200 rounded-lg shadow-sm">
+        <div className="mt-4 flex flex-col gap-2 px-4 py-3 bg-white border border-gray-200 rounded-lg shadow-sm">
+          <div className="flex items-center gap-3 flex-wrap">
           <span className="text-sm font-medium text-gray-600">Acciones:</span>
-          <div className="ml-auto flex gap-2">
-            {isPendiente && (
+          <div className="ml-auto flex gap-2 flex-wrap items-center">
+            {isOpenForAdmin && (
               <>
-                {verifiedCount > 0 && verifiedCount < totalCount && (
+                {showSolicitarAprobacion ? (
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    disabled={isUpdating}
-                    onClick={handleSaveProgress}
-                    className="h-8 px-3 text-xs flex gap-1 border-blue-300 text-blue-700 hover:bg-blue-50"
+                    disabled={isUpdating || selectionMissing}
+                    onClick={() => void handleSolicitarAprobacion()}
+                    className="h-8 px-3 text-xs flex gap-1 border-violet-300 text-violet-800 hover:bg-violet-50"
                   >
-                    <Save className="h-3.5 w-3.5" />
-                    Guardar Avance
+                    <DollarSign className="h-3.5 w-3.5" />
+                    {solicitarLabel}
                   </Button>
-                )}
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={isUpdating || (isGeneralMode && (!record.costos_confirmados_at || record.lider_estatus === "pendiente"))}
-                  onClick={() => handleSetEstatus("procesada")}
-                  className="h-8 px-3 text-xs flex gap-1 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
-                >
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  Procesar
-                </Button>
+                ) : null}
+                {showProcesar ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={processDisabled}
+                    onClick={() => handleSetEstatus("procesada")}
+                    title={flowHint || undefined}
+                    className="h-8 px-3 text-xs flex gap-1 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    {processButtonLabel}
+                  </Button>
+                ) : null}
                 <Button
                   type="button"
                   variant="outline"
@@ -1915,6 +2199,26 @@ export default function RequisicionView({
               </Button>
             )}
           </div>
+          </div>
+          {isOpenForAdmin && flowHint ? (
+            <p className="text-[11px] text-slate-600">{flowHint}</p>
+          ) : null}
+          {isOpenForAdmin && itemsDirty ? (
+            <div className="flex items-center justify-between gap-2 pt-1 border-t border-dashed border-slate-200">
+              <span className="text-[11px] text-amber-700">Hay cambios en ítems sin guardar.</span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isUpdating || isSavingApproverEdit}
+                onClick={() => void handleSaveGestionItems().then((ok) => { if (ok) router.refresh(); })}
+                className="h-7 px-2.5 text-[11px] flex gap-1 border-slate-300 text-slate-700 hover:bg-slate-50"
+              >
+                <Save className="h-3 w-3" />
+                {isSavingApproverEdit ? "Guardando…" : "Guardar ítems"}
+              </Button>
+            </div>
+          ) : null}
         </div>
       )}
 

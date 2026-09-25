@@ -47,10 +47,15 @@ export default async function ViewRequisicionPage({
   const isLider = liderDepts.length > 0;
   const approverEdited = record?.aprobador_edito === true;
   const canEditDepartamento = access.can_edit_departamento_emitida;
+  const canEditTramite = access.can_edit_tramite;
 
   let osiData = null;
   const osiLookup = new Map<number, string>();
-  const isLocked = record?.estatus_admin === "procesada" || record?.estatus_admin === "rechazada";
+  const isLocked =
+    record?.estatus_admin === "procesada" ||
+    record?.estatus_admin === "rechazada";
+  const isParcial = record?.estatus_admin === "parcial";
+  const isLockedForCreator = isLocked || isParcial;
   const linkedOsiIds: number[] = (record.requisiciones_osis || []).map(
     (ro: any) => ro.id_osi
   );
@@ -120,12 +125,17 @@ export default async function ViewRequisicionPage({
             <Lock className="h-4 w-4" />
             {record.estatus_admin === "rechazada" ? "Rechazada por Administración" : "Procesada por Administración"}
           </div>
+        ) : isParcial && !isAdminView ? (
+          <div className="flex items-center gap-2 px-4 py-2 bg-sky-50 border border-sky-300 rounded-lg text-sky-800 text-sm font-medium">
+            <Lock className="h-4 w-4" />
+            Procesada parcialmente — Administración sigue tramitando ítems pendientes
+          </div>
         ) : approverEdited && !isAdminView ? (
           <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-300 rounded-lg text-amber-800 text-sm font-medium">
             <Lock className="h-4 w-4" />
             Modificada por el Aprobador
           </div>
-        ) : !isAdminView ? (
+        ) : !isAdminView && !isLockedForCreator ? (
           <Link href={`/requisiciones/edit/${id}`}>
             <Button className="bg-blue-600 hover:bg-blue-700 text-white flex gap-2">
               <Edit className="h-4 w-4" />
@@ -147,6 +157,7 @@ export default async function ViewRequisicionPage({
         banks={banks}
         limiteLiderUsd={limiteLiderUsd}
         canEditDepartamento={canEditDepartamento}
+        canEditTramite={canEditTramite}
         deptCatalog={deptCatalog}
       />
     </div>

@@ -47,6 +47,7 @@ export default async function AdministracionDashboardPage() {
       requisicionesPendientes = reqRes.filter(
         (r) =>
           r.estatus_admin === "pendiente" ||
+          r.estatus_admin === "parcial" ||
           r.estatus_coordinador === "pendiente" ||
           r.estatus_lider === "pendiente"
       ).length;
