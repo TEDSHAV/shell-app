@@ -627,7 +627,6 @@ export const apps: AppConfig[] = [
             label: "Inicio",
             path: "/",
             icon: LayoutDashboard,
-            requiredPermissions: ["pipeline:access"],
           },
           {
             label: "Pipeline",

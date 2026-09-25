@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Columns3, LayoutList, Search } from "lucide-react";
+import { Columns3, LayoutList, Plus, Search } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import type {
   PlanApp,
   PlanModulo,
@@ -50,6 +51,7 @@ export function PlanTareasWorkspace({
   const [origen, set_origen] = useState<PlanOrigen | "Todos">("Todos");
   const [asignado, set_asignado] = useState<"Todos" | "none" | number>("Todos");
   const [trimestre, set_trimestre] = useState<PlanTrimestre | "Todos">("Todos");
+  const [creating, set_creating] = useState(false);
   const [editing, set_editing] = useState<FlatPlanTask | null>(null);
   const [open_filter, set_open_filter] = useState<null | "origen" | "people">(
     null,
@@ -102,7 +104,13 @@ export function PlanTareasWorkspace({
   );
 
   function open_item(item: FlatPlanTask) {
+    set_creating(false);
     set_editing(item);
+  }
+
+  function open_create() {
+    set_editing(null);
+    set_creating(true);
   }
 
   const editing_tarea: PlanTarea | null = editing?.tarea ?? null;
@@ -121,33 +129,43 @@ export function PlanTareasWorkspace({
             Tablero de trabajo TED
           </p>
         </div>
-        <div className="inline-flex items-center gap-0.5 rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm">
-          <button
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex items-center gap-0.5 rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm">
+            <button
+              type="button"
+              onClick={() => set_view("lista")}
+              className={cn(
+                "inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-semibold transition-all duration-300 ease-out",
+                view === "lista"
+                  ? "bg-slate-900 text-white"
+                  : "text-slate-400 hover:text-slate-700",
+              )}
+            >
+              <LayoutList className="h-3.5 w-3.5" />
+              Lista
+            </button>
+            <button
+              type="button"
+              onClick={() => set_view("kanban")}
+              className={cn(
+                "inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-semibold transition-all duration-300 ease-out",
+                view === "kanban"
+                  ? "bg-slate-900 text-white"
+                  : "text-slate-400 hover:text-slate-700",
+              )}
+            >
+              <Columns3 className="h-3.5 w-3.5" />
+              Kanban
+            </button>
+          </div>
+          <Button
             type="button"
-            onClick={() => set_view("lista")}
-            className={cn(
-              "inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-semibold transition-all duration-300 ease-out",
-              view === "lista"
-                ? "bg-slate-900 text-white"
-                : "text-slate-400 hover:text-slate-700",
-            )}
+            className="h-8 rounded-full bg-slate-900 px-3 text-xs text-white hover:bg-slate-800"
+            onClick={open_create}
           >
-            <LayoutList className="h-3.5 w-3.5" />
-            Lista
-          </button>
-          <button
-            type="button"
-            onClick={() => set_view("kanban")}
-            className={cn(
-              "inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-semibold transition-all duration-300 ease-out",
-              view === "kanban"
-                ? "bg-slate-900 text-white"
-                : "text-slate-400 hover:text-slate-700",
-            )}
-          >
-            <Columns3 className="h-3.5 w-3.5" />
-            Kanban
-          </button>
+            <Plus className="h-3.5 w-3.5" />
+            Nueva tarea
+          </Button>
         </div>
       </div>
 
@@ -253,6 +271,23 @@ export function PlanTareasWorkspace({
       ) : (
         <PlanTaskList items={items} on_open={open_item} />
       )}
+
+      {creating ? (
+        <TareaFormDialog
+          open
+          apps={apps}
+          all_modulos={all_modulos}
+          preset_app_id={apps[0]?.id ?? null}
+          preset_modulo_id={null}
+          tarea={null}
+          usuarios={usuarios}
+          onClose={() => set_creating(false)}
+          onSaved={() => {
+            set_creating(false);
+            router.refresh();
+          }}
+        />
+      ) : null}
 
       {editing_tarea ? (
         <TareaFormDialog

@@ -73,6 +73,7 @@ export async function canAccessSgestionMarketing(): Promise<boolean> {
   return (await isSgestionAdmin()) || (await isSgestionGestorMarketing());
 }
 
+/** Landing de Marketing. No usar como redirect desde `app/(shell)/marketing/page.tsx` (bucle). */
 export async function getMarketingHomePath(): Promise<string | null> {
   if (await canAccessSgestionMarketing()) return "/marketing";
   return null;
