@@ -190,7 +190,7 @@ El precio: si editas `solicitante-general` después, `admin` **no** se actualiza
 
 ---
 
-Orden sugerido: crear permisos → crear/ajustar roles transversales → componer `gestor`/`admin` con el atajo de copia → asignar gente. **Runtime:** slugs + territorio de ficha. Internas: coordinador → Admin estima → líder solo si total > límite (`requisiciones_ajustes.umbral_lider_usd`, default 100) → Admin procesa.
+Orden sugerido: crear permisos → crear/ajustar roles transversales → componer `gestor`/`admin` con el atajo de copia → asignar gente. **Runtime (modo provisional):** slugs + territorio de ficha. Internas: coordinador → líder (siempre) → Admin procesa. Sin montos ni umbral $100.
 
 El depto de la solicitud: contexto `?from=` o el departamento de casa. El **selector** (Administración vs Recursos Humanos) solo lo ven miembros operativos de Administración (`gestor`, `coordinador`, `lider`, `admin-ted`, `aprobador-*`). Un `solicitante-requisiciones` de otra gerencia no elige depto. `usuarios.departamento` no es multi.
 

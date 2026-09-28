@@ -72,6 +72,7 @@ export function requisicion_items_total(items: CostItem[] | null | undefined): n
   return money2(sum);
 }
 
+/** Conservado para PDF/externas. Ya no es el filtro de paso al líder. */
 export function interna_needs_lider(
   total: number,
   limite_lider_usd: number,

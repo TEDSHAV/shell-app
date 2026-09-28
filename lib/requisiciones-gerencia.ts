@@ -105,11 +105,10 @@ export function skipsCoordinadorGate(record: ApproverRecordFlags): boolean {
   return false;
 }
 
-/** Líder solo actúa tras estimación Admin (costos_confirmados_at). */
+/** Líder pendiente: internas con lider_estatus pendiente (sin filtro de montos). */
 export function isLiderGatePending(record: ApproverRecordFlags): boolean {
   if (!isInternaRecord(record)) return false;
   if (record.lider_estatus !== "pendiente") return false;
-  if (!record.costos_confirmados_at) return false;
   return true;
 }
 

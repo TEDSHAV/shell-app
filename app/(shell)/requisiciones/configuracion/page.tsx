@@ -17,9 +17,12 @@ export default async function RequisicionesConfigPage() {
   return (
     <div className="p-4 sm:p-8 max-w-xl">
       <h1 className="text-2xl font-bold text-gray-900">Configuración de requisiciones</h1>
-      <p className="mt-1 text-sm text-gray-600">
-        Si el total estimado de una interna supera este límite (USD), pasa por el líder antes del
-        proceso final de Administración.
+      <p className="mt-3 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+        Modo provisional: el umbral de $100 está desactivado. Las internas vuelven a
+        coordinador → líder → Administración, sin montos ni filtro de límite.
+      </p>
+      <p className="mt-3 text-sm text-gray-500">
+        El valor siguiente queda guardado para cuando se reactive el flujo por estimación; no se usa en el trámite actual.
       </p>
       <RequisicionesConfigForm initialLimite={limite} saveAction={updateLimiteLiderUsd} />
     </div>

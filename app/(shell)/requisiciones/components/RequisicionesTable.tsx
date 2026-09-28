@@ -202,12 +202,11 @@ export default function RequisicionesTable({
       return true;
     });
 
-    // Sort: abierta first (pendiente/parcial), then procesada, then rechazada
+    // Sort: abierta first (pendiente), then procesada, then rechazada
     const statusOrder: Record<string, number> = {
       pendiente: 0,
-      parcial: 1,
-      procesada: 2,
-      rechazada: 3,
+      procesada: 1,
+      rechazada: 2,
     };
     result.sort((a, b) => {
       const sa = statusOrder[a.estatus_admin || "pendiente"] ?? 3;
@@ -374,7 +373,6 @@ export default function RequisicionesTable({
             <SelectContent>
               <SelectItem value="todos">Todos</SelectItem>
               <SelectItem value="pendiente">Pendiente</SelectItem>
-              <SelectItem value="parcial">Parcial</SelectItem>
               <SelectItem value="procesada">Procesada</SelectItem>
               <SelectItem value="rechazada">Rechazada</SelectItem>
             </SelectContent>

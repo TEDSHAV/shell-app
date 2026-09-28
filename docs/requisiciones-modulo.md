@@ -21,9 +21,9 @@ Hay **dos tipos**:
 | **Externa** (`tipo_solicitud = Externo`) | Pestaña “Externa”  | Ítems con precio; en Capacitación también bloques fijos de la OSI (traslado, impresión, honorarios, informe). | Obligatoria. Capacitación: 1 OSI (+ sesión si hay varias). Servicios Técnicos: varias OSI. Otros departamentos: 1 OSI |
 
 
-En la práctica:
+En la práctica (**modo provisional**):
 
-- **Interna** = pedido interno del departamento (materiales, etc.). Pasa por **coordinador**, luego **Administración estima montos**; el **líder** solo si el total supera el límite. Después Administración procesa.
+- **Interna** = pedido interno del departamento (materiales, etc.). **Sin montos.** Pasa por **coordinador**, luego **líder** (siempre, sin umbral de $100), luego Administración procesa.
 - **Externa** = pedido ligado a un servicio/OSI (cliente). **Va directo a Administración**, sin cadena de aprobación.
 
 El documento se imprime/PDF como formato RG-ADM-003 (revisión persistida en cada fila).
@@ -352,3 +352,18 @@ Se toma el **único** departamento del usuario en `usuarios`; gerencia de `depar
 
 **¿Qué pasa si aprueban 2 de 3 ítems?**  
 Coordinador/líder: o aprueban **toda** la req o la rechazan **toda**. Para dejar 2 ítems, hay que quitar/editar el tercero y luego aprobar. Administración puede dejar 2 Listo y 1 Pendiente y avisar al creador; **no** hay rechazo por ítem. Si marcan Procesada, el sistema pide pasar **todos** a Listo. El ítem 3 no queda “rechazado”: o sigue pendiente, o se procesa junto, o se rechaza el documento entero.
+
+---
+
+## Próximos pasos
+
+- Modo provisional activado: se revierte al flujo anterior mientras se desarrolla la solución correcta
+  - Se elimina temporalmente la aprobación de $100 como filtro de paso al líder
+  - Se reactiva la aprobación del líder en requisiciones internas, igual que antes
+- Cualquier cambio del flujo “externo” (estimación, lotes parciales, umbral) queda revertido
+- El proceso interno vuelve a ser:
+  - miembro de depto hace la solicitud
+  - lo aprueba el coordinador
+  - lo aprueba el líder
+  - Administración puede procesar
+- Todo **sin montos** en internas

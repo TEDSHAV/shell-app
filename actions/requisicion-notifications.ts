@@ -71,47 +71,13 @@ export async function notifyAdminsOfNewRequisicion(
   }
 }
 
-/** Tras aprobación del líder por monto: Admin puede procesar (costos ya sellados). */
+/** Desactivado en modo provisional (umbral/estimación no aplica). */
 export async function notifyAdminsOfCostosAprobados(
-  requisicionId: number,
-  solicitanteName: string,
-  requisicionLabel: string,
+  _requisicionId: number,
+  _solicitanteName: string,
+  _requisicionLabel: string,
 ) {
-  try {
-    const supabase = await createAdminClient();
-    const title = "Costos aprobados — lista para procesar";
-    const body = `${solicitanteName}: el líder aprobó los costos de la requisición ${requisicionLabel}. Administración ya puede procesarla.`;
-
-    if (!(await isAdminOsiConfigMode(supabase))) {
-      await legacyNotifyPendingAdmin(
-        supabase,
-        requisicionId,
-        solicitanteName,
-        requisicionLabel,
-        { title, body, event_key: "requisicion_costos_aprobados" },
-      );
-      return;
-    }
-
-    const rows = await fanOutNotifyByConfig(supabase, {
-      appSlug: APP_SLUG,
-      eventKey: "requisicion_costos_aprobados",
-      title,
-      body,
-      linkPath: `/requisiciones/view/${requisicionId}`,
-      dedupeKey: `requisicion:${requisicionId}:costos_aprobados:${Date.now()}`,
-      priority: 2,
-    });
-
-    if (rows === 0) {
-      console.error(
-        "[notifyAdminsOfCostosAprobados] No recipients for requisicion_costos_aprobados",
-        { requisicionId },
-      );
-    }
-  } catch (err) {
-    console.error("[notifyAdminsOfCostosAprobados] Unexpected error:", err);
-  }
+  return;
 }
 
 export async function notifyLiderOfPendingInterna(

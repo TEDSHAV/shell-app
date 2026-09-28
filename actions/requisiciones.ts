@@ -13,7 +13,6 @@ import {
 } from "@/types/requisiciones";
 import {
   notifyAdminsOfNewRequisicion,
-  notifyAdminsOfCostosAprobados,
   notifyCreatorOfProcesada,
   notifyCreatorOfRechazada,
   notifyCreatorOfPartialVerificacion,
@@ -31,11 +30,7 @@ import {
   getCurrentUserUsuarioId,
   getRequisicionAccess,
 } from "@/actions/requisiciones-access-context";
-import {
-  apply_item_money_updates,
-  interna_needs_lider,
-  requisicion_items_total,
-} from "@/lib/requisiciones-totals";
+import { apply_item_money_updates } from "@/lib/requisiciones-totals";
 import {
   ADMIN_APP_SLUG,
 } from "@/lib/requisiciones-slugs";
@@ -181,6 +176,39 @@ export const departmentHasCoordinador = cache(async (deptName: string | null | u
     return false;
   }
 });
+
+/** True when the creator of an interna is the gerencia lider of that department. */
+async function creatorIsLiderOfDepartment(
+  creatorAuthId: string | null | undefined,
+  deptName: string | null | undefined,
+): Promise<boolean> {
+  if (!creatorAuthId || !deptName?.trim()) return false;
+  try {
+    const admin = await createAdminClient();
+    const { data: creatorUser } = await admin
+      .from("usuarios")
+      .select("id")
+      .eq("id_auth", creatorAuthId)
+      .maybeSingle();
+    const creatorUsuarioId = creatorUser?.id ?? null;
+    if (!creatorUsuarioId) return false;
+    const { data: dept } = await admin
+      .from("departamentos")
+      .select("gerencia")
+      .ilike("nombre", deptName.trim())
+      .maybeSingle();
+    const gerenciaName = dept?.gerencia || null;
+    if (!gerenciaName) return false;
+    const { data: gerencia } = await admin
+      .from("gerencias")
+      .select("lider")
+      .ilike("nombre", gerenciaName)
+      .maybeSingle();
+    return gerencia?.lider === creatorUsuarioId;
+  } catch {
+    return false;
+  }
+}
 
 export const canPlaceInterna = cache(async (deptName: string | null | undefined): Promise<boolean> => {
   if (!deptName) return false;
@@ -422,14 +450,35 @@ export async function createRequisicionRecord(
   const primaryOSI = formData.selectedOSIs[0] || null;
   const isInterna = formData.is_general;
 
-  // Internas: coordinador → Admin estima montos → líder solo si supera el límite.
+  // Internas (modo provisional): Coordinador → Líder → Administración.
+  // Si el creador es coordinador, o el depto no tiene coordinador, se salta al líder.
+  // Si el creador ES el líder, se salta también ese sello.
   // Externas: directo a Administración.
+  let needsLiderApproval = false;
+  let liderBypassApproval = false;
   let needsCoordinadorApproval = false;
 
   if (isInterna) {
     const isCoord = await isCoordinadorForDepartment(formData.departamento);
-    if (!isCoord && (await departmentHasCoordinador(formData.departamento))) {
-      needsCoordinadorApproval = true;
+    if (isCoord) {
+      const creatorIsLider = await isLiderForInternaApproval(formData.departamento);
+      if (creatorIsLider) {
+        liderBypassApproval = true;
+      } else {
+        needsLiderApproval = true;
+      }
+    } else {
+      const hasCoord = await departmentHasCoordinador(formData.departamento);
+      if (!hasCoord) {
+        const creatorIsLider = await isLiderForInternaApproval(formData.departamento);
+        if (creatorIsLider) {
+          liderBypassApproval = true;
+        } else {
+          needsLiderApproval = true;
+        }
+      } else {
+        needsCoordinadorApproval = true;
+      }
     }
   }
 
@@ -502,8 +551,7 @@ export async function createRequisicionRecord(
     // department that has a coordinador) before reaching the lider gate.
     // Externas never use coordinador_estatus.
     coordinador_estatus: isInterna && needsCoordinadorApproval ? "pendiente" : null,
-    lider_estatus: null,
-    costos_confirmados_at: null,
+    lider_estatus: isInterna && needsLiderApproval ? "pendiente" : null,
     // Locked at creation: rev.01 / 20/08/2026 for all new requisiciones.
     revision: "01",
     fecha_revision: "20/08/2026",
@@ -533,17 +581,14 @@ export async function createRequisicionRecord(
 
   await syncRequisicionOsis(data.id, formData);
 
-  // Notifications based on the workflow path:
-  // - Internas that skip both gates (creator is lider) → notify Administración directly.
-  // - Internas that skip coordinador gate but need lider → notify the gerencia's lider.
-  // - Internas that need coordinador approval → notify the department's coordinador.
-  // - Externas → notify Administración directly (no approval gate).
-  if (isInterna && needsCoordinadorApproval) {
+  if (isInterna && liderBypassApproval) {
+    await notifyAdminsOfNewRequisicion(data.id, formData.solicitante, "interna");
+  } else if (isInterna && needsLiderApproval) {
+    await notifyLiderOfPendingInterna(data.id, formData.solicitante, formData.departamento || "");
+  } else if (isInterna && needsCoordinadorApproval) {
     await notifyCoordinadorOfPendingExterna(data.id, formData.solicitante, formData.departamento || "");
-  } else {
-    const label = isInterna
-      ? "interna"
-      : `de la OSI N° ${primaryOSI?.nro_osi || ""}`;
+  } else if (!isInterna) {
+    const label = `de la OSI N° ${primaryOSI?.nro_osi || ""}`;
     await notifyAdminsOfNewRequisicion(data.id, formData.solicitante, label);
   }
 
@@ -731,8 +776,7 @@ export async function updateRequisicionRecord(
 
   const isLocked =
     existing?.estatus_admin === "procesada" ||
-    existing?.estatus_admin === "rechazada" ||
-    existing?.estatus_admin === "parcial";
+    existing?.estatus_admin === "rechazada";
   if (isLocked && !(await isRequisicionesAdmin())) {
     throw new Error("Esta requisición ya fue procesada por Administración y no puede editarse.");
   }
@@ -967,9 +1011,9 @@ async function fetchRequisicionesList(scope: "own" | "gestion" | "inbox") {
 
   if (scope === "gestion") {
     if (!isAdmin) return [];
-    const adminQuery = query.or(
-      "coordinador_estatus.is.null,coordinador_estatus.eq.aprobada",
-    );
+    const adminQuery = query
+      .or("lider_estatus.is.null,lider_estatus.eq.aprobada")
+      .or("coordinador_estatus.is.null,coordinador_estatus.eq.aprobada");
     let { data, error } = await adminQuery;
     if (error && (error.message || "").includes("column") && (error.message || "").includes("does not exist")) {
       console.warn("[getAllRequisiciones] approval columns not found, admin sees all");
@@ -1129,8 +1173,7 @@ export async function deleteRequisicionRecord(id: number) {
 
   const isLocked =
     existing?.estatus_admin === "procesada" ||
-    existing?.estatus_admin === "rechazada" ||
-    existing?.estatus_admin === "parcial";
+    existing?.estatus_admin === "rechazada";
   if (isLocked && !(await isRequisicionesAdmin())) {
     throw new Error("Esta requisición ya fue procesada por Administración y no puede eliminarse.");
   }
@@ -1162,7 +1205,7 @@ export async function deleteRequisicionRecord(id: number) {
 // creator notification.
 export async function setRequisicionEstatus(
   id: number,
-  estatus: "pendiente" | "parcial" | "procesada" | "rechazada",
+  estatus: "pendiente" | "procesada" | "rechazada",
   motivoRechazo?: string,
   tasaCambio?: number | null,
 ) {
@@ -1170,11 +1213,11 @@ export async function setRequisicionEstatus(
     throw new Error("No tiene permisos para cambiar el estatus de requisiciones.");
   }
 
-  if (estatus === "procesada" || estatus === "parcial") {
+  if (estatus === "procesada") {
     const gateClient = await createAdminClient();
     const { data: gate } = await gateClient
       .from("requisiciones")
-      .select("tipo_solicitud, coordinador_estatus, lider_estatus, costos_confirmados_at, additional_items")
+      .select("tipo_solicitud, coordinador_estatus, lider_estatus")
       .eq("id", id)
       .maybeSingle();
     if (gate?.tipo_solicitud === "Interno") {
@@ -1182,39 +1225,11 @@ export async function setRequisicionEstatus(
       if (!coordDone) {
         throw new Error("La interna aún no tiene el sello del coordinador.");
       }
-      // El sello de líder pendiente/rechazado bloquea. Si costos ya fueron
-      // confirmados con lider_estatus null (lote ≤ límite), NO se recalcula
-      // el umbral sobre todos los ítems (permite procesado parcial).
       if (gate.lider_estatus === "pendiente") {
-        throw new Error(
-          "Esta interna supera el límite y está pendiente de aprobación del líder.",
-        );
+        throw new Error("La interna aún no tiene el sello del líder.");
       }
       if (gate.lider_estatus === "rechazada") {
-        throw new Error(
-          "El líder rechazó la estimación. Solicite aprobación de nuevo tras ajustar montos.",
-        );
-      }
-      if (!gate.costos_confirmados_at) {
-        const limite = await getLimiteLiderUsd();
-        const total = requisicion_items_total(
-          (gate.additional_items || []) as Parameters<typeof requisicion_items_total>[0],
-        );
-        if (interna_needs_lider(total, limite)) {
-          throw new Error(
-            "El total supera el límite. Solicite aprobación del líder antes de procesar.",
-          );
-        }
-        // Auto-sello de estimación cuando el total no requiere líder.
-        await gateClient
-          .from("requisiciones")
-          .update({
-            costos_confirmados_at: new Date().toISOString(),
-            lider_estatus: null,
-            lider_por: null,
-            lider_at: null,
-          })
-          .eq("id", id);
+        throw new Error("El líder rechazó esta requisición.");
       }
     }
   }
@@ -1228,23 +1243,18 @@ export async function setRequisicionEstatus(
   const userId = userResponse.data.user?.id || null;
 
   const isClosed = estatus === "procesada" || estatus === "rechazada";
-  const isProcessedStep = estatus === "procesada" || estatus === "parcial";
 
   const update: Record<string, unknown> = {
     estatus_admin: estatus,
-    procesada_por: isProcessedStep || isClosed ? userId : null,
-    procesada_at: isProcessedStep || isClosed ? new Date().toISOString() : null,
+    procesada_por: isClosed ? userId : null,
+    procesada_at: isClosed ? new Date().toISOString() : null,
   };
   if (estatus === "rechazada") {
     update.motivo_rechazo = motivoRechazo!.trim();
   }
   // Snapshot the exchange rate when processing so future views show the rate
   // that was actually used at payment time, not today's live rate.
-  if (
-    (estatus === "procesada" || estatus === "parcial") &&
-    tasaCambio != null &&
-    !isNaN(tasaCambio)
-  ) {
+  if (estatus === "procesada" && tasaCambio != null && !isNaN(tasaCambio)) {
     update.tasa_cambio = tasaCambio;
     update.tasa_cambio_at = new Date().toISOString();
   }
@@ -1273,15 +1283,13 @@ export async function setRequisicionEstatus(
     throw error;
   }
 
-  if (isClosed || estatus === "parcial") {
+  if (isClosed) {
     const { data: req, error: fetchError } = await adminClient
       .from("requisiciones")
       .select(`
         created_by,
         tipo_solicitud,
         departamento,
-        additional_items,
-        osi_fixed_items,
         v_osi_formato_completo!left (nro_osi)
       `)
       .eq("id", id)
@@ -1300,29 +1308,6 @@ export async function setRequisicionEstatus(
           req.created_by,
           requisicionLabel,
           req.departamento,
-        );
-      } else if (estatus === "parcial") {
-        const fixedItems = (req.osi_fixed_items || []) as OSIFixedItem[];
-        const additionalItems = (req.additional_items || []) as RequisicionItem[];
-        const fixedVerified = fixedItems.reduce(
-          (sum, fi) =>
-            sum +
-            (fi.verificacion_traslado === "listo" ? 1 : 0) +
-            (fi.verificacion_impresion === "listo" ? 1 : 0) +
-            (fi.verificacion_honorarios === "listo" ? 1 : 0) +
-            (fi.verificacion_informe_final === "listo" ? 1 : 0),
-          0,
-        );
-        const verifiedCount =
-          fixedVerified +
-          additionalItems.filter((item) => item.verificacion === "listo").length;
-        const totalCount = fixedItems.length * 4 + additionalItems.length;
-        await notifyCreatorOfPartialVerificacion(
-          id,
-          req.created_by,
-          verifiedCount,
-          totalCount,
-          requisicionLabel,
         );
       } else if (estatus === "rechazada") {
         console.log(`[setRequisicionEstatus] Calling notifyCreatorOfRechazada for creator ${req.created_by}`);
@@ -1397,12 +1382,34 @@ export async function approveRequisicionByCoordinador(id: number) {
     }
   }
 
+  const creatorIsLider = await creatorIsLiderOfDepartment(
+    existing.created_by,
+    existing.departamento,
+  );
+  let creatorUsuarioId: number | null = null;
+  if (creatorIsLider && existing.created_by) {
+    const adminLookup = await createAdminClient();
+    const { data: creatorUser } = await adminLookup
+      .from("usuarios")
+      .select("id")
+      .eq("id_auth", existing.created_by)
+      .maybeSingle();
+    creatorUsuarioId = creatorUser?.id ?? null;
+  }
+
   const updateData: Record<string, any> = {
     coordinador_estatus: "aprobada",
     coordinador_por: userId,
     coordinador_at: new Date().toISOString(),
-    lider_estatus: null,
   };
+
+  if (creatorIsLider) {
+    updateData.lider_estatus = "aprobada";
+    updateData.lider_por = creatorUsuarioId;
+    updateData.lider_at = new Date().toISOString();
+  } else {
+    updateData.lider_estatus = "pendiente";
+  }
 
   const { error } = await admin
     .from("requisiciones")
@@ -1415,7 +1422,11 @@ export async function approveRequisicionByCoordinador(id: number) {
     throw error;
   }
 
-  await notifyAdminsOfNewRequisicion(id, existing.solicitante || "", "interna");
+  if (creatorIsLider) {
+    await notifyAdminsOfNewRequisicion(id, existing.solicitante || "", "interna");
+  } else {
+    await notifyLiderOfPendingInterna(id, existing.solicitante || "", existing.departamento || "");
+  }
 
   revalidatePath("/requisiciones");
   revalidatePath("/requisiciones/gestion");
@@ -1513,7 +1524,7 @@ export async function approveRequisicionByLider(id: number) {
   ({ data: existing, error: fetchError } = await admin
     .from("requisiciones")
     .select(
-      "tipo_solicitud, lider_estatus, coordinador_estatus, costos_confirmados_at, additional_items, solicitante, created_by, departamento, v_osi_formato_completo!left (nro_osi)",
+      "tipo_solicitud, lider_estatus, coordinador_estatus, solicitante, created_by, departamento, v_osi_formato_completo!left (nro_osi)",
     )
     .eq("id", id)
     .single());
@@ -1535,26 +1546,10 @@ export async function approveRequisicionByLider(id: number) {
   const coordDone =
     !existing.coordinador_estatus || existing.coordinador_estatus === "aprobada";
   if (!coordDone) {
-    throw new Error(
-      "El coordinador debe sellar antes. El líder solo aprueba costos ya estimados por Administración.",
-    );
-  }
-  if (!existing.costos_confirmados_at) {
-    throw new Error(
-      "Administración aún no confirmó la estimación de costos. El líder no puede aprobar sin montos.",
-    );
+    throw new Error("El coordinador debe sellar antes de que el líder apruebe.");
   }
   if (existing.lider_estatus !== "pendiente") {
     throw new Error("Esta requisición no está pendiente de aprobación del líder.");
-  }
-  const limite = await getLimiteLiderUsd();
-  const total = requisicion_items_total(
-    (existing.additional_items || []) as Parameters<typeof requisicion_items_total>[0],
-  );
-  if (!interna_needs_lider(total, limite)) {
-    throw new Error(
-      `El total ($${total.toFixed(2)}) no supera el límite ($${limite}). No requiere sello del líder.`,
-    );
   }
   // A creator can never approve their own interna.
   if (existing.created_by && userId && existing.created_by === userId) {
@@ -1584,8 +1579,8 @@ export async function approveRequisicionByLider(id: number) {
     throw error;
   }
 
-  // Now that the lider approved costs, Admin can process (distinct event).
-  await notifyAdminsOfCostosAprobados(id, existing.solicitante || "", "interna");
+  // Now that the lider approved, surface the requisicion to Administración.
+  await notifyAdminsOfNewRequisicion(id, existing.solicitante || "", "interna");
 
   revalidatePath("/requisiciones");
   revalidatePath("/requisiciones/gestion");
@@ -1612,7 +1607,7 @@ export async function rejectRequisicionByLider(id: number, motivo: string) {
   ({ data: existing, error: fetchError } = await admin
     .from("requisiciones")
     .select(
-      "tipo_solicitud, lider_estatus, coordinador_estatus, costos_confirmados_at, solicitante, created_by, departamento, v_osi_formato_completo!left (nro_osi)",
+      "tipo_solicitud, lider_estatus, coordinador_estatus, solicitante, created_by, departamento, v_osi_formato_completo!left (nro_osi)",
     )
     .eq("id", id)
     .single());
@@ -1630,11 +1625,6 @@ export async function rejectRequisicionByLider(id: number, motivo: string) {
   if (fetchError || !existing) throw new Error("Requisición no encontrada.");
   if (existing.tipo_solicitud !== "Interno") {
     throw new Error("Solo las requisiciones internas requieren aprobación del lider.");
-  }
-  if (!existing.costos_confirmados_at) {
-    throw new Error(
-      "Administración aún no confirmó la estimación. No hay costos que rechazar.",
-    );
   }
   if (existing.lider_estatus !== "pendiente") {
     throw new Error("Esta requisición no está pendiente de aprobación del líder.");
@@ -2460,101 +2450,13 @@ export async function updateLimiteLiderUsd(limite: number) {
 }
 
 export async function confirmInternaCostos(
-  id: number,
-  items: RequisicionItem[],
-  opts?: { selected_item_ids?: string[] },
+  _id: number,
+  _items?: RequisicionItem[],
+  _opts?: { selected_item_ids?: string[] },
 ) {
-  if (!(await isRequisicionesAdmin())) {
-    throw new Error("Solo Administración puede confirmar la estimación de costos.");
-  }
-  const admin = await createAdminClient();
-  const { data: existing, error: fetchError } = await admin
-    .from("requisiciones")
-    .select(
-      "tipo_solicitud, coordinador_estatus, lider_estatus, costos_confirmados_at, solicitante, departamento, estatus_admin",
-    )
-    .eq("id", id)
-    .single();
-  if (fetchError || !existing) throw new Error("Requisición no encontrada.");
-  if (existing.tipo_solicitud !== "Interno") {
-    throw new Error("La confirmación de costos aplica a requisiciones internas.");
-  }
-  if (existing.estatus_admin === "procesada" || existing.estatus_admin === "rechazada") {
-    throw new Error("No se puede reestimar una requisición ya tramitada.");
-  }
-  const coordDone = !existing.coordinador_estatus || existing.coordinador_estatus === "aprobada";
-  if (!coordDone) {
-    throw new Error("Espere el sello del coordinador antes de estimar montos.");
-  }
-  // Bloquear reestimación solo si el líder ya aprobó UNA estimación real.
-  if (
-    existing.lider_estatus === "aprobada" &&
-    existing.costos_confirmados_at
-  ) {
-    throw new Error("El líder ya aprobó los costos. No se puede cambiar la estimación.");
-  }
-
-  const normalized = (items || []).map((item) => {
-    const total = Number(item.total) || 0;
-    if (total > 0) {
-      return apply_item_money_updates(item, { total });
-    }
-    return apply_item_money_updates(item, {
-      costo_unitario: Number(item.costo_unitario) || 0,
-    });
-  });
-
-  const selectedIds = (opts?.selected_item_ids || []).filter(Boolean);
-  const multi = normalized.length > 1;
-  if (multi && selectedIds.length === 0) {
-    throw new Error(
-      "Hay varios ítems. Marque en la columna Procesar cuáles confirmar ahora.",
-    );
-  }
-  const forGate =
-    multi && selectedIds.length > 0
-      ? normalized.filter((item) => selectedIds.includes(String(item.id)))
-      : normalized;
-  if (multi && forGate.length === 0) {
-    throw new Error("Ningún ítem marcado coincide con la selección.");
-  }
-
-  const total = requisicion_items_total(forGate);
-  const limite = await getLimiteLiderUsd();
-  const needsLider = interna_needs_lider(total, limite);
-  const now = new Date().toISOString();
-
-  // Si había un sello de líder prematuro (sin estimación), se anula / se reabre.
-  const updatePayload: Record<string, unknown> = {
-    additional_items: normalized,
-    costos_confirmados_at: now,
-    lider_estatus: needsLider ? "pendiente" : null,
-  };
-  if (!needsLider || existing.lider_estatus === "aprobada") {
-    updatePayload.lider_por = null;
-    updatePayload.lider_at = null;
-  }
-
-  const { error } = await admin
-    .from("requisiciones")
-    .update(updatePayload)
-    .eq("id", id);
-  if (error) throw error;
-
-  if (needsLider) {
-    await notifyLiderOfPendingInterna(id, existing.solicitante || "", existing.departamento || "");
-  }
-
-  revalidatePath("/requisiciones");
-  revalidatePath("/requisiciones/gestion");
-  revalidatePath(`/requisiciones/view/${id}`);
-  return {
-    needsLider,
-    total,
-    limite,
-    selectedCount: forGate.length,
-    totalItems: normalized.length,
-  };
+  throw new Error(
+    "La estimación de costos y el umbral del líder están desactivados (modo provisional). El líder aprueba sin montos.",
+  );
 }
 
 /**

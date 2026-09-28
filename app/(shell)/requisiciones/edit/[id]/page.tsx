@@ -44,8 +44,7 @@ export default async function EditRequisicionPage({
   const userGerencia = userData?.departamentos?.gerencia || "";
   const adminResolved =
     editRecord?.estatus_admin === "procesada" ||
-    editRecord?.estatus_admin === "rechazada" ||
-    editRecord?.estatus_admin === "parcial";
+    editRecord?.estatus_admin === "rechazada";
   const coordinadorResolved = editRecord?.coordinador_estatus === "rechazada" || editRecord?.coordinador_estatus === "aprobada";
   const liderResolved = editRecord?.lider_estatus === "rechazada" || editRecord?.lider_estatus === "aprobada";
   const approverEdited = editRecord?.aprobador_edito === true;
@@ -57,9 +56,7 @@ export default async function EditRequisicionPage({
     lockReason =
       editRecord?.estatus_admin === "rechazada"
         ? "Rechazada por Administración"
-        : editRecord?.estatus_admin === "parcial"
-          ? "Procesada parcialmente por Administración"
-          : "Procesada por Administración";
+        : "Procesada por Administración";
   } else if (approverEdited) {
     lockReason = "Modificada por el Aprobador";
   } else if (liderResolved) {

@@ -13,13 +13,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { RequisicionItem, OSIFixedItem } from "@/types/requisiciones";
-import { setRequisicionEstatus, updateItemVerificacion, updateFixedItemVerificacion, saveVerificacionProgress, getExchangeRate, updateFacilitadorBankingDetails, acknowledgeRequisicionReceipt, approveRequisicionByCoordinador, rejectRequisicionByCoordinador, approveRequisicionByLider, rejectRequisicionByLider, updateRequisicionByApprover, confirmInternaCostos, updateRequisicionDepartamento, updateRequisicionItemsByGestion, markAllItemsVerificadas } from "@/actions/requisiciones";
-import { CheckCircle2, XCircle, Undo2, Clock, AlertTriangle, CalendarClock, Copy, Check, Download, Save, Printer, PackageCheck, Plus, Trash2, DollarSign } from "lucide-react";
+import { setRequisicionEstatus, updateItemVerificacion, updateFixedItemVerificacion, saveVerificacionProgress, getExchangeRate, updateFacilitadorBankingDetails, acknowledgeRequisicionReceipt, approveRequisicionByCoordinador, rejectRequisicionByCoordinador, approveRequisicionByLider, rejectRequisicionByLider, updateRequisicionByApprover, updateRequisicionDepartamento, updateRequisicionItemsByGestion } from "@/actions/requisiciones";
+import { CheckCircle2, XCircle, Undo2, Clock, AlertTriangle, CalendarClock, Copy, Check, Download, Save, Printer, PackageCheck, Plus, Trash2 } from "lucide-react";
 import MotivoModal from "../../../components/MotivoModal";
 import ApproverDiff from "./ApproverDiff";
 import { formatDate } from "@/lib/utils";
 import { deptInList, isLiderGatePending, skipsCoordinadorGate } from "@/lib/requisiciones-gerencia";
-import { apply_item_money_updates, interna_needs_lider, requisicion_items_total } from "@/lib/requisiciones-totals";
+import { apply_item_money_updates, requisicion_items_total } from "@/lib/requisiciones-totals";
 import { RequisicionItemMoneyInputs, RequisicionPriceHeaders } from "../../../components/RequisicionItemMoneyInputs";
 
 export default function RequisicionView({
@@ -32,7 +32,6 @@ export default function RequisicionView({
   isLider = false,
   liderDepts = [],
   banks = [],
-  limiteLiderUsd = 100,
   canEditDepartamento = false,
   canEditTramite = false,
   deptCatalog = [],
@@ -48,7 +47,6 @@ export default function RequisicionView({
   /** All departments inside the gerencia(s) the current user leads. */
   liderDepts?: string[],
   banks?: { id: number; nombre: string }[],
-  limiteLiderUsd?: number,
   /** Administración operativa con requisiciones:gestion:edit. */
   canEditDepartamento?: boolean,
   /** gestion:edit o process: agregar/editar ítems en trámite. */
@@ -99,7 +97,7 @@ export default function RequisicionView({
   // server action re-checks either way).
   const liderDeptMatches = isLider && deptInList(record.departamento, liderDepts);
   const canLiderAct = isLiderPendiente && liderDeptMatches;
-  const showInternaMontos = isGeneralMode && (isAdminView || liderDeptMatches);
+  const showInternaMontos = false;
 
   // --- Coordinador approval state (internas only) ---
   const isCoordinadorPendiente = isGeneralMode && coordinadorEstatus === "pendiente";
@@ -134,14 +132,7 @@ export default function RequisicionView({
   const canEstimateEdit = isAdminView && isGeneralMode && coordDoneForAdmin && !adminProcessed;
   const canAdminGestionEdit =
     isAdminView && canEditTramite && !adminProcessed && (!isGeneralMode || coordDoneForAdmin);
-  const canEditItems = canApproverEdit || canEstimateEdit || canAdminGestionEdit;
-  const costsConfirmed = !!record.costos_confirmados_at;
-  // Mostrar confirmar si Admin puede estimar y aún no hay sello válido de líder
-  // sobre una estimación real (recupera casos donde el líder selló sin montos).
-  const canConfirmCostos =
-    canEstimateEdit && (!costsConfirmed || liderEstatus !== "aprobada");
-  const prematureLiderSeal =
-    isGeneralMode && liderEstatus === "aprobada" && !costsConfirmed;
+  const canEditItems = canApproverEdit || canAdminGestionEdit;
   const [editedItems, setEditedItems] = useState<any[]>(record.additional_items || []);
   const [editedObservaciones, setEditedObservaciones] = useState<string>(record.observaciones_compras || "");
   const [editedPrioridad, setEditedPrioridad] = useState<string>(record.prioridad || "");
@@ -156,13 +147,6 @@ export default function RequisicionView({
   useEffect(() => {
     setEditedDepartamento(record.departamento || "");
   }, [record.departamento]);
-
-  // Tras solicitar / cambiar sello de líder, alinear ítems locales con el servidor
-  // para no quedar en "cambios sin guardar" falsos que ocultan el estado de espera.
-  useEffect(() => {
-    setEditedItems(record.additional_items || []);
-    setLocalItems(record.additional_items || []);
-  }, [record.id, record.costos_confirmados_at, record.lider_estatus]);
 
   const departamentoOptions = (() => {
     const rows = [...deptCatalog];
@@ -268,55 +252,6 @@ export default function RequisicionView({
     }
   };
 
-  const getSelectedItemIdsForBatch = () => {
-    if (needsItemSelection) {
-      return workingItems
-        .filter((item) => item.verificacion === "listo")
-        .map((item) => String(item.id));
-    }
-    return workingItems.map((item) => String(item.id));
-  };
-
-  /** Confirma el lote (montos + umbral líder). Usado por «Solicitar aprobación» y al procesar sin líder. */
-  const confirmBatchCostos = async () => {
-    const selectedIds = getSelectedItemIdsForBatch();
-    if (needsItemSelection && selectedIds.length === 0) {
-      throw new Error(
-        "Hay varios ítems. Marque en la columna Procesar cuáles incluirá en este lote.",
-      );
-    }
-    return confirmInternaCostos(record.id, editedItems, {
-      selected_item_ids: selectedIds,
-    });
-  };
-
-  const handleSolicitarAprobacion = async () => {
-    setIsUpdating(true);
-    try {
-      const result = await confirmBatchCostos();
-      // Evita falso "sin guardar" tras el sello (mismatched JSON / refresh).
-      setLocalItems(editedItems);
-      const scope =
-        result.totalItems > 1
-          ? ` (${result.selectedCount} de ${result.totalItems} ítems)`
-          : "";
-      if (result.needsLider) {
-        alert(
-          `Solicitud enviada al líder · $${result.total.toFixed(2)}${scope} (límite $${result.limite}).`,
-        );
-      } else {
-        alert(
-          `Total $${result.total.toFixed(2)}${scope} no supera el límite. Ya puede procesar.`,
-        );
-      }
-      router.refresh();
-    } catch (e) {
-      alert(e instanceof Error ? e.message : "No se pudo solicitar la aprobación");
-    } finally {
-      setIsUpdating(false);
-    }
-  };
-
   useEffect(() => {
     // Skip the live fetch if we already have a stored rate snapshot — the
     // historical rate is what matters for processed requisiciones.
@@ -368,9 +303,8 @@ export default function RequisicionView({
   const estatus = record.estatus_admin || "pendiente";
   const isProcesada = estatus === "procesada";
   const isRechazada = estatus === "rechazada";
-  const isParcial = estatus === "parcial";
-  const isPendiente = estatus === "pendiente";
-  const isOpenForAdmin = isPendiente || isParcial;
+  const isPendiente = estatus === "pendiente" || estatus === "parcial";
+  const isOpenForAdmin = isPendiente;
   const isResolved = isProcesada || isRechazada;
   const isAcuseRecibido = record.acuse_recibido === true;
   const canAcknowledge = isProcesada && !isAcuseRecibido && !isAdminView;
@@ -398,87 +332,40 @@ export default function RequisicionView({
   const verifiedCount = fixedVerifiedCount + additionalVerifiedCount;
   const totalCount = fixedTotalCount + workingItems.length;
   const isSingleItemProcess = totalCount === 1;
-  const needsItemSelection = totalCount > 1;
+  const needsItemSelection = !isGeneralMode && totalCount > 1;
   const effectiveVerifiedCount = isSingleItemProcess
     ? Math.max(verifiedCount, 1)
     : verifiedCount;
   const progressPct = totalCount > 0 ? (effectiveVerifiedCount / totalCount) * 100 : 0;
-  const processButtonLabel = needsItemSelection
-    ? effectiveVerifiedCount === 0
-      ? "Procesar (marque ítems)"
-      : effectiveVerifiedCount < totalCount
-        ? `Procesar ${effectiveVerifiedCount} de ${totalCount} seleccionados`
-        : `Procesar todos (${totalCount})`
-    : "Procesar";
+  const processButtonLabel = "Procesar";
 
   const selectedWorkingItems = workingItems.filter(
     (item) => item.verificacion === "listo",
   );
   const selectedAdditionalTotal = requisicion_items_total(selectedWorkingItems);
-  const gateTotalForConfirm =
-    workingItems.length > 1 && selectedWorkingItems.length > 0
-      ? selectedAdditionalTotal
-      : workingItems.length > 1
-        ? 0
-        : totalAdditional;
-  const batchTotalForGate =
-    gateTotalForConfirm > 0 ? gateTotalForConfirm : totalAdditional;
-  const limiteUsd = Number(limiteLiderUsd) || 100;
-  const estimatedNeedsLider =
-    isGeneralMode && interna_needs_lider(batchTotalForGate, limiteUsd);
-
   const itemsDirty =
-    (canAdminGestionEdit || canEstimateEdit) &&
+    canAdminGestionEdit &&
     JSON.stringify(editedItems) !== JSON.stringify(record.additional_items || []);
 
-  const selectionMissing =
-    needsItemSelection && selectedWorkingItems.length === 0;
   const processBlockedByCoord =
     isGeneralMode && coordinadorEstatus === "pendiente";
-  // Ya se solicitó y el líder aún no sella (independiente de dirty local).
-  const awaitingLider =
-    isGeneralMode && costsConfirmed && liderEstatus === "pendiente";
-  const liderApprovedForBatch =
-    isGeneralMode && costsConfirmed && liderEstatus === "aprobada";
-  // «Solicitar» solo si aún no está en espera; si hay dirty en espera, permitir reenviar.
-  const showSolicitarAprobacion =
-    canConfirmCostos &&
-    estimatedNeedsLider &&
-    !liderApprovedForBatch &&
-    (!awaitingLider || itemsDirty);
-  // Procesar: nunca junto con Solicitar. Bajo el límite → directo. Sobre el límite → solo tras sello.
-  const showProcesar =
-    isOpenForAdmin &&
-    !processBlockedByCoord &&
-    !showSolicitarAprobacion &&
-    !awaitingLider &&
-    (!isGeneralMode || !estimatedNeedsLider || liderApprovedForBatch);
+  const processBlockedByLider =
+    isGeneralMode && liderEstatus === "pendiente";
+  const processBlockedByLiderReject =
+    isGeneralMode && liderEstatus === "rechazada";
+  const showProcesar = isOpenForAdmin;
   const processDisabled =
     isUpdating ||
-    selectionMissing ||
     processBlockedByCoord ||
-    awaitingLider ||
-    (isGeneralMode && estimatedNeedsLider && !liderApprovedForBatch);
+    processBlockedByLider ||
+    processBlockedByLiderReject;
   const flowHint = processBlockedByCoord
     ? "Espere el sello del coordinador."
-    : selectionMissing
-      ? "Marque en Procesar los ítems de este lote."
-      : awaitingLider && itemsDirty
-        ? "Solicitud ya enviada al líder. Si cambió montos, pulse «Actualizar solicitud»."
-        : awaitingLider
-          ? null // el banner dedicado lo explica
-          : prematureLiderSeal
-            ? "Había un sello de líder sin montos. Ajuste costos y solicite aprobación de nuevo."
-            : showSolicitarAprobacion
-              ? `Lote $${batchTotalForGate.toFixed(2)} > $${limiteUsd.toFixed(0)} · solicite aprobación del líder.`
-              : showProcesar && isGeneralMode && !estimatedNeedsLider
-                ? `Lote $${batchTotalForGate.toFixed(2)} ≤ $${limiteUsd.toFixed(0)} · sin aprobación de líder.`
-                : null;
-  const solicitarLabel = awaitingLider && itemsDirty
-    ? "Actualizar solicitud"
-    : needsItemSelection && selectedWorkingItems.length > 0
-      ? `Solicitar aprobación · ${selectedWorkingItems.length} de ${workingItems.length}`
-      : "Solicitar aprobación";
+    : processBlockedByLider
+      ? "Espere el sello del líder."
+      : processBlockedByLiderReject
+        ? "El líder rechazó esta requisición."
+        : null;
 
   // Total of only selected items — used for copy-all VES calculation
   const verifiedFixedTotal = osiFixedItems.reduce((sum, fi) =>
@@ -537,44 +424,19 @@ export default function RequisicionView({
     }
   };
 
-  const handleSetEstatus = async (target: "pendiente" | "parcial" | "procesada" | "rechazada") => {
-    // Rejection is handled via the MotivoModal (which captures a reason).
+  const handleSetEstatus = async (target: "pendiente" | "procesada" | "rechazada") => {
     if (target === "rechazada") {
       setRejectModalOpen(true);
       return;
     }
     if (target === "procesada") {
-      if (needsItemSelection && verifiedCount === 0) {
-        alert(
-          "Hay varios ítems. Marque con ✓ cuáles desea procesar ahora. El resto quedará pendiente (Parcial).",
-        );
-        return;
-      }
-      const isPartial = needsItemSelection && verifiedCount < totalCount;
-      const nextStatus: "parcial" | "procesada" = isPartial ? "parcial" : "procesada";
-      const msg = isPartial
-        ? `Se procesarán ${verifiedCount} de ${totalCount} ítems marcados. Los no marcados quedan pendientes (estatus Parcial). ¿Continuar?`
-        : isSingleItemProcess
-          ? "¿Procesar esta requisición (único ítem)?"
-          : "¿Marcar esta requisición como Procesada? El solicitante ya no podrá editarla.";
-      if (!confirm(msg)) return;
+      if (!confirm("¿Marcar esta requisición como Procesada? El solicitante ya no podrá editarla.")) return;
       setIsUpdating(true);
       try {
         try { await saveBankingDetails(); } catch (e) { console.error("Banking details save failed (non-blocking):", e); }
-        // Internas ≤ límite: confirmar lote al vuelo (sin botón aparte).
-        if (
-          isGeneralMode &&
-          (!costsConfirmed || itemsDirty) &&
-          !estimatedNeedsLider
-        ) {
-          await confirmBatchCostos();
-        }
-        if (isSingleItemProcess && verifiedCount === 0) {
-          await markAllItemsVerificadas(record.id);
-        }
         await setRequisicionEstatus(
           record.id,
-          nextStatus,
+          "procesada",
           undefined,
           parseFloat(exchangeRateInput) || null,
         );
@@ -927,49 +789,18 @@ export default function RequisicionView({
 
       {/* Lider status bar (internas only) */}
       {isGeneralMode && liderEstatus && (
-        <div className={`mb-4 flex flex-wrap items-center gap-3 px-4 py-3 rounded-lg shadow-sm border ${
-          awaitingLider
-            ? "bg-violet-50 border-violet-300"
-            : isLiderAprobada
-              ? "bg-white border-gray-200"
-              : isLiderRechazada
-                ? "bg-red-50 border-red-200"
-                : "bg-white border-gray-200"
-        }`}>
+        <div className="mb-4 flex flex-wrap items-center gap-3 px-4 py-3 bg-white border border-gray-200 rounded-lg shadow-sm">
           <span className="text-sm font-medium text-gray-600">Lider:</span>
           <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
             isLiderAprobada ? 'bg-blue-100 text-blue-800'
             : isLiderRechazada ? 'bg-red-100 text-red-800'
-            : awaitingLider ? 'bg-violet-200 text-violet-900'
             : 'bg-amber-100 text-amber-800'
           }`}>
-            {isLiderAprobada
-              ? "Aprobada"
-              : isLiderRechazada
-                ? "Rechazada"
-                : awaitingLider
-                  ? "En espera de sello"
-                  : "Pendiente"}
+            {isLiderAprobada ? "Aprobada" : isLiderRechazada ? "Rechazada" : "Pendiente"}
           </span>
-          {awaitingLider && (
-            <span className="text-sm font-semibold text-violet-900">
-              Solicitud enviada · esperando aprobación del líder
-              {record.costos_confirmados_at
-                ? ` · ${new Date(record.costos_confirmados_at).toLocaleString("es-VE", { dateStyle: "short", timeStyle: "short" })}`
-                : ""}
-            </span>
-          )}
           {isLiderRechazada && record.motivo_rechazo_lider && (
             <span className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1">
               Motivo: {record.motivo_rechazo_lider}
-            </span>
-          )}
-          {(liderDeptMatches || awaitingLider) && (
-            <span className="text-sm font-semibold text-gray-800">
-              Lote ${batchTotalForGate.toFixed(2)}
-              <span className="ml-2 text-xs font-medium text-gray-500">
-                límite ${limiteUsd.toFixed(2)}
-              </span>
             </span>
           )}
           {canLiderAct && (
@@ -998,24 +829,6 @@ export default function RequisicionView({
               </Button>
             </div>
           )}
-        </div>
-      )}
-
-      {/* Banner claro: ya se solicitó, no hace falta volver a pulsar */}
-      {isAdminView && awaitingLider && isOpenForAdmin && (
-        <div className="mb-4 flex items-start gap-3 px-4 py-3 bg-violet-100 border border-violet-300 rounded-lg">
-          <Clock className="h-5 w-5 text-violet-700 flex-shrink-0 mt-0.5" />
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-violet-950">
-              En espera de aprobación del líder
-            </p>
-            <p className="text-xs text-violet-900/90 mt-0.5">
-              La solicitud ya fue enviada
-              {batchTotalForGate > 0 ? ` (lote $${batchTotalForGate.toFixed(2)})` : ""}.
-              Cuando el líder selle, podrá procesar. No es necesario solicitar de nuevo
-              {itemsDirty ? " salvo que cambie los montos" : ""}.
-            </p>
-          </div>
         </div>
       )}
 
@@ -1079,15 +892,14 @@ export default function RequisicionView({
           <span className="text-sm font-medium text-gray-600">Estatus:</span>
           <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
             isProcesada ? 'bg-emerald-100 text-emerald-800'
-              : isParcial ? 'bg-sky-100 text-sky-800'
               : isRechazada ? 'bg-red-100 text-red-800'
               : 'bg-amber-100 text-amber-800'
           }`}>
-            {isProcesada ? "Procesada" : isParcial ? "Parcial" : isRechazada ? "Rechazada" : "Pendiente"}
+            {isProcesada ? "Procesada" : isRechazada ? "Rechazada" : "Pendiente"}
           </span>
-          {(isResolved || isParcial) && record.procesada_por_nombre && (
+          {isResolved && record.procesada_por_nombre && (
             <span className="text-xs text-gray-500">
-              {isProcesada ? "Procesada" : isParcial ? "Avance" : "Rechazada"} por <span className="font-medium text-gray-700">{record.procesada_por_nombre}</span>
+              {isProcesada ? "Procesada" : "Rechazada"} por <span className="font-medium text-gray-700">{record.procesada_por_nombre}</span>
               {record.procesada_at && ` el ${new Date(record.procesada_at).toLocaleString("es-VE", { dateStyle: "short", timeStyle: "short" })}`}
             </span>
           )}
@@ -1098,42 +910,9 @@ export default function RequisicionView({
               {isAcuseRecibido ? "Recibido" : "Pendiente recepción"}
             </span>
           )}
-          {awaitingLider && (
-            <span className="px-2 py-1 rounded-full text-[10px] font-bold uppercase bg-violet-100 text-violet-800">
-              Esperando líder
-            </span>
-          )}
-          {isOpenForAdmin && isGeneralMode && !estimatedNeedsLider && !processBlockedByCoord && !selectionMissing && (
-            <span className="px-2 py-1 rounded-full text-[10px] font-bold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">
-              Sin aprobación · ≤ ${limiteUsd.toFixed(0)}
-            </span>
-          )}
           <div className="ml-auto flex gap-2 flex-wrap items-center">
             {isOpenForAdmin && (
               <>
-                {showSolicitarAprobacion ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={isUpdating || selectionMissing}
-                    onClick={() => void handleSolicitarAprobacion()}
-                    title={
-                      selectionMissing
-                        ? "Marque al menos un ítem en la columna Procesar"
-                        : `Total del lote $${batchTotalForGate.toFixed(2)}`
-                    }
-                    className="h-8 px-3 text-xs flex gap-1 border-violet-300 text-violet-800 hover:bg-violet-50"
-                  >
-                    <DollarSign className="h-3.5 w-3.5" />
-                    {solicitarLabel}
-                  </Button>
-                ) : null}
-                {isAdminView && isGeneralMode && !coordDoneForAdmin && !adminProcessed ? (
-                  <span className="text-[11px] text-amber-700 self-center">
-                    Disponible tras sello del coordinador
-                  </span>
-                ) : null}
                 {showProcesar ? (
                   <Button
                     type="button"
@@ -1195,40 +974,6 @@ export default function RequisicionView({
               </Button>
             </div>
           ) : null}
-        </div>
-      )}
-
-      {/* Selection guide — compact */}
-      {isAdminView && needsItemSelection && isOpenForAdmin && (
-        <div className="mb-4 px-4 py-2.5 bg-sky-50 border border-sky-200 rounded-lg">
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <span className="text-sm font-semibold text-sky-900">
-              Lote: {verifiedCount} de {totalCount} marcados
-            </span>
-            {needsItemSelection && verifiedCount > 0 && verifiedCount < totalCount ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                disabled={isUpdating}
-                onClick={handleSaveProgress}
-                className="h-7 px-2 text-[11px] text-sky-800 hover:bg-sky-100"
-              >
-                Avisar al solicitante
-              </Button>
-            ) : null}
-          </div>
-          <p className="text-[11px] text-sky-800/80 mt-1">
-            Marque la columna Procesar. El umbral del líder (${limiteUsd.toFixed(0)}) y el cierre aplican solo a lo marcado; el resto queda Parcial.
-          </p>
-          <div className="mt-2 w-full h-1.5 bg-white/80 rounded-full overflow-hidden border border-sky-100">
-            <div
-              className={`h-full rounded-full transition-all ${
-                verifiedCount === totalCount ? "bg-emerald-500" : verifiedCount > 0 ? "bg-sky-500" : "bg-gray-200"
-              }`}
-              style={{ width: `${progressPct}%` }}
-            />
-          </div>
         </div>
       )}
 
@@ -1818,21 +1563,12 @@ export default function RequisicionView({
                       placeholder="Descripción..."
                     />
                   </td>
-                  {(!isGeneralMode || canEstimateEdit || canAdminGestionEdit) ? (
+                  {!isGeneralMode ? (
                     <RequisicionItemMoneyInputs
                       costo_unitario={item.costo_unitario || 0}
                       total={item.total || 0}
                       onChange={(field, n) => handleApproverItemChange(item.id, field, n)}
                     />
-                  ) : showInternaMontos ? (
-                    <>
-                      <td className="p-2 text-center font-bold border-r border-gray-300">
-                        ${item.costo_unitario?.toFixed(2) || "0.00"}
-                      </td>
-                      <td className="p-2 text-center font-bold border-r border-gray-300 bg-amber-50/40">
-                        ${item.total?.toFixed(2) || "0.00"}
-                      </td>
-                    </>
                   ) : null}
                   {isGeneralMode ? (
                     <td className="p-2 text-center">
@@ -2145,19 +1881,6 @@ export default function RequisicionView({
           <div className="ml-auto flex gap-2 flex-wrap items-center">
             {isOpenForAdmin && (
               <>
-                {showSolicitarAprobacion ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={isUpdating || selectionMissing}
-                    onClick={() => void handleSolicitarAprobacion()}
-                    className="h-8 px-3 text-xs flex gap-1 border-violet-300 text-violet-800 hover:bg-violet-50"
-                  >
-                    <DollarSign className="h-3.5 w-3.5" />
-                    {solicitarLabel}
-                  </Button>
-                ) : null}
                 {showProcesar ? (
                   <Button
                     type="button"

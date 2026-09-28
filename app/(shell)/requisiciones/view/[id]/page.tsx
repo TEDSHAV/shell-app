@@ -6,7 +6,6 @@ import {
   isRequisicionesAdmin,
   getCoordinatedDepartments,
   getDepartmentsInLedGerencias,
-  getLimiteLiderUsd,
 } from "@/actions/requisiciones";
 import {
   getRequisicionAccess,
@@ -28,13 +27,12 @@ export default async function ViewRequisicionPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params;
-  const [record, isAdminView, banks, coordinadorDepts, liderDepts, limiteLiderUsd, access, deptCatalog] = await Promise.all([
+  const [record, isAdminView, banks, coordinadorDepts, liderDepts, access, deptCatalog] = await Promise.all([
     getRequisicionRecord(parseInt(id)),
     isRequisicionesAdmin(),
     getBanksForDropdown(),
     getCoordinatedDepartments(),
     getDepartmentsInLedGerencias(),
-    getLimiteLiderUsd(),
     getRequisicionAccess(),
     list_catalog_departments_for_admin_edit(),
   ]);
@@ -54,8 +52,7 @@ export default async function ViewRequisicionPage({
   const isLocked =
     record?.estatus_admin === "procesada" ||
     record?.estatus_admin === "rechazada";
-  const isParcial = record?.estatus_admin === "parcial";
-  const isLockedForCreator = isLocked || isParcial;
+  const isLockedForCreator = isLocked;
   const linkedOsiIds: number[] = (record.requisiciones_osis || []).map(
     (ro: any) => ro.id_osi
   );
@@ -125,11 +122,6 @@ export default async function ViewRequisicionPage({
             <Lock className="h-4 w-4" />
             {record.estatus_admin === "rechazada" ? "Rechazada por Administración" : "Procesada por Administración"}
           </div>
-        ) : isParcial && !isAdminView ? (
-          <div className="flex items-center gap-2 px-4 py-2 bg-sky-50 border border-sky-300 rounded-lg text-sky-800 text-sm font-medium">
-            <Lock className="h-4 w-4" />
-            Procesada parcialmente — Administración sigue tramitando ítems pendientes
-          </div>
         ) : approverEdited && !isAdminView ? (
           <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-300 rounded-lg text-amber-800 text-sm font-medium">
             <Lock className="h-4 w-4" />
@@ -155,7 +147,6 @@ export default async function ViewRequisicionPage({
         isLider={isLider}
         liderDepts={liderDepts}
         banks={banks}
-        limiteLiderUsd={limiteLiderUsd}
         canEditDepartamento={canEditDepartamento}
         canEditTramite={canEditTramite}
         deptCatalog={deptCatalog}
