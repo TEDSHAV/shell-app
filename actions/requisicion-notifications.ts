@@ -320,6 +320,25 @@ export async function notifyCreatorOfPartialVerificacion(
   );
 }
 
+export async function notifyCreatorOfItemEntrega(
+  requisicionId: number,
+  creatorAuthId: string,
+  itemDescripcion: string,
+  entregado: number,
+  pedido: number,
+) {
+  const label = itemDescripcion.trim() || "sin descripción";
+  await notifyCreatorEvent(
+    "requisicion_parcial",
+    requisicionId,
+    creatorAuthId,
+    "Entrega parcial de ítem",
+    `Del ítem «${label}» te han entregado ${entregado} de ${pedido}.`,
+    `requisicion:${requisicionId}:item-entrega:${Date.now()}`,
+    1,
+  );
+}
+
 export async function notifyAdminOfAcuseRecibo(
   requisicionId: number,
   adminAuthId: string,

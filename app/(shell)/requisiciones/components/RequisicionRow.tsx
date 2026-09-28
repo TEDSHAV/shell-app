@@ -11,7 +11,7 @@ import { formatDate } from "@/lib/utils";
 import { mapGerenciaSolicitante, getRequisicionDisplayDate, deptInList, isLiderGatePending, skipsCoordinadorGate } from "@/lib/requisiciones-gerencia";
 import MotivoModal from "./MotivoModal";
 import type { RequisicionItem } from "@/types/requisiciones";
-import { format_pedido_entregado } from "@/lib/requisiciones-entrega";
+import { format_entregado_ratio } from "@/lib/requisiciones-entrega";
 
 export default function RequisicionRow({
   record,
@@ -300,7 +300,12 @@ export default function RequisicionRow({
         {isInterna ? (
           (() => {
             const qty = additionalItems
-              .map((item: RequisicionItem) => format_pedido_entregado(item))
+              .map((item: RequisicionItem) => {
+                const ratio = format_entregado_ratio(item);
+                if (!ratio) return null;
+                const label = (item.descripcion || "ítem").trim();
+                return `${label}: ${ratio}`;
+              })
               .filter((text): text is string => Boolean(text));
             if (qty.length === 0) return null;
             return (

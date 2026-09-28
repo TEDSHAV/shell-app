@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Fragment, useEffect } from "react";
+import { useState, Fragment, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,11 +24,12 @@ import { RequisicionItemMoneyInputs, RequisicionPriceHeaders } from "../../../co
 import { hasApproverMaterialDiff } from "@/lib/requisiciones-approver-diff";
 import {
   all_items_resolved,
+  format_entregado_ratio,
   item_entregado,
-  item_faltante,
   item_has_entrega_progress,
   item_is_resolved,
   item_pedido,
+  show_columna_entregado,
 } from "@/lib/requisiciones-entrega";
 import { RequisicionEntregaModal } from "@/features/requisiciones/components/requisicion-entrega-modal";
 import { RequisicionCierreModal } from "@/features/requisiciones/components/requisicion-cierre-modal";
@@ -128,6 +129,7 @@ export default function RequisicionView({
   const [entregaItem, setEntregaItem] = useState<RequisicionItem | null>(null);
   const [cierreOpen, setCierreOpen] = useState(false);
   const [cierreLastItemId, setCierreLastItemId] = useState<string | null>(null);
+  const askedCierreRef = useRef(false);
 
   // --- Approver inline-edit state ---
   // The approver (coordinador for internas, then lider for internas) can
@@ -310,8 +312,15 @@ export default function RequisicionView({
     }
     return "Verificado";
   };
-  const lockProcessedCheck = (isListo: boolean) =>
-    record.estatus_admin === "parcial" && isListo;
+  const lockProcessedCheck = (isListo: boolean) => {
+    if (record.tipo_solicitud === "Interno") {
+      return (
+        record.estatus_admin === "procesada" ||
+        record.estatus_admin === "rechazada"
+      );
+    }
+    return record.estatus_admin === "parcial" && isListo;
+  };
 
 
   const handleCopy = async (field: string, value: string) => {
@@ -345,6 +354,7 @@ export default function RequisicionView({
     (fi.honorarios_total || 0) +
     (fi.informe_final_total || 0), 0);
   const workingItems = (canEditItems) ? editedItems : additionalItems;
+  const showEntregaCol = isGeneralMode && show_columna_entregado(workingItems);
   const totalAdditional = requisicion_items_total(workingItems);
   const totalGeneral = totalFixed + totalAdditional;
 
@@ -376,6 +386,15 @@ export default function RequisicionView({
   const processButtonLabel = needsItemSelection && verifiedCount > 0 && verifiedCount < totalCount
     ? `Procesar (${verifiedCount} de ${totalCount})`
     : "Procesar";
+
+  useEffect(() => {
+    if (askedCierreRef.current) return;
+    if (!isAdminView || !isGeneralMode || !isOpenForAdmin) return;
+    if (workingItems.length === 0 || !all_items_resolved(workingItems)) return;
+    askedCierreRef.current = true;
+    setCierreLastItemId(workingItems[workingItems.length - 1]?.id ?? null);
+    setCierreOpen(true);
+  }, [isAdminView, isGeneralMode, isOpenForAdmin, workingItems]);
 
   const selectedWorkingItems = workingItems.filter(
     (item) => item.verificacion === "listo",
@@ -712,11 +731,39 @@ export default function RequisicionView({
     }
   };
 
+  const applyInternaEntrega = async (
+    itemId: string,
+    cant_ahora: number,
+    decision: "cerrado_corto" | "resto_pendiente" | null,
+  ) => {
+    const live = workingItems.find((row) => row.id === itemId);
+    const prev = live ? (item_entregado(live) ?? 0) : 0;
+    const cant_entregada = prev + cant_ahora;
+    setTogglingItemId(itemId);
+    try {
+      if (itemsDirty) {
+        await updateRequisicionItemsByGestion(record.id, editedItems);
+      }
+      const result = await registrarEntregaItem(record.id, itemId, {
+        cant_entregada,
+        decision,
+        pedido: live ? item_pedido(live) : undefined,
+      });
+      setLocalItems(result.items);
+      setEditedItems(result.items);
+      if (result.all_resolved) {
+        setCierreLastItemId(itemId);
+        setCierreOpen(true);
+      }
+    } finally {
+      setTogglingItemId(null);
+    }
+  };
+
   const handleToggleItem = async (itemId: string, currentStatus: string) => {
     if (isGeneralMode) {
       const item = workingItems.find((row) => row.id === itemId);
       if (!item) return;
-      if (estatus === "parcial" && item_is_resolved(item)) return;
       if (item_is_resolved(item)) {
         setTogglingItemId(itemId);
         try {
@@ -730,6 +777,15 @@ export default function RequisicionView({
         } finally {
           setTogglingItemId(null);
         }
+        return;
+      }
+      const remaining = Math.max(
+        0,
+        item_pedido(item) - (item_entregado(item) ?? 0),
+      );
+      if (remaining <= 0) return;
+      if (remaining === 1) {
+        await applyInternaEntrega(itemId, remaining, null);
         return;
       }
       setEntregaItem(item);
@@ -763,34 +819,12 @@ export default function RequisicionView({
   };
 
   const handleConfirmEntrega = async (
-    cant_entregada: number,
+    cant_ahora: number,
     decision: "cerrado_corto" | "resto_pendiente" | null,
   ) => {
     if (!entregaItem) return;
-    setTogglingItemId(entregaItem.id);
-    try {
-      const result = await registrarEntregaItem(record.id, entregaItem.id, {
-        cant_entregada,
-        decision,
-      });
-      setLocalItems(result.items);
-      setEditedItems(result.items);
-      setEntregaItem(null);
-      if (result.all_resolved) {
-        setCierreLastItemId(entregaItem.id);
-        setCierreOpen(true);
-        return;
-      }
-      await setRequisicionEstatus(
-        record.id,
-        "parcial",
-        undefined,
-        parseFloat(exchangeRateInput) || null,
-      );
-      router.refresh();
-    } finally {
-      setTogglingItemId(null);
-    }
+    await applyInternaEntrega(entregaItem.id, cant_ahora, decision);
+    setEntregaItem(null);
   };
 
   const handleCierreNo = async () => {
@@ -802,6 +836,7 @@ export default function RequisicionView({
     try {
       const result = await registrarEntregaItem(record.id, itemId, {
         revert: true,
+        force: true,
       });
       setLocalItems(result.items);
       setEditedItems(result.items);
@@ -1294,15 +1329,10 @@ export default function RequisicionView({
               <tr className="bg-gray-50 text-center border-b border-gray-300">
                 <th className="p-2 border-r border-gray-300 w-12">ITEM</th>
                 <th className="p-2 border-r border-gray-300 w-20">UNIDAD/ CONCEPTO</th>
-                {isGeneralMode ? (
-                  <>
-                    <th className="p-2 border-r border-gray-300 w-16">PEDIDO</th>
-                    <th className="p-2 border-r border-gray-300 w-16">ENTREGADO</th>
-                    <th className="p-2 border-r border-gray-300 w-16">FALTANTE</th>
-                  </>
-                ) : (
-                  <th className="p-2 border-r border-gray-300 w-20">CANT</th>
-                )}
+                <th className="p-2 border-r border-gray-300 w-20">CANT</th>
+                {showEntregaCol ? (
+                  <th className="p-2 border-r border-gray-300 w-24">ENTREGADO</th>
+                ) : null}
                 <th className="p-2 border-r border-gray-300">DESCRIPCIÓN</th>
                 {showInternaMontos ? (
                   <RequisicionPriceHeaders />
@@ -1643,26 +1673,17 @@ export default function RequisicionView({
               {!isCapacitacion && !canEditItems && additionalItems.map((item, index) => (
                 <tr key={item.id} className="border-b border-gray-300 bg-blue-50/10">
                   <td className="p-2 text-center border-r border-gray-300 font-bold">{index + 1}</td>
-                  <td className="p-2 border-r border-gray-300 text-center uppercase font-bold">
+                  <td className="p-2 text-center border-r border-gray-300 font-bold">
                     {item.unidad || "und"}
                   </td>
-                  {isGeneralMode ? (
-                    <>
-                      <td className="p-2 text-center border-r border-gray-300 font-bold">
-                        {item_pedido(item)}
-                      </td>
-                      <td className="p-2 text-center border-r border-gray-300 font-bold">
-                        {item_entregado(item) ?? "—"}
-                      </td>
-                      <td className="p-2 text-center border-r border-gray-300 font-bold">
-                        {item_faltante(item) ?? "—"}
-                      </td>
-                    </>
-                  ) : (
-                    <td className="p-2 text-center border-r border-gray-300 font-bold">
-                      {item.cant || 1}
+                  <td className="p-2 text-center border-r border-gray-300 font-bold">
+                    {isGeneralMode ? item_pedido(item) : (item.cant || 1)}
+                  </td>
+                  {showEntregaCol ? (
+                    <td className="p-2 text-center border-r border-gray-300 font-bold text-sky-800">
+                      {format_entregado_ratio(item) ?? "—"}
                     </td>
-                  )}
+                  ) : null}
                   <td className="p-2 border-r border-gray-300">
                     <div className="flex justify-between items-center px-1">
                       <span className="uppercase">{item.descripcion || "-"}</span>
@@ -1733,15 +1754,10 @@ export default function RequisicionView({
                       className="w-full px-1 py-0.5 text-xs text-center border border-gray-300 rounded font-bold focus:outline-none focus:ring-1 focus:ring-blue-400"
                     />
                   </td>
-                  {isGeneralMode ? (
-                    <>
-                      <td className="p-2 text-center border-r border-gray-300 font-bold">
-                        {item_entregado(item) ?? "—"}
-                      </td>
-                      <td className="p-2 text-center border-r border-gray-300 font-bold">
-                        {item_faltante(item) ?? "—"}
-                      </td>
-                    </>
+                  {showEntregaCol ? (
+                    <td className="p-2 text-center border-r border-gray-300 font-bold text-sky-800">
+                      {format_entregado_ratio(item) ?? "—"}
+                    </td>
                   ) : null}
                   <td className="p-2 border-r border-gray-300">
                     <input
@@ -1805,7 +1821,7 @@ export default function RequisicionView({
               {/* Add item button */}
               {!isCapacitacion && canEditItems && (
                 <tr className="border-b border-gray-300 bg-blue-50/20">
-                  <td colSpan={isGeneralMode ? (isAdminView && needsItemSelection ? 10 : 9) : 7} className="p-2">
+                  <td colSpan={isGeneralMode ? (isAdminView && needsItemSelection ? 8 : 7) + (showEntregaCol ? 1 : 0) : 7} className="p-2">
                     <button
                       type="button"
                       onClick={handleAddApproverItem}

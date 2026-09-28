@@ -120,8 +120,18 @@ export function interna_has_process_progress(
   return items.some(item_has_entrega_progress);
 }
 
-export function format_pedido_entregado(item: RequisicionItem): string | null {
+export function item_has_resto_pendiente(item: RequisicionItem): boolean {
+  return item.cierre_entrega === "resto_pendiente";
+}
+
+export function show_columna_entregado(items: RequisicionItem[]): boolean {
+  return items.some(item_has_resto_pendiente);
+}
+
+/** Ratio `2/5` solo para ítems con resto pendiente. */
+export function format_entregado_ratio(item: RequisicionItem): string | null {
+  if (!item_has_resto_pendiente(item)) return null;
   const entregado = item_entregado(item);
   if (entregado == null) return null;
-  return `${entregado} / ${item_pedido(item)}`;
+  return `${entregado}/${item_pedido(item)}`;
 }

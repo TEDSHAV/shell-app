@@ -16,6 +16,7 @@ import {
   notifyCreatorOfProcesada,
   notifyCreatorOfRechazada,
   notifyCreatorOfPartialVerificacion,
+  notifyCreatorOfItemEntrega,
   notifyAdminOfAcuseRecibo,
   notifyCreatorOfCoordinadorRechazada,
   notifyCreatorOfLiderRechazada,
@@ -42,6 +43,7 @@ import {
   count_items_resolved,
   countRequisicionVerificacion,
   interna_has_process_progress,
+  item_entregado,
   item_pedido,
   resolve_cierre_entrega,
 } from "@/lib/requisiciones-entrega";
@@ -1924,10 +1926,11 @@ export async function registrarEntregaItem(
   requisicionId: number,
   itemId: string,
   payload:
-    | { revert: true }
+    | { revert: true; force?: boolean }
     | {
         revert?: false;
         cant_entregada: number;
+        pedido?: number;
         decision: "cerrado_corto" | "resto_pendiente" | null;
       },
 ): Promise<{ items: RequisicionItem[]; all_resolved: boolean }> {
@@ -1943,7 +1946,7 @@ export async function registrarEntregaItem(
   const adminClient = await createAdminClient();
   const { data: record, error: fetchError } = await adminClient
     .from("requisiciones")
-    .select("additional_items, tipo_solicitud, estatus_admin")
+    .select("additional_items, tipo_solicitud, estatus_admin, created_by")
     .eq("id", requisicionId)
     .single();
 
@@ -1956,23 +1959,24 @@ export async function registrarEntregaItem(
   }
 
   const current: RequisicionItem[] = record?.additional_items || [];
-  const locked =
-    record?.estatus_admin === "parcial" &&
-    current.some((item) => item.id === itemId && item_is_resolved_locked(item));
-
-  if (locked && !payload.revert) {
-    throw new Error("Esta entrega ya quedó tramitada y no se puede deshacer.");
-  }
 
   const items: RequisicionItem[] = current.map((item) => {
     if (item.id !== itemId) return item;
     if (payload.revert) {
-      if (record?.estatus_admin === "parcial" && item_is_resolved_locked(item)) {
+      if (
+        !payload.force &&
+        (record?.estatus_admin === "procesada" ||
+          record?.estatus_admin === "rechazada")
+      ) {
         throw new Error("Esta entrega ya quedó tramitada y no se puede deshacer.");
       }
       return clear_item_entrega(item);
     }
-    const pedido = item_pedido(item);
+    const pedidoForm = Number(payload.pedido);
+    const pedido =
+      Number.isFinite(pedidoForm) && pedidoForm > 0
+        ? pedidoForm
+        : item_pedido(item);
     const cant_entregada = Number(payload.cant_entregada);
     if (!Number.isFinite(cant_entregada) || cant_entregada < 0 || cant_entregada > pedido) {
       throw new Error("La cantidad entregada debe estar entre 0 y lo pedido.");
@@ -1985,7 +1989,13 @@ export async function registrarEntregaItem(
       cant_entregada,
       payload.decision,
     );
-    return apply_item_entrega(item, cant_entregada, cierre, userId, at);
+    return apply_item_entrega(
+      { ...item, cant: pedido },
+      cant_entregada,
+      cierre,
+      userId,
+      at,
+    );
   });
 
   const { error } = await adminClient
@@ -2000,11 +2010,25 @@ export async function registrarEntregaItem(
   revalidatePath("/requisiciones");
   revalidatePath("/requisiciones/gestion");
   revalidatePath(`/requisiciones/view/${requisicionId}`);
-  return { items, all_resolved: all_items_resolved(items) };
-}
 
-function item_is_resolved_locked(item: RequisicionItem): boolean {
-  return item.verificacion === "listo";
+  if (!payload.revert && record?.created_by) {
+    const updated = items.find((row) => row.id === itemId);
+    if (
+      updated &&
+      (updated.cierre_entrega === "resto_pendiente" ||
+        updated.cierre_entrega === "cerrado_corto")
+    ) {
+      await notifyCreatorOfItemEntrega(
+        requisicionId,
+        record.created_by,
+        updated.descripcion || "",
+        item_entregado(updated) ?? 0,
+        item_pedido(updated),
+      );
+    }
+  }
+
+  return { items, all_resolved: all_items_resolved(items) };
 }
 
 // Toggle verification for a fixed item field within an OSI block (Administración only)
