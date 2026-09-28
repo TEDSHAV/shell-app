@@ -10,6 +10,7 @@ import {
 } from "@/actions/requisiciones";
 import RequisicionForm from "../../components/RequisicionForm";
 import { notFound, redirect } from "next/navigation";
+import { hasApproverMaterialDiff } from "@/lib/requisiciones-approver-diff";
 
 export const metadata = {
   title: "Editar Requisición | PRISMA",
@@ -47,7 +48,9 @@ export default async function EditRequisicionPage({
     editRecord?.estatus_admin === "rechazada";
   const coordinadorResolved = editRecord?.coordinador_estatus === "rechazada" || editRecord?.coordinador_estatus === "aprobada";
   const liderResolved = editRecord?.lider_estatus === "rechazada" || editRecord?.lider_estatus === "aprobada";
-  const approverEdited = editRecord?.aprobador_edito === true;
+  const approverEdited =
+    editRecord?.aprobador_edito === true &&
+    hasApproverMaterialDiff(editRecord.original_snapshot, editRecord);
   const isLocked = adminResolved || coordinadorResolved || liderResolved || approverEdited;
 
   // Determine the specific lock reason for an accurate message.

@@ -18,9 +18,12 @@ import {
  * /ted/notificaciones). El código solo dispara el event_key + contexto.
  *
  * Defaults:
- * - pending_admin → gestor + coordinador Admin (estimar / trámite inicial)
- * - costos_aprobados → mismo set (tras sello del líder por monto)
+ * - pending_admin → gestor + coordinador Admin (cola operativa)
+ * - costos_aprobados → mismo set (tras sello del líder por monto; silenciado en provisional)
  * - pending_coordinador / pending_lider → organigrama ∩ permiso/rol
+ *
+ * Dedupe estable (`requisicion:{id}:pending_*`) para que el trigger de BD
+ * (red de seguridad) sea no-op si la app ya disparó el mismo evento.
  */
 const APP_SLUG = "administracion";
 
@@ -32,11 +35,9 @@ export async function notifyAdminsOfNewRequisicion(
   try {
     const supabase = await createAdminClient();
     const isInterna = requisicionLabel === "interna" || requisicionLabel.includes("interna");
-    const title = isInterna
-      ? "Requisición pendiente de estimar costos"
-      : "Requisición lista para Administración";
+    const title = "Requisición lista para Administración";
     const body = isInterna
-      ? `${solicitanteName} tiene una requisición interna lista para que Administración estime costos.`
+      ? `${solicitanteName} tiene una requisición interna lista para trámite de Administración.`
       : `${solicitanteName} tiene una requisición ${requisicionLabel} lista para trámite de Administración.`;
 
     if (!(await isAdminOsiConfigMode(supabase))) {
@@ -56,7 +57,7 @@ export async function notifyAdminsOfNewRequisicion(
       title,
       body,
       linkPath: `/requisiciones/view/${requisicionId}`,
-      dedupeKey: `requisicion:${requisicionId}:pending_admin:${Date.now()}`,
+      dedupeKey: `requisicion:${requisicionId}:pending_admin`,
       priority: 2,
     });
 
@@ -111,7 +112,7 @@ export async function notifyLiderOfPendingInterna(
       title: "Requisición Interna Pendiente de Aprobación",
       body: `${solicitanteName} tiene una requisición interna que requiere su aprobación como Líder.`,
       linkPath: `/requisiciones/view/${requisicionId}`,
-      dedupeKey: `requisicion:${requisicionId}:pending_lider:${Date.now()}`,
+      dedupeKey: `requisicion:${requisicionId}:pending_lider`,
       priority: 2,
       context: { departamento_nombre: departamentoName.trim() },
     });
@@ -158,7 +159,7 @@ export async function notifyCoordinadorOfPendingExterna(
       title: "Requisición Pendiente de Aprobación (Coordinador)",
       body: `${solicitanteName} tiene una requisición interna que requiere su aprobación como Coordinador.`,
       linkPath: `/requisiciones/view/${requisicionId}`,
-      dedupeKey: `requisicion:${requisicionId}:pending_coordinador:${Date.now()}`,
+      dedupeKey: `requisicion:${requisicionId}:pending_coordinador`,
       priority: 2,
       context: { departamento_nombre: departamentoName.trim() },
     });

@@ -21,6 +21,7 @@ import { formatDate } from "@/lib/utils";
 import { deptInList, isLiderGatePending, skipsCoordinadorGate } from "@/lib/requisiciones-gerencia";
 import { apply_item_money_updates, requisicion_items_total } from "@/lib/requisiciones-totals";
 import { RequisicionItemMoneyInputs, RequisicionPriceHeaders } from "../../../components/RequisicionItemMoneyInputs";
+import { hasApproverMaterialDiff } from "@/lib/requisiciones-approver-diff";
 
 export default function RequisicionView({
   record,
@@ -235,6 +236,17 @@ export default function RequisicionView({
     }
     setIsSavingApproverEdit(true);
     try {
+      const nextRecord = {
+        ...record,
+        additional_items: editedItems,
+        observaciones_compras: editedObservaciones,
+        prioridad: editedPrioridad,
+        fecha_solicitud: editedFecha,
+        solicitante: editedSolicitante,
+      };
+      if (!hasApproverMaterialDiff(record, nextRecord)) {
+        return true;
+      }
       await updateRequisicionByApprover(record.id, {
         additional_items: editedItems,
         observaciones_compras: editedObservaciones,
@@ -285,6 +297,9 @@ export default function RequisicionView({
     }
     return "Verificado";
   };
+  const lockProcessedCheck = (isListo: boolean) =>
+    record.estatus_admin === "parcial" && isListo;
+
 
   const handleCopy = async (field: string, value: string) => {
     try {
@@ -332,12 +347,14 @@ export default function RequisicionView({
   const verifiedCount = fixedVerifiedCount + additionalVerifiedCount;
   const totalCount = fixedTotalCount + workingItems.length;
   const isSingleItemProcess = totalCount === 1;
-  const needsItemSelection = !isGeneralMode && totalCount > 1;
+  const needsItemSelection = totalCount > 1;
   const effectiveVerifiedCount = isSingleItemProcess
     ? Math.max(verifiedCount, 1)
     : verifiedCount;
   const progressPct = totalCount > 0 ? (effectiveVerifiedCount / totalCount) * 100 : 0;
-  const processButtonLabel = "Procesar";
+  const processButtonLabel = needsItemSelection && verifiedCount > 0 && verifiedCount < totalCount
+    ? `Procesar (${verifiedCount} de ${totalCount})`
+    : "Procesar";
 
   const selectedWorkingItems = workingItems.filter(
     (item) => item.verificacion === "listo",
@@ -358,14 +375,17 @@ export default function RequisicionView({
     isUpdating ||
     processBlockedByCoord ||
     processBlockedByLider ||
-    processBlockedByLiderReject;
+    processBlockedByLiderReject ||
+    (needsItemSelection && verifiedCount === 0);
   const flowHint = processBlockedByCoord
     ? "Espere el sello del coordinador."
     : processBlockedByLider
       ? "Espere el sello del líder."
       : processBlockedByLiderReject
         ? "El líder rechazó esta requisición."
-        : null;
+        : needsItemSelection && verifiedCount === 0
+          ? "Marque los ítems que va a procesar ahora."
+          : null;
 
   // Total of only selected items — used for copy-all VES calculation
   const verifiedFixedTotal = osiFixedItems.reduce((sum, fi) =>
@@ -430,13 +450,23 @@ export default function RequisicionView({
       return;
     }
     if (target === "procesada") {
-      if (!confirm("¿Marcar esta requisición como Procesada? El solicitante ya no podrá editarla.")) return;
+      if (needsItemSelection && verifiedCount === 0) {
+        alert("Seleccione al menos un ítem para procesar.");
+        return;
+      }
+      const isPartialBatch = needsItemSelection && verifiedCount < totalCount;
+      const ok = isPartialBatch
+        ? confirm(
+            `¿Procesar ${verifiedCount} de ${totalCount} ítems ahora? Los no marcados quedan pendientes y se mantienen los ya tramitados.`,
+          )
+        : confirm("¿Marcar esta requisición como Procesada? El solicitante ya no podrá editarla.");
+      if (!ok) return;
       setIsUpdating(true);
       try {
         try { await saveBankingDetails(); } catch (e) { console.error("Banking details save failed (non-blocking):", e); }
         await setRequisicionEstatus(
           record.id,
-          "procesada",
+          isPartialBatch ? "parcial" : "procesada",
           undefined,
           parseFloat(exchangeRateInput) || null,
         );
@@ -658,6 +688,7 @@ export default function RequisicionView({
   };
 
   const handleToggleItem = async (itemId: string, currentStatus: string) => {
+    if (estatus === "parcial" && currentStatus === "listo") return;
     const newStatus = currentStatus === "listo" ? "pendiente" : "listo";
     // Optimistic update: immediately reflect the change in local state
     setLocalItems(prev => prev.map(item =>
@@ -689,6 +720,7 @@ export default function RequisicionView({
     field: "verificacion_traslado" | "verificacion_impresion" | "verificacion_honorarios" | "verificacion_informe_final",
     currentStatus: string,
   ) => {
+    if (estatus === "parcial" && currentStatus === "listo") return;
     const newStatus = currentStatus === "listo" ? "pendiente" : "listo";
     setLocalFixedItems(prev => prev.map(fi =>
       fi.id_osi === idOsi ? { ...fi, [field]: newStatus } : fi
@@ -755,7 +787,10 @@ export default function RequisicionView({
       })()}
 
       {/* Approver diff — shown to the creator when the approver modified the requisicion */}
-      {record.aprobador_edito === true && !isAdminView && !canApproverEdit && (
+      {record.aprobador_edito === true &&
+        hasApproverMaterialDiff(record.original_snapshot, record) &&
+        !isAdminView &&
+        !canApproverEdit && (
         <ApproverDiff
           originalSnapshot={record.original_snapshot}
           currentRecord={record}
@@ -893,9 +928,10 @@ export default function RequisicionView({
           <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
             isProcesada ? 'bg-emerald-100 text-emerald-800'
               : isRechazada ? 'bg-red-100 text-red-800'
+              : estatus === "parcial" ? 'bg-sky-100 text-sky-800'
               : 'bg-amber-100 text-amber-800'
           }`}>
-            {isProcesada ? "Procesada" : isRechazada ? "Rechazada" : "Pendiente"}
+            {isProcesada ? "Procesada" : isRechazada ? "Rechazada" : estatus === "parcial" ? "Parcial" : "Pendiente"}
           </span>
           {isResolved && record.procesada_por_nombre && (
             <span className="text-xs text-gray-500">
@@ -1163,7 +1199,7 @@ export default function RequisicionView({
                   <th className="p-2 w-24">Estado</th>
                 ) : null}
                 {isAdminView && needsItemSelection ? (
-                  <th className="p-2 w-24 border-l border-gray-300" title="Marque el lote a estimar/procesar">
+                  <th className="p-2 w-24 border-l border-gray-300" title="Marque los ítems a procesar ahora">
                     Procesar
                   </th>
                 ) : null}
@@ -1216,7 +1252,7 @@ export default function RequisicionView({
                     <input
                       type="checkbox"
                       checked={fi.verificacion_traslado === "listo"}
-                      disabled={togglingItemId === `${fi.id_osi}-verificacion_traslado`}
+                      disabled={togglingItemId === `${fi.id_osi}-verificacion_traslado` || lockProcessedCheck(fi.verificacion_traslado === "listo")}
                       onChange={() => handleToggleFixedItem(fi.id_osi, "verificacion_traslado", fi.verificacion_traslado || "pendiente")}
                       className="h-4 w-4 cursor-pointer accent-emerald-600"
                       title={formatVerificadoTitle(fi.verificacion_traslado === "listo", fi.verificado_por_traslado, fi.verificado_en_traslado)}
@@ -1250,7 +1286,7 @@ export default function RequisicionView({
                     <input
                       type="checkbox"
                       checked={fi.verificacion_impresion === "listo"}
-                      disabled={togglingItemId === `${fi.id_osi}-verificacion_impresion`}
+                      disabled={togglingItemId === `${fi.id_osi}-verificacion_impresion` || lockProcessedCheck(fi.verificacion_impresion === "listo")}
                       onChange={() => handleToggleFixedItem(fi.id_osi, "verificacion_impresion", fi.verificacion_impresion || "pendiente")}
                       className="h-4 w-4 cursor-pointer accent-emerald-600"
                       title={formatVerificadoTitle(fi.verificacion_impresion === "listo", fi.verificado_por_impresion, fi.verificado_en_impresion)}
@@ -1287,7 +1323,7 @@ export default function RequisicionView({
                     <input
                       type="checkbox"
                       checked={fi.verificacion_honorarios === "listo"}
-                      disabled={togglingItemId === `${fi.id_osi}-verificacion_honorarios`}
+                      disabled={togglingItemId === `${fi.id_osi}-verificacion_honorarios` || lockProcessedCheck(fi.verificacion_honorarios === "listo")}
                       onChange={() => handleToggleFixedItem(fi.id_osi, "verificacion_honorarios", fi.verificacion_honorarios || "pendiente")}
                       className="h-4 w-4 cursor-pointer accent-emerald-600"
                       title={formatVerificadoTitle(fi.verificacion_honorarios === "listo", fi.verificado_por_honorarios, fi.verificado_en_honorarios)}
@@ -1321,7 +1357,7 @@ export default function RequisicionView({
                     <input
                       type="checkbox"
                       checked={fi.verificacion_informe_final === "listo"}
-                      disabled={togglingItemId === `${fi.id_osi}-verificacion_informe_final`}
+                      disabled={togglingItemId === `${fi.id_osi}-verificacion_informe_final` || lockProcessedCheck(fi.verificacion_informe_final === "listo")}
                       onChange={() => handleToggleFixedItem(fi.id_osi, "verificacion_informe_final", fi.verificacion_informe_final || "pendiente")}
                       className="h-4 w-4 cursor-pointer accent-emerald-600"
                       title={formatVerificadoTitle(fi.verificacion_informe_final === "listo", fi.verificado_por_informe_final, fi.verificado_en_informe_final)}
@@ -1386,7 +1422,7 @@ export default function RequisicionView({
                         <input
                           type="checkbox"
                           checked={item.verificacion === "listo"}
-                          disabled={togglingItemId === item.id}
+                          disabled={togglingItemId === item.id || lockProcessedCheck(item.verificacion === "listo")}
                           onChange={() => handleToggleItem(item.id, item.verificacion || "pendiente")}
                           className="h-4 w-4 cursor-pointer accent-emerald-600"
                           title={formatVerificadoTitle(item.verificacion === "listo", item.verificado_por, item.verificado_en)}
@@ -1461,7 +1497,7 @@ export default function RequisicionView({
                               <input
                                 type="checkbox"
                                 checked={item.verificacion === "listo"}
-                                disabled={togglingItemId === item.id}
+                                disabled={togglingItemId === item.id || lockProcessedCheck(item.verificacion === "listo")}
                                 onChange={() => handleToggleItem(item.id, item.verificacion || "pendiente")}
                                 className="h-4 w-4 cursor-pointer accent-emerald-600"
                                 title={formatVerificadoTitle(item.verificacion === "listo", item.verificado_por, item.verificado_en)}
@@ -1522,7 +1558,7 @@ export default function RequisicionView({
                       <input
                         type="checkbox"
                         checked={item.verificacion === "listo"}
-                        disabled={togglingItemId === item.id}
+                        disabled={togglingItemId === item.id || lockProcessedCheck(item.verificacion === "listo")}
                         onChange={() => handleToggleItem(item.id, item.verificacion || "pendiente")}
                         className="h-4 w-4 cursor-pointer accent-emerald-600"
                         title={formatVerificadoTitle(item.verificacion === "listo", item.verificado_por, item.verificado_en)}
@@ -1598,7 +1634,7 @@ export default function RequisicionView({
                       <input
                         type="checkbox"
                         checked={item.verificacion === "listo"}
-                        disabled={togglingItemId === item.id || !isOpenForAdmin}
+                        disabled={togglingItemId === item.id || !isOpenForAdmin || lockProcessedCheck(item.verificacion === "listo")}
                         onChange={() =>
                           handleToggleItem(item.id, item.verificacion || "pendiente")
                         }

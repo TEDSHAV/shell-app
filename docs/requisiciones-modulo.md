@@ -251,7 +251,7 @@ La decisión es **sobre el documento entero**:
 - Aprobar → toda la requisición sigue.
 - Rechazar → toda se rechaza (motivo obligatorio). El ítem no tiene estatus propio.
 
-Lo más parecido a “parcial” en esta etapa: **editar** (borrar el ítem no deseado o cambiar cantidades) y **luego aprobar el documento**. El creador ve el diff.
+Lo más parecido a “parcial” en esta etapa: **Administración marca ítems** (si hay más de uno) y pulsa Procesar. Los marcados quedan tramitados; los demás siguen pendientes y el documento queda `parcial` hasta completar el lote.
 
 ### Administración (esto sí es por ítem)
 
@@ -277,7 +277,7 @@ Eventos (app slug `administracion`), modo TED o fallback legacy:
 
 | Evento                            | Cuándo                                                     | A quién                                                               |
 | --------------------------------- | ---------------------------------------------------------- | --------------------------------------------------------------------- |
-| `requisicion_pending_admin`       | Interna/externa lista para cola Admin (estimar / trámite)  | TED: roles `sadministracion:gestor` + `coordinador` (editable) |
+| `requisicion_pending_admin`       | Interna/externa lista para cola Admin (trámite)            | TED: roles `sadministracion:gestor` + `coordinador` (editable) |
 | `requisicion_costos_aprobados`    | Líder aprueba costos (monto > límite)                      | Mismo set operativo Admin; mensaje distinto                    |
 | `requisicion_pending_coordinador` | Interna de un analista en depto con coordinador            | TED: organigrama ∩ (permiso/roles coord) — editable            |
 | `requisicion_pending_lider`       | Interna que espera al líder                                | TED: organigrama ∩ (permiso/roles lider) — editable            |
@@ -288,6 +288,7 @@ Eventos (app slug `administracion`), modo TED o fallback legacy:
 | `requisicion_aprobador_cambios`   | Primera edición del aprobador                              | Creador                                                        |
 | `requisicion_acuse`               | Creador confirma recepción                                 | Admin que procesó                                              |
 
+**Canal único:** TED `fan_out_by_config` (destinatarios en `/ted/notificaciones`). El trigger `notify.handle_requisicion_notify` es red de seguridad (Capacitación/API) con las **mismas** claves `requisicion:{id}:pending_lider|pending_coordinador|pending_admin` y el mismo texto; el segundo disparo no crea otra fila. `requisicion_created` queda deprecado.
 
 Otros efectos:
 

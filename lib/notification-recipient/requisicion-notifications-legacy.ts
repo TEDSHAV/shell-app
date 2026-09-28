@@ -105,14 +105,13 @@ export async function legacyNotifyPendingAdmin(
   const event_key = override?.event_key || "requisicion_pending_admin";
   const title =
     override?.title ||
-    (requisicionLabel === "interna"
-      ? "Requisición pendiente de estimar costos"
-      : "Requisición lista para Administración");
+    "Requisición lista para Administración";
   const body =
     override?.body ||
     `${solicitanteName} tiene una requisición ${requisicionLabel} lista para trámite de Administración.`;
 
-  const stamp = Date.now();
+  const eventSuffix =
+    event_key === "requisicion_pending_admin" ? "pending_admin" : event_key;
   const rows = recipientIds.map((recipient_id_auth) => ({
     app_slug: "administracion",
     event_key,
@@ -120,7 +119,7 @@ export async function legacyNotifyPendingAdmin(
     title,
     body,
     link_path: `/requisiciones/view/${requisicionId}`,
-    dedupe_key: `requisicion:${requisicionId}:${event_key}:${stamp}:${recipient_id_auth}`,
+    dedupe_key: `requisicion:${requisicionId}:${eventSuffix}:${recipient_id_auth}`,
     priority: 2,
   }));
 
@@ -243,7 +242,7 @@ export async function legacyNotifyLiderOfPendingInterna(
       title: "Requisición Interna Pendiente de Aprobación",
       body: `${solicitanteName} tiene una requisición interna que requiere su aprobación como Líder.`,
       link_path: `/requisiciones/view/${requisicionId}`,
-      dedupe_key: `requisicion:${requisicionId}:pending_lider:${Date.now()}`,
+      dedupe_key: `requisicion:${requisicionId}:pending_lider:${authId}`,
       priority: 2,
     });
 
@@ -274,7 +273,7 @@ export async function legacyNotifyCoordinadorOfPendingExterna(
       title: "Requisición Pendiente de Aprobación (Coordinador)",
       body: `${solicitanteName} tiene una requisición interna que requiere su aprobación como Coordinador.`,
       link_path: `/requisiciones/view/${requisicionId}`,
-      dedupe_key: `requisicion:${requisicionId}:pending_coordinador:${Date.now()}`,
+      dedupe_key: `requisicion:${requisicionId}:pending_coordinador:${authId}`,
       priority: 2,
     });
 

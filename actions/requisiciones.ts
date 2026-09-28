@@ -34,11 +34,34 @@ import { apply_item_money_updates } from "@/lib/requisiciones-totals";
 import {
   ADMIN_APP_SLUG,
 } from "@/lib/requisiciones-slugs";
+import { hasApproverMaterialDiff } from "@/lib/requisiciones-approver-diff";
 
 export {
   getCurrentUserUsuarioId,
   getCurrentUserDepartment,
 };
+
+function countRequisicionVerificacion(
+  additionalItems: RequisicionItem[] | null | undefined,
+  osiFixedItems: OSIFixedItem[] | null | undefined,
+): { verified: number; total: number } {
+  const fixed = osiFixedItems || [];
+  const additional = additionalItems || [];
+  const fixedVerified = fixed.reduce(
+    (sum, fi) =>
+      sum +
+      (fi.verificacion_traslado === "listo" ? 1 : 0) +
+      (fi.verificacion_impresion === "listo" ? 1 : 0) +
+      (fi.verificacion_honorarios === "listo" ? 1 : 0) +
+      (fi.verificacion_informe_final === "listo" ? 1 : 0),
+    0,
+  );
+  const additionalVerified = additional.filter((item) => item.verificacion === "listo").length;
+  return {
+    verified: fixedVerified + additionalVerified,
+    total: fixed.length * 4 + additional.length,
+  };
+}
 
 // Build a JSON snapshot of the editable content fields of a requisicion record.
 // Captured at creation and on every creator save (so it always reflects the
@@ -770,7 +793,7 @@ export async function updateRequisicionRecord(
   // version becomes authoritative and the creator can no longer edit it.
   const { data: existing } = await supabase
     .from("requisiciones")
-    .select("estatus_admin, aprobador_edito")
+    .select("estatus_admin, aprobador_edito, original_snapshot, additional_items, observaciones_compras, prioridad, corresponde_a, fecha_solicitud, solicitante, departamento, gerencia_solicitante, tipo_servicio")
     .eq("id", id)
     .single();
 
@@ -780,7 +803,14 @@ export async function updateRequisicionRecord(
   if (isLocked && !(await isRequisicionesAdmin())) {
     throw new Error("Esta requisición ya fue procesada por Administración y no puede editarse.");
   }
-  if (existing?.aprobador_edito === true && !(await isRequisicionesAdmin())) {
+  if (
+    existing?.aprobador_edito === true &&
+    hasApproverMaterialDiff(
+      existing.original_snapshot as Record<string, unknown> | null,
+      existing as Record<string, unknown>,
+    ) &&
+    !(await isRequisicionesAdmin())
+  ) {
     throw new Error("El aprobador ya modificó esta requisición. No puede editarla.");
   }
 
@@ -1205,19 +1235,21 @@ export async function deleteRequisicionRecord(id: number) {
 // creator notification.
 export async function setRequisicionEstatus(
   id: number,
-  estatus: "pendiente" | "procesada" | "rechazada",
+  estatus: "pendiente" | "procesada" | "rechazada" | "parcial",
   motivoRechazo?: string,
   tasaCambio?: number | null,
-) {
+): Promise<{ estatus: "pendiente" | "procesada" | "rechazada" | "parcial" }> {
   if (!(await isRequisicionesAdmin())) {
     throw new Error("No tiene permisos para cambiar el estatus de requisiciones.");
   }
 
-  if (estatus === "procesada") {
+  let applied: "pendiente" | "procesada" | "rechazada" | "parcial" = estatus;
+
+  if (estatus === "procesada" || estatus === "parcial") {
     const gateClient = await createAdminClient();
     const { data: gate } = await gateClient
       .from("requisiciones")
-      .select("tipo_solicitud, coordinador_estatus, lider_estatus")
+      .select("tipo_solicitud, coordinador_estatus, lider_estatus, additional_items, osi_fixed_items")
       .eq("id", id)
       .maybeSingle();
     if (gate?.tipo_solicitud === "Interno") {
@@ -1232,9 +1264,17 @@ export async function setRequisicionEstatus(
         throw new Error("El líder rechazó esta requisición.");
       }
     }
+    const { verified, total } = countRequisicionVerificacion(
+      gate?.additional_items as RequisicionItem[] | undefined,
+      gate?.osi_fixed_items as OSIFixedItem[] | undefined,
+    );
+    if (total > 1 && verified === 0) {
+      throw new Error("Seleccione al menos un ítem para procesar.");
+    }
+    applied = total > 1 && verified < total ? "parcial" : "procesada";
   }
 
-  if (estatus === "rechazada" && !motivoRechazo?.trim()) {
+  if (applied === "rechazada" && !motivoRechazo?.trim()) {
     throw new Error("Debe indicar el motivo del rechazo.");
   }
 
@@ -1242,19 +1282,19 @@ export async function setRequisicionEstatus(
   const userResponse = await userClient.auth.getUser();
   const userId = userResponse.data.user?.id || null;
 
-  const isClosed = estatus === "procesada" || estatus === "rechazada";
+  const isClosed = applied === "procesada" || applied === "rechazada";
 
   const update: Record<string, unknown> = {
-    estatus_admin: estatus,
+    estatus_admin: applied,
     procesada_por: isClosed ? userId : null,
     procesada_at: isClosed ? new Date().toISOString() : null,
   };
-  if (estatus === "rechazada") {
+  if (applied === "rechazada") {
     update.motivo_rechazo = motivoRechazo!.trim();
   }
   // Snapshot the exchange rate when processing so future views show the rate
   // that was actually used at payment time, not today's live rate.
-  if (estatus === "procesada" && tasaCambio != null && !isNaN(tasaCambio)) {
+  if (applied === "procesada" && tasaCambio != null && !isNaN(tasaCambio)) {
     update.tasa_cambio = tasaCambio;
     update.tasa_cambio_at = new Date().toISOString();
   }
@@ -1295,13 +1335,13 @@ export async function setRequisicionEstatus(
       .eq("id", id)
       .single();
 
-    console.log(`[setRequisicionEstatus] id=${id} estatus=${estatus} created_by=${req?.created_by} fetchError=${fetchError?.message}`);
+    console.log(`[setRequisicionEstatus] id=${id} estatus=${applied} created_by=${req?.created_by} fetchError=${fetchError?.message}`);
 
     if (req?.created_by) {
       const requisicionLabel = req.tipo_solicitud === "Interno"
         ? "interna"
         : `de la OSI N° ${(req.v_osi_formato_completo as any)?.nro_osi || ""}`;
-      if (estatus === "procesada") {
+      if (applied === "procesada") {
         console.log(`[setRequisicionEstatus] Calling notifyCreatorOfProcesada for creator ${req.created_by}`);
         await notifyCreatorOfProcesada(
           id,
@@ -1309,17 +1349,20 @@ export async function setRequisicionEstatus(
           requisicionLabel,
           req.departamento,
         );
-      } else if (estatus === "rechazada") {
+      } else if (applied === "rechazada") {
         console.log(`[setRequisicionEstatus] Calling notifyCreatorOfRechazada for creator ${req.created_by}`);
         await notifyCreatorOfRechazada(id, req.created_by, requisicionLabel, motivoRechazo!.trim());
       }
     } else {
       console.warn(`[setRequisicionEstatus] No created_by found for requisicion ${id}, skipping creator notification`);
     }
+  } else if (applied === "parcial") {
+    await saveVerificacionProgress(id);
   }
 
   revalidatePath("/requisiciones");
   revalidatePath("/requisiciones/gestion");
+  return { estatus: applied };
 }
 
 // Coordinador approves a pending INTERNA. After approval, the requisicion
@@ -1769,6 +1812,11 @@ export async function updateRequisicionByApprover(
   if (updates.corresponde_a !== undefined) updatePayload.corresponde_a = updates.corresponde_a;
   if (updates.fecha_solicitud !== undefined) updatePayload.fecha_solicitud = updates.fecha_solicitud;
   if (updates.solicitante !== undefined) updatePayload.solicitante = updates.solicitante;
+
+  const merged = { ...existing, ...updatePayload } as Record<string, unknown>;
+  if (!hasApproverMaterialDiff(existing as Record<string, unknown>, merged)) {
+    return;
+  }
 
   // If this is the first approver edit and no original_snapshot exists (legacy
   // record created before the migration), capture it NOW from the current live

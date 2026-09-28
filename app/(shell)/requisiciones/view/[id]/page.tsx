@@ -16,6 +16,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Edit, Lock } from "lucide-react";
+import { hasApproverMaterialDiff } from "@/lib/requisiciones-approver-diff";
 
 export const metadata = {
   title: "Detalle de Requisición | PRISMA",
@@ -43,7 +44,9 @@ export default async function ViewRequisicionPage({
 
   const isCoordinador = coordinadorDepts.length > 0;
   const isLider = liderDepts.length > 0;
-  const approverEdited = record?.aprobador_edito === true;
+  const approverEdited =
+    record?.aprobador_edito === true &&
+    hasApproverMaterialDiff(record.original_snapshot, record);
   const canEditDepartamento = access.can_edit_departamento_emitida;
   const canEditTramite = access.can_edit_tramite;
 

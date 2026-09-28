@@ -166,12 +166,13 @@ export default function RequisicionRow({
       return;
     }
     if (target === "procesada") {
-      if (!confirm("¿Marcar esta requisición como Procesada? El solicitante ya no podrá editarla.")) return;
+      if (!confirm("¿Marcar esta requisición como Procesada? Si tiene varios ítems y no están todos marcados, quedará parcial.")) return;
       const prevEstatus = localEstatus;
       setLocalEstatus("procesada");
       setIsUpdating(true);
       try {
-        await setRequisicionEstatus(record.id, "procesada");
+        const result = await setRequisicionEstatus(record.id, "procesada");
+        setLocalEstatus(result.estatus);
       } catch (error) {
         console.error("Error updating estatus:", error);
         setLocalEstatus(prevEstatus);
@@ -289,9 +290,10 @@ export default function RequisicionRow({
         <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
           isProcesada ? 'bg-emerald-100 text-emerald-800'
             : isRechazada ? 'bg-red-100 text-red-800'
+            : estatus === "parcial" ? 'bg-sky-100 text-sky-800'
             : 'bg-amber-100 text-amber-800'
         }`}>
-          {isProcesada ? "Procesada" : isRechazada ? "Rechazada" : "Pendiente"}
+          {isProcesada ? "Procesada" : isRechazada ? "Rechazada" : estatus === "parcial" ? "Parcial" : "Pendiente"}
         </span>
         {isProcesada && isAcuseRecibido && (
           <span className="ml-1 px-2 py-1 rounded-full text-[10px] font-bold uppercase bg-blue-100 text-blue-800">
