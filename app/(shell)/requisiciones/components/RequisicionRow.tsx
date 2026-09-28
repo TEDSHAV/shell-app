@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/utils";
 import { mapGerenciaSolicitante, getRequisicionDisplayDate, deptInList, isLiderGatePending, skipsCoordinadorGate } from "@/lib/requisiciones-gerencia";
 import MotivoModal from "./MotivoModal";
+import type { RequisicionItem } from "@/types/requisiciones";
+import { format_pedido_entregado } from "@/lib/requisiciones-entrega";
 
 export default function RequisicionRow({
   record,
@@ -295,6 +297,19 @@ export default function RequisicionRow({
         }`}>
           {isProcesada ? "Procesada" : isRechazada ? "Rechazada" : estatus === "parcial" ? "Parcial" : "Pendiente"}
         </span>
+        {isInterna ? (
+          (() => {
+            const qty = additionalItems
+              .map((item: RequisicionItem) => format_pedido_entregado(item))
+              .filter((text): text is string => Boolean(text));
+            if (qty.length === 0) return null;
+            return (
+              <span className="mt-1 block text-[10px] font-medium text-slate-500">
+                {qty.join(" · ")}
+              </span>
+            );
+          })()
+        ) : null}
         {isProcesada && isAcuseRecibido && (
           <span className="ml-1 px-2 py-1 rounded-full text-[10px] font-bold uppercase bg-blue-100 text-blue-800">
             Recibido

@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { RequisicionItem, OSIFixedItem } from "@/types/requisiciones";
-import { setRequisicionEstatus, updateItemVerificacion, updateFixedItemVerificacion, saveVerificacionProgress, getExchangeRate, updateFacilitadorBankingDetails, acknowledgeRequisicionReceipt, approveRequisicionByCoordinador, rejectRequisicionByCoordinador, approveRequisicionByLider, rejectRequisicionByLider, updateRequisicionByApprover, updateRequisicionDepartamento, updateRequisicionItemsByGestion } from "@/actions/requisiciones";
+import { setRequisicionEstatus, updateItemVerificacion, updateFixedItemVerificacion, saveVerificacionProgress, getExchangeRate, updateFacilitadorBankingDetails, acknowledgeRequisicionReceipt, approveRequisicionByCoordinador, rejectRequisicionByCoordinador, approveRequisicionByLider, rejectRequisicionByLider, updateRequisicionByApprover, updateRequisicionDepartamento, updateRequisicionItemsByGestion, registrarEntregaItem } from "@/actions/requisiciones";
 import { CheckCircle2, XCircle, Undo2, Clock, AlertTriangle, CalendarClock, Copy, Check, Download, Save, Printer, PackageCheck, Plus, Trash2 } from "lucide-react";
 import MotivoModal from "../../../components/MotivoModal";
 import ApproverDiff from "./ApproverDiff";
@@ -22,6 +22,16 @@ import { deptInList, isLiderGatePending, skipsCoordinadorGate } from "@/lib/requ
 import { apply_item_money_updates, requisicion_items_total } from "@/lib/requisiciones-totals";
 import { RequisicionItemMoneyInputs, RequisicionPriceHeaders } from "../../../components/RequisicionItemMoneyInputs";
 import { hasApproverMaterialDiff } from "@/lib/requisiciones-approver-diff";
+import {
+  all_items_resolved,
+  item_entregado,
+  item_faltante,
+  item_has_entrega_progress,
+  item_is_resolved,
+  item_pedido,
+} from "@/lib/requisiciones-entrega";
+import { RequisicionEntregaModal } from "@/features/requisiciones/components/requisicion-entrega-modal";
+import { RequisicionCierreModal } from "@/features/requisiciones/components/requisicion-cierre-modal";
 
 export default function RequisicionView({
   record,
@@ -115,6 +125,9 @@ export default function RequisicionView({
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [coordinadorRejectOpen, setCoordinadorRejectOpen] = useState(false);
   const [liderRejectOpen, setLiderRejectOpen] = useState(false);
+  const [entregaItem, setEntregaItem] = useState<RequisicionItem | null>(null);
+  const [cierreOpen, setCierreOpen] = useState(false);
+  const [cierreLastItemId, setCierreLastItemId] = useState<string | null>(null);
 
   // --- Approver inline-edit state ---
   // The approver (coordinador for internas, then lider for internas) can
@@ -343,11 +356,19 @@ export default function RequisicionView({
     (fi.verificacion_honorarios === "listo" ? 1 : 0) +
     (fi.verificacion_informe_final === "listo" ? 1 : 0), 0);
   const fixedTotalCount = osiFixedItems.length * 4;
-  const additionalVerifiedCount = workingItems.filter(item => item.verificacion === "listo").length;
-  const verifiedCount = fixedVerifiedCount + additionalVerifiedCount;
-  const totalCount = fixedTotalCount + workingItems.length;
-  const isSingleItemProcess = totalCount === 1;
-  const needsItemSelection = totalCount > 1;
+  const additionalVerifiedCount = isGeneralMode
+    ? workingItems.filter(item_is_resolved).length
+    : workingItems.filter(item => item.verificacion === "listo").length;
+  const verifiedCount = isGeneralMode
+    ? additionalVerifiedCount
+    : fixedVerifiedCount + additionalVerifiedCount;
+  const totalCount = isGeneralMode
+    ? workingItems.length
+    : fixedTotalCount + workingItems.length;
+  const isSingleItemProcess = !isGeneralMode && totalCount === 1;
+  const needsItemSelection = isGeneralMode
+    ? workingItems.length > 0
+    : totalCount > 1;
   const effectiveVerifiedCount = isSingleItemProcess
     ? Math.max(verifiedCount, 1)
     : verifiedCount;
@@ -376,14 +397,16 @@ export default function RequisicionView({
     processBlockedByCoord ||
     processBlockedByLider ||
     processBlockedByLiderReject ||
-    (needsItemSelection && verifiedCount === 0);
+    (needsItemSelection &&
+      verifiedCount === 0 &&
+      !(isGeneralMode && workingItems.some(item_has_entrega_progress)));
   const flowHint = processBlockedByCoord
     ? "Espere el sello del coordinador."
     : processBlockedByLider
       ? "Espere el sello del líder."
       : processBlockedByLiderReject
         ? "El líder rechazó esta requisición."
-        : needsItemSelection && verifiedCount === 0
+        : needsItemSelection && verifiedCount === 0 && !(isGeneralMode && workingItems.some(item_has_entrega_progress))
           ? "Marque los ítems que va a procesar ahora."
           : null;
 
@@ -450,11 +473,13 @@ export default function RequisicionView({
       return;
     }
     if (target === "procesada") {
-      if (needsItemSelection && verifiedCount === 0) {
+      if (needsItemSelection && verifiedCount === 0 && !(isGeneralMode && workingItems.some(item_has_entrega_progress))) {
         alert("Seleccione al menos un ítem para procesar.");
         return;
       }
-      const isPartialBatch = needsItemSelection && verifiedCount < totalCount;
+      const isPartialBatch = isGeneralMode
+        ? !all_items_resolved(workingItems)
+        : needsItemSelection && verifiedCount < totalCount;
       const ok = isPartialBatch
         ? confirm(
             `¿Procesar ${verifiedCount} de ${totalCount} ítems ahora? Los no marcados quedan pendientes y se mantienen los ya tramitados.`,
@@ -688,6 +713,28 @@ export default function RequisicionView({
   };
 
   const handleToggleItem = async (itemId: string, currentStatus: string) => {
+    if (isGeneralMode) {
+      const item = workingItems.find((row) => row.id === itemId);
+      if (!item) return;
+      if (estatus === "parcial" && item_is_resolved(item)) return;
+      if (item_is_resolved(item)) {
+        setTogglingItemId(itemId);
+        try {
+          const result = await registrarEntregaItem(record.id, itemId, {
+            revert: true,
+          });
+          setLocalItems(result.items);
+          setEditedItems(result.items);
+        } catch (error) {
+          alert(error instanceof Error ? error.message : "Error al revertir el ítem");
+        } finally {
+          setTogglingItemId(null);
+        }
+        return;
+      }
+      setEntregaItem(item);
+      return;
+    }
     if (estatus === "parcial" && currentStatus === "listo") return;
     const newStatus = currentStatus === "listo" ? "pendiente" : "listo";
     // Optimistic update: immediately reflect the change in local state
@@ -712,6 +759,76 @@ export default function RequisicionView({
       alert("Error al actualizar el item");
     } finally {
       setTogglingItemId(null);
+    }
+  };
+
+  const handleConfirmEntrega = async (
+    cant_entregada: number,
+    decision: "cerrado_corto" | "resto_pendiente" | null,
+  ) => {
+    if (!entregaItem) return;
+    setTogglingItemId(entregaItem.id);
+    try {
+      const result = await registrarEntregaItem(record.id, entregaItem.id, {
+        cant_entregada,
+        decision,
+      });
+      setLocalItems(result.items);
+      setEditedItems(result.items);
+      setEntregaItem(null);
+      if (result.all_resolved) {
+        setCierreLastItemId(entregaItem.id);
+        setCierreOpen(true);
+        return;
+      }
+      await setRequisicionEstatus(
+        record.id,
+        "parcial",
+        undefined,
+        parseFloat(exchangeRateInput) || null,
+      );
+      router.refresh();
+    } finally {
+      setTogglingItemId(null);
+    }
+  };
+
+  const handleCierreNo = async () => {
+    const itemId = cierreLastItemId;
+    setCierreOpen(false);
+    setCierreLastItemId(null);
+    if (!itemId) return;
+    setTogglingItemId(itemId);
+    try {
+      const result = await registrarEntregaItem(record.id, itemId, {
+        revert: true,
+      });
+      setLocalItems(result.items);
+      setEditedItems(result.items);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Error al revertir");
+    } finally {
+      setTogglingItemId(null);
+    }
+  };
+
+  const handleCierreYes = async () => {
+    setIsUpdating(true);
+    try {
+      try { await saveBankingDetails(); } catch (e) { console.error("Banking details save failed (non-blocking):", e); }
+      await setRequisicionEstatus(
+        record.id,
+        "procesada",
+        undefined,
+        parseFloat(exchangeRateInput) || null,
+      );
+      setCierreOpen(false);
+      setCierreLastItemId(null);
+      router.refresh();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Error al procesar");
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -1177,7 +1294,15 @@ export default function RequisicionView({
               <tr className="bg-gray-50 text-center border-b border-gray-300">
                 <th className="p-2 border-r border-gray-300 w-12">ITEM</th>
                 <th className="p-2 border-r border-gray-300 w-20">UNIDAD/ CONCEPTO</th>
-                <th className="p-2 border-r border-gray-300 w-20">CANT</th>
+                {isGeneralMode ? (
+                  <>
+                    <th className="p-2 border-r border-gray-300 w-16">PEDIDO</th>
+                    <th className="p-2 border-r border-gray-300 w-16">ENTREGADO</th>
+                    <th className="p-2 border-r border-gray-300 w-16">FALTANTE</th>
+                  </>
+                ) : (
+                  <th className="p-2 border-r border-gray-300 w-20">CANT</th>
+                )}
                 <th className="p-2 border-r border-gray-300">DESCRIPCIÓN</th>
                 {showInternaMontos ? (
                   <RequisicionPriceHeaders />
@@ -1521,9 +1646,23 @@ export default function RequisicionView({
                   <td className="p-2 border-r border-gray-300 text-center uppercase font-bold">
                     {item.unidad || "und"}
                   </td>
-                  <td className="p-2 text-center border-r border-gray-300 font-bold">
-                    {item.cant || 1}
-                  </td>
+                  {isGeneralMode ? (
+                    <>
+                      <td className="p-2 text-center border-r border-gray-300 font-bold">
+                        {item_pedido(item)}
+                      </td>
+                      <td className="p-2 text-center border-r border-gray-300 font-bold">
+                        {item_entregado(item) ?? "—"}
+                      </td>
+                      <td className="p-2 text-center border-r border-gray-300 font-bold">
+                        {item_faltante(item) ?? "—"}
+                      </td>
+                    </>
+                  ) : (
+                    <td className="p-2 text-center border-r border-gray-300 font-bold">
+                      {item.cant || 1}
+                    </td>
+                  )}
                   <td className="p-2 border-r border-gray-300">
                     <div className="flex justify-between items-center px-1">
                       <span className="uppercase">{item.descripcion || "-"}</span>
@@ -1547,9 +1686,13 @@ export default function RequisicionView({
                   {isGeneralMode && !isAdminView ? (
                     <td className="p-2 text-center">
                       <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
-                        item.verificacion === "listo" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
+                        item_is_resolved(item) ? "bg-emerald-100 text-emerald-800"
+                          : item.cierre_entrega === "resto_pendiente" ? "bg-sky-100 text-sky-800"
+                          : "bg-amber-100 text-amber-800"
                       }`}>
-                        {item.verificacion === "listo" ? "Tramitado" : "Pendiente"}
+                        {item_is_resolved(item) ? "Tramitado"
+                          : item.cierre_entrega === "resto_pendiente" ? "Parcial"
+                          : "Pendiente"}
                       </span>
                     </td>
                   ) : null}
@@ -1557,7 +1700,7 @@ export default function RequisicionView({
                     <td className="p-2 text-center border-l border-gray-300">
                       <input
                         type="checkbox"
-                        checked={item.verificacion === "listo"}
+                        checked={isGeneralMode ? item_is_resolved(item) : item.verificacion === "listo"}
                         disabled={togglingItemId === item.id || lockProcessedCheck(item.verificacion === "listo")}
                         onChange={() => handleToggleItem(item.id, item.verificacion || "pendiente")}
                         className="h-4 w-4 cursor-pointer accent-emerald-600"
@@ -1590,6 +1733,16 @@ export default function RequisicionView({
                       className="w-full px-1 py-0.5 text-xs text-center border border-gray-300 rounded font-bold focus:outline-none focus:ring-1 focus:ring-blue-400"
                     />
                   </td>
+                  {isGeneralMode ? (
+                    <>
+                      <td className="p-2 text-center border-r border-gray-300 font-bold">
+                        {item_entregado(item) ?? "—"}
+                      </td>
+                      <td className="p-2 text-center border-r border-gray-300 font-bold">
+                        {item_faltante(item) ?? "—"}
+                      </td>
+                    </>
+                  ) : null}
                   <td className="p-2 border-r border-gray-300">
                     <input
                       type="text"
@@ -1633,7 +1786,7 @@ export default function RequisicionView({
                     <td className="p-2 text-center border-l border-gray-300">
                       <input
                         type="checkbox"
-                        checked={item.verificacion === "listo"}
+                        checked={isGeneralMode ? item_is_resolved(item) : item.verificacion === "listo"}
                         disabled={togglingItemId === item.id || !isOpenForAdmin || lockProcessedCheck(item.verificacion === "listo")}
                         onChange={() =>
                           handleToggleItem(item.id, item.verificacion || "pendiente")
@@ -1652,7 +1805,7 @@ export default function RequisicionView({
               {/* Add item button */}
               {!isCapacitacion && canEditItems && (
                 <tr className="border-b border-gray-300 bg-blue-50/20">
-                  <td colSpan={isGeneralMode ? (isAdminView && needsItemSelection ? 8 : 7) : 7} className="p-2">
+                  <td colSpan={isGeneralMode ? (isAdminView && needsItemSelection ? 10 : 9) : 7} className="p-2">
                     <button
                       type="button"
                       onClick={handleAddApproverItem}
@@ -2039,6 +2192,20 @@ export default function RequisicionView({
         confirmLabel="Rechazar"
         onConfirm={handleLiderReject}
         onClose={() => setLiderRejectOpen(false)}
+      />
+      <RequisicionEntregaModal
+        open={Boolean(entregaItem)}
+        item={entregaItem}
+        onClose={() => setEntregaItem(null)}
+        onConfirm={handleConfirmEntrega}
+      />
+      <RequisicionCierreModal
+        open={cierreOpen}
+        verified={verifiedCount}
+        total={totalCount}
+        isSubmitting={isUpdating}
+        onYes={() => void handleCierreYes()}
+        onNo={() => void handleCierreNo()}
       />
     </div>
   );

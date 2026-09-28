@@ -3,7 +3,9 @@ export type RequisicionMode = "general" | "capacitacion" | "servicios tecnicos";
 
 export type VerificacionStatus = "listo" | "pendiente";
 
-export type EstatusAdmin = "pendiente" | "procesada" | "rechazada";
+export type EstatusAdmin = "pendiente" | "parcial" | "procesada" | "rechazada";
+
+export type CierreEntrega = "completo" | "cerrado_corto" | "resto_pendiente";
 
 export type CoordinadorEstatus = "pendiente" | "aprobada" | "rechazada" | null;
 
@@ -35,6 +37,9 @@ export interface RequisicionItem {
   verificacion?: VerificacionStatus;
   verificado_por?: string | null;
   verificado_en?: string | null;
+  /** Cantidad realmente entregada. No pisa `cant` (lo pedido). */
+  cant_entregada?: number | null;
+  cierre_entrega?: CierreEntrega | null;
 }
 
 export interface RequisicionFilters {

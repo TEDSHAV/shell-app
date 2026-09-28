@@ -35,33 +35,22 @@ import {
   ADMIN_APP_SLUG,
 } from "@/lib/requisiciones-slugs";
 import { hasApproverMaterialDiff } from "@/lib/requisiciones-approver-diff";
+import {
+  all_items_resolved,
+  apply_item_entrega,
+  clear_item_entrega,
+  count_items_resolved,
+  countRequisicionVerificacion,
+  interna_has_process_progress,
+  item_pedido,
+  resolve_cierre_entrega,
+} from "@/lib/requisiciones-entrega";
+import type { CierreEntrega } from "@/types/requisiciones";
 
 export {
   getCurrentUserUsuarioId,
   getCurrentUserDepartment,
 };
-
-function countRequisicionVerificacion(
-  additionalItems: RequisicionItem[] | null | undefined,
-  osiFixedItems: OSIFixedItem[] | null | undefined,
-): { verified: number; total: number } {
-  const fixed = osiFixedItems || [];
-  const additional = additionalItems || [];
-  const fixedVerified = fixed.reduce(
-    (sum, fi) =>
-      sum +
-      (fi.verificacion_traslado === "listo" ? 1 : 0) +
-      (fi.verificacion_impresion === "listo" ? 1 : 0) +
-      (fi.verificacion_honorarios === "listo" ? 1 : 0) +
-      (fi.verificacion_informe_final === "listo" ? 1 : 0),
-    0,
-  );
-  const additionalVerified = additional.filter((item) => item.verificacion === "listo").length;
-  return {
-    verified: fixedVerified + additionalVerified,
-    total: fixed.length * 4 + additional.length,
-  };
-}
 
 // Build a JSON snapshot of the editable content fields of a requisicion record.
 // Captured at creation and on every creator save (so it always reflects the
@@ -1267,11 +1256,21 @@ export async function setRequisicionEstatus(
     const { verified, total } = countRequisicionVerificacion(
       gate?.additional_items as RequisicionItem[] | undefined,
       gate?.osi_fixed_items as OSIFixedItem[] | undefined,
+      gate?.tipo_solicitud,
     );
-    if (total > 1 && verified === 0) {
-      throw new Error("Seleccione al menos un ítem para procesar.");
+    const internaItems = (gate?.additional_items as RequisicionItem[] | undefined) || [];
+    const isInterna = gate?.tipo_solicitud === "Interno";
+    if (isInterna) {
+      if (!interna_has_process_progress(internaItems)) {
+        throw new Error("Registre al menos una entrega para procesar.");
+      }
+      applied = all_items_resolved(internaItems) ? "procesada" : "parcial";
+    } else {
+      if (total > 1 && verified === 0) {
+        throw new Error("Seleccione al menos un ítem para procesar.");
+      }
+      applied = total > 1 && verified < total ? "parcial" : "procesada";
     }
-    applied = total > 1 && verified < total ? "parcial" : "procesada";
   }
 
   if (applied === "rechazada" && !motivoRechazo?.trim()) {
@@ -1921,6 +1920,93 @@ export async function updateItemVerificacion(
   revalidatePath("/requisiciones/gestion");
 }
 
+export async function registrarEntregaItem(
+  requisicionId: number,
+  itemId: string,
+  payload:
+    | { revert: true }
+    | {
+        revert?: false;
+        cant_entregada: number;
+        decision: "cerrado_corto" | "resto_pendiente" | null;
+      },
+): Promise<{ items: RequisicionItem[]; all_resolved: boolean }> {
+  if (!(await isRequisicionesAdmin())) {
+    throw new Error("No tiene permisos para registrar entregas.");
+  }
+
+  const userClient = await createClient();
+  const userResponse = await userClient.auth.getUser();
+  const userId = userResponse.data.user?.id || null;
+  const at = new Date().toISOString();
+
+  const adminClient = await createAdminClient();
+  const { data: record, error: fetchError } = await adminClient
+    .from("requisiciones")
+    .select("additional_items, tipo_solicitud, estatus_admin")
+    .eq("id", requisicionId)
+    .single();
+
+  if (fetchError) {
+    console.error("[registrarEntregaItem] Fetch error:", JSON.stringify(fetchError));
+    throw fetchError;
+  }
+  if (record?.tipo_solicitud !== "Interno") {
+    throw new Error("La entrega parcial solo aplica a requisiciones internas.");
+  }
+
+  const current: RequisicionItem[] = record?.additional_items || [];
+  const locked =
+    record?.estatus_admin === "parcial" &&
+    current.some((item) => item.id === itemId && item_is_resolved_locked(item));
+
+  if (locked && !payload.revert) {
+    throw new Error("Esta entrega ya quedó tramitada y no se puede deshacer.");
+  }
+
+  const items: RequisicionItem[] = current.map((item) => {
+    if (item.id !== itemId) return item;
+    if (payload.revert) {
+      if (record?.estatus_admin === "parcial" && item_is_resolved_locked(item)) {
+        throw new Error("Esta entrega ya quedó tramitada y no se puede deshacer.");
+      }
+      return clear_item_entrega(item);
+    }
+    const pedido = item_pedido(item);
+    const cant_entregada = Number(payload.cant_entregada);
+    if (!Number.isFinite(cant_entregada) || cant_entregada < 0 || cant_entregada > pedido) {
+      throw new Error("La cantidad entregada debe estar entre 0 y lo pedido.");
+    }
+    if (cant_entregada < pedido && !payload.decision) {
+      throw new Error("Indique si cierra con esta cantidad o deja el resto pendiente.");
+    }
+    const cierre: CierreEntrega = resolve_cierre_entrega(
+      pedido,
+      cant_entregada,
+      payload.decision,
+    );
+    return apply_item_entrega(item, cant_entregada, cierre, userId, at);
+  });
+
+  const { error } = await adminClient
+    .from("requisiciones")
+    .update({ additional_items: items })
+    .eq("id", requisicionId);
+
+  if (error) {
+    console.error("[registrarEntregaItem] Update error:", JSON.stringify(error));
+    throw error;
+  }
+  revalidatePath("/requisiciones");
+  revalidatePath("/requisiciones/gestion");
+  revalidatePath(`/requisiciones/view/${requisicionId}`);
+  return { items, all_resolved: all_items_resolved(items) };
+}
+
+function item_is_resolved_locked(item: RequisicionItem): boolean {
+  return item.verificacion === "listo";
+}
+
 // Toggle verification for a fixed item field within an OSI block (Administración only)
 export async function updateFixedItemVerificacion(
   requisicionId: number,
@@ -2119,9 +2205,10 @@ export async function saveVerificacionProgress(requisicionId: number) {
     0,
   );
   const fixedTotalCount = fixedItems.length * 4;
-  const additionalVerifiedCount = additionalItems.filter(
-    (item) => item.verificacion === "listo",
-  ).length;
+  const additionalVerifiedCount =
+    record?.tipo_solicitud === "Interno"
+      ? count_items_resolved(additionalItems)
+      : additionalItems.filter((item) => item.verificacion === "listo").length;
   const verifiedCount = fixedVerifiedCount + additionalVerifiedCount;
   const totalCount = fixedTotalCount + additionalItems.length;
 
