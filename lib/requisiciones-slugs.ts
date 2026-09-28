@@ -28,5 +28,4 @@ export const PRODUCT_COORD_ROLE_SLUGS = new Set([
 export const PRODUCT_LIDER_ROLE_SLUGS = new Set([
   "lider",
   "aprobador-lider-requisiciones",
-  "admin-ted",
 ]);

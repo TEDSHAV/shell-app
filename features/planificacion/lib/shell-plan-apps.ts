@@ -1,7 +1,7 @@
 import {
   apps,
   appGroups,
-  HOME_NAV_APP_IDS,
+  HOME_SIDEBAR_APP_IDS,
   UTILIDADES_HEADER_APP_IDS,
 } from "@/config/apps";
 import type { PlanAppSection } from "./types";
@@ -51,7 +51,7 @@ export function list_utilidades_plan_app_slugs(): string[] {
   const ordered: string[] = [];
   const seen = new Set<string>();
 
-  for (const id of [...HOME_NAV_APP_IDS, ...UTILIDADES_HEADER_APP_IDS]) {
+  for (const id of [...HOME_SIDEBAR_APP_IDS, ...UTILIDADES_HEADER_APP_IDS]) {
     if (home.has(id) || seen.has(id)) continue;
     seen.add(id);
     ordered.push(id);

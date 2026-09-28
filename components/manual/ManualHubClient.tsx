@@ -69,7 +69,7 @@ export function ManualHubClient({ apps }: Props) {
       >
         <div className="grid gap-4 sm:grid-cols-3">
           <NavCallout n="1" title="Inicio" body="Tarjetas de cada app según su acceso." />
-          <NavCallout n="2" title="Header" body="Manual, Reportes, Tickets y Consulta de OSI." />
+          <NavCallout n="2" title="Header" body="Reportes, Tickets, Consulta de OSI y la campana. El manual de ayuda está junto a las notificaciones." />
           <NavCallout n="3" title="Dentro de un app" body="El menú lateral muestra las pantallas de ese módulo." />
         </div>
       </CollapsibleBlock>
@@ -228,6 +228,20 @@ export function ManualHubClient({ apps }: Props) {
             </p>
           </Link>
           <Link
+            href="/requisiciones/manual"
+            className="group rounded-xl border border-sky-200 bg-white p-5 shadow-sm transition hover:border-sky-400 hover:shadow-md"
+          >
+            <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">
+              Administración
+            </p>
+            <h3 className="mt-1 text-xl font-bold text-slate-900">
+              Requisiciones
+            </h3>
+            <p className="mt-2 text-sm leading-relaxed text-slate-600">
+              Cuándo usar interna o externa, y quién aprueba en cada departamento.
+            </p>
+          </Link>
+          <Link
             href="/negocios/manual"
             className="group rounded-xl border border-emerald-200 bg-white p-5 shadow-sm transition hover:border-emerald-400 hover:shadow-md"
           >
@@ -240,7 +254,7 @@ export function ManualHubClient({ apps }: Props) {
               por tema.
             </p>
           </Link>
-          {["Administración", "Servicios Técnicos", "Calidad", "Capacitación"].map(
+          {["Servicios Técnicos", "Calidad", "Capacitación"].map(
             (name) => (
               <div
                 key={name}

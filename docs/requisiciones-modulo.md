@@ -83,7 +83,7 @@ Ese departamento trae `nombre` y `gerencia` (FK a `gerencias.nombre`).
 
 **Sello (verbo):** slug `requisiciones:gestion:approve-coordinador` (rol transversal TED) o rol de producto legacy `coordinador`.
 
-**Territorio:** `departamentos.coordinador` + mapa de producto (ST/Cap/Calidad/Admin).
+**Territorio:** el departamento del organigrama o de la app de producto (ST, Capacitación, Calidad). El rol `aprobador-coordinador-requisiciones` en Administración solo autoriza a sellar; no convierte a esa persona en coordinador de Administración.
 
 **Notificación** (`requisicion_pending_coordinador`): TED resuelve organigrama ∩ (permiso o roles coord). Configurable en `/ted/notificaciones`.
 
@@ -91,11 +91,13 @@ Ese departamento trae `nombre` y `gerencia` (FK a `gerencias.nombre`).
 
 **Sello:** slug `approve-lider` o rol producto `lider`.
 
-**Territorio:** `gerencias.lider` + mapa de producto.
+**Territorio:** `gerencias.lider` + mapa de producto. El rol `aprobador-lider-requisiciones` en Administración solo autoriza a sellar; no cubre todos los departamentos.
 
 **Notificación** (`requisicion_pending_lider`): organigrama ∩ permiso, editable en TED.
 
 **Cola Admin** (`requisicion_pending_admin`): por defecto roles `sadministracion:gestor` + `sadministracion:coordinador` (no líder). Editable en TED → Notificaciones.
+
+**Manual:** `/requisiciones/manual`.
 
 ### 3.4 Solicitante
 

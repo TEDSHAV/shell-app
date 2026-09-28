@@ -9,6 +9,9 @@ import {
   ADMIN_OPERATIVE_ROLE_SLUGS,
   PRODUCT_COORD_ROLE_SLUGS,
   PRODUCT_LIDER_ROLE_SLUGS,
+  REQ_GESTION_APPROVE_COORD,
+  REQ_GESTION_APPROVE_LIDER,
+  REQ_GESTION_PROCESS,
 } from "@/lib/requisiciones-slugs";
 
 export type DeptCatalogRow = { nombre: string; gerencia: string | null };
@@ -173,18 +176,29 @@ function product_lider_role(role_slug: string | undefined): boolean {
   return Boolean(role_slug && PRODUCT_LIDER_ROLE_SLUGS.has(role_slug));
 }
 
-function admin_covers_coord(role_slug: string | undefined): boolean {
-  return product_coord_role(role_slug) || role_slug === "admin-ted";
+/** Coordinador del depto Administración (no el rol transversal de sello). */
+function admin_dept_coordinador_role(role_slug: string | undefined): boolean {
+  return role_slug === "coordinador";
 }
 
-function admin_covers_lider(role_slug: string | undefined): boolean {
-  return product_lider_role(role_slug);
+/** Líder de la gerencia Administración (no el rol transversal de sello). */
+function admin_dept_lider_role(role_slug: string | undefined): boolean {
+  return role_slug === "lider";
 }
 
-/** Territorio de 1.er sello (coord Admin cubre Admin+RRHH). Gestores no sellan. */
+/** Admin TED / probador: no figura en el mapa de negocio. */
+export function is_requisicion_manual_tester(
+  roles_by_app: Record<string, string>,
+): boolean {
+  const admin_role =
+    roles_by_app[ADMIN_APP_SLUG] || roles_by_app.administracion;
+  return admin_role === "admin-ted";
+}
+
+/** Territorio de 1.er sello. El rol transversal solo autoriza; no cubre Admin. */
 export function stamp_coord_dept_keys(roles_by_app: Record<string, string>): Set<DeptKey> {
   const keys = new Set<DeptKey>();
-  if (admin_covers_coord(roles_by_app[ADMIN_APP_SLUG])) {
+  if (admin_dept_coordinador_role(roles_by_app[ADMIN_APP_SLUG])) {
     for (const key of ADMIN_SIBLING_KEYS) keys.add(key);
   }
   if (product_coord_role(roles_by_app.st)) keys.add("servicios_tecnicos");
@@ -193,10 +207,10 @@ export function stamp_coord_dept_keys(roles_by_app: Record<string, string>): Set
   return keys;
 }
 
-/** Territorio de 2.º sello (líder Admin cubre Admin+RRHH). */
+/** Territorio de 2.º sello. El rol transversal solo autoriza; no cubre Admin. */
 export function stamp_lider_dept_keys(roles_by_app: Record<string, string>): Set<DeptKey> {
   const keys = new Set<DeptKey>();
-  if (admin_covers_lider(roles_by_app[ADMIN_APP_SLUG])) {
+  if (admin_dept_lider_role(roles_by_app[ADMIN_APP_SLUG])) {
     for (const key of ADMIN_SIBLING_KEYS) keys.add(key);
   }
   if (product_lider_role(roles_by_app.st)) keys.add("servicios_tecnicos");
@@ -208,7 +222,6 @@ export function stamp_lider_dept_keys(roles_by_app: Record<string, string>): Set
   ) {
     keys.add("negocios");
     keys.add("marketing");
-    keys.add("ted");
   }
   return keys;
 }
@@ -231,6 +244,49 @@ export function organigram_lider_dept_names(
     }
   }
   return names;
+}
+
+/** Misma regla que getRequisicionAccess: sello = permiso/rol; organigrama = territorio. */
+export function resolve_stamp_territory(args: {
+  slugs: string[];
+  roles_by_app: Record<string, string>;
+  catalog: DeptCatalogRow[];
+  organigram_coord_depts: string[];
+  led_gerencias: string[];
+}): {
+  can_approve_coord: boolean;
+  can_approve_lider: boolean;
+  can_process: boolean;
+  coord_depts: string[];
+  lider_depts: string[];
+} {
+  const slug_set = new Set(args.slugs);
+  const product_coord_keys = stamp_coord_dept_keys(args.roles_by_app);
+  const product_lider_keys = stamp_lider_dept_keys(args.roles_by_app);
+  const can_approve_coord =
+    slug_set.has(REQ_GESTION_APPROVE_COORD) || product_coord_keys.size > 0;
+  const can_approve_lider =
+    slug_set.has(REQ_GESTION_APPROVE_LIDER) || product_lider_keys.size > 0;
+  const can_process = slug_set.has(REQ_GESTION_PROCESS);
+  const coord_depts = can_approve_coord
+    ? [...new Set([
+        ...catalog_names_for_keys(args.catalog, product_coord_keys),
+        ...args.organigram_coord_depts,
+      ])]
+    : [];
+  const lider_depts = can_approve_lider
+    ? [...new Set([
+        ...catalog_names_for_keys(args.catalog, product_lider_keys),
+        ...organigram_lider_dept_names(args.catalog, args.led_gerencias),
+      ])]
+    : [];
+  return {
+    can_approve_coord,
+    can_approve_lider,
+    can_process,
+    coord_depts,
+    lider_depts,
+  };
 }
 
 export function dept_in_keys(

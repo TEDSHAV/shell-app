@@ -35,11 +35,45 @@ export const MANUAL_PLANIFICACION = "/ted/planificacion/manual";
 export const MANUAL_OBJETIVOS = "/ted/planificacion/objetivos/manual";
 export const MANUAL_TICKETS = "/ted/planificacion/tickets/manual";
 export const MANUAL_ACCESOS = "/ted/usuarios/accesos/manual";
+export const MANUAL_REQUISICIONES = "/requisiciones/manual";
 
 export const HELP_REGISTRY: {
   match: (pathname: string) => boolean;
   context: HelpContext;
 }[] = [
+  {
+    match: (p) => p.startsWith("/requisiciones"),
+    context: {
+      scopeLabel: "Requisiciones",
+      scopeIcon: ClipboardList,
+      topics: [
+        {
+          id: "interna",
+          title: "Interna",
+          summary: "Materiales y gastos del departamento.",
+          href: `${MANUAL_REQUISICIONES}#manual-interna`,
+          icon: Layers3,
+          accent: "sky",
+        },
+        {
+          id: "externa",
+          title: "Externa",
+          summary: "Gastos de un servicio (OSI), trámite de Administración.",
+          href: `${MANUAL_REQUISICIONES}#manual-externa`,
+          icon: Inbox,
+          accent: "emerald",
+        },
+        {
+          id: "mapa",
+          title: "Quién aprueba",
+          summary: "Coordinador y líder de cada departamento.",
+          href: `${MANUAL_REQUISICIONES}#manual-mapa-interna`,
+          icon: Users,
+          accent: "violet",
+        },
+      ],
+    },
+  },
   {
     match: (p) => p.startsWith("/ted/usuarios/accesos"),
     context: {
@@ -230,6 +264,9 @@ export function resolveHelpContext(pathname: string): HelpContext | null {
 
 export function resolveFullManualHref(pathname: string): string {
   const normalized = pathname.split("?")[0] ?? pathname;
+  if (normalized.startsWith("/requisiciones")) {
+    return MANUAL_REQUISICIONES;
+  }
   if (normalized.startsWith("/ted/usuarios/accesos")) {
     return MANUAL_ACCESOS;
   }

@@ -71,6 +71,12 @@ function buildRequisicionesNavGroup(fromApp: string): NavGroup {
         href: `/requisiciones/create${q}`,
         icon: FilePlus2,
       },
+      {
+        label: "Manual",
+        path: "/manual",
+        href: `/requisiciones/manual${q}`,
+        icon: BookOpen,
+      },
     ],
   };
 }
@@ -108,15 +114,14 @@ const administracionNavGroup: NavGroup = {
       href: "/requisiciones/create?from=administracion",
       icon: FilePlus2,
     },
-    {
-      label: "Límite de aprobación",
-      path: "/requisiciones/configuracion",
-      href: "/requisiciones/configuracion",
-      icon: Settings,
-      requiredPermissions: ["requisiciones:config:manage"],
-    },
-  ],
-};
+      {
+        label: "Manual",
+        path: "/requisiciones/manual",
+        href: "/requisiciones/manual",
+        icon: BookOpen,
+      },
+    ],
+  };
 
 const administracionFacturacionNavGroup: NavGroup = {
   groupLabel: "Facturación",
@@ -169,8 +174,10 @@ export const appGroups: AppGroupConfig[] = [
   },
 ];
 
-/** Apps visibles en header/sidebar del home de Shell, en este orden. */
-export const HOME_NAV_APP_IDS = ["manual", "reportes", "tickets", "osis"] as const;
+/** Apps del header del Shell (inicio), en este orden. */
+export const HOME_NAV_APP_IDS = ["reportes", "tickets", "osis"] as const;
+/** Apps del sidebar en el home de Shell. El manual general solo vive aquí. */
+export const HOME_SIDEBAR_APP_IDS = ["manual", ...HOME_NAV_APP_IDS] as const;
 export const HOME_NAV_GROUP_IDS = ["utilidades"] as const;
 
 /** Orden del desplegable Utilidades (header y sidebar de inicio). */

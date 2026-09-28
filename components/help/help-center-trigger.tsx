@@ -68,26 +68,24 @@ export function HelpCenterTrigger() {
   const full_manual_href = resolveFullManualHref(pathname);
   const hasContext = context != null && context.topics.length > 0;
   const ScopeIcon = context?.scopeIcon ?? Sparkles;
+  const show_module_manual = full_manual_href !== MANUAL_HUB_HREF;
 
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <Button
+        <button
           type="button"
-          variant="ghost"
-          size="sm"
-          className="relative h-8 gap-1.5 px-2 text-muted-foreground hover:text-foreground"
-          aria-label="Centro de ayuda"
+          className="relative rounded-md p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900"
+          aria-label="Manual"
         >
-          <CircleHelp className="size-4" aria-hidden />
-          <span className="hidden sm:inline">Manual</span>
+          <CircleHelp className="h-4 w-4" aria-hidden />
           {hasContext ? (
             <span
-              className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-primary ring-2 ring-white"
+              className="absolute right-0.5 top-0.5 size-2 rounded-full bg-red-500 ring-2 ring-white"
               aria-hidden
             />
           ) : null}
-        </Button>
+        </button>
       </SheetTrigger>
       <SheetContent
         side="right"
@@ -134,26 +132,19 @@ export function HelpCenterTrigger() {
             </p>
           )}
 
-          <div className="mt-auto space-y-2 border-t pt-4">
-            <p className="text-center text-[11px] text-muted-foreground">
-              ¿Necesitas más detalle? Abre el manual completo.
-            </p>
-            <Button className="w-full gap-2 shadow-sm" asChild>
-              <Link href={full_manual_href}>
-                <BookOpen className="size-4" aria-hidden />
-                Manual completo
-              </Link>
-            </Button>
-            {full_manual_href !== MANUAL_HUB_HREF ? (
-              <Button
-                variant="ghost"
-                className="w-full text-muted-foreground"
-                asChild
-              >
-                <Link href={MANUAL_HUB_HREF}>Ir al Manual</Link>
+          {show_module_manual ? (
+            <div className="mt-auto space-y-2 border-t pt-4">
+              <p className="text-center text-[11px] text-muted-foreground">
+                ¿Necesitas más detalle? Abre el manual de este módulo.
+              </p>
+              <Button className="w-full gap-2 shadow-sm" asChild>
+                <Link href={full_manual_href}>
+                  <BookOpen className="size-4" aria-hidden />
+                  Manual de este módulo
+                </Link>
               </Button>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
         </div>
       </SheetContent>
     </Sheet>

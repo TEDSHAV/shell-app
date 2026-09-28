@@ -8,8 +8,8 @@ import {
   appGroups,
   getAppByPath,
   get_header_group_id,
-  HOME_NAV_APP_IDS,
   HOME_NAV_GROUP_IDS,
+  HOME_SIDEBAR_APP_IDS,
   sort_header_group_apps,
 } from "@/config/apps";
 import { prefetchFramePath } from "@/lib/frame-url";
@@ -217,7 +217,7 @@ export function SidebarNavClient({
   );
 
   if (!currentApp) {
-    const homeNavApps = HOME_NAV_APP_IDS.map((id) =>
+    const homeNavApps = HOME_SIDEBAR_APP_IDS.map((id) =>
       apps.find((app) => app.id === id),
     ).filter((app): app is AppConfig => !!app && canAccessApp(app));
     const groupMap = new Map<string, AppConfig[]>();

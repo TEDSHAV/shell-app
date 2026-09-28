@@ -7,17 +7,13 @@ import {
   catalog_names_for_keys,
   flatten_permission_slugs,
   is_admin_operative,
-  organigram_lider_dept_names,
   request_dept_keys,
-  stamp_coord_dept_keys,
-  stamp_lider_dept_keys,
+  resolve_stamp_territory,
   type DeptCatalogRow,
 } from "@/lib/requisiciones-dept-context";
 import { deptNameInList } from "@/lib/requisiciones-gerencia";
 import {
   REQ_CONFIG_MANAGE,
-  REQ_GESTION_APPROVE_COORD,
-  REQ_GESTION_APPROVE_LIDER,
   REQ_GESTION_EDIT,
   REQ_GESTION_PROCESS,
   REQ_SOLICITUD_ACCESS,
@@ -154,30 +150,22 @@ export const getRequisicionAccess = cache(async (): Promise<RequisicionAccess> =
   ]);
   const slugs = flatten_permission_slugs(perms_by_app);
   const slug_set = new Set(slugs);
-  const product_coord_keys = stamp_coord_dept_keys(roles_by_app);
-  const product_lider_keys = stamp_lider_dept_keys(roles_by_app);
-  // Sello = permiso/rol TED (o rol de producto legacy). Organigrama solo aporta territorio.
-  const can_approve_coord =
-    slug_set.has(REQ_GESTION_APPROVE_COORD) || product_coord_keys.size > 0;
-  const can_approve_lider =
-    slug_set.has(REQ_GESTION_APPROVE_LIDER) || product_lider_keys.size > 0;
+  const stamp = resolve_stamp_territory({
+    slugs,
+    roles_by_app,
+    catalog,
+    organigram_coord_depts,
+    led_gerencias,
+  });
+  const can_approve_coord = stamp.can_approve_coord;
+  const can_approve_lider = stamp.can_approve_lider;
+  const coord_depts = stamp.coord_depts;
+  const lider_depts = stamp.lider_depts;
 
   const request_depts = catalog_names_for_keys(
     catalog,
     request_dept_keys({ home_dept, roles_by_app }),
   );
-  const coord_depts = can_approve_coord
-    ? [...new Set([
-        ...catalog_names_for_keys(catalog, product_coord_keys),
-        ...organigram_coord_depts,
-      ])]
-    : [];
-  const lider_depts = can_approve_lider
-    ? [...new Set([
-        ...catalog_names_for_keys(catalog, product_lider_keys),
-        ...organigram_lider_dept_names(catalog, led_gerencias),
-      ])]
-    : [];
 
   return {
     usuario_id,
