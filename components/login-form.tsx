@@ -10,10 +10,11 @@ import { Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
 import { useActionState } from "react";
 
-export const LoginForm = ({
+export function LoginForm({
   className,
+  next,
   ...props
-}: React.ComponentPropsWithoutRef<"form">) => {
+}: React.ComponentPropsWithoutRef<"form"> & { next?: string | null }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -25,6 +26,7 @@ export const LoginForm = ({
       className={cn("flex flex-col gap-5", className)}
       {...props}
     >
+      {next ? <input type="hidden" name="next" value={next} /> : null}
       <div className="grid gap-1.5">
         <Label htmlFor="email" className="text-sm font-medium text-gray-700">
           Correo electrónico
@@ -93,4 +95,4 @@ export const LoginForm = ({
       </Button>
     </form>
   );
-};
+}

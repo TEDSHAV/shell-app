@@ -93,13 +93,10 @@ export const objetivo_schema = z.object({
   id: z.number().int().positive().optional(),
   titulo: z.string().trim().min(1, "El título es obligatorio").max(240),
   descripcion: z.string().trim().max(4000).optional().nullable(),
-  fecha_inicio: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha de inicio inválida"),
-  fecha_fin: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha de fin inválida"),
-  app_id: z.number().int().positive().nullable().optional(),
+  mes: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Mes inválido"),
+  app_ids: z.array(z.number().int().positive()).default([]),
   estado: z.enum(PLAN_OBJETIVO_ESTADOS).default("abierto"),
-}).refine((value) => value.fecha_fin >= value.fecha_inicio, {
-  message: "La fecha fin no puede ser anterior al inicio",
-  path: ["fecha_fin"],
+  solicitado_por: z.number().int().positive().nullable().optional(),
 });
 
 export const hito_schema = z.object({

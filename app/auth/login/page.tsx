@@ -2,13 +2,28 @@ import { LoginForm } from "@/components/login-form";
 import Image from "next/image";
 import logo from "@/app/logo.png";
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { safe_internal_next_path } from "@/lib/auth/safe-next-path";
 import {
   DEV_DB_COOKIE,
   is_dev_db_switcher_enabled,
   parse_dev_db_target,
 } from "@/lib/supabase/dev-db";
 
-export default async function Page() {
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string }>;
+}) {
+  const params = await searchParams;
+  const next = safe_internal_next_path(params.next);
+  const supabase = await createClient();
+  const { data } = await supabase.auth.getClaims();
+  if (data?.claims && next) {
+    redirect(next);
+  }
+
   const cookieStore = await cookies();
   const dev_target = is_dev_db_switcher_enabled()
     ? parse_dev_db_target(cookieStore.get(DEV_DB_COOKIE)?.value)
@@ -111,7 +126,7 @@ export default async function Page() {
               ) : null}
             </div>
 
-            <LoginForm />
+            <LoginForm next={next} />
 
             <p className="text-center text-[11px] text-gray-300 mt-10">
               &copy; {new Date().getFullYear()} SHA de Venezuela, C.A.

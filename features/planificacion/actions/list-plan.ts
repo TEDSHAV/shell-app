@@ -89,7 +89,7 @@ type TareaRow = {
 
 let shell_apps_synced = false;
 
-async function sync_shell_apps(
+export async function sync_shell_apps(
   supabase: Awaited<ReturnType<typeof createAdminClient>>,
 ) {
   if (shell_apps_synced) return;
@@ -206,7 +206,9 @@ export async function query_plan_workspace(
   let tareas = tareas_res;
   if (
     tareas.error &&
-    /fecha_inicio|fecha_fin|avance|no_solicitada|orden|trimestre|asignado_id|en_planificacion/.test(tareas.error.message ?? "")
+    /fecha_inicio|fecha_fin|avance|no_solicitada|orden|trimestre|asignado_id|en_planificacion|ticket_id|objetivo_id/.test(
+      tareas.error.message ?? "",
+    )
   ) {
     tareas = await supabase
       .from("ted_plan_tareas" as never)

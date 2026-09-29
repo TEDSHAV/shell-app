@@ -57,6 +57,9 @@ const GENERAL_SGESION_EVENT_KEYS = new Set([
 const TED_TICKET_EVENT_KEYS = new Set([
   "ticket_completado",
   "ticket_no_procede",
+  "ticket_created",
+  "plan_mes_emitido",
+  "plan_mes_actualizado",
 ]);
 
 export const NOTIFICATION_CATALOG_GROUPS: NotificationCatalogGroupMeta[] = [

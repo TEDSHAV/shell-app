@@ -29,6 +29,7 @@ const RH_URL =
 const nextConfig: NextConfig = {
   output: "standalone",
   transpilePackages: ["@sha/osi-formato"],
+  serverExternalPackages: ["nodemailer"],
   async rewrites() {
     return [
       {

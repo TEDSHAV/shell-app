@@ -2,6 +2,7 @@
 
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { sign_out_best_effort } from "@/lib/auth/safe-sign-out";
+import { safe_internal_next_path } from "@/lib/auth/safe-next-path";
 import { redirect } from "next/navigation";
 
 export async function signOutAction() {
@@ -53,7 +54,8 @@ export async function signInAction(state: { error: string } | null, formData: Fo
     return { error: "Tu cuenta está inactiva. Contacta al administrador." };
   }
 
-  redirect("/dashboard");
+  const next = safe_internal_next_path(String(formData.get("next") ?? ""));
+  redirect(next ?? "/dashboard");
 }
 
 export async function getUserEmail() {

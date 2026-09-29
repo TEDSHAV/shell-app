@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, Search } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { fold_label } from "../lib/excel-plan";
 
 export type SearchSelectOption = {
@@ -17,6 +18,7 @@ export function SearchSelect({
   placeholder = "Buscar…",
   searchPlaceholder = "Buscar…",
   disabled = false,
+  size = "sm",
 }: {
   options: SearchSelectOption[];
   value: string;
@@ -24,6 +26,7 @@ export function SearchSelect({
   placeholder?: string;
   searchPlaceholder?: string;
   disabled?: boolean;
+  size?: "sm" | "lg";
 }) {
   const [open, set_open] = useState(false);
   const [query, set_query] = useState("");
@@ -77,7 +80,12 @@ export function SearchSelect({
         type="button"
         disabled={disabled}
         onClick={() => !disabled && set_open((prev) => !prev)}
-        className="flex h-8 w-full items-center justify-between gap-2 rounded-md border border-gray-200 bg-white px-2 text-left text-xs hover:border-gray-300 disabled:cursor-not-allowed disabled:bg-gray-50"
+        className={cn(
+          "flex w-full items-center justify-between gap-2 border bg-white text-left hover:border-gray-300 disabled:cursor-not-allowed disabled:bg-gray-50",
+          size === "lg"
+            ? "h-11 rounded-xl border-slate-200 bg-slate-50 px-3 text-sm shadow-sm"
+            : "h-8 rounded-md border-gray-200 px-2 text-xs",
+        )}
       >
         <span className={selected ? "truncate text-gray-800" : "text-gray-400"}>
           {selected?.label ?? placeholder}

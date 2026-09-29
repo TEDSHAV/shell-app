@@ -39,4 +39,4 @@ create policy ted_plan_objetivos_all on public.ted_plan_objetivos
   using (public.fn_is_ted_member())
   with check (public.fn_is_ted_member());
 
-grant select, insert, update, delete on public.ted_plan_objetivos to authenticated;
+grant select, insert, update, delete on public.ted_plan_objetivos to authenticated, service_role;

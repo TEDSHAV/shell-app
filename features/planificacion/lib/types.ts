@@ -48,7 +48,12 @@ export type PlanObjetivo = {
   fecha_inicio: string;
   fecha_fin: string;
   app_id: number | null;
+  app_ids: number[];
   app_nombre: string | null;
+  creado_por: PlanParticipante | null;
+  solicitado_por: PlanParticipante | null;
+  responsables: PlanParticipante[];
+  para_mi: boolean;
   estado: PlanObjetivoEstado;
   tarea_count: number;
   avance: number;

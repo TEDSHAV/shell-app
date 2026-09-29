@@ -17,14 +17,20 @@ export function ObjetivosManual() {
       sections={[
         {
           id: "manual-dos-pisos",
-          title: "Dos pisos: objetivo y tarea",
+          title: "Dos pisos: plan emitido y tareas que cubren",
           body: (
             <>
               <p>
-                Un objetivo es el compromiso del mes (qué hay que lograr). Una
-                tarea es cómo TED lo cubre. El chip Objetivo en la tarea
-                muestra esa ligazón; el origen (TICKET, REQUERIMIENTO, etc.)
-                dice de dónde nació el trabajo, no reemplaza al objetivo.
+                El plan del mes es el sobre: gerencia plantea objetivos en
+                borrador y pulsa <strong>Emitir plan</strong>. Hasta entonces
+                TED no cubre ni informa esos objetivos. Tras emitir, alta,
+                baja o edición avisa sola a TED con el listado vigente.
+              </p>
+              <p>
+                Un objetivo es el compromiso del mes. Una tarea es cómo TED
+                lo cubre. El chip Objetivo en la tarea muestra esa ligazón;
+                el origen (TICKET, REQUERIMIENTO, etc.) dice de dónde nació
+                el trabajo, no reemplaza al objetivo.
               </p>
               <p>
                 Quien tenga el rol <strong>gerencia</strong> en la app TED (o el
@@ -41,10 +47,12 @@ export function ObjetivosManual() {
           body: (
             <>
               <p>
-                En Cubrir, cada objetivo del mes lista las tareas ligadas.
-                TED puede crear una tarea nueva ya vinculada o buscar una
-                existente y colgarla. Descolgar deja la tarea suelta (sigue
-                en el plan, deja de contar en ese objetivo).
+                En Cubrir, cada objetivo del mes <strong>emitido</strong> lista
+                las tareas ligadas. Si gerencia aún no emitió el plan, TED
+                ve el aviso y no trabaja objetivos sueltos. TED puede crear
+                una tarea nueva ya vinculada o buscar una existente y
+                colgarla. Descolgar deja la tarea suelta (sigue en el plan,
+                deja de contar en ese objetivo).
               </p>
               <p>
                 Gerencia entra en solo lectura: ve el cubrimiento, sin

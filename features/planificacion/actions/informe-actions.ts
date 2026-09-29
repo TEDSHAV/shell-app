@@ -3,6 +3,7 @@ import { flatten_plan_tasks, type FlatPlanTask } from "../lib/flatten-plan-tasks
 import { is_tarea_done, is_tarea_no_solicitada } from "../lib/task-progress";
 import { iso_date } from "../lib/task-dates";
 import { month_bounds, parse_plan_month } from "../lib/plan-month";
+import { empty_plan_mes, type PlanMes } from "../lib/plan-mes";
 
 export type InformePlusItem = {
   id: number;
@@ -15,6 +16,8 @@ export type InformePlusItem = {
 
 export type InformeMonth = {
   mes: string;
+  plan_mes?: PlanMes;
+  unpublished_hidden?: boolean;
   compromiso_pct: number;
   plus_count: number;
   objetivos: PlanObjetivoCover[];
@@ -29,8 +32,9 @@ function in_month(iso: string | null | undefined, start: string, end: string): b
 
 export async function load_informe_month(
   mes_raw: string,
+  opts?: { unpublished_objetivos?: "include" | "hide" },
 ): Promise<{ ok: true; data: InformeMonth } | { ok: false; error: string }> {
-  const cover = await load_cubrir_workspace(mes_raw);
+  const cover = await load_cubrir_workspace(mes_raw, opts);
   if (!cover.ok) return cover;
   const mes = parse_plan_month(cover.data.mes);
   const { start, end } = month_bounds(mes);
@@ -65,6 +69,8 @@ export async function load_informe_month(
     ok: true,
     data: {
       mes,
+      plan_mes: cover.data.plan_mes ?? empty_plan_mes(mes),
+      unpublished_hidden: cover.data.unpublished_hidden,
       compromiso_pct,
       plus_count: plus.length,
       objetivos,

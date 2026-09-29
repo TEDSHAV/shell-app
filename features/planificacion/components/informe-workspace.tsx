@@ -5,11 +5,12 @@ import { FileDown, Link2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PlanMonthPicker } from "./plan-month-picker";
 import { OrigenBadge } from "./origen-badge";
-import { format_objetivo_date } from "../lib/display";
 import { download_informe_pdf } from "../lib/informe-pdf";
 import { create_informe_public_link } from "../actions/share-plan";
 import type { InformeMonth } from "../actions/informe-actions";
 import { format_month_label } from "../lib/plan-month";
+import { empty_plan_mes } from "../lib/plan-mes";
+import { PlanMesBadge } from "./plan-mes-badge";
 
 export function InformeWorkspace({
   data,
@@ -24,14 +25,18 @@ export function InformeWorkspace({
   const [share_url, set_share_url] = useState<string | null>(null);
   const [share_error, set_share_error] = useState<string | null>(null);
   const [share_busy, set_share_busy] = useState(false);
+  const plan_mes = data.plan_mes ?? empty_plan_mes(data.mes);
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-[28px] font-semibold tracking-tight text-slate-900">
-            Informe
-          </h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-[28px] font-semibold tracking-tight text-slate-900">
+              Informe
+            </h1>
+            {read_only ? null : <PlanMesBadge plan={plan_mes} />}
+          </div>
           <p className="mt-0.5 text-sm text-slate-400">
             {read_only
               ? `Foto · ${format_month_label(data.mes)}${
@@ -94,6 +99,13 @@ export function InformeWorkspace({
         </p>
       ) : null}
 
+      {data.unpublished_hidden ? (
+        <p className="rounded-2xl border border-dashed border-amber-200 bg-amber-50/60 px-6 py-10 text-center text-sm text-amber-800">
+          Gerencia aún no emitió el plan de este mes. El compromiso se muestra
+          cuando el plan está publicado.
+        </p>
+      ) : null}
+
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="rounded-2xl border border-violet-200 bg-violet-600 px-4 py-4 text-white shadow-sm">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-violet-100">
@@ -115,7 +127,11 @@ export function InformeWorkspace({
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
           Compromiso
         </h2>
-        {data.objetivos.length === 0 ? (
+        {data.unpublished_hidden ? (
+          <p className="rounded-2xl border border-dashed border-amber-200 bg-amber-50/60 px-4 py-8 text-center text-sm text-amber-800">
+            Gerencia aún no emitió el plan.
+          </p>
+        ) : data.objetivos.length === 0 ? (
           <p className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-400">
             No hubo objetivos planteados este mes.
           </p>
@@ -129,8 +145,7 @@ export function InformeWorkspace({
                 <div>
                   <h3 className="font-semibold text-slate-900">{objetivo.titulo}</h3>
                   <p className="mt-0.5 text-xs text-slate-400">
-                    {format_objetivo_date(objetivo.fecha_inicio)} –{" "}
-                    {format_objetivo_date(objetivo.fecha_fin)}
+                    {format_month_label(objetivo.fecha_inicio.slice(0, 7))}
                   </p>
                 </div>
                 <span className="text-2xl font-bold tabular-nums">{objetivo.avance}%</span>

@@ -9,6 +9,8 @@ import { OrigenBadge } from "./origen-badge";
 import { PlanAssigneeStack } from "./plan-assignee-chip";
 import { TareaFormDialog } from "./tarea-form-dialog";
 import { VincularTareaDialog } from "./vincular-tarea-dialog";
+import { PlanMesBadge } from "./plan-mes-badge";
+import { ObjetivoParaMiToggle } from "./objetivo-para-mi-toggle";
 import { people_on_tarea } from "../lib/people";
 import { tarea_avance } from "../lib/task-progress";
 import { vincular_tarea_objetivo } from "../actions/objetivo-actions";
@@ -23,10 +25,15 @@ export function CubrirWorkspace({
   can_write?: boolean;
 }) {
   const router = useRouter();
-  const { mes, objetivos, sueltas, plan_apps, usuarios } = data;
+  const { mes, plan_mes, unpublished_hidden, objetivos, sueltas, plan_apps, usuarios } = data;
   const [new_for, set_new_for] = useState<number | null>(null);
   const [link_for, set_link_for] = useState<number | null>(null);
   const [editing, set_editing] = useState<PlanTarea | null>(null);
+  const [solo_mios, set_solo_mios] = useState(false);
+  const visibles = useMemo(
+    () => (solo_mios ? objetivos.filter((item) => item.para_mi) : objetivos),
+    [objetivos, solo_mios],
+  );
 
   const all_modulos = useMemo(() => {
     const seen = new Set<number>();
@@ -49,23 +56,59 @@ export function CubrirWorkspace({
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-[28px] font-semibold tracking-tight text-slate-900">
-            Cubrir
-          </h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-[28px] font-semibold tracking-tight text-slate-900">
+              Cubrir
+            </h1>
+            <PlanMesBadge plan={plan_mes} />
+          </div>
           <p className="mt-0.5 text-sm text-slate-400">
             Cómo se construye la respuesta al plan de este mes
           </p>
         </div>
         <PlanMonthPicker mes={mes} />
       </div>
+      {unpublished_hidden ? null : objetivos.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => set_solo_mios(false)}
+            className={
+              !solo_mios
+                ? "rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white"
+                : "rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600"
+            }
+          >
+            Todos ({objetivos.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => set_solo_mios(true)}
+            className={
+              solo_mios
+                ? "rounded-full bg-emerald-700 px-3 py-1 text-xs font-semibold text-white"
+                : "rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600"
+            }
+          >
+            Para mí ({objetivos.filter((item) => item.para_mi).length})
+          </button>
+        </div>
+      ) : null}
 
-      {objetivos.length === 0 ? (
+      {unpublished_hidden ? (
+        <p className="rounded-2xl border border-dashed border-amber-200 bg-amber-50/60 px-6 py-12 text-center text-sm text-amber-800">
+          Gerencia aún no emitió el plan de este mes. Cuando lo emita, aparecen
+          aquí los objetivos para cubrir.
+        </p>
+      ) : visibles.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-12 text-center text-sm text-slate-400">
-          Primero plantea objetivos del mes. Luego cuelga aquí el trabajo.
+          {solo_mios
+            ? "Aún no te asignaste ningún objetivo de este mes."
+            : "Primero plantea objetivos del mes. Luego cuelga aquí el trabajo."}
         </p>
       ) : (
         <div className="space-y-4">
-          {objetivos.map((objetivo) => (
+          {visibles.map((objetivo) => (
             <section
               key={objetivo.id}
               className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
@@ -78,10 +121,26 @@ export function CubrirWorkspace({
                   <p className="mt-0.5 text-xs text-slate-400">
                     {objetivo.tarea_count} tareas · {objetivo.avance}%
                     {objetivo.app_nombre ? ` · ${objetivo.app_nombre}` : ""}
+                    {objetivo.solicitado_por
+                      ? ` · Lo pidió ${objetivo.solicitado_por.nombre}`
+                      : ""}
+                    {objetivo.creado_por &&
+                    objetivo.solicitado_por &&
+                    objetivo.creado_por.usuario_id !==
+                      objetivo.solicitado_por.usuario_id
+                      ? ` · Lo registró ${objetivo.creado_por.nombre}`
+                      : ""}
                   </p>
                 </div>
                 {can_write ? (
-                  <div className="flex gap-2">
+                  <div className="flex flex-col items-end gap-2">
+                    <ObjetivoParaMiToggle
+                      objetivo_id={objetivo.id}
+                      para_mi={objetivo.para_mi}
+                      responsables={objetivo.responsables}
+                      onChanged={refresh}
+                    />
+                    <div className="flex gap-2">
                     <Button
                       type="button"
                       variant="outline"
@@ -98,7 +157,10 @@ export function CubrirWorkspace({
                       <Plus className="mr-1 h-3.5 w-3.5" />
                       Nueva tarea
                     </Button>
+                    </div>
                   </div>
+                ) : objetivo.responsables.length > 0 ? (
+                  <PlanAssigneeStack people={objetivo.responsables} max={4} />
                 ) : null}
               </div>
               {objetivo.tareas.length === 0 ? (

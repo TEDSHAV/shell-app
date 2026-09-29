@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { canReadObjetivosArea } from "@/actions/ted";
+import { canReadObjetivosArea, isPlanGerenciaUser, isTedMember } from "@/actions/ted";
 import { load_informe_month } from "@/features/planificacion/actions/informe-actions";
 import { InformeWorkspace } from "@/features/planificacion/components/informe-workspace";
 import { parse_plan_month } from "@/features/planificacion/lib/plan-month";
@@ -16,7 +16,10 @@ export default async function TedInformePage({
 
   const params = await searchParams;
   const mes = parse_plan_month(params.mes);
-  const loaded = await load_informe_month(mes);
+  const hide_draft = (await isTedMember()) && !(await isPlanGerenciaUser());
+  const loaded = await load_informe_month(mes, {
+    unpublished_objetivos: hide_draft ? "hide" : "include",
+  });
 
   return (
     <div className="px-6 pb-6 pt-2">

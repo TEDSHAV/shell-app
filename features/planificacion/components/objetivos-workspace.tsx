@@ -1,62 +1,60 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PlanMonthPicker } from "./plan-month-picker";
-import { ObjetivoFormDialog } from "./objetivo-form-dialog";
-import { format_objetivo_date } from "../lib/display";
+import { ObjetivoCard } from "./objetivo-card";
+import { EmitirPlanButton } from "./emitir-plan-button";
+import { PlanMesBadge } from "./plan-mes-badge";
+import { format_month_label } from "../lib/plan-month";
+import { is_plan_mes_emitido, type PlanMes } from "../lib/plan-mes";
 import type { PlanObjetivo } from "../lib/types";
-
-const ESTADO_LABEL: Record<PlanObjetivo["estado"], string> = {
-  abierto: "Abierto",
-  cumplido: "Cumplido",
-  cancelado: "Cancelado",
-};
 
 export function ObjetivosWorkspace({
   mes,
+  plan_mes,
   objetivos,
-  apps,
   can_write = true,
 }: {
   mes: string;
+  plan_mes: PlanMes;
   objetivos: PlanObjetivo[];
-  apps: Array<{ id: number; nombre: string }>;
   can_write?: boolean;
 }) {
-  const router = useRouter();
-  const [open, set_open] = useState(false);
-  const [editing, set_editing] = useState<PlanObjetivo | null>(null);
+  const nuevo = `/ted/planificacion/objetivos/nuevo?mes=${mes}`;
+  const emitido = is_plan_mes_emitido(plan_mes);
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-[28px] font-semibold tracking-tight text-slate-900">
-            Objetivos
-          </h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-[28px] font-semibold tracking-tight text-slate-900">
+              Plan de {format_month_label(mes)}
+            </h1>
+            <PlanMesBadge plan={plan_mes} />
+          </div>
           <p className="mt-0.5 text-sm text-slate-400">
-            Qué hay que lograr en este periodo
+            {emitido
+              ? "Plan emitido. Alta, baja o edición avisa a TED."
+              : "Borrador: plantea objetivos y emite el plan para que TED cubra."}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <PlanMonthPicker mes={mes} />
           {can_write ? (
             <Button
-              type="button"
+              asChild
               className="rounded-full bg-slate-900 px-4 text-white hover:bg-slate-800"
-              onClick={() => {
-                set_editing(null);
-                set_open(true);
-              }}
             >
-              <Plus className="mr-1 h-4 w-4" />
-              Plantear objetivo
+              <Link href={nuevo}>
+                <Plus className="mr-1 h-4 w-4" />
+                Plantear objetivo
+              </Link>
             </Button>
           ) : null}
+          {can_write && !emitido ? <EmitirPlanButton mes={mes} /> : null}
         </div>
       </div>
 
@@ -66,93 +64,29 @@ export function ObjetivosWorkspace({
             No hay objetivos en este mes
           </p>
           <p className="mt-1 text-sm text-slate-400">
-            Plantea el compromiso del periodo para que TED pueda cubrirlo.
+            Plantea el compromiso del periodo y luego emite el plan.
           </p>
           {can_write ? (
             <Button
-              type="button"
+              asChild
               className="mt-4 rounded-full bg-violet-600 text-white hover:bg-violet-500"
-              onClick={() => {
-                set_editing(null);
-                set_open(true);
-              }}
             >
-              Plantear objetivo del mes
+              <Link href={nuevo}>Plantear objetivo del mes</Link>
             </Button>
           ) : null}
         </div>
       ) : (
-        <div className="grid gap-3">
+        <div className="grid gap-4">
           {objetivos.map((objetivo) => (
-            <article
+            <ObjetivoCard
               key={objetivo.id}
-              className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <h2 className="text-base font-semibold text-slate-900">
-                    {objetivo.titulo}
-                  </h2>
-                  <p className="mt-1 text-xs text-slate-400">
-                    {format_objetivo_date(objetivo.fecha_inicio)} –{" "}
-                    {format_objetivo_date(objetivo.fecha_fin)}
-                    {objetivo.app_nombre ? ` · ${objetivo.app_nombre}` : ""}
-                  </p>
-                  {objetivo.descripcion ? (
-                    <p className="mt-2 text-sm text-slate-600">
-                      {objetivo.descripcion}
-                    </p>
-                  ) : null}
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
-                    {ESTADO_LABEL[objetivo.estado]}
-                  </span>
-                  <span className="text-2xl font-bold tabular-nums text-slate-900">
-                    {objetivo.avance}%
-                  </span>
-                </div>
-              </div>
-              <div className="mt-4 flex flex-wrap items-center gap-3">
-                <p className="text-xs font-medium text-slate-500">
-                  {objetivo.tarea_count}{" "}
-                  {objetivo.tarea_count === 1 ? "tarea" : "tareas"}
-                </p>
-                <Link
-                  href={`/ted/planificacion/cubrir?mes=${mes}`}
-                  className="text-xs font-semibold text-violet-700 hover:underline"
-                >
-                  Ver en Cubrir
-                </Link>
-                {can_write ? (
-                  <button
-                    type="button"
-                    className="text-xs font-semibold text-slate-500 hover:text-slate-800"
-                    onClick={() => {
-                      set_editing(objetivo);
-                      set_open(true);
-                    }}
-                  >
-                    Editar
-                  </button>
-                ) : null}
-              </div>
-            </article>
+              mes={mes}
+              objetivo={objetivo}
+              can_write={can_write}
+            />
           ))}
         </div>
       )}
-
-      {open ? (
-        <ObjetivoFormDialog
-          key={editing?.id ?? "new"}
-          open
-          mes={mes}
-          apps={apps}
-          objetivo={editing}
-          onClose={() => set_open(false)}
-          onSaved={() => router.refresh()}
-        />
-      ) : null}
     </div>
   );
 }

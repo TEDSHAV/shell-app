@@ -11,6 +11,7 @@ import {
   ticket_reply_schema,
 } from "../schemas";
 import { createAdminClient } from "@/lib/supabase/server";
+import { notify_ticket_created } from "../lib/ticket-notify";
 
 async function notify_ticket_requester(
   supabase: Awaited<ReturnType<typeof createAdminClient>>,
@@ -262,6 +263,7 @@ export async function create_ticket(raw: unknown) {
       : "Ticket registrado a nombre de otro usuario",
     user_id,
   );
+  await notify_ticket_created(supabase, ticket_id);
   revalidate_tickets();
   return { ok: true as const, id: ticket_id };
 }
