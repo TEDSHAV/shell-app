@@ -78,6 +78,19 @@ export const tarea_schema = z.object({
   asignado_id: z.number().int().positive().nullable().optional(),
   asignado_ids: z.array(z.number().int().positive()).optional(),
   objetivo_id: z.number().int().positive().nullable().optional(),
+  checklist: z
+    .array(
+      z.object({
+        id: z.string().trim().min(1).max(40),
+        texto: z.string().trim().min(1).max(240),
+        done: z.boolean(),
+        completed_at: z.string().trim().max(40).nullable().optional(),
+      }),
+    )
+    .max(40)
+    .optional()
+    .default([]),
+  sync_avance_checklist: z.boolean().optional().default(false),
   entregable_unidad: z.string().trim().max(80).optional().nullable(),
   entregable_version: z.string().trim().max(80).optional().nullable(),
 }).refine(

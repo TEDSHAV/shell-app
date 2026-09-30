@@ -1,4 +1,4 @@
-import type { PlanOrigen, PlanSalud } from "./types";
+import type { PlanOrigen, PlanSalud, PlanTrimestre } from "./types";
 
 export const STATUS_COLORS: Record<
   PlanSalud,
@@ -96,6 +96,13 @@ export const TED_ACCENT = {
   soft: "bg-violet-50",
   ring: "ring-violet-300",
   text: "text-violet-700",
+};
+
+export const TRIMESTRE_MESES: Record<PlanTrimestre, string> = {
+  T1: "Ene – Mar",
+  T2: "Abr – Jun",
+  T3: "Jul – Sep",
+  T4: "Oct – Dic",
 };
 
 export type ExpandedCardTone = {

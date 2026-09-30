@@ -14,6 +14,11 @@ import {
   save_plan_tarea,
   delete_plan_tarea,
 } from "../actions/tarea-actions";
+import {
+  checks_in_descripcion,
+  hydrate_descripcion,
+} from "../lib/tarea-descripcion";
+import { stamp_check_times } from "../lib/tarea-checklist";
 import type {
   EntregableTipo,
   PlanApp,
@@ -81,15 +86,14 @@ export function TareaFormDialog({
   );
   const [nuevo_modulo, set_nuevo_modulo] = useState("");
   const [titulo, set_titulo] = useState(tarea?.titulo ?? "");
-  const [descripcion, set_descripcion] = useState(tarea?.descripcion ?? "");
+  const [descripcion, set_descripcion] = useState(
+    hydrate_descripcion(tarea?.descripcion, tarea?.checklist),
+  );
   const [origen, set_origen] = useState(
     tarea?.origen ?? default_new_origen(),
   );
   const [objetivo_id] = useState(
     tarea?.objetivo_id ?? preset_objetivo_id ?? null,
-  );
-  const [avance, set_avance] = useState(
-    tarea?.avance ?? (tarea?.completada ? 100 : 0),
   );
   const [no_solicitada, set_no_solicitada] = useState(
     Boolean(tarea?.no_solicitada),
@@ -120,6 +124,9 @@ export function TareaFormDialog({
   const [asignado_ids, set_asignado_ids] = useState<number[]>(
     tarea?.asignados?.map((person) => person.usuario_id) ??
       (tarea?.asignado_id ? [tarea.asignado_id] : []),
+  );
+  const [sync_avance, set_sync_avance] = useState(
+    Boolean(tarea?.sync_avance_checklist),
   );
   const [error, set_error] = useState<string | null>(null);
   const [saving, set_saving] = useState(false);
@@ -162,13 +169,15 @@ export function TareaFormDialog({
       titulo,
       descripcion,
       origen,
-      avance: no_solicitada ? 0 : avance,
+      avance: tarea?.avance ?? 0,
       no_solicitada,
       fecha_inicio: when_mode === "fechas" ? fecha_inicio || null : null,
       fecha_fin:
         when_mode === "fechas" ? fecha_fin || fecha_inicio || null : null,
       trimestre: when_mode === "trimestre" ? trimestre || null : null,
       asignado_ids,
+      sync_avance_checklist: sync_avance,
+      checklist: tarea?.checklist ?? [],
       objetivo_id,
     });
     set_saving(false);
@@ -311,7 +320,12 @@ export function TareaFormDialog({
       }
     >
       {viewing && tarea ? (
-        <TareaViewPanel tarea={tarea} app={app} modulo={modulo} />
+        <TareaViewPanel
+          tarea={tarea}
+          app={app}
+          modulo={modulo}
+          can_write={!view_only}
+        />
       ) : completing ? (
         <PlanSection title="Entregable">
           <TareaEntregableFields
@@ -338,15 +352,19 @@ export function TareaFormDialog({
           titulo={titulo}
           descripcion={descripcion}
           origen={origen}
-          avance={avance}
           no_solicitada={no_solicitada}
           when_mode={when_mode}
           fecha_inicio={fecha_inicio}
           fecha_fin={fecha_fin}
           trimestre={trimestre}
           asignado_ids={asignado_ids}
+          sync_avance={sync_avance}
+          check_times={stamp_check_times(
+            tarea?.checklist ?? [],
+            checks_in_descripcion(descripcion),
+            new Date().toISOString(),
+          )}
           usuarios={usuarios}
-          show_progress={Boolean(tarea)}
           error={error}
           on_apps={change_apps}
           on_modulos={set_modulo_ids}
@@ -354,13 +372,13 @@ export function TareaFormDialog({
           on_titulo={set_titulo}
           on_descripcion={set_descripcion}
           on_origen={set_origen}
-          on_avance={set_avance}
           on_no_solicitada={set_no_solicitada}
           on_when_mode={change_when}
           on_inicio={set_fecha_inicio}
           on_fin={set_fecha_fin}
           on_trimestre={set_trimestre}
           on_asignados={set_asignado_ids}
+          on_sync_avance={set_sync_avance}
         />
       )}
     </PlanModal>

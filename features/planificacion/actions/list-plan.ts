@@ -14,6 +14,10 @@ import {
 } from "../lib/task-progress";
 import { createAdminClient } from "@/lib/supabase/server";
 import { iso_date } from "../lib/task-dates";
+import {
+  hydrate_descripcion,
+  merge_check_times,
+} from "../lib/tarea-descripcion";
 import { unique_people } from "../lib/people";
 import { sort_modulos_general_first } from "../lib/sort-tareas";
 import {
@@ -85,6 +89,8 @@ type TareaRow = {
   objetivo_id?: number | null;
   created_at?: string | null;
   updated_at?: string | null;
+  checklist?: unknown;
+  sync_avance_checklist?: boolean | null;
 };
 
 let shell_apps_synced = false;
@@ -180,7 +186,7 @@ export async function query_plan_workspace(
     supabase
       .from("ted_plan_tareas" as never)
       .select(
-        "id, modulo_id, titulo, descripcion, origen, avance, no_solicitada, completada, completada_at, created_at, updated_at, entregable_tipo, entregable_ruta, entregable_unidad, entregable_version, entregable_comentario, fecha_inicio, fecha_fin, orden, trimestre, asignado_id, en_planificacion, ticket_id, objetivo_id",
+        "id, modulo_id, titulo, descripcion, origen, avance, no_solicitada, completada, completada_at, created_at, updated_at, entregable_tipo, entregable_ruta, entregable_unidad, entregable_version, entregable_comentario, fecha_inicio, fecha_fin, orden, trimestre, asignado_id, en_planificacion, ticket_id, objetivo_id, checklist, sync_avance_checklist",
       )
       .order("orden")
       .order("id"),
@@ -206,7 +212,7 @@ export async function query_plan_workspace(
   let tareas = tareas_res;
   if (
     tareas.error &&
-    /fecha_inicio|fecha_fin|avance|no_solicitada|orden|trimestre|asignado_id|en_planificacion|ticket_id|objetivo_id/.test(
+    /fecha_inicio|fecha_fin|avance|no_solicitada|orden|trimestre|asignado_id|en_planificacion|ticket_id|objetivo_id|checklist|sync_avance_checklist/.test(
       tareas.error.message ?? "",
     )
   ) {
@@ -326,7 +332,7 @@ export async function query_plan_workspace(
     ]);
     list.push({
       ...row,
-      descripcion: row.descripcion ?? null,
+      descripcion: hydrate_descripcion(row.descripcion, row.checklist),
       avance: tarea_avance(row),
       no_solicitada: is_tarea_no_solicitada(row),
       fecha_inicio: row.fecha_inicio ?? null,
@@ -342,6 +348,11 @@ export async function query_plan_workspace(
       objetivo_titulo: row.objetivo_id
         ? (objetivo_titulo.get(row.objetivo_id) ?? null)
         : null,
+      checklist: merge_check_times(
+        row.checklist,
+        hydrate_descripcion(row.descripcion, row.checklist),
+      ),
+      sync_avance_checklist: Boolean(row.sync_avance_checklist),
       asignados,
       asignado: asignados[0] ?? null,
     });
@@ -495,7 +506,7 @@ export async function load_plan_ticket_inbox(): Promise<
     supabase
       .from("ted_plan_tareas" as never)
       .select(
-        "id, modulo_id, titulo, descripcion, origen, avance, no_solicitada, completada, completada_at, created_at, updated_at, entregable_tipo, entregable_ruta, entregable_unidad, entregable_version, entregable_comentario, fecha_inicio, fecha_fin, orden, trimestre, asignado_id, en_planificacion, ticket_id, objetivo_id",
+        "id, modulo_id, titulo, descripcion, origen, avance, no_solicitada, completada, completada_at, created_at, updated_at, entregable_tipo, entregable_ruta, entregable_unidad, entregable_version, entregable_comentario, fecha_inicio, fecha_fin, orden, trimestre, asignado_id, en_planificacion, ticket_id, objetivo_id, checklist, sync_avance_checklist",
       )
       .eq("origen", "TICKET")
       .order("id"),
@@ -616,9 +627,10 @@ export async function load_plan_ticket_inbox(): Promise<
       ...(asignados_by_tarea.get(row.id) ?? []),
       ...(row.asignado_id ? [person_of(row.asignado_id)] : []),
     ]);
+    const desc = hydrate_descripcion(row.descripcion, row.checklist);
     const tarea: PlanTarea = {
       ...row,
-      descripcion: row.descripcion ?? null,
+      descripcion: desc,
       avance: tarea_avance(row),
       no_solicitada: is_tarea_no_solicitada(row),
       fecha_inicio: row.fecha_inicio ?? null,
@@ -632,6 +644,8 @@ export async function load_plan_ticket_inbox(): Promise<
       updated_at: row.updated_at ?? null,
       objetivo_id: row.objetivo_id ?? null,
       objetivo_titulo: null,
+      checklist: merge_check_times(row.checklist, desc),
+      sync_avance_checklist: Boolean(row.sync_avance_checklist),
       asignado: asignados[0] ?? null,
       asignados,
     };

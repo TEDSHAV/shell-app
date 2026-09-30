@@ -1,3 +1,5 @@
+import type { TareaCheckItem } from "./tarea-checklist";
+
 export type PlanSalud =
   | "Planificado"
   | "En Marcha"
@@ -87,6 +89,8 @@ export type PlanTarea = {
   ticket_id: number | null;
   objetivo_id: number | null;
   objetivo_titulo: string | null;
+  checklist: TareaCheckItem[];
+  sync_avance_checklist: boolean;
 };
 
 export type PlanModulo = {

@@ -9,6 +9,14 @@ import { require_ted_plan_context } from "./assert-ted";
 import { TED_DEPARTMENT_ID } from "../lib/ted-department";
 import { resolve_modulo_for_apps } from "./modulo-actions";
 import { iso_date } from "../lib/task-dates";
+import {
+  avance_from_descripcion,
+  checks_in_descripcion,
+} from "../lib/tarea-descripcion";
+import {
+  parse_tarea_checklist,
+  stamp_check_times,
+} from "../lib/tarea-checklist";
 import { createAdminClient } from "@/lib/supabase/server";
 import { sync_ticket_on_tarea_done } from "@/features/tickets/actions/ticket-actions";
 
@@ -93,18 +101,24 @@ export async function save_plan_tarea(
         "El plan inicial ya está cargado. Usa requerimiento, ticket, usuario o adicional.",
     };
   }
-  if (input.id && is_frozen_origen(input.origen)) {
+  let previous_checks = parse_tarea_checklist(input.checklist);
+  if (input.id && input.id > 0) {
     const { data: current } = await supabase
       .from("ted_plan_tareas" as never)
-      .select("origen")
+      .select("origen, checklist")
       .eq("id", input.id)
       .maybeSingle();
-    const current_origen = (current as { origen?: string } | null)?.origen;
-    if (current_origen !== input.origen) {
-      return {
-        ok: false,
-        error: "No se puede cambiar el origen a Plan inicial o Gerencia.",
-      };
+    previous_checks = parse_tarea_checklist(
+      (current as { checklist?: unknown } | null)?.checklist,
+    );
+    if (is_frozen_origen(input.origen)) {
+      const current_origen = (current as { origen?: string } | null)?.origen;
+      if (current_origen !== input.origen) {
+        return {
+          ok: false,
+          error: "No se puede cambiar el origen a Plan inicial o Gerencia.",
+        };
+      }
     }
   }
 
@@ -117,13 +131,25 @@ export async function save_plan_tarea(
   const modulo_id = resolved.id;
 
   const no_solicitada = Boolean(input.no_solicitada);
-  const avance = no_solicitada ? 0 : input.avance;
+  const descripcion = (input.descripcion ?? "").trim() || null;
+  const derived = descripcion ? avance_from_descripcion(descripcion) : null;
+  const sync =
+    Boolean(input.sync_avance_checklist) && derived !== null && !no_solicitada;
+  const avance = no_solicitada
+    ? 0
+    : sync && derived !== null
+      ? derived
+      : input.id
+        ? input.avance
+        : 0;
+  const done = !no_solicitada && avance >= 100;
   const fecha_inicio = iso_date(input.fecha_inicio);
   const fecha_fin = iso_date(input.fecha_fin) ?? fecha_inicio;
+  const now = new Date().toISOString();
   const payload = {
     modulo_id,
     titulo: input.titulo,
-    descripcion: (input.descripcion ?? "").trim() || null,
+    descripcion,
     origen: input.origen,
     avance,
     no_solicitada,
@@ -136,6 +162,15 @@ export async function save_plan_tarea(
       null,
     en_planificacion: true,
     objetivo_id: input.objetivo_id ?? null,
+    checklist: stamp_check_times(
+      previous_checks,
+      checks_in_descripcion(descripcion ?? ""),
+      now,
+    ),
+    sync_avance_checklist: sync,
+    completada: done,
+    completada_at: done ? now : null,
+    completada_by: done ? user_id : null,
   };
 
   if (input.id && input.id > 0) {
@@ -167,9 +202,6 @@ export async function save_plan_tarea(
       entregable_comentario: null,
       entregable_unidad: null,
       entregable_version: null,
-      completada: false,
-      completada_at: null,
-      completada_by: null,
       created_by: user_id,
       orden: await next_tarea_orden(supabase, modulo_id),
     } as never)
@@ -294,20 +326,88 @@ export async function set_plan_tarea_avance(
   const next = Math.min(100, Math.max(0, Math.round(avance)));
   const gate = await require_ted_plan_context();
   if (!gate.ok) return gate;
-  const { supabase } = gate.ctx;
+  const { supabase, user_id } = gate.ctx;
+  const done = next >= 100;
   const { error } = await supabase
     .from("ted_plan_tareas" as never)
     .update({
       no_solicitada: false,
       avance: next,
+      completada: done,
+      completada_at: done ? new Date().toISOString() : null,
+      completada_by: done ? user_id : null,
     } as never)
     .eq("id", tarea_id);
   if (error) {
     console.error("[planificacion] set avance:", error);
     return { ok: false, error: "No se pudo mover la tarea." };
   }
+  if (done) {
+    await sync_ticket_on_tarea_done(supabase, tarea_id, user_id, "");
+  }
   revalidate_plan();
   return { ok: true };
+}
+
+export async function save_plan_tarea_progreso(input: {
+  id: number;
+  avance: number;
+  descripcion: string;
+  sync_avance: boolean;
+}): Promise<{ ok: true; avance: number } | { ok: false; error: string }> {
+  if (!Number.isInteger(input.id) || input.id <= 0) {
+    return { ok: false, error: "Tarea inválida." };
+  }
+  const gate = await require_ted_plan_context();
+  if (!gate.ok) return gate;
+  const { supabase, user_id } = gate.ctx;
+  const { data: current } = await supabase
+    .from("ted_plan_tareas" as never)
+    .select("checklist, no_solicitada")
+    .eq("id", input.id)
+    .maybeSingle();
+  const row = current as {
+    checklist?: unknown;
+    no_solicitada?: boolean | null;
+  } | null;
+  if (row?.no_solicitada) {
+    return { ok: false, error: "Esta tarea no cuenta en el porcentaje." };
+  }
+  const text = input.descripcion.trim() || null;
+  const now = new Date().toISOString();
+  const stamped = stamp_check_times(
+    parse_tarea_checklist(row?.checklist),
+    checks_in_descripcion(text ?? ""),
+    now,
+  );
+  const derived = text ? avance_from_descripcion(text) : null;
+  const sync = input.sync_avance && derived !== null;
+  const avance = Math.min(
+    100,
+    Math.max(0, sync && derived !== null ? derived : Math.round(input.avance)),
+  );
+  const done = avance >= 100;
+  const { error } = await supabase
+    .from("ted_plan_tareas" as never)
+    .update({
+      descripcion: text,
+      checklist: stamped,
+      sync_avance_checklist: sync,
+      avance,
+      completada: done,
+      completada_at: done ? now : null,
+      completada_by: done ? user_id : null,
+    } as never)
+    .eq("id", input.id);
+  if (error) {
+    console.error("[planificacion] progreso:", error);
+    return { ok: false, error: "No se pudo guardar el avance." };
+  }
+  if (done) {
+    await sync_ticket_on_tarea_done(supabase, input.id, user_id, "");
+  }
+  revalidate_plan();
+  return { ok: true, avance };
 }
 
 export async function place_plan_tarea_trimestre(

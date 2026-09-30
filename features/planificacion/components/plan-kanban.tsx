@@ -52,12 +52,6 @@ export function PlanKanban({
     const current = local.find((item) => item.tarea.id === tarea_id);
     if (!current) return;
     if (kanban_column_of_tarea(current.tarea) === column) return;
-    if (column === "done") {
-      set_error(
-        "Para completar, abre la tarea y pulsa «Marcar como lista». Ahí se registra el entregable.",
-      );
-      return;
-    }
 
     const next_avance = avance_for_kanban_column(column, current.tarea.avance);
     const previous = local;
@@ -69,6 +63,7 @@ export function PlanKanban({
               tarea: {
                 ...row.tarea,
                 avance: next_avance,
+                completada: next_avance >= 100,
                 no_solicitada: false,
               },
             }

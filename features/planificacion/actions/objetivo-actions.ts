@@ -7,6 +7,10 @@ import { month_bounds, parse_plan_month, ranges_overlap } from "../lib/plan-mont
 import { average_avance, is_tarea_pending, is_tarea_no_solicitada, tarea_avance } from "../lib/task-progress";
 import { user_initials } from "../lib/display";
 import { unique_people } from "../lib/people";
+import {
+  hydrate_descripcion,
+  merge_check_times,
+} from "../lib/tarea-descripcion";
 import type {
   PlanApp,
   PlanObjetivo,
@@ -83,6 +87,8 @@ type CoverTareaRow = {
   en_planificacion?: boolean | null;
   ticket_id?: number | null;
   objetivo_id?: number | null;
+  checklist?: unknown;
+  sync_avance_checklist?: boolean | null;
 };
 
 function as_plan_tarea(
@@ -90,9 +96,10 @@ function as_plan_tarea(
   objetivo_titulo: string | null,
   asignados: PlanParticipante[],
 ): PlanTarea {
+  const desc = hydrate_descripcion(row.descripcion, row.checklist);
   return {
     ...row,
-    descripcion: row.descripcion ?? null,
+    descripcion: desc,
     avance: tarea_avance(row),
     no_solicitada: is_tarea_no_solicitada(row),
     fecha_inicio: row.fecha_inicio ?? null,
@@ -106,6 +113,8 @@ function as_plan_tarea(
     updated_at: row.updated_at ?? null,
     objetivo_id: row.objetivo_id ?? null,
     objetivo_titulo,
+    checklist: merge_check_times(row.checklist, desc),
+    sync_avance_checklist: Boolean(row.sync_avance_checklist),
     asignados,
     asignado: asignados[0] ?? null,
   };
@@ -388,7 +397,7 @@ export async function load_cubrir_workspace(
     supabase
       .from("ted_plan_tareas" as never)
       .select(
-        "id, modulo_id, titulo, descripcion, origen, avance, no_solicitada, completada, completada_at, created_at, updated_at, entregable_tipo, entregable_ruta, entregable_unidad, entregable_version, entregable_comentario, fecha_inicio, fecha_fin, orden, trimestre, asignado_id, en_planificacion, ticket_id, objetivo_id",
+        "id, modulo_id, titulo, descripcion, origen, avance, no_solicitada, completada, completada_at, created_at, updated_at, entregable_tipo, entregable_ruta, entregable_unidad, entregable_version, entregable_comentario, fecha_inicio, fecha_fin, orden, trimestre, asignado_id, en_planificacion, ticket_id, objetivo_id, checklist, sync_avance_checklist",
       )
       .order("orden")
       .order("id"),

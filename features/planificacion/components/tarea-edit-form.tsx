@@ -5,12 +5,12 @@ import {
   PLAN_INPUT_CLASS,
   PLAN_SELECT_CLASS,
 } from "./plan-form-ui";
-import { GrowingTextarea } from "./growing-textarea";
+import { TareaDescripcionField } from "./tarea-descripcion-field";
 import { PlanAppPicker } from "./plan-app-picker";
 import { PlanModuloPicker } from "./plan-modulo-picker";
 import { TedPersonPicker } from "./ted-person-picker";
 import { PLAN_TRIMESTRES } from "../schemas";
-import { ORIGIN_LABELS } from "../lib/display";
+import { ORIGIN_LABELS, TRIMESTRE_MESES } from "../lib/display";
 import { origenes_for_editor } from "../lib/origen-policy";
 import type {
   PlanApp,
@@ -19,8 +19,7 @@ import type {
   PlanTrimestre,
   PlanUsuarioOption,
 } from "../lib/types";
-
-const AVANCE_PRESETS = [0, 25, 50, 75, 100];
+import type { TareaCheckItem } from "../lib/tarea-checklist";
 
 export function TareaEditForm({
   apps,
@@ -31,15 +30,15 @@ export function TareaEditForm({
   titulo,
   descripcion,
   origen,
-  avance,
   no_solicitada,
   when_mode,
   fecha_inicio,
   fecha_fin,
   trimestre,
   asignado_ids,
+  sync_avance,
+  check_times,
   usuarios,
-  show_progress,
   error,
   on_apps,
   on_modulos,
@@ -47,13 +46,13 @@ export function TareaEditForm({
   on_titulo,
   on_descripcion,
   on_origen,
-  on_avance,
   on_no_solicitada,
   on_when_mode,
   on_inicio,
   on_fin,
   on_trimestre,
   on_asignados,
+  on_sync_avance,
 }: {
   apps: PlanApp[];
   all_modulos: PlanModulo[];
@@ -63,15 +62,15 @@ export function TareaEditForm({
   titulo: string;
   descripcion: string;
   origen: PlanOrigen;
-  avance: number;
   no_solicitada: boolean;
   when_mode: "fechas" | "trimestre";
   fecha_inicio: string;
   fecha_fin: string;
   trimestre: PlanTrimestre | "";
   asignado_ids: number[];
+  sync_avance: boolean;
+  check_times?: TareaCheckItem[];
   usuarios: PlanUsuarioOption[];
-  show_progress: boolean;
   error: string | null;
   on_apps: (value: number[]) => void;
   on_modulos: (value: number[]) => void;
@@ -79,16 +78,14 @@ export function TareaEditForm({
   on_titulo: (value: string) => void;
   on_descripcion: (value: string) => void;
   on_origen: (value: PlanOrigen) => void;
-  on_avance: (value: number) => void;
   on_no_solicitada: (value: boolean) => void;
   on_when_mode: (value: "fechas" | "trimestre") => void;
   on_inicio: (value: string) => void;
   on_fin: (value: string) => void;
   on_trimestre: (value: PlanTrimestre | "") => void;
   on_asignados: (value: number[]) => void;
+  on_sync_avance: (value: boolean) => void;
 }) {
-  const shown = no_solicitada ? 0 : avance;
-
   return (
     <div className="space-y-4">
       <PlanSection title="La tarea">
@@ -100,12 +97,18 @@ export function TareaEditForm({
             onChange={(e) => on_titulo(e.target.value)}
           />
         </PlanField>
-        <PlanField label="Descripción" htmlFor="tar-descripcion">
-          <GrowingTextarea
+        <PlanField
+          label="Descripción"
+          htmlFor="tar-descripcion"
+          hint="Puedes mezclar texto y checkboxes en este mismo campo."
+        >
+          <TareaDescripcionField
             id="tar-descripcion"
-            placeholder="Contexto, alcance o pedido original"
             value={descripcion}
+            sync={sync_avance}
+            check_times={check_times}
             onChange={on_descripcion}
+            on_sync={on_sync_avance}
           />
         </PlanField>
         <PlanField label="Apps" hint="Con icono y color, como en objetivos. Puedes marcar varias.">
@@ -138,32 +141,30 @@ export function TareaEditForm({
             />
           </PlanField>
         ) : null}
-        <div className="grid gap-3 sm:grid-cols-2">
-          <PlanField label="Origen" htmlFor="tar-origen">
-            <select
-              id="tar-origen"
-              className={PLAN_SELECT_CLASS}
-              value={origen}
-              onChange={(e) => on_origen(e.target.value as PlanOrigen)}
-            >
-              {origenes_for_editor(origen).map((item) => (
-                <option key={item} value={item}>
-                  {ORIGIN_LABELS[item]}
-                </option>
-              ))}
-            </select>
-          </PlanField>
-          <PlanField label="Equipo TED">
-            <TedPersonPicker
-              usuarios={usuarios}
-              multiple
-              values={asignado_ids}
-              on_change_many={on_asignados}
-              allow_none
-              none_label="Sin asignar"
-            />
-          </PlanField>
-        </div>
+        <PlanField label="Origen" htmlFor="tar-origen">
+          <select
+            id="tar-origen"
+            className={PLAN_SELECT_CLASS}
+            value={origen}
+            onChange={(e) => on_origen(e.target.value as PlanOrigen)}
+          >
+            {origenes_for_editor(origen).map((item) => (
+              <option key={item} value={item}>
+                {ORIGIN_LABELS[item]}
+              </option>
+            ))}
+          </select>
+        </PlanField>
+        <PlanField label="Equipo TED">
+          <TedPersonPicker
+            usuarios={usuarios}
+            multiple
+            values={asignado_ids}
+            on_change_many={on_asignados}
+            allow_none
+            none_label="Sin asignar"
+          />
+        </PlanField>
       </PlanSection>
 
       <PlanSection title="Cuándo">
@@ -219,19 +220,22 @@ export function TareaEditForm({
           </div>
         ) : (
           <PlanField label="Trimestre" htmlFor="tar-tri">
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {PLAN_TRIMESTRES.map((item) => (
                 <button
                   key={item}
                   type="button"
                   onClick={() => on_trimestre(item)}
-                  className={`rounded-xl border py-2.5 text-sm font-semibold transition ${
+                  className={`rounded-xl border px-2 py-2.5 text-center transition ${
                     trimestre === item
                       ? "border-violet-300 bg-violet-50 text-violet-800"
                       : "border-slate-200 bg-white text-slate-600 hover:border-violet-200"
                   }`}
                 >
-                  {item}
+                  <span className="block text-sm font-semibold">{item}</span>
+                  <span className="mt-0.5 block text-[10px] font-medium tracking-wide text-slate-500">
+                    {TRIMESTRE_MESES[item]}
+                  </span>
                 </button>
               ))}
             </div>
@@ -246,49 +250,6 @@ export function TareaEditForm({
           No solicitada (no cuenta en el %)
         </label>
       </PlanSection>
-
-      {show_progress ? (
-        <PlanSection title="Avance">
-          <div className="mb-2 flex items-end justify-between">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-              Porcentaje
-            </p>
-            <p className="text-3xl font-bold tracking-tight text-slate-900">
-              {shown}%
-            </p>
-          </div>
-          <input
-            type="range"
-            min={0}
-            max={100}
-            step={5}
-            disabled={no_solicitada}
-            value={shown}
-            onChange={(e) => on_avance(Number(e.target.value))}
-            className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-violet-600 disabled:opacity-40"
-          />
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {AVANCE_PRESETS.map((value) => (
-              <button
-                key={value}
-                type="button"
-                disabled={no_solicitada}
-                onClick={() => on_avance(value)}
-                className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
-                  shown === value
-                    ? "bg-violet-600 text-white"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                } disabled:opacity-40`}
-              >
-                {value}%
-              </button>
-            ))}
-          </div>
-          <p className="text-[11px] leading-snug text-slate-400">
-            Para darla por lista usa «Marcar como lista» y registra el entregable ahí.
-          </p>
-        </PlanSection>
-      ) : null}
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
     </div>
   );

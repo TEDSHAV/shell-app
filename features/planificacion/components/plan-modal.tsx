@@ -104,7 +104,7 @@ export function PlanModal({
         </div>
         <div
           className={cn(
-            "min-h-0 flex-1 overflow-y-auto",
+            "min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto",
             sheet ? "bg-[#f8fafc] px-7 py-6" : "px-6 py-5",
           )}
         >
