@@ -6,6 +6,7 @@ import {
 } from "./tarea-checklist";
 
 const CHECK_RE = /^\s*[-*]\s*\[( |x|X)\]\s?(.*)$/;
+const CHECK_CONT_RE = /^(?: {2,}|\t)(.*)$/;
 
 export type DescBlock =
   | { kind: "text"; text: string }
@@ -31,9 +32,15 @@ export function parse_descripcion(raw: string): DescBlock[] {
         done: match[1] !== " ",
         texto: match[2] ?? "",
       });
-    } else {
-      buf.push(line);
+      continue;
     }
+    const last = blocks[blocks.length - 1];
+    const cont = CHECK_CONT_RE.exec(line);
+    if (last?.kind === "check" && cont && buf.length === 0) {
+      last.texto = last.texto.length > 0 ? `${last.texto}\n${cont[1]}` : cont[1];
+      continue;
+    }
+    buf.push(line);
   }
   flush();
   if (blocks.length === 0) blocks.push({ kind: "text", text: "" });
@@ -44,7 +51,10 @@ export function serialize_descripcion(blocks: DescBlock[]): string {
   return blocks
     .map((block) => {
       if (block.kind === "check") {
-        return `- [${block.done ? "x" : " "}] ${block.texto}`.trimEnd();
+        const [first = "", ...rest] = block.texto.split("\n");
+        return [`- [${block.done ? "x" : " "}] ${first}`, ...rest.map((line) => `  ${line}`)].join(
+          "\n",
+        );
       }
       return block.text;
     })

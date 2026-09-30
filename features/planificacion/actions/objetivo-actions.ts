@@ -4,13 +4,9 @@ import { revalidatePath } from "next/cache";
 import { objetivo_schema, type ObjetivoInput } from "../schemas";
 import { require_objetivos_read_context, require_objetivos_write_context, require_ted_plan_context } from "./assert-ted";
 import { month_bounds, parse_plan_month, ranges_overlap } from "../lib/plan-month";
-import { average_avance, is_tarea_pending, is_tarea_no_solicitada, tarea_avance } from "../lib/task-progress";
+import { average_avance, is_tarea_pending } from "../lib/task-progress";
 import { user_initials } from "../lib/display";
 import { unique_people } from "../lib/people";
-import {
-  hydrate_descripcion,
-  merge_check_times,
-} from "../lib/tarea-descripcion";
 import type {
   PlanApp,
   PlanObjetivo,
@@ -19,8 +15,6 @@ import type {
   PlanParticipante,
   PlanTarea,
   PlanUsuarioOption,
-  EntregableTipo,
-  PlanTrimestre,
 } from "../lib/types";
 import { is_plan_mes_emitido, type PlanMes } from "../lib/plan-mes";
 import { ensure_plan_mes, fetch_plan_mes } from "../lib/plan-mes-db";
@@ -61,64 +55,6 @@ type ObjetivoRow = {
   created_by: number | null;
   solicitado_por: number | null;
 };
-
-type CoverTareaRow = {
-  id: number;
-  modulo_id: number;
-  titulo: string;
-  descripcion?: string | null;
-  origen: PlanOrigen;
-  avance: number | null;
-  no_solicitada?: boolean | null;
-  completada: boolean;
-  completada_at: string | null;
-  created_at: string | null;
-  updated_at?: string | null;
-  entregable_tipo: EntregableTipo;
-  entregable_ruta: string | null;
-  entregable_unidad: string | null;
-  entregable_version: string | null;
-  entregable_comentario: string | null;
-  fecha_inicio: string | null;
-  fecha_fin: string | null;
-  orden?: number | null;
-  trimestre?: PlanTrimestre | null;
-  asignado_id?: number | null;
-  en_planificacion?: boolean | null;
-  ticket_id?: number | null;
-  objetivo_id?: number | null;
-  checklist?: unknown;
-  sync_avance_checklist?: boolean | null;
-};
-
-function as_plan_tarea(
-  row: CoverTareaRow,
-  objetivo_titulo: string | null,
-  asignados: PlanParticipante[],
-): PlanTarea {
-  const desc = hydrate_descripcion(row.descripcion, row.checklist);
-  return {
-    ...row,
-    descripcion: desc,
-    avance: tarea_avance(row),
-    no_solicitada: is_tarea_no_solicitada(row),
-    fecha_inicio: row.fecha_inicio ?? null,
-    fecha_fin: row.fecha_fin ?? null,
-    orden: row.orden ?? row.id,
-    trimestre: row.trimestre ?? null,
-    asignado_id: asignados[0]?.usuario_id ?? row.asignado_id ?? null,
-    en_planificacion: row.en_planificacion !== false,
-    ticket_id: row.ticket_id ?? null,
-    created_at: row.created_at ?? null,
-    updated_at: row.updated_at ?? null,
-    objetivo_id: row.objetivo_id ?? null,
-    objetivo_titulo,
-    checklist: merge_check_times(row.checklist, desc),
-    sync_avance_checklist: Boolean(row.sync_avance_checklist),
-    asignados,
-    asignado: asignados[0] ?? null,
-  };
-}
 
 export type PlanObjetivoCover = PlanObjetivo & { tareas: PlanTarea[] };
 
@@ -380,7 +316,7 @@ export async function load_cubrir_workspace(
   const { start, end } = month_bounds(mes);
   const { supabase, user_id } = gate.ctx;
 
-  const [obj_res, apps_res, tareas_res, asignados_res, responsables_res] =
+  const [obj_res, apps_res, responsables_res] =
     await Promise.all([
     supabase
       .from("ted_plan_objetivos" as never)
@@ -395,14 +331,6 @@ export async function load_cubrir_workspace(
       .is("archived_at", null)
       .order("nombre"),
     supabase
-      .from("ted_plan_tareas" as never)
-      .select(
-        "id, modulo_id, titulo, descripcion, origen, avance, no_solicitada, completada, completada_at, created_at, updated_at, entregable_tipo, entregable_ruta, entregable_unidad, entregable_version, entregable_comentario, fecha_inicio, fecha_fin, orden, trimestre, asignado_id, en_planificacion, ticket_id, objetivo_id, checklist, sync_avance_checklist",
-      )
-      .order("orden")
-      .order("id"),
-    supabase.from("ted_plan_tarea_asignados" as never).select("tarea_id, usuario_id"),
-    supabase
       .from("ted_plan_objetivo_responsables" as never)
       .select("objetivo_id, usuario_id"),
   ]);
@@ -413,10 +341,6 @@ export async function load_cubrir_workspace(
   }
   if (responsables_res.error) {
     console.error("[planificacion] responsables:", responsables_res.error);
-  }
-  if (tareas_res.error) {
-    console.error("[planificacion] cubrir tareas:", tareas_res.error);
-    return { ok: false, error: "No se pudieron cargar las tareas." };
   }
 
   const app_name = new Map(
@@ -431,15 +355,6 @@ export async function load_cubrir_workspace(
   function person_of(usuario_id: number): PlanParticipante {
     const nombre = name_by_id.get(usuario_id) ?? "Usuario";
     return { usuario_id, nombre, initials: user_initials(nombre) };
-  }
-  const asignados_by_tarea = new Map<number, PlanParticipante[]>();
-  for (const row of (asignados_res.data ?? []) as Array<{
-    tarea_id: number;
-    usuario_id: number;
-  }>) {
-    const list = asignados_by_tarea.get(row.tarea_id) ?? [];
-    list.push(person_of(row.usuario_id));
-    asignados_by_tarea.set(row.tarea_id, list);
   }
 
   const obj_rows = (obj_res.data ?? []) as ObjetivoRow[];
@@ -496,24 +411,30 @@ export async function load_cubrir_workspace(
   }
   const tareas_by_obj = new Map<number, PlanTarea[]>();
   const sueltas: PlanTarea[] = [];
+  const seen = new Set<number>();
+  const plan_tareas: PlanTarea[] = [];
+  for (const app of plan.data.apps) {
+    for (const modulo of app.modulos) {
+      for (const tarea of modulo.tareas) {
+        if (seen.has(tarea.id)) continue;
+        seen.add(tarea.id);
+        plan_tareas.push(tarea);
+      }
+    }
+  }
 
-  for (const row of (tareas_res.data ?? []) as CoverTareaRow[]) {
-    if (row.en_planificacion === false) continue;
-    const asignados = unique_people([
-      ...(asignados_by_tarea.get(row.id) ?? []),
-      ...(row.asignado_id ? [person_of(row.asignado_id)] : []),
-    ]);
-    const titulo = row.objetivo_id
-      ? (obj_by_id.get(row.objetivo_id)?.titulo ?? null)
-      : null;
-    const tarea = as_plan_tarea(row, titulo, asignados);
-    if (row.objetivo_id && obj_by_id.has(row.objetivo_id)) {
-      const list = tareas_by_obj.get(row.objetivo_id) ?? [];
-      list.push(tarea);
-      tareas_by_obj.set(row.objetivo_id, list);
+  for (const tarea of plan_tareas) {
+    if (tarea.en_planificacion === false) continue;
+    if (tarea.objetivo_id && obj_by_id.has(tarea.objetivo_id)) {
+      const list = tareas_by_obj.get(tarea.objetivo_id) ?? [];
+      list.push({
+        ...tarea,
+        objetivo_titulo: obj_by_id.get(tarea.objetivo_id)?.titulo ?? null,
+      });
+      tareas_by_obj.set(tarea.objetivo_id, list);
       continue;
     }
-    if (row.objetivo_id) continue;
+    if (tarea.objetivo_id) continue;
     if (!is_tarea_pending(tarea)) continue;
     const in_dates = ranges_overlap(
       tarea.fecha_inicio,

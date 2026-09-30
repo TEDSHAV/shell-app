@@ -1,6 +1,7 @@
 "use client";
 
 import { ListChecks, Plus, Trash2 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { GrowingTextarea } from "./growing-textarea";
 import {
   parse_descripcion,
@@ -13,10 +14,8 @@ import {
 } from "../lib/tarea-checklist";
 
 const DESC_MAX = 320;
-const CHECK_INPUT_CLASS =
-  "h-9 min-w-0 flex-1 rounded-md border-0 bg-transparent px-1 text-sm text-slate-800 shadow-none outline-none ring-0 placeholder:text-slate-400 focus:border-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0";
-const CHECKBOX_CLASS =
-  "mt-0.5 size-4 shrink-0 cursor-pointer rounded border-slate-300 text-violet-600 accent-violet-600 outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none";
+const CHECK_BOX_CLASS =
+  "size-[18px] shrink-0 overflow-visible border-slate-400 shadow-none focus-visible:ring-0 data-[state=checked]:border-violet-600 data-[state=checked]:bg-violet-600 data-[state=checked]:text-white";
 
 function CheckRow({
   done,
@@ -34,19 +33,24 @@ function CheckRow({
   on_remove: () => void;
 }) {
   return (
-    <div className="flex min-w-0 items-start gap-2 rounded-lg px-0.5">
-      <input
-        type="checkbox"
-        className={CHECKBOX_CLASS}
-        checked={done}
-        onChange={(event) => on_done(event.target.checked)}
-      />
+    <div className="flex min-w-0 items-start gap-2 py-0.5">
+      <span className="mt-1.5 grid size-5 shrink-0 place-items-center">
+        <Checkbox
+          checked={done}
+          className={CHECK_BOX_CLASS}
+          onCheckedChange={(value) => on_done(value === true)}
+        />
+      </span>
       <div className="min-w-0 flex-1">
-        <input
-          className={CHECK_INPUT_CLASS}
+        <GrowingTextarea
+          bordered={false}
+          rows={1}
+          minHeight={36}
+          maxHeight={DESC_MAX}
+          className="px-1 text-slate-800 placeholder:text-slate-400"
           placeholder="Ítem de la lista"
           value={texto}
-          onChange={(event) => on_texto(event.target.value)}
+          onChange={on_texto}
         />
         {stamp ? (
           <p className="px-1 text-[11px] text-slate-400">{stamp}</p>
@@ -104,7 +108,7 @@ export function TareaDescripcionField({
 
   return (
     <div className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 shadow-sm">
-      <div className="max-h-[20rem] min-w-0 space-y-2 overflow-x-hidden overflow-y-auto px-3 py-2.5">
+      <div className="max-h-[20rem] min-w-0 space-y-2 overflow-y-auto px-3 py-2.5">
         {blocks.map((block, index) => {
           if (block.kind === "text") {
             return (
@@ -163,12 +167,13 @@ export function TareaDescripcionField({
         </button>
         {check_count > 0 ? (
           <label className="inline-flex items-center gap-2 text-xs text-slate-600">
-            <input
-              type="checkbox"
-              className={CHECKBOX_CLASS}
-              checked={sync}
-              onChange={(event) => on_sync(event.target.checked)}
-            />
+            <span className="grid size-5 shrink-0 place-items-center">
+              <Checkbox
+                checked={sync}
+                className={CHECK_BOX_CLASS}
+                onCheckedChange={(value) => on_sync(value === true)}
+              />
+            </span>
             <ListChecks className="h-3.5 w-3.5 text-slate-400" />
             Sincronizar avance con los checks
           </label>

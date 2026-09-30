@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { PlanAssigneeChip } from "./plan-assignee-chip";
 import { OrigenBadge } from "./origen-badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { TareaAvanceCard } from "./tarea-avance-card";
 import { people_on_tarea } from "../lib/people";
 import { PLAN_RELEASE_UNITS } from "../lib/release-units";
@@ -87,16 +88,17 @@ function ViewCheckLine({
 }) {
   return (
     <div className="flex min-w-0 items-start gap-2">
-      <input
-        type="checkbox"
-        className="mt-0.5 size-4 shrink-0 cursor-pointer accent-violet-600 outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none disabled:cursor-default"
-        checked={done}
-        disabled={!can_write}
-        onChange={on_toggle}
-      />
+      <span className="mt-0.5 grid size-5 shrink-0 place-items-center">
+        <Checkbox
+          checked={done}
+          disabled={!can_write}
+          className="size-[18px] shrink-0 overflow-visible border-slate-400 shadow-none focus-visible:ring-0 disabled:opacity-60 data-[state=checked]:border-violet-600 data-[state=checked]:bg-violet-600 data-[state=checked]:text-white"
+          onCheckedChange={() => on_toggle()}
+        />
+      </span>
       <div className="min-w-0">
         <p
-          className={`min-w-0 break-words [overflow-wrap:anywhere] ${
+          className={`min-w-0 whitespace-pre-wrap break-words [overflow-wrap:anywhere] ${
             done ? "text-slate-500 line-through" : ""
           }`}
         >
