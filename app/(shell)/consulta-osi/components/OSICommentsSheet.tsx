@@ -42,11 +42,11 @@ export default function OSICommentsSheet({
       <button
         type="button"
         aria-label="Cerrar chat de la OSI"
-        className="fixed inset-0 z-40 bg-black/30"
+        className="fixed inset-x-0 bottom-0 top-14 z-40 bg-black/30"
         onClick={onClose}
       />
       <aside
-        className="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col overflow-hidden border-l border-[#00000014] bg-[#ECE5DD] shadow-2xl"
+        className="fixed bottom-0 right-0 top-14 z-50 flex w-full max-w-md flex-col overflow-hidden border-l border-[#00000014] bg-[#ECE5DD] shadow-2xl"
         role="dialog"
         aria-label={`Chat OSI ${osi.nro_osi ?? osi.id_osi}`}
       >

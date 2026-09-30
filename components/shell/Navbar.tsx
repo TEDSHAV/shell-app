@@ -18,7 +18,7 @@ export const Navbar = ({
   globalRole,
 }: NavbarProps) => {
   return (
-    <header className="h-14 border-b border-slate-200 bg-white flex items-center px-4 gap-3 sticky top-0 z-40 shadow-sm">
+    <header className="h-14 border-b border-slate-200 bg-white flex items-center px-4 gap-3 sticky top-0 z-[60] shadow-sm">
       <button
         onClick={onMobileMenuToggle}
         className="lg:hidden p-2 -ml-1 rounded-md hover:bg-slate-100 transition-colors text-slate-600"
