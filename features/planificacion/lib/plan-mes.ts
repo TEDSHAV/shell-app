@@ -1,6 +1,6 @@
 export type PlanMesEstado = "borrador" | "emitido";
 
-export type PlanMesCambioKind = "anadido" | "quitado" | "editado";
+export type PlanMesCambioKind = "anadido" | "quitado" | "editado" | "lote";
 
 export type PlanMes = {
   mes: string;

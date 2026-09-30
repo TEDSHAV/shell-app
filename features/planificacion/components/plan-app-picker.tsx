@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { hex_to_rgba } from "@/lib/app-theme";
 import { fold_label } from "../lib/excel-plan";
 import { plan_app_visual } from "../lib/plan-app-visual";
+import { AppGlyph } from "./plan-app-glyph";
 
 export type PlanAppPickerItem = {
   id: number;
@@ -14,35 +14,20 @@ export type PlanAppPickerItem = {
   slug: string;
 };
 
-function AppGlyph({
-  slug,
-  size = "md",
-}: {
-  slug: string | null;
-  size?: "sm" | "md";
-}) {
-  const { Icon, brandColor } = plan_app_visual(slug);
-  const box = size === "sm" ? "h-6 w-6 rounded-md" : "h-8 w-8 rounded-lg";
-  const icon = size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4";
-  return (
-    <span
-      className={cn("inline-flex shrink-0 items-center justify-center", box)}
-      style={{ backgroundColor: hex_to_rgba(brandColor, 0.16) }}
-    >
-      <Icon className={icon} style={{ color: brandColor }} />
-    </span>
-  );
-}
-
 export function PlanAppPicker({
   apps,
   value,
   onChange,
+  allowEmpty = true,
+  placeholder = "Elige una o más apps",
 }: {
   apps: PlanAppPickerItem[];
   value: number[];
   onChange: (ids: number[]) => void;
+  allowEmpty?: boolean;
+  placeholder?: string;
 }) {
+  const menu_id = `plan-app-picker-${useId().replace(/:/g, "")}`;
   const [open, set_open] = useState(false);
   const [query, set_query] = useState("");
   const [menu, set_menu] = useState({ top: 0, left: 0, width: 0, maxHeight: 280 });
@@ -80,7 +65,7 @@ export function PlanAppPicker({
     function on_doc(event: MouseEvent) {
       const node = event.target as Node;
       if (root_ref.current?.contains(node)) return;
-      const menu_el = document.getElementById("plan-app-picker-menu");
+      const menu_el = document.getElementById(menu_id);
       if (menu_el?.contains(node)) return;
       set_open(false);
     }
@@ -95,7 +80,7 @@ export function PlanAppPicker({
       window.removeEventListener("resize", on_reflow);
       window.removeEventListener("scroll", on_reflow, true);
     };
-  }, [open]);
+  }, [open, menu_id]);
 
   function toggle(id: number) {
     if (selected.has(id)) onChange(value.filter((item) => item !== id));
@@ -106,7 +91,7 @@ export function PlanAppPicker({
     open && typeof document !== "undefined"
       ? createPortal(
           <div
-            id="plan-app-picker-menu"
+            id={menu_id}
             style={{
               top: menu.top,
               left: menu.left,
@@ -127,23 +112,27 @@ export function PlanAppPicker({
               />
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
-              <button
-                type="button"
-                className={cn(
-                  "mb-1 flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left",
-                  value.length === 0 ? "bg-slate-50" : "hover:bg-slate-50",
-                )}
-                onClick={() => onChange([])}
-              >
-                <AppGlyph slug={null} />
-                <span className="min-w-0 flex-1 text-sm font-medium text-slate-800">
-                  Transversal
-                </span>
-                <Check
-                  className="h-4 w-4 shrink-0"
-                  style={{ color: value.length === 0 ? "#64748b" : "transparent" }}
-                />
-              </button>
+              {allowEmpty ? (
+                <button
+                  type="button"
+                  className={cn(
+                    "mb-1 flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left",
+                    value.length === 0 ? "bg-slate-50" : "hover:bg-slate-50",
+                  )}
+                  onClick={() => onChange([])}
+                >
+                  <AppGlyph slug={null} />
+                  <span className="min-w-0 flex-1 text-sm font-medium text-slate-800">
+                    Transversal
+                  </span>
+                  <Check
+                    className="h-4 w-4 shrink-0"
+                    style={{
+                      color: value.length === 0 ? "#64748b" : "transparent",
+                    }}
+                  />
+                </button>
+              ) : null}
               {filtered.length === 0 ? (
                 <p className="px-3 py-4 text-center text-sm text-slate-400">
                   Sin coincidencias
@@ -194,7 +183,7 @@ export function PlanAppPicker({
           <>
             <AppGlyph slug={null} />
             <span className="min-w-0 flex-1 text-sm font-medium text-slate-500">
-              Transversal
+              {allowEmpty ? "Transversal" : placeholder}
             </span>
           </>
         ) : (

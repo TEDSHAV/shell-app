@@ -3,11 +3,17 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { PlanModal } from "./plan-modal";
+import { PlanSection } from "./plan-form-ui";
 import { OrigenBadge } from "./origen-badge";
 import { TareaViewPanel } from "./tarea-view-panel";
 import { TareaEditForm } from "./tarea-edit-form";
+import { TareaEntregableFields } from "./tarea-entregable-fields";
 import { default_new_origen } from "../lib/origen-policy";
-import { save_plan_tarea, delete_plan_tarea } from "../actions/tarea-actions";
+import {
+  complete_plan_tarea,
+  save_plan_tarea,
+  delete_plan_tarea,
+} from "../actions/tarea-actions";
 import type {
   EntregableTipo,
   PlanApp,
@@ -16,6 +22,24 @@ import type {
   PlanTrimestre,
   PlanUsuarioOption,
 } from "../lib/types";
+
+function seed_app_ids(
+  apps: PlanApp[],
+  all_modulos: PlanModulo[],
+  preset_app_id: number | null,
+  preset_modulo_id: number | null,
+  tarea: PlanTarea | null,
+): number[] {
+  const modulo = all_modulos.find(
+    (item) => item.id === (tarea?.modulo_id ?? preset_modulo_id),
+  );
+  if (modulo) {
+    const ids = modulo.app_ids.length > 0 ? modulo.app_ids : [modulo.app_id];
+    if (ids.length > 0) return ids;
+  }
+  if (preset_app_id && preset_app_id > 0) return [preset_app_id];
+  return apps[0]?.id ? [apps[0].id] : [];
+}
 
 export function TareaFormDialog({
   open,
@@ -42,18 +66,18 @@ export function TareaFormDialog({
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const initial_app =
-    preset_app_id ??
-    all_modulos.find((m) => m.id === (tarea?.modulo_id ?? preset_modulo_id))
-      ?.app_id ??
-    apps[0]?.id ??
-    0;
-  const [mode, set_mode] = useState<"ver" | "editar">(
-    tarea && !view_only ? "ver" : tarea && view_only ? "ver" : "editar",
+  const [mode, set_mode] = useState<"ver" | "editar" | "completar">(
+    tarea ? "ver" : "editar",
   );
-  const [app_id, set_app_id] = useState(String(initial_app || ""));
-  const [modulo_id, set_modulo_id] = useState(
-    String(tarea?.modulo_id ?? preset_modulo_id ?? ""),
+  const [app_ids, set_app_ids] = useState(() =>
+    seed_app_ids(apps, all_modulos, preset_app_id, preset_modulo_id, tarea),
+  );
+  const [modulo_ids, set_modulo_ids] = useState<number[]>(
+    tarea?.modulo_id
+      ? [tarea.modulo_id]
+      : preset_modulo_id
+        ? [preset_modulo_id]
+        : [],
   );
   const [nuevo_modulo, set_nuevo_modulo] = useState("");
   const [titulo, set_titulo] = useState(tarea?.titulo ?? "");
@@ -90,6 +114,9 @@ export function TareaFormDialog({
   const [trimestre, set_trimestre] = useState<PlanTrimestre | "">(
     tarea?.trimestre ?? "",
   );
+  const [when_mode, set_when_mode] = useState<"fechas" | "trimestre">(
+    tarea?.fecha_inicio ? "fechas" : tarea?.trimestre ? "trimestre" : "fechas",
+  );
   const [asignado_ids, set_asignado_ids] = useState<number[]>(
     tarea?.asignados?.map((person) => person.usuario_id) ??
       (tarea?.asignado_id ? [tarea.asignado_id] : []),
@@ -97,34 +124,73 @@ export function TareaFormDialog({
   const [error, set_error] = useState<string | null>(null);
   const [saving, set_saving] = useState(false);
   const viewing = Boolean(tarea) && mode === "ver";
-  const app = apps.find((item) => item.id === Number(app_id));
-  const modulo = all_modulos.find((item) => item.id === Number(modulo_id));
+  const completing = Boolean(tarea) && mode === "completar";
+  const app = apps.find((item) => item.id === app_ids[0]);
+  const modulo = all_modulos.find((item) => item.id === modulo_ids[0]);
+
+  function change_apps(ids: number[]) {
+    set_app_ids(ids);
+    set_modulo_ids((prev) =>
+      prev.filter((id) => {
+        const item = all_modulos.find((row) => row.id === id);
+        if (!item) return false;
+        const linked =
+          item.app_ids.length > 0 ? item.app_ids : [item.app_id];
+        return ids.length === 0 || linked.some((app_id) => ids.includes(app_id));
+      }),
+    );
+  }
+
+  function change_when(next: "fechas" | "trimestre") {
+    set_when_mode(next);
+    if (next === "fechas") set_trimestre("");
+    else {
+      set_fecha_inicio("");
+      set_fecha_fin("");
+    }
+  }
 
   async function on_submit() {
     set_saving(true);
     set_error(null);
-    const selected_modulo = Number(modulo_id);
-    const selected_app = Number(app_id);
     const result = await save_plan_tarea({
       id: tarea?.id,
-      app_id: selected_app > 0 ? selected_app : undefined,
-      modulo_id: selected_modulo > 0 ? selected_modulo : undefined,
-      modulo_nombre_nuevo: selected_modulo > 0 ? null : nuevo_modulo,
+      app_ids,
+      modulo_ids,
+      modulo_id: modulo_ids[0],
+      modulo_nombre_nuevo: modulo_ids.length > 0 ? null : nuevo_modulo,
       titulo,
       descripcion,
       origen,
       avance: no_solicitada ? 0 : avance,
       no_solicitada,
+      fecha_inicio: when_mode === "fechas" ? fecha_inicio || null : null,
+      fecha_fin:
+        when_mode === "fechas" ? fecha_fin || fecha_inicio || null : null,
+      trimestre: when_mode === "trimestre" ? trimestre || null : null,
+      asignado_ids,
+      objetivo_id,
+    });
+    set_saving(false);
+    if (!result.ok) {
+      set_error(result.error);
+      return;
+    }
+    onSaved();
+    onClose();
+  }
+
+  async function on_complete() {
+    if (!tarea) return;
+    set_saving(true);
+    set_error(null);
+    const result = await complete_plan_tarea({
+      id: tarea.id,
       entregable_tipo,
       entregable_ruta: ruta,
       entregable_comentario: comentario,
       entregable_unidad: unidad,
       entregable_version: version,
-      fecha_inicio: fecha_inicio || null,
-      fecha_fin: fecha_fin || fecha_inicio || null,
-      trimestre: fecha_inicio ? null : trimestre || null,
-      asignado_ids,
-      objetivo_id,
     });
     set_saving(false);
     if (!result.ok) {
@@ -140,18 +206,20 @@ export function TareaFormDialog({
       open={open}
       variant="sheet"
       title={
-        viewing
-          ? tarea?.titulo ?? "Tarea"
-          : tarea
-            ? "Editar tarea"
-            : "Nueva tarea"
+        completing
+          ? "Marcar como lista"
+          : viewing
+            ? tarea?.titulo ?? "Tarea"
+            : tarea
+              ? "Editar tarea"
+              : "Nueva tarea"
       }
       subtitle={
-        viewing
-          ? `${app?.nombre ?? "App"} · ${modulo?.nombre ?? "Módulo"}`
-          : tarea
+        completing
+          ? "Registra el entregable ahora. No hace falta al crear la tarea."
+          : viewing
             ? `${app?.nombre ?? "App"} · ${modulo?.nombre ?? "Módulo"}`
-            : "Completa los datos para incluirla en el plan"
+            : "Título, dónde vive y cuándo. El entregable va al marcarla lista."
       }
       badges={
         viewing && tarea ? <OrigenBadge origen={tarea.origen} /> : undefined
@@ -164,18 +232,29 @@ export function TareaFormDialog({
               Cerrar
             </Button>
             {view_only ? null : (
-              <Button
-                type="button"
-                className="bg-slate-900 px-5 text-white hover:bg-slate-800"
-                onClick={() => set_mode("editar")}
-              >
-                Editar tarea
-              </Button>
+              <>
+                {tarea && !tarea.completada && !tarea.no_solicitada ? (
+                  <Button
+                    type="button"
+                    className="bg-emerald-600 px-5 text-white hover:bg-emerald-500"
+                    onClick={() => set_mode("completar")}
+                  >
+                    Marcar como lista
+                  </Button>
+                ) : null}
+                <Button
+                  type="button"
+                  className="bg-slate-900 px-5 text-white hover:bg-slate-800"
+                  onClick={() => set_mode("editar")}
+                >
+                  Editar
+                </Button>
+              </>
             )}
           </>
         ) : (
           <>
-            {tarea && !view_only ? (
+            {tarea && !view_only && mode === "editar" ? (
               <Button
                 type="button"
                 variant="outline"
@@ -211,11 +290,21 @@ export function TareaFormDialog({
             </Button>
             <Button
               type="button"
-              className="bg-slate-900 px-5 text-white hover:bg-slate-800"
+              className={
+                completing
+                  ? "bg-emerald-600 px-5 text-white hover:bg-emerald-500"
+                  : "bg-slate-900 px-5 text-white hover:bg-slate-800"
+              }
               disabled={saving}
-              onClick={() => void on_submit()}
+              onClick={() =>
+                void (completing ? on_complete() : on_submit())
+              }
             >
-              {saving ? "Guardando…" : "Guardar cambios"}
+              {saving
+                ? "Guardando…"
+                : completing
+                  ? "Marcar como lista"
+                  : "Guardar"}
             </Button>
           </>
         )
@@ -223,42 +312,51 @@ export function TareaFormDialog({
     >
       {viewing && tarea ? (
         <TareaViewPanel tarea={tarea} app={app} modulo={modulo} />
+      ) : completing ? (
+        <PlanSection title="Entregable">
+          <TareaEntregableFields
+            entregable_tipo={entregable_tipo}
+            unidad={unidad}
+            version={version}
+            ruta={ruta}
+            comentario={comentario}
+            on_entregable={set_entregable_tipo}
+            on_unidad={set_unidad}
+            on_version={set_version}
+            on_ruta={set_ruta}
+            on_comentario={set_comentario}
+          />
+          {error ? <p className="text-sm text-red-600">{error}</p> : null}
+        </PlanSection>
       ) : (
         <TareaEditForm
           apps={apps}
           all_modulos={all_modulos}
-          app_id={app_id}
-          modulo_id={modulo_id}
+          app_ids={app_ids}
+          modulo_ids={modulo_ids}
           nuevo_modulo={nuevo_modulo}
           titulo={titulo}
           descripcion={descripcion}
           origen={origen}
           avance={avance}
           no_solicitada={no_solicitada}
-          entregable_tipo={entregable_tipo}
-          unidad={unidad}
-          version={version}
-          ruta={ruta}
-          comentario={comentario}
+          when_mode={when_mode}
           fecha_inicio={fecha_inicio}
           fecha_fin={fecha_fin}
           trimestre={trimestre}
           asignado_ids={asignado_ids}
           usuarios={usuarios}
+          show_progress={Boolean(tarea)}
           error={error}
-          on_app={set_app_id}
-          on_modulo={set_modulo_id}
+          on_apps={change_apps}
+          on_modulos={set_modulo_ids}
           on_nuevo_modulo={set_nuevo_modulo}
           on_titulo={set_titulo}
           on_descripcion={set_descripcion}
           on_origen={set_origen}
           on_avance={set_avance}
           on_no_solicitada={set_no_solicitada}
-          on_entregable={set_entregable_tipo}
-          on_unidad={set_unidad}
-          on_version={set_version}
-          on_ruta={set_ruta}
-          on_comentario={set_comentario}
+          on_when_mode={change_when}
           on_inicio={set_fecha_inicio}
           on_fin={set_fecha_fin}
           on_trimestre={set_trimestre}

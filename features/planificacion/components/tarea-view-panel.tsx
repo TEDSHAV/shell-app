@@ -131,10 +131,11 @@ export function TareaViewPanel({
         ) : null}
         <MetaRow
           icon={<CalendarRange className="h-4 w-4 text-violet-500" />}
-          label="Fechas"
+          label={tarea.fecha_inicio ? "Fechas" : "Trimestre"}
         >
-          {format_day(tarea.fecha_inicio)} → {format_day(tarea.fecha_fin)}
-          {tarea.trimestre ? ` · ${tarea.trimestre}` : ""}
+          {tarea.fecha_inicio
+            ? `${format_day(tarea.fecha_inicio)} → ${format_day(tarea.fecha_fin)}`
+            : tarea.trimestre || "Sin colocar"}
         </MetaRow>
         <MetaRow
           icon={<Users className="h-4 w-4 text-violet-500" />}
@@ -171,6 +172,7 @@ export function TareaViewPanel({
         </div>
       ) : null}
 
+      {tarea.completada ? (
       <div className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm">
         <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
           Entregable
@@ -204,6 +206,7 @@ export function TareaViewPanel({
           </p>
         ) : null}
       </div>
+      ) : null}
     </div>
   );
 }

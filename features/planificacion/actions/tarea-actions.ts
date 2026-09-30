@@ -1,13 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { PLAN_TRIMESTRES, tarea_schema, type TareaInput } from "../schemas";
-import type { PlanTrimestre } from "../lib/types";
+import { PLAN_TRIMESTRES, complete_tarea_schema, tarea_schema } from "../schemas";
+import type { EntregableTipo, PlanTrimestre } from "../lib/types";
 import { is_frozen_origen } from "../lib/origen-policy";
 import { normalize_prisma_path } from "../lib/prisma-routes";
 import { require_ted_plan_context } from "./assert-ted";
 import { TED_DEPARTMENT_ID } from "../lib/ted-department";
-import { resolve_modulo_for_app } from "./modulo-actions";
+import { resolve_modulo_for_apps } from "./modulo-actions";
 import { iso_date } from "../lib/task-dates";
 import { createAdminClient } from "@/lib/supabase/server";
 import { sync_ticket_on_tarea_done } from "@/features/tickets/actions/ticket-actions";
@@ -33,8 +33,49 @@ async function next_tarea_orden(
   return Number((data as { orden?: number } | null)?.orden ?? 0) + 1;
 }
 
+function parse_entregable(input: {
+  entregable_tipo: EntregableTipo;
+  entregable_ruta?: string | null;
+  entregable_comentario?: string | null;
+  entregable_unidad?: string | null;
+  entregable_version?: string | null;
+}):
+  | { ok: true; tipo: EntregableTipo; ruta: string | null; comentario: string | null; unidad: string | null; version: string | null }
+  | { ok: false; error: string } {
+  const tipo = input.entregable_tipo;
+  const ruta =
+    tipo === "vista" ? normalize_prisma_path(input.entregable_ruta ?? "") : null;
+  const comentario =
+    tipo === "comentario" ? (input.entregable_comentario ?? "").trim() : null;
+  if (tipo === "vista" && !ruta) {
+    return { ok: false, error: "Indica la ruta de la vista en Prisma." };
+  }
+  if (tipo === "comentario" && !comentario) {
+    return { ok: false, error: "Escribe el comentario de entregable." };
+  }
+  if (tipo === "version") {
+    const unidad = (input.entregable_unidad ?? "").trim();
+    const version = (input.entregable_version ?? "").trim();
+    if (!unidad || !version) {
+      return {
+        ok: false,
+        error: "Indica la unidad de release y la versión.",
+      };
+    }
+    return { ok: true, tipo, ruta: null, comentario: null, unidad, version };
+  }
+  return {
+    ok: true,
+    tipo,
+    ruta,
+    comentario,
+    unidad: null,
+    version: null,
+  };
+}
+
 export async function save_plan_tarea(
-  raw: TareaInput,
+  raw: unknown,
 ): Promise<{ ok: true; id: number } | { ok: false; error: string }> {
   const parsed = tarea_schema.safeParse(raw);
   if (!parsed.success) {
@@ -67,38 +108,14 @@ export async function save_plan_tarea(
     }
   }
 
-  const resolved = await resolve_modulo_for_app(
-    input.app_id,
-    input.modulo_id ?? 0,
+  const resolved = await resolve_modulo_for_apps(
+    [...new Set([...(input.app_ids ?? []), input.app_id ?? 0].filter((id) => id > 0))],
+    input.modulo_ids?.[0] ?? input.modulo_id ?? 0,
     input.modulo_nombre_nuevo,
   );
   if (!resolved.ok) return resolved;
   const modulo_id = resolved.id;
 
-  const tipo = input.entregable_tipo;
-  const ruta =
-    tipo === "vista" ? normalize_prisma_path(input.entregable_ruta ?? "") : null;
-  const comentario =
-    tipo === "comentario" ? (input.entregable_comentario ?? "").trim() : null;
-
-  if (tipo === "vista" && !ruta) {
-    return { ok: false, error: "Indica la ruta de la vista en Prisma." };
-  }
-  if (tipo === "comentario" && !comentario) {
-    return { ok: false, error: "Escribe el comentario de entregable." };
-  }
-  if (tipo === "version") {
-    const unidad = (input.entregable_unidad ?? "").trim();
-    const version = (input.entregable_version ?? "").trim();
-    if (!unidad || !version) {
-      return {
-        ok: false,
-        error: "Indica la unidad de release y la versión.",
-      };
-    }
-  }
-
-  const now = new Date().toISOString();
   const no_solicitada = Boolean(input.no_solicitada);
   const avance = no_solicitada ? 0 : input.avance;
   const fecha_inicio = iso_date(input.fecha_inicio);
@@ -110,12 +127,6 @@ export async function save_plan_tarea(
     origen: input.origen,
     avance,
     no_solicitada,
-    completada: !no_solicitada && avance >= 100,
-    entregable_tipo: tipo,
-    entregable_ruta: ruta,
-    entregable_comentario: comentario,
-    completada_at: !no_solicitada && avance >= 100 ? now : null,
-    completada_by: !no_solicitada && avance >= 100 ? user_id : null,
     fecha_inicio,
     fecha_fin,
     trimestre: fecha_inicio ? null : (input.trimestre ?? null),
@@ -125,8 +136,6 @@ export async function save_plan_tarea(
       null,
     en_planificacion: true,
     objetivo_id: input.objetivo_id ?? null,
-    entregable_unidad: tipo === "version" ? (input.entregable_unidad ?? null) : null,
-    entregable_version: tipo === "version" ? (input.entregable_version ?? null) : null,
   };
 
   if (input.id && input.id > 0) {
@@ -145,14 +154,6 @@ export async function save_plan_tarea(
         (input.asignado_id ? [input.asignado_id] : []),
     );
     if (!assigned.ok) return assigned;
-    if (payload.completada) {
-      await sync_ticket_on_tarea_done(
-        supabase,
-        input.id,
-        user_id,
-        comentario ?? "",
-      );
-    }
     revalidate_plan();
     return { ok: true, id: input.id };
   }
@@ -161,6 +162,14 @@ export async function save_plan_tarea(
     .from("ted_plan_tareas" as never)
     .insert({
       ...payload,
+      entregable_tipo: "ninguno",
+      entregable_ruta: null,
+      entregable_comentario: null,
+      entregable_unidad: null,
+      entregable_version: null,
+      completada: false,
+      completada_at: null,
+      completada_by: null,
       created_by: user_id,
       orden: await next_tarea_orden(supabase, modulo_id),
     } as never)
@@ -179,6 +188,49 @@ export async function save_plan_tarea(
   );
   if (!assigned.ok) return assigned;
   return { ok: true, id: new_id };
+}
+
+export async function complete_plan_tarea(
+  raw: unknown,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const parsed = complete_tarea_schema.safeParse(raw);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
+  }
+  const gate = await require_ted_plan_context();
+  if (!gate.ok) return gate;
+  const { supabase, user_id } = gate.ctx;
+  const input = parsed.data;
+  const entregable = parse_entregable(input);
+  if (!entregable.ok) return entregable;
+  const now = new Date().toISOString();
+  const { error } = await supabase
+    .from("ted_plan_tareas" as never)
+    .update({
+      no_solicitada: false,
+      avance: 100,
+      completada: true,
+      completada_at: now,
+      completada_by: user_id,
+      entregable_tipo: entregable.tipo,
+      entregable_ruta: entregable.ruta,
+      entregable_comentario: entregable.comentario,
+      entregable_unidad: entregable.unidad,
+      entregable_version: entregable.version,
+    } as never)
+    .eq("id", input.id);
+  if (error) {
+    console.error("[planificacion] complete tarea:", error);
+    return { ok: false, error: "No se pudo marcar la tarea como lista." };
+  }
+  await sync_ticket_on_tarea_done(
+    supabase,
+    input.id,
+    user_id,
+    entregable.comentario ?? "",
+  );
+  revalidate_plan();
+  return { ok: true };
 }
 
 export async function delete_plan_tarea(
@@ -242,24 +294,17 @@ export async function set_plan_tarea_avance(
   const next = Math.min(100, Math.max(0, Math.round(avance)));
   const gate = await require_ted_plan_context();
   if (!gate.ok) return gate;
-  const { supabase, user_id } = gate.ctx;
-  const done = next >= 100;
+  const { supabase } = gate.ctx;
   const { error } = await supabase
     .from("ted_plan_tareas" as never)
     .update({
       no_solicitada: false,
       avance: next,
-      completada: done,
-      completada_at: done ? new Date().toISOString() : null,
-      completada_by: done ? user_id : null,
     } as never)
     .eq("id", tarea_id);
   if (error) {
     console.error("[planificacion] set avance:", error);
     return { ok: false, error: "No se pudo mover la tarea." };
-  }
-  if (done) {
-    await sync_ticket_on_tarea_done(supabase, tarea_id, user_id, "");
   }
   revalidate_plan();
   return { ok: true };

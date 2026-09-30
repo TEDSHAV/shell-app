@@ -293,3 +293,45 @@ export async function resolve_modulo_for_app(
   }
   return find_or_create_modulo_by_nombre(modulo_nombre_nuevo ?? "", app_id);
 }
+
+export async function resolve_modulo_for_apps(
+  app_ids: number[],
+  modulo_id: number,
+  modulo_nombre_nuevo: string | null | undefined,
+): Promise<{ ok: true; id: number } | { ok: false; error: string }> {
+  const unique = [...new Set(app_ids.filter((id) => id > 0))];
+  if (modulo_id > 0) {
+    if (unique.length === 0) return { ok: true, id: modulo_id };
+    const gate = await require_ted_plan_context();
+    if (!gate.ok) return gate;
+    const linked = await app_ids_of_modulo(gate.ctx.supabase, modulo_id);
+    const overlap = unique.some((id) => linked.includes(id));
+    if (!overlap && linked.length > 0) {
+      return {
+        ok: false,
+        error: "Ese módulo no pertenece a las apps seleccionadas.",
+      };
+    }
+    return { ok: true, id: modulo_id };
+  }
+  if (unique.length === 0) {
+    return { ok: false, error: "Selecciona al menos una aplicación." };
+  }
+  const created = await find_or_create_modulo_by_nombre(
+    modulo_nombre_nuevo ?? "",
+    unique[0] ?? 0,
+  );
+  if (!created.ok) return created;
+  if (unique.length === 1) return created;
+  const gate = await require_ted_plan_context();
+  if (!gate.ok) return gate;
+  const link_error = await ensure_modulo_apps(
+    gate.ctx.supabase,
+    created.id,
+    unique,
+  );
+  if (link_error) {
+    return { ok: false, error: "No se pudo vincular el módulo a las apps." };
+  }
+  return created;
+}

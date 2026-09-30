@@ -26,6 +26,8 @@ export default async function TedObjetivosPage({
           mes={loaded.mes}
           plan_mes={loaded.plan_mes}
           objetivos={loaded.objetivos}
+          apps={loaded.apps}
+          usuarios={loaded.usuarios}
           can_write={can_write}
         />
       ) : (

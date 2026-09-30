@@ -152,12 +152,22 @@ export async function notify_plan_mes_actualizado(
 ): Promise<void> {
   const items = await list_plan_objetivos_resumen(supabase, plan.mes);
   const label = format_month_label(plan.mes);
-  const headline =
-    cambio.kind === "anadido"
-      ? `Se añadió «${cambio.titulo}»`
-      : cambio.kind === "quitado"
-        ? `Se quitó «${cambio.titulo}»`
-        : `Se editó «${cambio.titulo}»`;
+  const headline = ((): string => {
+    switch (cambio.kind) {
+      case "anadido":
+        return `Se añadió «${cambio.titulo}»`;
+      case "quitado":
+        return `Se quitó «${cambio.titulo}»`;
+      case "editado":
+        return `Se editó «${cambio.titulo}»`;
+      case "lote":
+        return cambio.titulo;
+      default: {
+        const _never: never = cambio.kind;
+        return _never;
+      }
+    }
+  })();
   await fanOutNotifyByConfig(supabase, {
     appSlug: "ted",
     eventKey: "plan_mes_actualizado",

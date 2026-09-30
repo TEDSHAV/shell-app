@@ -19,8 +19,7 @@ import type {
   PlanTrimestre,
 } from "../lib/types";
 import { is_plan_mes_emitido, type PlanMes } from "../lib/plan-mes";
-import { bump_plan_mes_version, ensure_plan_mes, fetch_plan_mes } from "../lib/plan-mes-db";
-import { notify_plan_mes_actualizado } from "../lib/plan-mes-notify";
+import { ensure_plan_mes, fetch_plan_mes } from "../lib/plan-mes-db";
 
 function revalidate_objetivos() {
   revalidatePath("/ted/planificacion");
@@ -212,18 +211,14 @@ export async function save_plan_objetivo(
       (prev_row?.estado ?? "abierto") !== payload.estado ||
       (prev_row?.solicitado_por ?? null) !== (payload.solicitado_por ?? null) ||
       !same_id_list(prev_app_ids, app_ids);
-    console.log("[plan-mes] save objetivo", {
-      mes,
-      estado: plan_before.estado,
-      version: plan_before.version,
-      changed,
-      emitido: is_plan_mes_emitido(plan_before),
-    });
-    if (changed && is_plan_mes_emitido(plan_before)) {
-      const plan = await bump_plan_mes_version(supabase, mes);
-      await notify_plan_mes_actualizado(supabase, plan, {
-        kind: "editado",
-        titulo: payload.titulo,
+    if (changed) {
+      console.log("[plan-mes] save objetivo", {
+        mes,
+        estado: plan_before.estado,
+        version: plan_before.version,
+        changed,
+        emitido: is_plan_mes_emitido(plan_before),
+        notify: false,
       });
     }
     revalidate_objetivos();
@@ -245,13 +240,6 @@ export async function save_plan_objetivo(
     console.error("[planificacion] objetivo apps:", links);
     return { ok: false, error: "No se pudieron guardar las apps del objetivo." };
   }
-  if (is_plan_mes_emitido(plan_before)) {
-    const plan = await bump_plan_mes_version(supabase, mes);
-    await notify_plan_mes_actualizado(supabase, plan, {
-      kind: "anadido",
-      titulo: payload.titulo,
-    });
-  }
   revalidate_objetivos();
   return { ok: true, id };
 }
@@ -265,17 +253,6 @@ export async function delete_plan_objetivo(
   const gate = await require_objetivos_write_context();
   if (!gate.ok) return gate;
   const { supabase } = gate.ctx;
-  const { data: prev } = await supabase
-    .from("ted_plan_objetivos" as never)
-    .select("id, titulo, fecha_inicio")
-    .eq("id", objetivo_id)
-    .maybeSingle();
-  const prev_row = prev as {
-    titulo?: string;
-    fecha_inicio?: string;
-  } | null;
-  const mes = parse_plan_month(prev_row?.fecha_inicio?.slice(0, 7));
-  const plan_before = await fetch_plan_mes(supabase, mes);
   const { error } = await supabase
     .from("ted_plan_objetivos" as never)
     .delete()
@@ -283,13 +260,6 @@ export async function delete_plan_objetivo(
   if (error) {
     console.error("[planificacion] delete objetivo:", error);
     return { ok: false, error: "No se pudo eliminar el objetivo." };
-  }
-  if (prev_row && is_plan_mes_emitido(plan_before)) {
-    const plan = await bump_plan_mes_version(supabase, mes);
-    await notify_plan_mes_actualizado(supabase, plan, {
-      kind: "quitado",
-      titulo: prev_row.titulo ?? "Objetivo",
-    });
   }
   revalidate_objetivos();
   return { ok: true };
@@ -365,7 +335,8 @@ export async function load_objetivos_month(
       mes: string;
       plan_mes: PlanMes;
       objetivos: PlanObjetivo[];
-      apps: Array<{ id: number; nombre: string }>;
+      apps: Array<{ id: number; nombre: string; slug: string }>;
+      usuarios: PlanUsuarioOption[];
     }
   | { ok: false; error: string }
 > {
@@ -376,7 +347,12 @@ export async function load_objetivos_month(
     mes: cover.data.mes,
     plan_mes: cover.data.plan_mes,
     objetivos: cover.data.objetivos,
-    apps: cover.data.apps,
+    apps: cover.data.plan_apps.map((app) => ({
+      id: app.id,
+      nombre: app.nombre,
+      slug: app.slug,
+    })),
+    usuarios: cover.data.usuarios,
   };
 }
 

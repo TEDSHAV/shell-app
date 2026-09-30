@@ -60,14 +60,16 @@ const optional_iso_date = z
 export const tarea_schema = z.object({
   id: z.number().int().positive().optional(),
   app_id: z.number().int().positive().optional(),
+  app_ids: z.array(z.number().int().positive()).optional(),
   modulo_id: z.number().int().positive().optional(),
+  modulo_ids: z.array(z.number().int().positive()).optional(),
   modulo_nombre_nuevo: z.string().trim().max(160).optional().nullable(),
   titulo: z.string().trim().min(1, "El título es obligatorio").max(240),
   descripcion: z.string().trim().max(8000).optional().nullable(),
   origen: z.enum(PLAN_ORIGENES),
-  avance: z.number().int().min(0).max(100),
+  avance: z.number().int().min(0).max(100).default(0),
   no_solicitada: z.boolean().default(false),
-  entregable_tipo: z.enum(ENTREGABLE_TIPOS),
+  entregable_tipo: z.enum(ENTREGABLE_TIPOS).default("ninguno"),
   entregable_ruta: z.string().trim().max(320).optional().nullable(),
   entregable_comentario: z.string().trim().max(4000).optional().nullable(),
   fecha_inicio: optional_iso_date,
@@ -89,6 +91,15 @@ export const tarea_schema = z.object({
   },
 );
 
+export const complete_tarea_schema = z.object({
+  id: z.number().int().positive(),
+  entregable_tipo: z.enum(ENTREGABLE_TIPOS),
+  entregable_ruta: z.string().trim().max(320).optional().nullable(),
+  entregable_comentario: z.string().trim().max(4000).optional().nullable(),
+  entregable_unidad: z.string().trim().max(80).optional().nullable(),
+  entregable_version: z.string().trim().max(80).optional().nullable(),
+});
+
 export const objetivo_schema = z.object({
   id: z.number().int().positive().optional(),
   titulo: z.string().trim().min(1, "El título es obligatorio").max(240),
@@ -97,6 +108,16 @@ export const objetivo_schema = z.object({
   app_ids: z.array(z.number().int().positive()).default([]),
   estado: z.enum(PLAN_OBJETIVO_ESTADOS).default("abierto"),
   solicitado_por: z.number().int().positive().nullable().optional(),
+});
+
+export const plan_commit_item_schema = objetivo_schema.extend({
+  id: z.number().int().positive().optional(),
+});
+
+export const plan_commit_schema = z.object({
+  mes: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Mes inválido"),
+  items: z.array(plan_commit_item_schema).max(80),
+  deleted_ids: z.array(z.number().int().positive()).default([]),
 });
 
 export const hito_schema = z.object({
@@ -152,6 +173,8 @@ export const excel_commit_schema = z.object({
 export type ModuloInput = z.infer<typeof modulo_schema>;
 export type AppInput = z.infer<typeof app_schema>;
 export type TareaInput = z.infer<typeof tarea_schema>;
+export type CompleteTareaInput = z.infer<typeof complete_tarea_schema>;
 export type HitoInput = z.infer<typeof hito_schema>;
 export type ObjetivoInput = z.infer<typeof objetivo_schema>;
+export type PlanCommitInput = z.infer<typeof plan_commit_schema>;
 export type ExcelCommitInput = z.infer<typeof excel_commit_schema>;

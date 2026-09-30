@@ -25,6 +25,8 @@ function cambio_label(
       return `Se quitó el objetivo «${titulo}».`;
     case "editado":
       return `Se modificó el objetivo «${titulo}».`;
+    case "lote":
+      return titulo.trim() || "Se actualizó el plan con varios cambios.";
     default: {
       const _never: never = kind;
       return _never;
@@ -76,6 +78,8 @@ export async function email_plan_mes(input: {
                 return "Cambio: baja de objetivo";
               case "editado":
                 return "Cambio: edición de objetivo";
+              case "lote":
+                return "Cambio: actualización del plan";
               default: {
                 const _never: never = input.kind;
                 return _never;

@@ -20,7 +20,7 @@ export function tarea_avance(tarea: ProgressTarea): number {
 }
 
 export function is_tarea_done(tarea: ProgressTarea): boolean {
-  return !is_tarea_no_solicitada(tarea) && tarea_avance(tarea) >= 100;
+  return !is_tarea_no_solicitada(tarea) && Boolean(tarea.completada);
 }
 
 export function is_tarea_pending(tarea: ProgressTarea): boolean {

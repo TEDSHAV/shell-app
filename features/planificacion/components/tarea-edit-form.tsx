@@ -1,19 +1,18 @@
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
   PlanField,
   PlanSection,
   PLAN_INPUT_CLASS,
   PLAN_SELECT_CLASS,
 } from "./plan-form-ui";
+import { GrowingTextarea } from "./growing-textarea";
+import { PlanAppPicker } from "./plan-app-picker";
+import { PlanModuloPicker } from "./plan-modulo-picker";
 import { TedPersonPicker } from "./ted-person-picker";
-import { PrismaRouteSelect } from "./prisma-route-select";
 import { PLAN_TRIMESTRES } from "../schemas";
 import { ORIGIN_LABELS } from "../lib/display";
 import { origenes_for_editor } from "../lib/origen-policy";
-import { PLAN_RELEASE_UNITS } from "../lib/release-units";
 import type {
-  EntregableTipo,
   PlanApp,
   PlanModulo,
   PlanOrigen,
@@ -26,38 +25,31 @@ const AVANCE_PRESETS = [0, 25, 50, 75, 100];
 export function TareaEditForm({
   apps,
   all_modulos,
-  app_id,
-  modulo_id,
+  app_ids,
+  modulo_ids,
   nuevo_modulo,
   titulo,
   descripcion,
   origen,
   avance,
   no_solicitada,
-  entregable_tipo,
-  unidad,
-  version,
-  ruta,
-  comentario,
+  when_mode,
   fecha_inicio,
   fecha_fin,
   trimestre,
   asignado_ids,
   usuarios,
+  show_progress,
   error,
-  on_app,
-  on_modulo,
+  on_apps,
+  on_modulos,
   on_nuevo_modulo,
   on_titulo,
   on_descripcion,
   on_origen,
   on_avance,
   on_no_solicitada,
-  on_entregable,
-  on_unidad,
-  on_version,
-  on_ruta,
-  on_comentario,
+  on_when_mode,
   on_inicio,
   on_fin,
   on_trimestre,
@@ -65,38 +57,31 @@ export function TareaEditForm({
 }: {
   apps: PlanApp[];
   all_modulos: PlanModulo[];
-  app_id: string;
-  modulo_id: string;
+  app_ids: number[];
+  modulo_ids: number[];
   nuevo_modulo: string;
   titulo: string;
   descripcion: string;
   origen: PlanOrigen;
   avance: number;
   no_solicitada: boolean;
-  entregable_tipo: EntregableTipo;
-  unidad: string;
-  version: string;
-  ruta: string;
-  comentario: string;
+  when_mode: "fechas" | "trimestre";
   fecha_inicio: string;
   fecha_fin: string;
   trimestre: PlanTrimestre | "";
   asignado_ids: number[];
   usuarios: PlanUsuarioOption[];
+  show_progress: boolean;
   error: string | null;
-  on_app: (value: string) => void;
-  on_modulo: (value: string) => void;
+  on_apps: (value: number[]) => void;
+  on_modulos: (value: number[]) => void;
   on_nuevo_modulo: (value: string) => void;
   on_titulo: (value: string) => void;
   on_descripcion: (value: string) => void;
   on_origen: (value: PlanOrigen) => void;
   on_avance: (value: number) => void;
   on_no_solicitada: (value: boolean) => void;
-  on_entregable: (value: EntregableTipo) => void;
-  on_unidad: (value: string) => void;
-  on_version: (value: string) => void;
-  on_ruta: (value: string) => void;
-  on_comentario: (value: string) => void;
+  on_when_mode: (value: "fechas" | "trimestre") => void;
   on_inicio: (value: string) => void;
   on_fin: (value: string) => void;
   on_trimestre: (value: PlanTrimestre | "") => void;
@@ -106,7 +91,7 @@ export function TareaEditForm({
 
   return (
     <div className="space-y-4">
-      <PlanSection title="Qué es">
+      <PlanSection title="La tarea">
         <PlanField label="Título" htmlFor="tar-titulo">
           <Input
             id="tar-titulo"
@@ -116,60 +101,34 @@ export function TareaEditForm({
           />
         </PlanField>
         <PlanField label="Descripción" htmlFor="tar-descripcion">
-          <Textarea
+          <GrowingTextarea
             id="tar-descripcion"
-            rows={4}
-            className={PLAN_INPUT_CLASS}
             placeholder="Contexto, alcance o pedido original"
             value={descripcion}
-            onChange={(e) => on_descripcion(e.target.value)}
+            onChange={on_descripcion}
           />
         </PlanField>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <PlanField label="App" htmlFor="tar-app">
-            <select
-              id="tar-app"
-              className={PLAN_SELECT_CLASS}
-              value={app_id}
-              onChange={(e) => {
-                on_app(e.target.value);
-                on_modulo("");
-              }}
-            >
-              {apps.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.nombre}
-                </option>
-              ))}
-            </select>
-          </PlanField>
-          <PlanField label="Módulo" htmlFor="tar-mod">
-            <select
-              id="tar-mod"
-              className={PLAN_SELECT_CLASS}
-              value={modulo_id}
-              onChange={(e) => on_modulo(e.target.value)}
-            >
-              <option value="">Crear módulo nuevo…</option>
-              {all_modulos
-                .filter((m) => {
-                  const ids = m.app_ids?.length ? m.app_ids : [m.app_id];
-                  return ids.includes(Number(app_id));
-                })
-                .filter(
-                  (m, index, list) =>
-                    list.findIndex((item) => item.id === m.id) === index,
-                )
-                .map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.nombre}
-                    {m.app_ids.length > 1 ? " (varias apps)" : ""}
-                  </option>
-                ))}
-            </select>
-          </PlanField>
-        </div>
-        {!modulo_id ? (
+        <PlanField label="Apps" hint="Con icono y color, como en objetivos. Puedes marcar varias.">
+          <PlanAppPicker
+            apps={apps}
+            value={app_ids}
+            onChange={on_apps}
+            allowEmpty={false}
+          />
+        </PlanField>
+        <PlanField
+          label="Módulos"
+          hint="Mismos colores de app. Puedes marcar varios; si creas uno nuevo se vincula a todas las apps elegidas."
+        >
+          <PlanModuloPicker
+            apps={apps}
+            modulos={all_modulos}
+            app_ids={app_ids}
+            value={modulo_ids}
+            onChange={on_modulos}
+          />
+        </PlanField>
+        {modulo_ids.length === 0 ? (
           <PlanField label="Nombre del módulo nuevo" htmlFor="tar-mod-new">
             <Input
               id="tar-mod-new"
@@ -179,24 +138,117 @@ export function TareaEditForm({
             />
           </PlanField>
         ) : null}
-        <PlanField label="Origen" htmlFor="tar-origen">
-          <select
-            id="tar-origen"
-            className={PLAN_SELECT_CLASS}
-            value={origen}
-            onChange={(e) => on_origen(e.target.value as PlanOrigen)}
-          >
-            {origenes_for_editor(origen).map((item) => (
-              <option key={item} value={item}>
-                {ORIGIN_LABELS[item]}
-              </option>
-            ))}
-          </select>
-        </PlanField>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <PlanField label="Origen" htmlFor="tar-origen">
+            <select
+              id="tar-origen"
+              className={PLAN_SELECT_CLASS}
+              value={origen}
+              onChange={(e) => on_origen(e.target.value as PlanOrigen)}
+            >
+              {origenes_for_editor(origen).map((item) => (
+                <option key={item} value={item}>
+                  {ORIGIN_LABELS[item]}
+                </option>
+              ))}
+            </select>
+          </PlanField>
+          <PlanField label="Equipo TED">
+            <TedPersonPicker
+              usuarios={usuarios}
+              multiple
+              values={asignado_ids}
+              on_change_many={on_asignados}
+              allow_none
+              none_label="Sin asignar"
+            />
+          </PlanField>
+        </div>
       </PlanSection>
 
-      <PlanSection title="Avance y fechas">
-        <div>
+      <PlanSection title="Cuándo">
+        <div className="grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1">
+          <button
+            type="button"
+            onClick={() => on_when_mode("fechas")}
+            className={`rounded-xl px-3 py-2 text-sm font-semibold transition ${
+              when_mode === "fechas"
+                ? "bg-white text-slate-900 shadow-sm"
+                : "text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            Rango de fechas
+          </button>
+          <button
+            type="button"
+            onClick={() => on_when_mode("trimestre")}
+            className={`rounded-xl px-3 py-2 text-sm font-semibold transition ${
+              when_mode === "trimestre"
+                ? "bg-white text-slate-900 shadow-sm"
+                : "text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            Trimestre
+          </button>
+        </div>
+        {when_mode === "fechas" ? (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <PlanField label="Inicio" htmlFor="tar-ini">
+              <Input
+                id="tar-ini"
+                type="date"
+                className={PLAN_INPUT_CLASS}
+                value={fecha_inicio}
+                onChange={(e) => {
+                  on_inicio(e.target.value);
+                  if (!fecha_fin || fecha_fin < e.target.value) {
+                    on_fin(e.target.value);
+                  }
+                }}
+              />
+            </PlanField>
+            <PlanField label="Fin" htmlFor="tar-fin">
+              <Input
+                id="tar-fin"
+                type="date"
+                className={PLAN_INPUT_CLASS}
+                value={fecha_fin}
+                onChange={(e) => on_fin(e.target.value)}
+              />
+            </PlanField>
+          </div>
+        ) : (
+          <PlanField label="Trimestre" htmlFor="tar-tri">
+            <div className="grid grid-cols-4 gap-2">
+              {PLAN_TRIMESTRES.map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => on_trimestre(item)}
+                  className={`rounded-xl border py-2.5 text-sm font-semibold transition ${
+                    trimestre === item
+                      ? "border-violet-300 bg-violet-50 text-violet-800"
+                      : "border-slate-200 bg-white text-slate-600 hover:border-violet-200"
+                  }`}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+          </PlanField>
+        )}
+        <label className="flex items-center gap-2 text-sm text-slate-600">
+          <input
+            type="checkbox"
+            checked={no_solicitada}
+            onChange={(e) => on_no_solicitada(e.target.checked)}
+          />
+          No solicitada (no cuenta en el %)
+        </label>
+      </PlanSection>
+
+      {show_progress ? (
+        <PlanSection title="Avance">
           <div className="mb-2 flex items-end justify-between">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               Porcentaje
@@ -232,137 +284,11 @@ export function TareaEditForm({
               </button>
             ))}
           </div>
-          <label className="mt-3 flex items-center gap-2 text-sm text-slate-600">
-            <input
-              type="checkbox"
-              checked={no_solicitada}
-              onChange={(e) => on_no_solicitada(e.target.checked)}
-            />
-            No solicitada (no cuenta en el %)
-          </label>
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <PlanField label="Fecha inicio" htmlFor="tar-ini">
-            <Input
-              id="tar-ini"
-              type="date"
-              className={PLAN_INPUT_CLASS}
-              value={fecha_inicio}
-              onChange={(e) => {
-                on_inicio(e.target.value);
-                if (!fecha_fin || fecha_fin < e.target.value) {
-                  on_fin(e.target.value);
-                }
-              }}
-            />
-          </PlanField>
-          <PlanField
-            label="Fecha fin"
-            htmlFor="tar-fin"
-            hint="Sin fecha puedes marcar un trimestre."
-          >
-            <Input
-              id="tar-fin"
-              type="date"
-              className={PLAN_INPUT_CLASS}
-              value={fecha_fin}
-              onChange={(e) => on_fin(e.target.value)}
-            />
-          </PlanField>
-        </div>
-        {!fecha_inicio ? (
-          <PlanField label="Trimestre" htmlFor="tar-tri">
-            <select
-              id="tar-tri"
-              className={PLAN_SELECT_CLASS}
-              value={trimestre}
-              onChange={(e) =>
-                on_trimestre(e.target.value as PlanTrimestre | "")
-              }
-            >
-              <option value="">Sin colocar</option>
-              {PLAN_TRIMESTRES.map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-          </PlanField>
-        ) : null}
-      </PlanSection>
-
-      <PlanSection title="Equipo TED">
-        <TedPersonPicker
-          usuarios={usuarios}
-          multiple
-          values={asignado_ids}
-          on_change_many={on_asignados}
-          allow_none
-          none_label="Sin asignar"
-        />
-      </PlanSection>
-
-      <PlanSection title="Entregable">
-        <PlanField label="Tipo" htmlFor="tar-ent">
-          <select
-            id="tar-ent"
-            className={PLAN_SELECT_CLASS}
-            value={entregable_tipo}
-            onChange={(e) => on_entregable(e.target.value as EntregableTipo)}
-          >
-            <option value="ninguno">Sin entregable</option>
-            <option value="vista">Vista Prisma (ruta)</option>
-            <option value="comentario">Comentario</option>
-            <option value="version">Versión de release</option>
-          </select>
-        </PlanField>
-        {entregable_tipo === "vista" ? (
-          <PlanField label="Ruta" htmlFor="tar-ruta">
-            <PrismaRouteSelect
-              id="tar-ruta"
-              value={ruta}
-              on_change={on_ruta}
-            />
-          </PlanField>
-        ) : null}
-        {entregable_tipo === "version" ? (
-          <div className="grid grid-cols-2 gap-3">
-            <PlanField label="Unidad" htmlFor="tar-uni">
-              <select
-                id="tar-uni"
-                className={PLAN_SELECT_CLASS}
-                value={unidad}
-                onChange={(e) => on_unidad(e.target.value)}
-              >
-                {PLAN_RELEASE_UNITS.map((unit) => (
-                  <option key={unit.id} value={unit.id}>
-                    {unit.label}
-                  </option>
-                ))}
-              </select>
-            </PlanField>
-            <PlanField label="Versión" htmlFor="tar-ver">
-              <Input
-                id="tar-ver"
-                className={PLAN_INPUT_CLASS}
-                placeholder="facturacion-v0.4.0"
-                value={version}
-                onChange={(e) => on_version(e.target.value)}
-              />
-            </PlanField>
-          </div>
-        ) : null}
-        {entregable_tipo === "comentario" ? (
-          <PlanField label="Comentario de entrega" htmlFor="tar-com">
-            <Textarea
-              id="tar-com"
-              className="min-h-[120px] rounded-xl border-slate-200 bg-slate-50"
-              value={comentario}
-              onChange={(e) => on_comentario(e.target.value)}
-            />
-          </PlanField>
-        ) : null}
-      </PlanSection>
+          <p className="text-[11px] leading-snug text-slate-400">
+            Para darla por lista usa «Marcar como lista» y registra el entregable ahí.
+          </p>
+        </PlanSection>
+      ) : null}
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
     </div>
   );

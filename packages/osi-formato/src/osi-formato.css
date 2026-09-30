@@ -1,7 +1,6 @@
-/* Shared OSI document styles (SGestion + Shell). */
-@import url(
-  "https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap"
-);
+/* Shared OSI document styles (SGestion + Shell).
+ * Poppins: load in the host app (globals.css / next/font). Do NOT @import
+ * Google Fonts here — nested after Tailwind rules breaks LightningCSS/Coolify. */
 @import "./osi-document-utilities.css";
 
 .print-document-palette {
