@@ -9,6 +9,7 @@ import { kanban_column_of_tarea } from "../lib/plan-kanban";
 import { TareaDateLine } from "./tarea-date-line";
 import { group_done_last } from "../lib/flatten-plan-tasks";
 import type { FlatPlanTask } from "../lib/flatten-plan-tasks";
+import { format_objetivo_date } from "../lib/display";
 
 const STATUS_LABEL = {
   todo: "Planificado",
@@ -121,6 +122,16 @@ function TaskGroup({
               </div>
             </div>
             <div className="flex shrink-0 flex-col items-end gap-2">
+              {format_objetivo_date(tarea.created_at) ? (
+                <span className="flex flex-col items-end leading-tight">
+                  <span className="text-[9px] font-semibold uppercase tracking-wide text-slate-400">
+                    Creación
+                  </span>
+                  <span className="text-[10px] tabular-nums text-slate-500">
+                    {format_objetivo_date(tarea.created_at)}
+                  </span>
+                </span>
+              ) : null}
               <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
                 {STATUS_LABEL[column]}
               </span>

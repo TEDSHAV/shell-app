@@ -12,6 +12,7 @@ import { TedPersonPicker } from "./ted-person-picker";
 import { PLAN_TRIMESTRES } from "../schemas";
 import { ORIGIN_LABELS, TRIMESTRE_MESES } from "../lib/display";
 import { origenes_for_editor } from "../lib/origen-policy";
+import { format_business_days } from "../lib/task-dates";
 import type {
   PlanApp,
   PlanModulo,
@@ -121,7 +122,7 @@ export function TareaEditForm({
         </PlanField>
         <PlanField
           label="Módulos"
-          hint="Mismos colores de app. Puedes marcar varios; si creas uno nuevo se vincula a todas las apps elegidas."
+          hint="Busca y elige uno o varios. Si no hay, elige Nuevo módulo."
         >
           <PlanModuloPicker
             apps={apps}
@@ -193,31 +194,41 @@ export function TareaEditForm({
           </button>
         </div>
         {when_mode === "fechas" ? (
-          <div className="grid gap-3 sm:grid-cols-2">
-            <PlanField label="Inicio" htmlFor="tar-ini">
-              <Input
-                id="tar-ini"
-                type="date"
-                className={PLAN_INPUT_CLASS}
-                value={fecha_inicio}
-                onChange={(e) => {
-                  on_inicio(e.target.value);
-                  if (!fecha_fin || fecha_fin < e.target.value) {
-                    on_fin(e.target.value);
-                  }
-                }}
-              />
-            </PlanField>
-            <PlanField label="Fin" htmlFor="tar-fin">
-              <Input
-                id="tar-fin"
-                type="date"
-                className={PLAN_INPUT_CLASS}
-                value={fecha_fin}
-                onChange={(e) => on_fin(e.target.value)}
-              />
-            </PlanField>
-          </div>
+          <>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <PlanField label="Inicio" htmlFor="tar-ini">
+                <Input
+                  id="tar-ini"
+                  type="date"
+                  className={PLAN_INPUT_CLASS}
+                  value={fecha_inicio}
+                  onChange={(e) => {
+                    on_inicio(e.target.value);
+                    if (!fecha_fin || fecha_fin < e.target.value) {
+                      on_fin(e.target.value);
+                    }
+                  }}
+                />
+              </PlanField>
+              <PlanField label="Fin" htmlFor="tar-fin">
+                <Input
+                  id="tar-fin"
+                  type="date"
+                  className={PLAN_INPUT_CLASS}
+                  value={fecha_fin}
+                  onChange={(e) => on_fin(e.target.value)}
+                />
+              </PlanField>
+            </div>
+            {format_business_days(fecha_inicio, fecha_fin) ? (
+              <p className="rounded-xl bg-violet-50 px-3 py-2 text-sm font-medium text-violet-800">
+                {format_business_days(fecha_inicio, fecha_fin)} de trabajo
+                <span className="ml-1 font-normal text-violet-600">
+                  (lunes a viernes)
+                </span>
+              </p>
+            ) : null}
+          </>
         ) : (
           <PlanField label="Trimestre" htmlFor="tar-tri">
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">

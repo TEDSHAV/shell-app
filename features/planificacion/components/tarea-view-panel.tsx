@@ -22,6 +22,7 @@ import { TareaAvanceCard } from "./tarea-avance-card";
 import { people_on_tarea } from "../lib/people";
 import { PLAN_RELEASE_UNITS } from "../lib/release-units";
 import { tarea_avance } from "../lib/task-progress";
+import { format_business_days } from "../lib/task-dates";
 import { build_prisma_view_url } from "../lib/prisma-routes";
 import {
   parse_descripcion,
@@ -314,9 +315,16 @@ export function TareaViewPanel({
           icon={<CalendarRange className="h-4 w-4 text-violet-500" />}
           label={tarea.fecha_inicio ? "Fechas" : "Trimestre"}
         >
-          {tarea.fecha_inicio
-            ? `${format_day(tarea.fecha_inicio)} → ${format_day(tarea.fecha_fin)}`
-            : tarea.trimestre || "Sin colocar"}
+          {tarea.fecha_inicio ? (
+            <span>
+              {format_day(tarea.fecha_inicio)} → {format_day(tarea.fecha_fin)}
+              {format_business_days(tarea.fecha_inicio, tarea.fecha_fin)
+                ? ` · ${format_business_days(tarea.fecha_inicio, tarea.fecha_fin)}`
+                : null}
+            </span>
+          ) : (
+            tarea.trimestre || "Sin colocar"
+          )}
         </MetaRow>
         <MetaRow
           icon={<Users className="h-4 w-4 text-violet-500" />}

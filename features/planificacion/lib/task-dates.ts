@@ -112,3 +112,33 @@ export function optional_excel_dates(
     ? { fecha_inicio: a, fecha_fin: b }
     : { fecha_inicio: b, fecha_fin: a };
 }
+
+export function count_business_days(
+  start: string | null | undefined,
+  end: string | null | undefined,
+): number | null {
+  const from = iso_date(start);
+  const to = iso_date(end) ?? from;
+  if (!from || !to) return null;
+  const a = from <= to ? from : to;
+  const b = from <= to ? to : from;
+  let count = 0;
+  const cursor = new Date(`${a}T12:00:00`);
+  const last = new Date(`${b}T12:00:00`);
+  while (cursor.getTime() <= last.getTime()) {
+    const weekday = cursor.getDay();
+    if (weekday !== 0 && weekday !== 6) count += 1;
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return count;
+}
+
+export function format_business_days(
+  start: string | null | undefined,
+  end: string | null | undefined,
+): string | null {
+  const count = count_business_days(start, end);
+  if (count == null) return null;
+  if (count === 1) return "1 día hábil";
+  return `${count} días hábiles`;
+}

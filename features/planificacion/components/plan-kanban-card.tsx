@@ -8,6 +8,7 @@ import { OrigenBadge } from "./origen-badge";
 import { PlanAssigneeStack } from "./plan-assignee-chip";
 import { TareaDateLine } from "./tarea-date-line";
 import { people_on_tarea } from "../lib/people";
+import { format_objetivo_date } from "../lib/display";
 
 export function PlanKanbanCard({
   item,
@@ -53,9 +54,21 @@ export function PlanKanbanCard({
         tarea.avance >= 100 && "opacity-70",
       )}
     >
-      <p className="text-[13px] font-bold leading-snug text-slate-900">
-        {app_nombre}
-      </p>
+      <div className="flex items-start justify-between gap-3">
+        <p className="min-w-0 text-[13px] font-bold leading-snug text-slate-900">
+          {app_nombre}
+        </p>
+        {format_objetivo_date(tarea.created_at) ? (
+          <span className="flex shrink-0 flex-col items-end leading-tight">
+            <span className="text-[9px] font-semibold uppercase tracking-wide text-slate-400">
+              Creación
+            </span>
+            <span className="text-[10px] tabular-nums text-slate-500">
+              {format_objetivo_date(tarea.created_at)}
+            </span>
+          </span>
+        ) : null}
+      </div>
       <p className="mt-0.5 text-xs font-semibold text-violet-700">
         {modulo_nombre}
       </p>
