@@ -38,21 +38,25 @@ export async function list_plan_mail_recipients(
     console.error("[planificacion] mail recipients:", error);
     return [];
   }
-  return ((data ?? []) as Array<{
+  const rows = (data ?? []) as Array<{
     id: number;
     rol: string;
     email: string;
     nombre: string | null;
     activo: boolean;
-  }>)
-    .filter((row) => is_mail_rol(row.rol))
-    .map((row) => ({
+  }>;
+  const listed: PlanMailRecipient[] = [];
+  for (const row of rows) {
+    if (!is_mail_rol(row.rol)) continue;
+    listed.push({
       id: row.id,
       rol: row.rol,
       email: row.email,
       nombre: row.nombre,
       activo: row.activo,
-    }));
+    });
+  }
+  return listed;
 }
 
 export function emails_for_rol(
