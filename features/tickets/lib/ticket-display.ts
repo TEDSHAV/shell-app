@@ -1,9 +1,40 @@
 import type { TicketPrioridad, TicketRow } from "./types";
 
+export function join_people_names(names: string[]): string {
+  const clean = names.map((name) => name.trim()).filter(Boolean);
+  if (clean.length === 0) return "Usuario";
+  if (clean.length === 1) return clean[0] ?? "Usuario";
+  if (clean.length === 2) return `${clean[0]} y ${clean[1]}`;
+  return `${clean.slice(0, -1).join(", ")} y ${clean[clean.length - 1]}`;
+}
+
+export function ticket_solicitante_ids(ticket: TicketRow): number[] {
+  if (ticket.solicitado_ids.length > 0) return ticket.solicitado_ids;
+  return ticket.solicitado_por ? [ticket.solicitado_por] : [];
+}
+
 export function ticket_en_nombre_de(ticket: TicketRow): boolean {
   if (ticket.source === "plan") return false;
-  if (ticket.created_by == null || ticket.solicitado_por == null) return false;
-  return ticket.created_by !== ticket.solicitado_por;
+  if (ticket.created_by == null) return false;
+  const ids = ticket_solicitante_ids(ticket);
+  if (ids.length === 0) return false;
+  return ids.some((id) => id !== ticket.created_by);
+}
+
+export function ticket_registrado_label(ticket: TicketRow): string {
+  return ticket.registrado_por ?? "TED";
+}
+
+export function ticket_solicitado_label(ticket: TicketRow): string {
+  return ticket.solicitante || "Usuario";
+}
+
+export function ticket_people_meta(ticket: TicketRow, viewer: "inbox" | "mine"): string {
+  if (ticket_en_nombre_de(ticket)) {
+    return `Registrado por ${ticket_registrado_label(ticket)} · Solicitado por ${ticket_solicitado_label(ticket)}`;
+  }
+  if (viewer === "mine") return "Lo enviaste tú";
+  return `Solicitó ${ticket_solicitado_label(ticket)}`;
 }
 
 export const PRIORIDAD_TONE: Record<

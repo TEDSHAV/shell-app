@@ -1,8 +1,13 @@
 import type { createAdminClient } from "@/lib/supabase/server";
 import { fanOutNotifyByConfig } from "@/lib/notification-recipient/runtime-resolve";
+import { join_people_names } from "./ticket-display";
 import { PRIORIDAD_LABEL } from "./labels";
 import type { TicketPrioridad } from "./types";
 import { email_ticket_created } from "./ticket-email";
+import {
+  load_ticket_solicitante_ids,
+  notify_users_ticket,
+} from "./ticket-solicitantes";
 
 type Admin = Awaited<ReturnType<typeof createAdminClient>>;
 
@@ -41,9 +46,14 @@ export async function notify_ticket_created(
   } | null;
   if (!row) return;
 
-  const user_ids = [row.solicitado_por, row.created_by].filter(
-    (id): id is number => Boolean(id),
+  const solicitante_ids = await load_ticket_solicitante_ids(
+    supabase,
+    ticket_id,
+    row.solicitado_por,
   );
+  const user_ids = [...new Set([...solicitante_ids, row.created_by].filter(
+    (id): id is number => Boolean(id),
+  ))];
   const names = new Map<number, string>();
   if (user_ids.length > 0) {
     const { data: users } = await supabase
@@ -79,18 +89,18 @@ export async function notify_ticket_created(
       (modulo as { nombre?: string } | null)?.nombre ?? modulo_nombre;
   }
 
-  const solicitante =
-    (row.solicitado_por ? names.get(row.solicitado_por) : null) ?? "Usuario";
+  const solicitante = join_people_names(
+    solicitante_ids.map((id) => names.get(id) ?? "Usuario"),
+  );
   const registrador =
     (row.created_by ? names.get(row.created_by) : null) ?? solicitante;
-  const a_nombre =
-    row.created_by &&
-    row.solicitado_por &&
-    row.created_by !== row.solicitado_por;
+  const a_nombre = Boolean(
+    row.created_by && solicitante_ids.some((id) => id !== row.created_by),
+  );
 
   const lines = [
-    `Solicitante: ${solicitante}`,
-    a_nombre ? `Registrado por: ${registrador} (a nombre de ${solicitante})` : null,
+    `Solicitado por: ${solicitante}`,
+    a_nombre ? `Registrado por: ${registrador}` : null,
     `App: ${app_nombre}`,
     `Módulo: ${modulo_nombre}`,
     `Prioridad: ${label_prioridad(row.prioridad)}`,
@@ -109,12 +119,24 @@ export async function notify_ticket_created(
     dedupeKey: `ticket:${ticket_id}:created`,
     priority: 2,
   });
+
+  if (a_nombre) {
+    await notify_users_ticket(supabase, {
+      ticket_id,
+      usuario_ids: solicitante_ids.filter((id) => id !== row.created_by),
+      event_key: "ticket_created",
+      title: "Se registró un ticket solicitado por ti",
+      body: lines.join("\n"),
+      link_path: "/tickets/mios",
+    });
+  }
+
   await email_ticket_created({
     ticket_id,
     titulo: row.titulo ?? "Ticket",
     solicitante,
     registrador,
-    a_nombre: Boolean(a_nombre),
+    a_nombre,
     app_nombre,
     modulo_nombre,
     prioridad: label_prioridad(row.prioridad),

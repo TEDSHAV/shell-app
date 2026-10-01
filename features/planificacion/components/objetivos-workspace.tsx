@@ -1,6 +1,7 @@
 "use client";
 
-import { Pencil, Plus, X } from "lucide-react";
+import { Pencil, Plus, Settings, X } from "lucide-react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { PlanMonthPicker } from "./plan-month-picker";
 import { ObjetivoCard } from "./objetivo-card";
@@ -20,6 +21,7 @@ export function ObjetivosWorkspace({
   apps,
   usuarios,
   can_write = true,
+  show_mail_config = false,
 }: {
   mes: string;
   plan_mes: PlanMes;
@@ -27,6 +29,7 @@ export function ObjetivosWorkspace({
   apps: PlanAppPickerItem[];
   usuarios: PlanUsuarioOption[];
   can_write?: boolean;
+  show_mail_config?: boolean;
 }) {
   const emitido = is_plan_mes_emitido(plan_mes);
   const editor = use_plan_editor(objetivos, mes);
@@ -50,6 +53,14 @@ export function ObjetivosWorkspace({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {show_mail_config && !editor.editing ? (
+            <Button variant="outline" className="rounded-full" asChild>
+              <Link href="/ted/planificacion/objetivos/configuracion">
+                <Settings className="mr-1 h-4 w-4" />
+                Correos
+              </Link>
+            </Button>
+          ) : null}
           {editor.editing ? null : <PlanMonthPicker mes={mes} />}
           {can_write && editor.editing ? (
             <>

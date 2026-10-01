@@ -43,6 +43,7 @@ export function merge_ticket_inbox(
       modulo_id: item.tarea.modulo_id,
       modulo_nombre: item.modulo_nombre,
       solicitado_por: null,
+      solicitado_ids: [],
       solicitante: "Plan",
       created_by: null,
       registrado_por: null,

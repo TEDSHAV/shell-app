@@ -1,6 +1,7 @@
 import type { createAdminClient } from "@/lib/supabase/server";
 import { fanOutNotifyByConfig } from "@/lib/notification-recipient/runtime-resolve";
 import { format_month_label, month_bounds, parse_plan_month } from "./plan-month";
+import { emails_for_rol, list_plan_mail_recipients } from "./plan-mail-recipients";
 import type { PlanMes, PlanMesCambioKind, PlanObjetivoResumen } from "./plan-mes";
 
 type Admin = Awaited<ReturnType<typeof createAdminClient>>;
@@ -125,6 +126,27 @@ function list_body(items: PlanObjetivoResumen[]): string {
   return items.map(format_objetivo_line).join("\n");
 }
 
+async function send_plan_emails(
+  supabase: Admin,
+  plan: PlanMes,
+  extra: {
+    kind: "emitido" | PlanMesCambioKind;
+    cambio_titulo?: string;
+    items: PlanObjetivoResumen[];
+  },
+): Promise<void> {
+  const rows = await list_plan_mail_recipients(supabase);
+  const { email_plan_mes } = await import("./plan-mes-email");
+  await email_plan_mes({
+    plan,
+    kind: extra.kind,
+    cambio_titulo: extra.cambio_titulo,
+    items: extra.items,
+    ejecutantes: emails_for_rol(rows, "ejecutante"),
+    solicitantes: emails_for_rol(rows, "solicitante"),
+  });
+}
+
 export async function notify_plan_mes_emitido(
   supabase: Admin,
   plan: PlanMes,
@@ -141,8 +163,7 @@ export async function notify_plan_mes_emitido(
     dedupeKey: `plan-mes:${plan.mes}:emitido:v${plan.version}`,
     priority: 2,
   });
-  const { email_plan_mes } = await import("./plan-mes-email");
-  await email_plan_mes({ plan, kind: "emitido", items });
+  await send_plan_emails(supabase, plan, { kind: "emitido", items });
 }
 
 export async function notify_plan_mes_actualizado(
@@ -178,9 +199,7 @@ export async function notify_plan_mes_actualizado(
     dedupeKey: `plan-mes:${plan.mes}:upd:v${plan.version}`,
     priority: 2,
   });
-  const { email_plan_mes } = await import("./plan-mes-email");
-  await email_plan_mes({
-    plan,
+  await send_plan_emails(supabase, plan, {
     kind: cambio.kind,
     cambio_titulo: cambio.titulo,
     items,

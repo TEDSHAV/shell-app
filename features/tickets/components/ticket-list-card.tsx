@@ -7,7 +7,7 @@ import { ESTADO_LABEL, PRIORIDAD_LABEL } from "../lib/labels";
 import {
   ESTADO_TONE,
   PRIORIDAD_TONE,
-  ticket_en_nombre_de,
+  ticket_people_meta,
 } from "../lib/ticket-display";
 import type { TicketRow } from "../lib/types";
 import { TicketOnBehalfBadge } from "./ticket-on-behalf-badge";
@@ -27,15 +27,7 @@ export function TicketListCard({
   children?: ReactNode;
 }) {
   const tone = PRIORIDAD_TONE[ticket.prioridad];
-  const on_behalf = ticket_en_nombre_de(ticket);
-  const meta =
-    viewer === "inbox"
-      ? on_behalf
-        ? `Para ${ticket.solicitante} · lo registró ${ticket.registrado_por ?? "TED"}`
-        : `Solicitó ${ticket.solicitante}`
-      : on_behalf
-        ? `TED lo cargó a tu nombre`
-        : `Lo enviaste tú`;
+  const meta = ticket_people_meta(ticket, viewer);
 
   const inner = (
     <>

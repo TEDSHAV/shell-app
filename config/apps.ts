@@ -1197,6 +1197,13 @@ export const apps: AppConfig[] = [
             requiredPermissions: ["objetivos-ted:access-all"],
           },
           {
+            label: "Correos del plan",
+            path: "/planificacion/objetivos/configuracion",
+            icon: Settings,
+            requiredRoles: ["ted"],
+            requiredPermissions: ["objetivos-ted:access-all"],
+          },
+          {
             label: "Cubrir",
             path: "/planificacion/cubrir",
             icon: GitBranch,

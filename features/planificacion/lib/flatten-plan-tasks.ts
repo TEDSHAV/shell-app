@@ -49,18 +49,18 @@ function sort_flat_tasks(
   field: DateField | undefined,
   dir: SortDir | undefined,
 ): FlatPlanTask[] {
-  const extra_sorted = sort_flat_adicional_last(items);
-  if (!field) return extra_sorted;
+  if (!field) return sort_flat_adicional_last(items);
   const order: TimeOrder = dir === "asc" ? "oldest" : "newest";
-  return [...extra_sorted].sort((a, b) => {
-    const extra_a = a.tarea.origen === "ADICIONAL" ? 1 : 0;
-    const extra_b = b.tarea.origen === "ADICIONAL" ? 1 : 0;
-    if (extra_a !== extra_b) return extra_a - extra_b;
-    return compare_time(
+  return [...items].sort((a, b) => {
+    const by_time = compare_time(
       stamp_for_date_field(field, a.tarea),
       stamp_for_date_field(field, b.tarea),
       order,
     );
+    if (by_time !== 0) return by_time;
+    return order === "newest"
+      ? b.tarea.id - a.tarea.id
+      : a.tarea.id - b.tarea.id;
   });
 }
 

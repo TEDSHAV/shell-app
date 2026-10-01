@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { canReadObjetivosArea, canWriteObjetivos } from "@/actions/ted";
+import { canReadObjetivosArea, canWriteObjetivos, isTedMember } from "@/actions/ted";
 import { load_objetivos_month } from "@/features/planificacion/actions/objetivo-actions";
 import { ObjetivosWorkspace } from "@/features/planificacion/components/objetivos-workspace";
 import { parse_plan_month } from "@/features/planificacion/lib/plan-month";
@@ -14,6 +14,7 @@ export default async function TedObjetivosPage({
   const allowed = await canReadObjetivosArea();
   if (!allowed) redirect("/dashboard");
   const can_write = await canWriteObjetivos();
+  const is_ted = await isTedMember();
 
   const params = await searchParams;
   const mes = parse_plan_month(params.mes);
@@ -29,6 +30,7 @@ export default async function TedObjetivosPage({
           apps={loaded.apps}
           usuarios={loaded.usuarios}
           can_write={can_write}
+          show_mail_config={is_ted}
         />
       ) : (
         <p className="rounded-xl border border-red-100 bg-white px-4 py-3 text-sm text-red-600">

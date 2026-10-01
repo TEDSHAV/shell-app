@@ -14,9 +14,9 @@ export async function email_ticket_created(input: {
   const subject = `[Ticket TED #${input.ticket_id}] ${input.titulo}`;
   const cta_href = prisma_link("/ted/planificacion/tickets");
   const rows = [
-    { label: "Solicitante", value: input.solicitante },
+    { label: "Solicitado por", value: input.solicitante },
     ...(input.a_nombre
-      ? [{ label: "Registrado por", value: `${input.registrador} (a nombre de)` }]
+      ? [{ label: "Registrado por", value: input.registrador }]
       : []),
     { label: "App", value: input.app_nombre },
     { label: "Módulo", value: input.modulo_nombre },
@@ -29,7 +29,7 @@ export async function email_ticket_created(input: {
     `Se registró un ticket que requiere gestión.`,
     "",
     `• Ticket: #${input.ticket_id}`,
-    `• Solicitante: ${input.solicitante}`,
+    `• Solicitado por: ${input.solicitante}`,
     input.a_nombre ? `• Registrado por: ${input.registrador}` : null,
     `• App: ${input.app_nombre}`,
     `• Módulo: ${input.modulo_nombre}`,

@@ -2,6 +2,7 @@
 
 import { require_ticket_user } from "./assert-user";
 import { require_ted_plan_context } from "@/features/planificacion/actions/assert-ted";
+import { join_people_names } from "../lib/ticket-display";
 import type {
   TicketEstado,
   TicketEvento,
@@ -35,20 +36,10 @@ async function hydrate(
 ): Promise<TicketRow[]> {
   if (rows.length === 0) return [];
   const ids = rows.map((row) => row.id);
-  const user_ids = [
-    ...new Set(
-      rows.flatMap((row) =>
-        [row.solicitado_por, row.asignado_id, row.created_by].filter(Boolean) as number[],
-      ),
-    ),
-  ];
   const app_ids = [...new Set(rows.map((row) => row.app_id).filter(Boolean) as number[])];
   const mod_ids = [...new Set(rows.map((row) => row.modulo_id).filter(Boolean) as number[])];
 
-  const [users, apps, mods, cols, events] = await Promise.all([
-    user_ids.length
-      ? supabase.from("usuarios").select("id, nombre_apellido").in("id", user_ids)
-      : Promise.resolve({ data: [] }),
+  const [apps, mods, cols, sols, events] = await Promise.all([
     app_ids.length
       ? supabase.from("ted_plan_apps" as never).select("id, nombre").in("id", app_ids)
       : Promise.resolve({ data: [] }),
@@ -59,6 +50,10 @@ async function hydrate(
       .from("ted_plan_ticket_colaboradores" as never)
       .select("ticket_id, usuario_id")
       .in("ticket_id", ids),
+    supabase
+      .from("ted_plan_ticket_solicitantes" as never)
+      .select("ticket_id, usuario_id")
+      .in("ticket_id", ids),
     options?.include_events === false
       ? Promise.resolve({ data: [] })
       : supabase
@@ -67,6 +62,29 @@ async function hydrate(
           .in("ticket_id", ids)
           .order("created_at", { ascending: true }),
   ]);
+
+  const sols_by = new Map<number, number[]>();
+  for (const row of (sols.data ?? []) as Array<{ ticket_id: number; usuario_id: number }>) {
+    const list = sols_by.get(row.ticket_id) ?? [];
+    list.push(row.usuario_id);
+    sols_by.set(row.ticket_id, list);
+  }
+
+  const user_ids = [
+    ...new Set(
+      rows.flatMap((row) =>
+        [
+          row.solicitado_por,
+          row.asignado_id,
+          row.created_by,
+          ...(sols_by.get(row.id) ?? []),
+        ].filter(Boolean) as number[],
+      ),
+    ),
+  ];
+  const users = user_ids.length
+    ? await supabase.from("usuarios").select("id, nombre_apellido").in("id", user_ids)
+    : { data: [] };
 
   const name_by = new Map(
     ((users.data ?? []) as Array<{ id: number; nombre_apellido: string }>).map((u) => [
@@ -110,9 +128,20 @@ async function hydrate(
     modulo_id: row.modulo_id,
     modulo_nombre: row.modulo_id ? (mod_by.get(row.modulo_id) ?? "Módulo") : "GENERAL",
     solicitado_por: row.solicitado_por,
-    solicitante: row.solicitado_por
-      ? (name_by.get(row.solicitado_por) ?? "Usuario")
-      : "Usuario",
+    solicitado_ids:
+      sols_by.get(row.id)?.length
+        ? (sols_by.get(row.id) ?? [])
+        : row.solicitado_por
+          ? [row.solicitado_por]
+          : [],
+    solicitante: join_people_names(
+      (sols_by.get(row.id)?.length
+        ? (sols_by.get(row.id) ?? [])
+        : row.solicitado_por
+          ? [row.solicitado_por]
+          : []
+      ).map((id) => name_by.get(id) ?? "Usuario"),
+    ),
     created_by: row.created_by,
     registrado_por: row.created_by
       ? (name_by.get(row.created_by) ?? "TED")
@@ -139,11 +168,24 @@ export async function list_my_tickets(): Promise<
   const gate = await require_ticket_user();
   if (!gate.ok) return gate;
   const { supabase, user_id } = gate;
-  const { data, error } = await supabase
+  const { data: extra } = await supabase
+    .from("ted_plan_ticket_solicitantes" as never)
+    .select("ticket_id")
+    .eq("usuario_id", user_id);
+  const extra_ids = [
+    ...new Set(
+      ((extra ?? []) as Array<{ ticket_id: number }>).map((row) => row.ticket_id),
+    ),
+  ];
+  let query = supabase
     .from("ted_plan_tickets" as never)
     .select(SELECT)
-    .eq("solicitado_por", user_id)
     .order("created_at", { ascending: false });
+  query =
+    extra_ids.length > 0
+      ? query.or(`solicitado_por.eq.${user_id},id.in.(${extra_ids.join(",")})`)
+      : query.eq("solicitado_por", user_id);
+  const { data, error } = await query;
   if (error) {
     return { ok: false, error: "No se pudieron cargar tus tickets." };
   }

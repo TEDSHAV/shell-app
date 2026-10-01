@@ -14,7 +14,7 @@ import {
   reply_ticket,
 } from "../actions/ticket-actions";
 import { ESTADO_LABEL, PRIORIDAD_LABEL } from "../lib/labels";
-import { ticket_en_nombre_de } from "../lib/ticket-display";
+import { ticket_people_meta } from "../lib/ticket-display";
 import type { TicketEstado, TicketPrioridad, TicketRow } from "../lib/types";
 import { TicketListCard } from "./ticket-list-card";
 import { TicketOnBehalfBadge } from "./ticket-on-behalf-badge";
@@ -182,9 +182,7 @@ export function TedTicketsInbox({
               {open.app_nombre}
             </p>
             <p className="text-xs text-slate-500">
-              {ticket_en_nombre_de(open)
-                ? `Para ${open.solicitante} · lo registró ${open.registrado_por ?? "TED"}`
-                : `Solicitó ${open.solicitante}`}
+              {ticket_people_meta(open, "inbox")}
               {open.created_at ? ` · ${format_ve_datetime(open.created_at)}` : ""}
             </p>
             <p className="text-xs font-semibold text-violet-700">

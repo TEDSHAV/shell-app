@@ -12,6 +12,11 @@ import {
 } from "../schemas";
 import { createAdminClient } from "@/lib/supabase/server";
 import { notify_ticket_created } from "../lib/ticket-notify";
+import {
+  load_ticket_solicitante_ids,
+  notify_users_ticket,
+  save_ticket_solicitantes,
+} from "../lib/ticket-solicitantes";
 
 async function notify_ticket_requester(
   supabase: Awaited<ReturnType<typeof createAdminClient>>,
@@ -25,32 +30,25 @@ async function notify_ticket_requester(
     .eq("id", ticket_id)
     .maybeSingle();
   const row = ticket as { titulo?: string; solicitado_por?: number | null } | null;
-  if (!row?.solicitado_por) return;
-  const { data: user } = await supabase
-    .from("usuarios")
-    .select("id_auth")
-    .eq("id", row.solicitado_por)
-    .maybeSingle();
-  const auth_id = (user as { id_auth?: string | null } | null)?.id_auth;
-  if (!auth_id) return;
+  if (!row) return;
+  const usuario_ids = await load_ticket_solicitante_ids(
+    supabase,
+    ticket_id,
+    row.solicitado_por,
+  );
   const closed = estado === "cerrado";
   const titulo = row.titulo ?? "tu requerimiento";
-  const { error } = await supabase.schema("notify").from("inbox").insert({
-    app_slug: "ted",
+  await notify_users_ticket(supabase, {
+    ticket_id,
+    usuario_ids,
     event_key: closed ? "ticket_completado" : "ticket_no_procede",
-    recipient_id_auth: auth_id,
     title: closed
       ? "Tu requerimiento fue completado"
       : "Tu requerimiento no procede",
     body: `«${titulo}»\n\n${respuesta}`,
     link_path: "/tickets/mios",
-    metadata: { ticket_id, estado },
-    dedupe_key: `ticket:${ticket_id}:${estado}:${Date.now()}`,
-    priority: 2,
+    estado,
   });
-  if (error) {
-    console.error("[tickets] notify:", error);
-  }
 }
 
 export async function sync_ticket_on_tarea_done(
@@ -188,10 +186,20 @@ export async function create_ticket(raw: unknown) {
   const { supabase, user_id } = gate;
   const input = parsed.data;
   const ted = await isTedMember();
-  const solicitado_por =
-    ted && input.solicitado_por && input.solicitado_por > 0
-      ? input.solicitado_por
-      : user_id;
+  const picked = [
+    ...new Set(
+      ted
+        ? [
+            ...(input.solicitado_ids ?? []),
+            ...(input.solicitado_por && input.solicitado_por > 0
+              ? [input.solicitado_por]
+              : []),
+          ]
+        : [user_id],
+    ),
+  ].filter((id) => id > 0);
+  const solicitado_ids = picked.length > 0 ? picked : [user_id];
+  const solicitado_por = solicitado_ids[0] ?? user_id;
   const modulo = await ensure_modulo(supabase, input.app_id, input.modulo_id, user_id);
   if (!modulo.ok) return modulo;
 
@@ -215,6 +223,7 @@ export async function create_ticket(raw: unknown) {
     return { ok: false as const, error: "No se pudo crear el ticket." };
   }
   const ticket_id = Number((ticket as { id: number }).id);
+  await save_ticket_solicitantes(supabase, ticket_id, solicitado_ids);
 
   const { data: orden_row } = await supabase
     .from("ted_plan_tareas" as never)
@@ -258,9 +267,9 @@ export async function create_ticket(raw: unknown) {
     supabase,
     ticket_id,
     "abierto",
-    solicitado_por === user_id
+    solicitado_ids.length === 1 && solicitado_ids[0] === user_id
       ? "Ticket creado"
-      : "Ticket registrado a nombre de otro usuario",
+      : `Ticket registrado. Solicitado por ${solicitado_ids.length} persona${solicitado_ids.length === 1 ? "" : "s"}`,
     user_id,
   );
   await notify_ticket_created(supabase, ticket_id);

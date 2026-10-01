@@ -1,6 +1,8 @@
-import { build_ted_html_email, prisma_link, send_ted_mailbox } from "@/lib/email/ted-mail";
+import { send_mail, shell_public_url } from "@/lib/email/send";
+import { build_ted_html_email } from "@/lib/email/ted-mail";
 import { email_escape } from "@/lib/email/layout";
 import { format_month_label } from "./plan-month";
+import type { PlanMailRol } from "./plan-mail-recipients";
 import type { PlanMes, PlanMesCambioKind, PlanObjetivoResumen } from "./plan-mes";
 
 function list_text(items: PlanObjetivoResumen[]): string {
@@ -14,10 +16,7 @@ function list_text(items: PlanObjetivoResumen[]): string {
     .join("\n");
 }
 
-function cambio_label(
-  kind: PlanMesCambioKind,
-  titulo: string,
-): string {
+function cambio_label(kind: PlanMesCambioKind, titulo: string): string {
   switch (kind) {
     case "anadido":
       return `Se añadió el objetivo «${titulo}».`;
@@ -38,38 +37,94 @@ function objetivos_path(mes: string): string {
   return `/ted/planificacion/objetivos?mes=${mes}`;
 }
 
+function prisma_link(path: string): string {
+  const base = shell_public_url();
+  const suffix = path.startsWith("/") ? path : `/${path}`;
+  return `${base}${suffix}`;
+}
+
+function audience_copy(audience: PlanMailRol): {
+  greeting_text: string;
+  greeting_html: string;
+  who: string;
+  rol_label: string;
+} {
+  if (audience === "solicitante") {
+    return {
+      greeting_text: "Estimada gerencia (solicitantes del plan),",
+      greeting_html:
+        "Estimada <strong>gerencia</strong> (solicitantes del plan),",
+      who: "solicitantes · gerencia",
+      rol_label: "Solicitantes (gerencia)",
+    };
+  }
+  return {
+    greeting_text: "Estimado equipo de Tecnología y Desarrollo (TED),",
+    greeting_html:
+      "Estimado equipo de <strong>Tecnología y Desarrollo (TED)</strong> (ejecutantes),",
+    who: "ejecutantes · equipo TED",
+    rol_label: "Ejecutantes (equipo TED)",
+  };
+}
+
 export async function email_plan_mes(input: {
   plan: PlanMes;
   kind: "emitido" | PlanMesCambioKind;
   cambio_titulo?: string;
   items: PlanObjetivoResumen[];
+  ejecutantes: string[];
+  solicitantes: string[];
 }): Promise<void> {
+  await send_plan_audience_mail({ ...input, audience: "ejecutante", to: input.ejecutantes });
+  await send_plan_audience_mail({ ...input, audience: "solicitante", to: input.solicitantes });
+}
+
+async function send_plan_audience_mail(input: {
+  plan: PlanMes;
+  kind: "emitido" | PlanMesCambioKind;
+  cambio_titulo?: string;
+  items: PlanObjetivoResumen[];
+  audience: PlanMailRol;
+  to: string[];
+}): Promise<void> {
+  const dest = [...new Set(input.to.map((item) => item.trim()).filter(Boolean))];
+  if (dest.length === 0) return;
+
   const label = format_month_label(input.plan.mes);
   const path = objetivos_path(input.plan.mes);
   const cta_href = prisma_link(path);
   const list = list_text(input.items);
-  const cta_hint =
-    "Destino: Planificación TED → Objetivos de ese mes. Si ya tienes sesión en PRISMA, entra directo. Si no, inicia sesión y te lleva a esa misma vista.";
+  const people = audience_copy(input.audience);
+  const for_gerencia = input.audience === "solicitante";
+  const cta_hint = for_gerencia
+    ? "Destino: Objetivos del mes en PRISMA (compromiso solicitado por gerencia). Si no hay sesión, inicia sesión y te lleva a esa vista."
+    : "Destino: Planificación TED → Objetivos de ese mes. Si ya tienes sesión en PRISMA, entra directo. Si no, inicia sesión y te lleva a esa misma vista.";
 
   const copy =
     input.kind === "emitido"
       ? {
-          highlight: `Primera publicación: gerencia acaba de EMITIR el plan de ${label} (versión ${input.plan.version}). No es una edición posterior.`,
-          subject: `[Plan TED] EMISIÓN · ${label} (v${input.plan.version}) — plan publicado`,
+          highlight: for_gerencia
+            ? `Gerencia: se EMITIÓ el plan de ${label} (versión ${input.plan.version}). Este correo es para los solicitantes. TED cubrirá estos objetivos.`
+            : `Equipo TED: gerencia acaba de EMITIR el plan de ${label} (versión ${input.plan.version}). Ustedes son los ejecutantes que cubren el plan.`,
+          subject: `[Plan TED] EMISIÓN · ${people.who} · ${label} (v${input.plan.version})`,
           tipo_aviso: "Emisión inicial del plan",
-          cta_label: `Abrir objetivos de ${label} (plan emitido)`,
+          cta_label: `Abrir objetivos de ${label}`,
           title: `Se emitió el plan de ${label}`,
-          subtitle: "Publicación inicial del compromiso de gerencia",
-          intro:
-            "Estimado equipo de <strong>Tecnología y Desarrollo (TED)</strong>,<br>Este correo es la <strong>emisión del plan del mes</strong>: gerencia acaba de publicarlo. No es un aviso de edición.",
+          subtitle: for_gerencia
+            ? "Confirmación del compromiso solicitado por gerencia"
+            : "Publicación inicial: TED cubre el plan emitido",
+          intro: `${people.greeting_html}<br>${
+            for_gerencia
+              ? "Este correo es la <strong>emisión del plan del mes</strong> para <strong>solicitantes (gerencia)</strong>. El equipo TED lo ejecutará."
+              : "Este correo es la <strong>emisión del plan del mes</strong> para <strong>ejecutantes (equipo TED)</strong>. Gerencia acaba de publicarlo."
+          }`,
           header_variant: "emitido" as const,
-          text_aviso: `AVISO DE EMISIÓN (no es un cambio posterior). Gerencia publicó el plan de ${label} (v${input.plan.version}).`,
+          text_aviso: for_gerencia
+            ? `AVISO DE EMISIÓN para solicitantes (gerencia). Se publicó el plan de ${label} (v${input.plan.version}).`
+            : `AVISO DE EMISIÓN para ejecutantes (TED). Gerencia publicó el plan de ${label} (v${input.plan.version}).`,
         }
       : (() => {
-          const cambio_txt = cambio_label(
-            input.kind,
-            input.cambio_titulo ?? "",
-          );
+          const cambio_txt = cambio_label(input.kind, input.cambio_titulo ?? "");
           const tipo_aviso = ((): string => {
             switch (input.kind) {
               case "anadido":
@@ -87,48 +142,53 @@ export async function email_plan_mes(input: {
             }
           })();
           return {
-            highlight: `El plan de ${label} YA ESTABA EMITIDO. Este correo es un CAMBIO sobre esa versión (ahora v${input.plan.version}). ${cambio_txt}`,
-            subject: `[Plan TED] CAMBIO · ${label} (v${input.plan.version}) — ${cambio_txt}`,
+            highlight: for_gerencia
+              ? `Solicitantes: el plan de ${label} ya estaba emitido. CAMBIO (v${input.plan.version}). ${cambio_txt}`
+              : `Ejecutantes TED: el plan de ${label} ya estaba emitido. CAMBIO (v${input.plan.version}). ${cambio_txt}`,
+            subject: `[Plan TED] CAMBIO · ${people.who} · ${label} (v${input.plan.version})`,
             tipo_aviso,
-            cta_label: `Abrir objetivos de ${label} (ver el cambio)`,
+            cta_label: `Abrir objetivos de ${label}`,
             title: `Hay un cambio en el plan de ${label}`,
-            subtitle: "Actualización de un plan que ya estaba emitido",
-            intro: `Estimado equipo de <strong>Tecnología y Desarrollo (TED)</strong>,<br>Este correo es un <strong>cambio sobre el plan ya emitido</strong> de ${email_escape(label)}. ${email_escape(cambio_txt)}`,
+            subtitle: for_gerencia
+              ? "Actualización del plan solicitado por gerencia"
+              : "Actualización del plan que TED debe cubrir",
+            intro: `${people.greeting_html}<br>Este correo es un <strong>cambio sobre el plan ya emitido</strong> de ${email_escape(label)}, dirigido a <strong>${email_escape(people.rol_label)}</strong>. ${email_escape(cambio_txt)}`,
             header_variant: "cambio" as const,
-            text_aviso: `AVISO DE CAMBIO (el plan ya estaba emitido). ${cambio_txt} Versión actual: v${input.plan.version}.`,
+            text_aviso: `AVISO DE CAMBIO para ${people.rol_label}. ${cambio_txt} Versión actual: v${input.plan.version}.`,
           };
         })();
 
   const text = [
-    "Estimado equipo de Tecnología y Desarrollo (TED),",
+    people.greeting_text,
     "",
     copy.text_aviso,
+    "",
+    `Destinatarios de esta copia: ${people.rol_label}`,
     "",
     "Objetivos vigentes:",
     list,
     "",
     `Enlace a la vista de objetivos: ${cta_href}`,
-    "Si no hay sesión, PRISMA pedirá iniciar sesión y luego mostrará esa vista.",
   ].join("\n");
 
   const html = build_ted_html_email({
     subject: copy.subject,
     chip:
       input.kind === "emitido"
-        ? `EMISIÓN · ${label} · v${input.plan.version}`
-        : `CAMBIO · ${label} · v${input.plan.version}`,
+        ? `EMISIÓN · ${people.who} · ${label} · v${input.plan.version}`
+        : `CAMBIO · ${people.who} · ${label} · v${input.plan.version}`,
     title: copy.title,
     subtitle: copy.subtitle,
     intro: copy.intro,
     highlight: copy.highlight,
     header_variant: copy.header_variant,
     rows: [
+      { label: "Copia para", value: people.rol_label },
       { label: "Tipo de aviso", value: copy.tipo_aviso },
       { label: "Mes", value: label },
       { label: "Estado del plan", value: "Emitido" },
       { label: "Versión", value: String(input.plan.version) },
       { label: "Objetivos vigentes", value: String(input.items.length) },
-      { label: "Vista en PRISMA", value: "Planificación TED → Objetivos" },
     ],
     notes: list,
     cta_label: copy.cta_label,
@@ -138,5 +198,16 @@ export async function email_plan_mes(input: {
       "Este es un mensaje automático del Sistema PRISMA (Planificación TED). SHA de Venezuela, C.A.",
   });
 
-  await send_ted_mailbox({ subject: copy.subject, text, html });
+  const result = await send_mail({
+    to: dest.join(", "),
+    subject: copy.subject,
+    text,
+    html,
+  });
+  if (result.status !== "sent") {
+    console.warn(
+      `[email] plan ${input.audience} no enviado (${result.status}) to=${dest.join(",")}`,
+      result,
+    );
+  }
 }

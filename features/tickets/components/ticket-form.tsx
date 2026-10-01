@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { SearchSelect } from "@/features/planificacion/components/search-select";
 import { PlanField } from "@/features/planificacion/components/plan-form-ui";
+import { MultiSelect } from "@/components/ui/multi-select";
 import { create_ticket } from "../actions/ticket-actions";
 import { TICKET_PRIORIDADES } from "../schemas";
 import { PRIORIDAD_LABEL } from "../lib/labels";
@@ -24,7 +25,7 @@ export function TicketForm({ catalog }: { catalog: TicketCatalog }) {
   const [prioridad, set_prioridad] = useState<(typeof TICKET_PRIORIDADES)[number]>(
     "media",
   );
-  const [solicitado_por, set_solicitado_por] = useState("");
+  const [solicitado_ids, set_solicitado_ids] = useState<number[]>([]);
   const [error, set_error] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
@@ -43,8 +44,7 @@ export function TicketForm({ catalog }: { catalog: TicketCatalog }) {
         app_id: Number(app_id),
         modulo_id: modulo_id ? Number(modulo_id) : null,
         prioridad,
-        solicitado_por:
-          catalog.is_ted && solicitado_por ? Number(solicitado_por) : undefined,
+        solicitado_ids: catalog.is_ted ? solicitado_ids : [],
       });
       if (!result.ok) {
         set_error(result.error);
@@ -70,7 +70,7 @@ export function TicketForm({ catalog }: { catalog: TicketCatalog }) {
         </h1>
         <p className="mt-1.5 max-w-md text-sm text-violet-100/90">
           {catalog.is_ted
-            ? "Si lo cargas a nombre de alguien más, esa persona lo verá en Mis tickets y recibirá la respuesta."
+            ? "Si lo cargas a nombre de otras personas, ellas lo verán en Mis tickets y recibirán la respuesta."
             : "Cuéntanos el requerimiento o el error. TED asigna y responde; tú solo describes el caso."}
         </p>
       </div>
@@ -78,20 +78,16 @@ export function TicketForm({ catalog }: { catalog: TicketCatalog }) {
         {catalog.is_ted ? (
           <PlanField
             label="Solicitado por"
-            hint="La notificación de cierre llega a esta persona. Quedará marcado como registro TED."
+            hint="Vacío = tú. Puedes marcar varias personas: cada una verá el ticket y recibirá el aviso."
           >
-            <SearchSelect
-              value={solicitado_por}
-              placeholder="Quién hizo el requerimiento"
-              searchPlaceholder="Buscar persona…"
-              onChange={set_solicitado_por}
-              options={[
-                { value: "", label: "Yo (TED)" },
-                ...catalog.usuarios.map((u) => ({
-                  value: String(u.id),
-                  label: u.label,
-                })),
-              ]}
+            <MultiSelect
+              placeholder="Quién hizo el requerimiento (varias)"
+              selectedIds={solicitado_ids}
+              onChange={set_solicitado_ids}
+              options={catalog.usuarios.map((u) => ({
+                id: u.id,
+                label: u.label,
+              }))}
             />
           </PlanField>
         ) : null}
