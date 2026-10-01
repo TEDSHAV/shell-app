@@ -135,3 +135,58 @@ export function format_entregado_ratio(item: RequisicionItem): string | null {
   if (entregado == null) return null;
   return `${entregado}/${item_pedido(item)}`;
 }
+
+export function stamp_additional_items_listo(
+  items: RequisicionItem[],
+  userId: string | null,
+  at: string,
+): RequisicionItem[] {
+  return items.map((item) =>
+    item.verificacion === "listo"
+      ? item
+      : {
+          ...item,
+          verificacion: "listo",
+          verificado_por: userId,
+          verificado_en: at,
+        },
+  );
+}
+
+export function stamp_fixed_items_listo(
+  items: OSIFixedItem[],
+  userId: string | null,
+  at: string,
+): OSIFixedItem[] {
+  return items.map((fi) => ({
+    ...fi,
+    verificacion_traslado: "listo",
+    verificacion_impresion: "listo",
+    verificacion_honorarios: "listo",
+    verificacion_informe_final: "listo",
+    verificado_por_traslado: fi.verificacion_traslado === "listo"
+      ? fi.verificado_por_traslado ?? userId
+      : userId,
+    verificado_en_traslado: fi.verificacion_traslado === "listo"
+      ? fi.verificado_en_traslado ?? at
+      : at,
+    verificado_por_impresion: fi.verificacion_impresion === "listo"
+      ? fi.verificado_por_impresion ?? userId
+      : userId,
+    verificado_en_impresion: fi.verificacion_impresion === "listo"
+      ? fi.verificado_en_impresion ?? at
+      : at,
+    verificado_por_honorarios: fi.verificacion_honorarios === "listo"
+      ? fi.verificado_por_honorarios ?? userId
+      : userId,
+    verificado_en_honorarios: fi.verificacion_honorarios === "listo"
+      ? fi.verificado_en_honorarios ?? at
+      : at,
+    verificado_por_informe_final: fi.verificacion_informe_final === "listo"
+      ? fi.verificado_por_informe_final ?? userId
+      : userId,
+    verificado_en_informe_final: fi.verificacion_informe_final === "listo"
+      ? fi.verificado_en_informe_final ?? at
+      : at,
+  }));
+}

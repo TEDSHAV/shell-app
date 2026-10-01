@@ -46,6 +46,8 @@ import {
   item_entregado,
   item_pedido,
   resolve_cierre_entrega,
+  stamp_additional_items_listo,
+  stamp_fixed_items_listo,
 } from "@/lib/requisiciones-entrega";
 import type { CierreEntrega } from "@/types/requisiciones";
 
@@ -1235,14 +1237,23 @@ export async function setRequisicionEstatus(
   }
 
   let applied: "pendiente" | "procesada" | "rechazada" | "parcial" = estatus;
+  let gate: {
+    tipo_solicitud?: string | null;
+    coordinador_estatus?: string | null;
+    lider_estatus?: string | null;
+    additional_items?: RequisicionItem[] | null;
+    osi_fixed_items?: OSIFixedItem[] | null;
+  } | null = null;
+  let isInterna = false;
 
   if (estatus === "procesada" || estatus === "parcial") {
     const gateClient = await createAdminClient();
-    const { data: gate } = await gateClient
+    const { data } = await gateClient
       .from("requisiciones")
       .select("tipo_solicitud, coordinador_estatus, lider_estatus, additional_items, osi_fixed_items")
       .eq("id", id)
       .maybeSingle();
+    gate = data;
     if (gate?.tipo_solicitud === "Interno") {
       const coordDone = !gate.coordinador_estatus || gate.coordinador_estatus === "aprobada";
       if (!coordDone) {
@@ -1261,7 +1272,7 @@ export async function setRequisicionEstatus(
       gate?.tipo_solicitud,
     );
     const internaItems = (gate?.additional_items as RequisicionItem[] | undefined) || [];
-    const isInterna = gate?.tipo_solicitud === "Interno";
+    isInterna = gate?.tipo_solicitud === "Interno";
     if (isInterna) {
       if (!interna_has_process_progress(internaItems)) {
         throw new Error("Registre al menos una entrega para procesar.");
@@ -1290,6 +1301,19 @@ export async function setRequisicionEstatus(
     procesada_por: isClosed ? userId : null,
     procesada_at: isClosed ? new Date().toISOString() : null,
   };
+  if (!isInterna && applied === "procesada") {
+    const stampedAt = new Date().toISOString();
+    update.additional_items = stamp_additional_items_listo(
+      (gate?.additional_items as RequisicionItem[] | undefined) || [],
+      userId,
+      stampedAt,
+    );
+    update.osi_fixed_items = stamp_fixed_items_listo(
+      (gate?.osi_fixed_items as OSIFixedItem[] | undefined) || [],
+      userId,
+      stampedAt,
+    );
+  }
   if (applied === "rechazada") {
     update.motivo_rechazo = motivoRechazo!.trim();
   }
@@ -2158,27 +2182,16 @@ export async function markAllItemsVerificadas(requisicionId: number) {
     throw fetchError;
   }
 
-  const items: RequisicionItem[] = (record?.additional_items || []).map(
-    (item: RequisicionItem) => ({ ...item, verificacion: "listo", verificado_por: userId, verificado_en: new Date().toISOString() }),
-  );
-
   const nowIso = new Date().toISOString();
-  const fixedItems: OSIFixedItem[] = (record?.osi_fixed_items || []).map(
-    (fi: OSIFixedItem) => ({
-      ...fi,
-      verificacion_traslado: "listo" as const,
-      verificacion_impresion: "listo" as const,
-      verificacion_honorarios: "listo" as const,
-      verificacion_informe_final: "listo" as const,
-      verificado_por_traslado: userId,
-      verificado_en_traslado: nowIso,
-      verificado_por_impresion: userId,
-      verificado_en_impresion: nowIso,
-      verificado_por_honorarios: userId,
-      verificado_en_honorarios: nowIso,
-      verificado_por_informe_final: userId,
-      verificado_en_informe_final: nowIso,
-    }),
+  const items = stamp_additional_items_listo(
+    (record?.additional_items || []) as RequisicionItem[],
+    userId,
+    nowIso,
+  );
+  const fixedItems = stamp_fixed_items_listo(
+    (record?.osi_fixed_items || []) as OSIFixedItem[],
+    userId,
+    nowIso,
   );
 
   const { error } = await adminClient

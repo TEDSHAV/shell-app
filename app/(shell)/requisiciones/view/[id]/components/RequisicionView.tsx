@@ -507,6 +507,10 @@ export default function RequisicionView({
       if (!ok) return;
       setIsUpdating(true);
       try {
+        if (itemsDirty) {
+          const saved = await handleSaveGestionItems();
+          if (!saved) return;
+        }
         try { await saveBankingDetails(); } catch (e) { console.error("Banking details save failed (non-blocking):", e); }
         await setRequisicionEstatus(
           record.id,
@@ -793,25 +797,21 @@ export default function RequisicionView({
     }
     if (estatus === "parcial" && currentStatus === "listo") return;
     const newStatus = currentStatus === "listo" ? "pendiente" : "listo";
-    // Optimistic update: immediately reflect the change in local state
-    setLocalItems(prev => prev.map(item =>
-      item.id === itemId ? { ...item, verificacion: newStatus as "listo" | "pendiente" } : item
-    ));
-    setEditedItems(prev => prev.map(item =>
-      item.id === itemId ? { ...item, verificacion: newStatus as "listo" | "pendiente" } : item
-    ));
     setTogglingItemId(itemId);
     try {
+      if (itemsDirty) {
+        const saved = await handleSaveGestionItems();
+        if (!saved) return;
+      }
       await updateItemVerificacion(record.id, itemId, newStatus as "listo" | "pendiente");
-    } catch (error) {
-      console.error("Error updating item verification:", error);
-      // Rollback on error
       setLocalItems(prev => prev.map(item =>
-        item.id === itemId ? { ...item, verificacion: currentStatus as "listo" | "pendiente" } : item
+        item.id === itemId ? { ...item, verificacion: newStatus as "listo" | "pendiente" } : item
       ));
       setEditedItems(prev => prev.map(item =>
-        item.id === itemId ? { ...item, verificacion: currentStatus as "listo" | "pendiente" } : item
+        item.id === itemId ? { ...item, verificacion: newStatus as "listo" | "pendiente" } : item
       ));
+    } catch (error) {
+      console.error("Error updating item verification:", error);
       alert("Error al actualizar el item");
     } finally {
       setTogglingItemId(null);
