@@ -801,20 +801,86 @@ async function getVisibleOsiIdsForList(osiIds: number[]): Promise<Set<number>> {
 
 const OSI_PORTAL_RELEASE_DOCS_PERM = "scapacitacion:portal:release-docs";
 
-// True when the current user may toggle "Ocultar/mostrar para cliente" (ojito):
-//   - global JWT role claim is admin/superadmin (quienes ya podían), OR
-//   - has scapacitacion:portal:release-docs (cap coordinador + negocios coordinador).
+// True when the current user may toggle "Mostrar / Ocultar para cliente":
+//   1. Coordinador and lider of negocios
+//   2. Coordinador of capacitacion
+//   3. Any user from TED department
 const getCachedCanHideOSIFromClient = cache(async (): Promise<boolean> => {
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return false;
 
-    const globalRole = (await getUserRole()).toLowerCase();
-    if (globalRole === "admin" || globalRole === "superadmin") return true;
+    // 1. Any user from TED department
+    const deptName = (await getUsuarioDepartamento())?.trim().toLowerCase() || "";
+    if (deptName === "ted" || deptName.includes("ted")) return true;
 
+    // Check specific release-docs permission
     const perms = await getUserPermissionsByApp();
-    return has_permission_slug(perms, OSI_PORTAL_RELEASE_DOCS_PERM);
+    if (has_permission_slug(perms, OSI_PORTAL_RELEASE_DOCS_PERM)) return true;
+
+    // Resolve app roles from authprisma
+    const appRoles = await getUserRolesByApp();
+
+    // 2. Coordinador of capacitacion
+    const capRole = (appRoles?.scapacitacion || appRoles?.capacitacion)?.toLowerCase();
+    if (capRole === "coordinador") return true;
+
+    // 3. Coordinador and lider of negocios (authprisma app slug: sgestion or negocios)
+    const negociosRole = (appRoles?.sgestion || appRoles?.negocios)?.toLowerCase();
+    if (negociosRole === "coordinador" || negociosRole === "lider") return true;
+
+    // Lookup usuario record for cargo, gerencias, and departamentos fallbacks
+    const { data: usuario } = await supabase
+      .from("usuarios")
+      .select("id, cargo, departamento")
+      .eq("id_auth", user.id)
+      .single();
+
+    if (!usuario) return false;
+
+    const cargo = (usuario.cargo || "").toLowerCase();
+
+    // TED check via cargo
+    if (cargo.includes("ted")) return true;
+
+    // Capacitación coordinador check via cargo
+    if (cargo.includes("coordinador") && (cargo.includes("capacitacion") || cargo.includes("capacitación"))) {
+      return true;
+    }
+
+    // Negocios coordinador / lider check via cargo
+    if (
+      (cargo.includes("lider") || cargo.includes("líder") || cargo.includes("coordinador")) &&
+      (cargo.includes("negocio") || deptName.includes("negocio"))
+    ) {
+      return true;
+    }
+
+    // Check gerencias table for lider of negocios
+    const { data: ledGerencia } = await supabase
+      .from("gerencias")
+      .select("id")
+      .ilike("nombre", "%negocio%")
+      .eq("lider", usuario.id)
+      .maybeSingle();
+
+    if (ledGerencia) return true;
+
+    // Check departamentos table for coordinador of negocios or capacitacion
+    const { data: coordinatedDept } = await supabase
+      .from("departamentos")
+      .select("nombre")
+      .eq("coordinador", usuario.id);
+
+    if (coordinatedDept && coordinatedDept.length > 0) {
+      for (const d of coordinatedDept) {
+        const dName = (d.nombre || "").toLowerCase();
+        if (dName.includes("capacita") || dName.includes("negocio")) return true;
+      }
+    }
+
+    return false;
   } catch (err) {
     console.error("Error checking canHideOSIFromClient:", err);
     return false;
