@@ -27,6 +27,7 @@ import type {
   OSISessionsFinalCheck,
   SessionExecutionPayload,
 } from "@/types/osi";
+import { OSI_STATUS_EJECUTADO_ID } from "@/types/osi";
 
 // --- Server-side memory cache for default page 1 OSI list ---
 interface OsiListCacheEntry {
@@ -968,6 +969,29 @@ export async function updateOSIStatus(
     }
 
     const supabase = await createClient();
+
+    // Ejecutada (12) requiere correlativo fiscal emitido (sin prefijo PEN-).
+    if (newStatusId === OSI_STATUS_EJECUTADO_ID) {
+      const { data: osi_row, error: osi_read_error } = await supabase
+        .from("ejecucion_osi")
+        .select("nro_osi_secuencial")
+        .eq("id", osiId)
+        .maybeSingle();
+
+      if (osi_read_error) {
+        console.error("Error reading OSI correlativo before status update:", osi_read_error);
+        return { success: false, error: "Error al validar el correlativo de la OSI" };
+      }
+
+      const nro = String(osi_row?.nro_osi_secuencial ?? "").trim();
+      if (/^PEN-\d+$/i.test(nro)) {
+        return {
+          success: false,
+          error:
+            "No se puede marcar como Ejecutada: la OSI aún tiene correlativo pendiente (PEN-). Debe emitirse primero desde Negocios/Ingeniería.",
+        };
+      }
+    }
 
     const { error: updateError } = await supabase
       .from("ejecucion_osi")

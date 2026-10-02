@@ -260,6 +260,13 @@ export default function OSITable({
     if (!osi.id_osi || osi.id_estatus === newStatusId) return;
 
     if (newStatusId === OSI_STATUS_EJECUTADO_ID) {
+      const nro = String(osi.nro_osi ?? "").trim();
+      if (/^PEN-\d+$/i.test(nro)) {
+        alert(
+          "No se puede marcar como Ejecutada: la OSI aún tiene correlativo pendiente (PEN-). Debe emitirse primero desde Negocios/Ingeniería.",
+        );
+        return;
+      }
       setStatusLoadingId(osi.id_osi);
       try {
         const sessions = await loadSessionsForOsi(osi.id_osi);

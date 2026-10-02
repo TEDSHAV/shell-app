@@ -323,6 +323,9 @@ export default function ConsultaOSIClient({
         cacheRef.current.delete(key);
       } else {
         console.error("Error changing OSI status:", result.error);
+        if (result.error) {
+          alert(result.error);
+        }
       }
       return result;
     },
