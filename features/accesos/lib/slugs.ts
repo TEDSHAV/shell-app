@@ -54,6 +54,12 @@ export const ACTION_CATALOG = [
     nombre: "Acceso completo",
     descripcion: "Acceso total al módulo (atajo de catálogo).",
   },
+  {
+    slug: "release-docs",
+    nombre: "Liberar documentación",
+    descripcion:
+      "Habilitar en el portal de clientes la documentación/certificados de un curso (OSI).",
+  },
 ] as const;
 
 export const PERMISSION_ACTIONS = ACTION_CATALOG.map((a) => a.slug);

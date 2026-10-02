@@ -11,6 +11,7 @@ import {
   getUserPermissionsByApp,
   getUsuarioDepartamento,
 } from "@/actions/apps";
+import { has_permission_slug } from "@/lib/ted-slugs";
 import type { BuildOsiPreviewInput } from "@sha/osi-formato";
 import {
   has_cap_cierre_certificados_step,
@@ -784,24 +785,22 @@ async function getVisibleOsiIdsForList(osiIds: number[]): Promise<Set<number>> {
   }
 }
 
-// True when the current user may toggle "Ocultar para cliente":
-//   - global JWT role claim is admin/superadmin, OR
-//   - has the "coordinador" role in the scapacitacion app (via authprisma).
+const OSI_PORTAL_RELEASE_DOCS_PERM = "scapacitacion:portal:release-docs";
+
+// True when the current user may toggle "Ocultar/mostrar para cliente" (ojito):
+//   - global JWT role claim is admin/superadmin (quienes ya podían), OR
+//   - has scapacitacion:portal:release-docs (cap coordinador + negocios coordinador).
 const getCachedCanHideOSIFromClient = cache(async (): Promise<boolean> => {
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return false;
 
-    // Reuse the shared role resolver — it checks the JWT claim first, then
-    // falls back to deriving the role from app roles (which is what actually
-    // resolves for most users in this codebase).
     const globalRole = (await getUserRole()).toLowerCase();
     if (globalRole === "admin" || globalRole === "superadmin") return true;
 
-    // Check for coordinador role in the scapacitacion app.
-    const appRoles = await getUserRolesByApp();
-    return appRoles?.scapacitacion?.toLowerCase() === "coordinador";
+    const perms = await getUserPermissionsByApp();
+    return has_permission_slug(perms, OSI_PORTAL_RELEASE_DOCS_PERM);
   } catch (err) {
     console.error("Error checking canHideOSIFromClient:", err);
     return false;
