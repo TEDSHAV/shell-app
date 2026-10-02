@@ -8,7 +8,7 @@ import { deleteRequisicionRecord, setRequisicionEstatus, acknowledgeRequisicionR
 import { Eye, Edit, Trash2, Lock, CheckCircle2, Undo2, XCircle, CalendarClock, AlertTriangle, PackageCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/utils";
-import { mapGerenciaSolicitante, getRequisicionDisplayDate, deptInList, isLiderGatePending, skipsCoordinadorGate } from "@/lib/requisiciones-gerencia";
+import { mapGerenciaSolicitante, getRequisicionDisplayDate, deptInList, isLiderGatePending, skipsCoordinadorGate, admin_tramite_blocked_reason } from "@/lib/requisiciones-gerencia";
 import MotivoModal from "./MotivoModal";
 import type { RequisicionItem } from "@/types/requisiciones";
 import { format_entregado_ratio } from "@/lib/requisiciones-entrega";
@@ -44,7 +44,7 @@ export default function RequisicionRow({
   const isProcesada = estatus === "procesada";
   const isRechazada = estatus === "rechazada";
   const isPendiente = estatus === "pendiente" || estatus === "parcial";
-  const isOpenForAdmin = isPendiente;
+  const canAdminAct = isAdminView && isPendiente && !admin_tramite_blocked_reason(record);
   const isResolved = isProcesada || isRechazada;
   const isAcuseRecibido = record.acuse_recibido === true;
   const canAcknowledge = isProcesada && !isAcuseRecibido && !isAdminView;
@@ -453,7 +453,7 @@ export default function RequisicionRow({
               </Button>
             </>
           )}
-          {isAdminView && isOpenForAdmin && (
+          {isAdminView && canAdminAct && (
             <>
               <Button
                 type="button"

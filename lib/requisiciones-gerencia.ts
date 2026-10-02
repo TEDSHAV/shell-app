@@ -112,6 +112,31 @@ export function isLiderGatePending(record: ApproverRecordFlags): boolean {
   return true;
 }
 
+/** Administración no tramita internas hasta que coord/líder (si aplican) estén en null o aprobada. */
+export function admin_tramite_blocked_reason(
+  record: ApproverRecordFlags,
+): string | null {
+  if (!isInternaRecord(record)) return null;
+  if (record.coordinador_estatus === "pendiente") {
+    return "Espere el sello del coordinador.";
+  }
+  if (record.coordinador_estatus === "rechazada") {
+    return "El coordinador rechazó esta requisición.";
+  }
+  if (record.lider_estatus === "pendiente") {
+    return "Espere el sello del líder.";
+  }
+  if (record.lider_estatus === "rechazada") {
+    return "El líder rechazó esta requisición.";
+  }
+  return null;
+}
+
+export function assert_admin_tramite_allowed(record: ApproverRecordFlags): void {
+  const reason = admin_tramite_blocked_reason(record);
+  if (reason) throw new Error(reason);
+}
+
 export function isPendingForCurrentApprover(
   record: ApproverRecordFlags,
   liderDepts: string[],

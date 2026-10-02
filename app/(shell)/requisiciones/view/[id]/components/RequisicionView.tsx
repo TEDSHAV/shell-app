@@ -18,7 +18,7 @@ import { CheckCircle2, XCircle, Undo2, Clock, AlertTriangle, CalendarClock, Copy
 import MotivoModal from "../../../components/MotivoModal";
 import ApproverDiff from "./ApproverDiff";
 import { formatDate } from "@/lib/utils";
-import { deptInList, isLiderGatePending, skipsCoordinadorGate } from "@/lib/requisiciones-gerencia";
+import { deptInList, isLiderGatePending, skipsCoordinadorGate, admin_tramite_blocked_reason } from "@/lib/requisiciones-gerencia";
 import { apply_item_money_updates, requisicion_items_total } from "@/lib/requisiciones-totals";
 import { RequisicionItemMoneyInputs, RequisicionPriceHeaders } from "../../../components/RequisicionItemMoneyInputs";
 import { hasApproverMaterialDiff } from "@/lib/requisiciones-approver-diff";
@@ -109,6 +109,7 @@ export default function RequisicionView({
   // server action re-checks either way).
   const liderDeptMatches = isLider && deptInList(record.departamento, liderDepts);
   const canLiderAct = isLiderPendiente && liderDeptMatches;
+  const adminTramiteBlockedReason = admin_tramite_blocked_reason(record);
   const showInternaMontos = false;
 
   // --- Coordinador approval state (internas only) ---
@@ -144,10 +145,10 @@ export default function RequisicionView({
     canLiderAct || canCoordinadorAct
     || canLiderEditPostApproval
     || canCoordinadorEditPostApproval;
-  const coordDoneForAdmin = !coordinadorEstatus || coordinadorEstatus === "aprobada";
-  const canEstimateEdit = isAdminView && isGeneralMode && coordDoneForAdmin && !adminProcessed;
+  const canEstimateEdit =
+    isAdminView && isGeneralMode && !adminProcessed && !adminTramiteBlockedReason;
   const canAdminGestionEdit =
-    isAdminView && canEditTramite && !adminProcessed && (!isGeneralMode || coordDoneForAdmin);
+    isAdminView && canEditTramite && !adminProcessed && !adminTramiteBlockedReason;
   const canEditItems = canApproverEdit || canAdminGestionEdit;
   const [editedItems, setEditedItems] = useState<any[]>(record.additional_items || []);
   const [editedObservaciones, setEditedObservaciones] = useState<string>(record.observaciones_compras || "");
@@ -313,6 +314,7 @@ export default function RequisicionView({
     return "Verificado";
   };
   const lockProcessedCheck = (isListo: boolean) => {
+    if (adminTramiteBlockedReason) return true;
     if (record.tipo_solicitud === "Interno") {
       return (
         record.estatus_admin === "procesada" ||
@@ -341,7 +343,7 @@ export default function RequisicionView({
   const isProcesada = estatus === "procesada";
   const isRechazada = estatus === "rechazada";
   const isPendiente = estatus === "pendiente" || estatus === "parcial";
-  const isOpenForAdmin = isPendiente;
+  const canAdminAct = isAdminView && isPendiente && !adminTramiteBlockedReason;
   const isResolved = isProcesada || isRechazada;
   const isAcuseRecibido = record.acuse_recibido === true;
   const canAcknowledge = isProcesada && !isAcuseRecibido && !isAdminView;
@@ -389,12 +391,12 @@ export default function RequisicionView({
 
   useEffect(() => {
     if (askedCierreRef.current) return;
-    if (!isAdminView || !isGeneralMode || !isOpenForAdmin) return;
+    if (!isAdminView || !isGeneralMode || !canAdminAct) return;
     if (workingItems.length === 0 || !all_items_resolved(workingItems)) return;
     askedCierreRef.current = true;
     setCierreLastItemId(workingItems[workingItems.length - 1]?.id ?? null);
     setCierreOpen(true);
-  }, [isAdminView, isGeneralMode, isOpenForAdmin, workingItems]);
+  }, [isAdminView, isGeneralMode, canAdminAct, workingItems]);
 
   const selectedWorkingItems = workingItems.filter(
     (item) => item.verificacion === "listo",
@@ -404,30 +406,18 @@ export default function RequisicionView({
     canAdminGestionEdit &&
     JSON.stringify(editedItems) !== JSON.stringify(record.additional_items || []);
 
-  const processBlockedByCoord =
-    isGeneralMode && coordinadorEstatus === "pendiente";
-  const processBlockedByLider =
-    isGeneralMode && liderEstatus === "pendiente";
-  const processBlockedByLiderReject =
-    isGeneralMode && liderEstatus === "rechazada";
-  const showProcesar = isOpenForAdmin;
+  const showProcesar = canAdminAct;
   const processDisabled =
     isUpdating ||
-    processBlockedByCoord ||
-    processBlockedByLider ||
-    processBlockedByLiderReject ||
+    !canAdminAct ||
     (needsItemSelection &&
       verifiedCount === 0 &&
       !(isGeneralMode && workingItems.some(item_has_entrega_progress)));
-  const flowHint = processBlockedByCoord
-    ? "Espere el sello del coordinador."
-    : processBlockedByLider
-      ? "Espere el sello del líder."
-      : processBlockedByLiderReject
-        ? "El líder rechazó esta requisición."
-        : needsItemSelection && verifiedCount === 0 && !(isGeneralMode && workingItems.some(item_has_entrega_progress))
-          ? "Marque los ítems que va a procesar ahora."
-          : null;
+  const flowHint = adminTramiteBlockedReason
+    ? adminTramiteBlockedReason
+    : needsItemSelection && verifiedCount === 0 && !(isGeneralMode && workingItems.some(item_has_entrega_progress))
+      ? "Marque los ítems que va a procesar ahora."
+      : null;
 
   // Total of only selected items — used for copy-all VES calculation
   const verifiedFixedTotal = osiFixedItems.reduce((sum, fi) =>
@@ -765,6 +755,7 @@ export default function RequisicionView({
   };
 
   const handleToggleItem = async (itemId: string, currentStatus: string) => {
+    if (isAdminView && adminTramiteBlockedReason) return;
     if (isGeneralMode) {
       const item = workingItems.find((row) => row.id === itemId);
       if (!item) return;
@@ -848,6 +839,10 @@ export default function RequisicionView({
   };
 
   const handleCierreYes = async () => {
+    if (!canAdminAct) {
+      setCierreOpen(false);
+      return;
+    }
     setIsUpdating(true);
     try {
       try { await saveBankingDetails(); } catch (e) { console.error("Banking details save failed (non-blocking):", e); }
@@ -872,6 +867,7 @@ export default function RequisicionView({
     field: "verificacion_traslado" | "verificacion_impresion" | "verificacion_honorarios" | "verificacion_informe_final",
     currentStatus: string,
   ) => {
+    if (adminTramiteBlockedReason) return;
     if (estatus === "parcial" && currentStatus === "listo") return;
     const newStatus = currentStatus === "listo" ? "pendiente" : "listo";
     setLocalFixedItems(prev => prev.map(fi =>
@@ -1099,7 +1095,7 @@ export default function RequisicionView({
             </span>
           )}
           <div className="ml-auto flex gap-2 flex-wrap items-center">
-            {isOpenForAdmin && (
+            {canAdminAct && (
               <>
                 {showProcesar ? (
                   <Button
@@ -1143,10 +1139,10 @@ export default function RequisicionView({
             )}
           </div>
           </div>
-          {isOpenForAdmin && flowHint ? (
+          {isAdminView && isPendiente && flowHint ? (
             <p className="text-[11px] text-slate-600">{flowHint}</p>
           ) : null}
-          {isOpenForAdmin && itemsDirty ? (
+          {canAdminAct && itemsDirty ? (
             <div className="flex items-center justify-between gap-2 pt-1 border-t border-dashed border-slate-200">
               <span className="text-[11px] text-amber-700">Hay cambios en ítems sin guardar.</span>
               <Button
@@ -1803,7 +1799,7 @@ export default function RequisicionView({
                       <input
                         type="checkbox"
                         checked={isGeneralMode ? item_is_resolved(item) : item.verificacion === "listo"}
-                        disabled={togglingItemId === item.id || !isOpenForAdmin || lockProcessedCheck(item.verificacion === "listo")}
+                        disabled={togglingItemId === item.id || !canAdminAct || lockProcessedCheck(item.verificacion === "listo")}
                         onChange={() =>
                           handleToggleItem(item.id, item.verificacion || "pendiente")
                         }
@@ -2084,7 +2080,7 @@ export default function RequisicionView({
           <div className="flex items-center gap-3 flex-wrap">
           <span className="text-sm font-medium text-gray-600">Acciones:</span>
           <div className="ml-auto flex gap-2 flex-wrap items-center">
-            {isOpenForAdmin && (
+            {canAdminAct && (
               <>
                 {showProcesar ? (
                   <Button
@@ -2128,10 +2124,10 @@ export default function RequisicionView({
             )}
           </div>
           </div>
-          {isOpenForAdmin && flowHint ? (
+          {isAdminView && isPendiente && flowHint ? (
             <p className="text-[11px] text-slate-600">{flowHint}</p>
           ) : null}
-          {isOpenForAdmin && itemsDirty ? (
+          {canAdminAct && itemsDirty ? (
             <div className="flex items-center justify-between gap-2 pt-1 border-t border-dashed border-slate-200">
               <span className="text-[11px] text-amber-700">Hay cambios en ítems sin guardar.</span>
               <Button

@@ -25,7 +25,7 @@ import {
   notifyCoordinadorOfPendingExterna,
 } from "@/actions/requisicion-notifications";
 import { getUsdToVesRate } from "@/lib/exchange-rate";
-import { deptNameInList, isCapacitacionDept } from "@/lib/requisiciones-gerencia";
+import { assert_admin_tramite_allowed, deptNameInList, isCapacitacionDept } from "@/lib/requisiciones-gerencia";
 import {
   getCurrentUserDepartment,
   getCurrentUserUsuarioId,
@@ -50,6 +50,15 @@ import {
   stamp_fixed_items_listo,
 } from "@/lib/requisiciones-entrega";
 import type { CierreEntrega } from "@/types/requisiciones";
+
+function assert_record_admin_tramite(record: {
+  tipo_solicitud?: string | null;
+  coordinador_estatus?: string | null;
+  lider_estatus?: string | null;
+} | null) {
+  if (!record) throw new Error("Requisición no encontrada.");
+  assert_admin_tramite_allowed(record);
+}
 
 export {
   getCurrentUserUsuarioId,
@@ -1246,7 +1255,7 @@ export async function setRequisicionEstatus(
   } | null = null;
   let isInterna = false;
 
-  if (estatus === "procesada" || estatus === "parcial") {
+  if (estatus === "procesada" || estatus === "parcial" || estatus === "rechazada") {
     const gateClient = await createAdminClient();
     const { data } = await gateClient
       .from("requisiciones")
@@ -1254,25 +1263,21 @@ export async function setRequisicionEstatus(
       .eq("id", id)
       .maybeSingle();
     gate = data;
-    if (gate?.tipo_solicitud === "Interno") {
-      const coordDone = !gate.coordinador_estatus || gate.coordinador_estatus === "aprobada";
-      if (!coordDone) {
-        throw new Error("La interna aún no tiene el sello del coordinador.");
-      }
-      if (gate.lider_estatus === "pendiente") {
-        throw new Error("La interna aún no tiene el sello del líder.");
-      }
-      if (gate.lider_estatus === "rechazada") {
-        throw new Error("El líder rechazó esta requisición.");
-      }
-    }
+    isInterna = gate?.tipo_solicitud === "Interno";
+    assert_admin_tramite_allowed({
+      tipo_solicitud: gate?.tipo_solicitud,
+      coordinador_estatus: gate?.coordinador_estatus,
+      lider_estatus: gate?.lider_estatus,
+    });
+  }
+
+  if (estatus === "procesada" || estatus === "parcial") {
     const { verified, total } = countRequisicionVerificacion(
       gate?.additional_items as RequisicionItem[] | undefined,
       gate?.osi_fixed_items as OSIFixedItem[] | undefined,
       gate?.tipo_solicitud,
     );
     const internaItems = (gate?.additional_items as RequisicionItem[] | undefined) || [];
-    isInterna = gate?.tipo_solicitud === "Interno";
     if (isInterna) {
       if (!interna_has_process_progress(internaItems)) {
         throw new Error("Registre al menos una entrega para procesar.");
@@ -1911,7 +1916,7 @@ export async function updateItemVerificacion(
   const adminClient = await createAdminClient();
   const { data: record, error: fetchError } = await adminClient
     .from("requisiciones")
-    .select("additional_items")
+    .select("additional_items, tipo_solicitud, coordinador_estatus, lider_estatus")
     .eq("id", requisicionId)
     .single();
 
@@ -1919,6 +1924,7 @@ export async function updateItemVerificacion(
     console.error("[updateItemVerificacion] Fetch error:", JSON.stringify(fetchError));
     throw fetchError;
   }
+  assert_record_admin_tramite(record);
 
   const isListo = verificacion === "listo";
   const items: RequisicionItem[] = (record?.additional_items || []).map(
@@ -1970,7 +1976,7 @@ export async function registrarEntregaItem(
   const adminClient = await createAdminClient();
   const { data: record, error: fetchError } = await adminClient
     .from("requisiciones")
-    .select("additional_items, tipo_solicitud, estatus_admin, created_by")
+    .select("additional_items, tipo_solicitud, estatus_admin, created_by, coordinador_estatus, lider_estatus")
     .eq("id", requisicionId)
     .single();
 
@@ -1978,6 +1984,7 @@ export async function registrarEntregaItem(
     console.error("[registrarEntregaItem] Fetch error:", JSON.stringify(fetchError));
     throw fetchError;
   }
+  assert_record_admin_tramite(record);
   if (record?.tipo_solicitud !== "Interno") {
     throw new Error("La entrega parcial solo aplica a requisiciones internas.");
   }
@@ -2073,7 +2080,7 @@ export async function updateFixedItemVerificacion(
   const adminClient = await createAdminClient();
   const { data: record, error: fetchError } = await adminClient
     .from("requisiciones")
-    .select("osi_fixed_items")
+    .select("osi_fixed_items, tipo_solicitud, coordinador_estatus, lider_estatus")
     .eq("id", requisicionId)
     .single();
 
@@ -2081,6 +2088,7 @@ export async function updateFixedItemVerificacion(
     console.error("[updateFixedItemVerificacion] Fetch error:", JSON.stringify(fetchError));
     throw fetchError;
   }
+  assert_record_admin_tramite(record);
 
   const isListo = verificacion === "listo";
   const suffixMap: Record<string, string> = {
@@ -2128,10 +2136,11 @@ export async function updateRequisicionItemsByGestion(
   const admin = await createAdminClient();
   const { data: existing, error: fetchError } = await admin
     .from("requisiciones")
-    .select("estatus_admin")
+    .select("estatus_admin, tipo_solicitud, coordinador_estatus, lider_estatus")
     .eq("id", id)
     .maybeSingle();
   if (fetchError || !existing) throw new Error("Requisición no encontrada.");
+  assert_record_admin_tramite(existing);
   if (
     existing.estatus_admin === "procesada" ||
     existing.estatus_admin === "rechazada"
@@ -2173,7 +2182,7 @@ export async function markAllItemsVerificadas(requisicionId: number) {
   const adminClient = await createAdminClient();
   const { data: record, error: fetchError } = await adminClient
     .from("requisiciones")
-    .select("additional_items, osi_fixed_items")
+    .select("additional_items, osi_fixed_items, tipo_solicitud, coordinador_estatus, lider_estatus")
     .eq("id", requisicionId)
     .single();
 
@@ -2181,6 +2190,7 @@ export async function markAllItemsVerificadas(requisicionId: number) {
     console.error("[markAllItemsVerificadas] Fetch error:", JSON.stringify(fetchError));
     throw fetchError;
   }
+  assert_record_admin_tramite(record);
 
   const nowIso = new Date().toISOString();
   const items = stamp_additional_items_listo(
@@ -2222,12 +2232,15 @@ export async function saveVerificacionProgress(requisicionId: number) {
       additional_items,
       osi_fixed_items,
       tipo_solicitud,
+      coordinador_estatus,
+      lider_estatus,
       v_osi_formato_completo!left (nro_osi)
     `)
     .eq("id", requisicionId)
     .single();
 
   if (fetchError) throw fetchError;
+  assert_record_admin_tramite(record);
 
   const fixedItems: OSIFixedItem[] = record?.osi_fixed_items || [];
   const additionalItems: RequisicionItem[] = record?.additional_items || [];
