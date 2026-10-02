@@ -538,17 +538,20 @@ export async function getOSIPreviewBundle(
     const tipoServicio = String(
       (view_row as Record<string, unknown>).tipo_servicio ?? "",
     ).toUpperCase();
-    if (
-      accessFilter === "capacitacion" &&
-      !tipoServicio.includes("CAPACITACION")
-    ) {
+    const clase_ecc_access = String(
+      (view_row as Record<string, unknown>).clase_ecc ?? "",
+    ).toLowerCase();
+    const looks_st =
+      clase_ecc_access === "consolidada" ||
+      tipoServicio.includes("SERVICIOS TECNICOS") ||
+      tipoServicio.includes("SERVICIO TECNICO") ||
+      tipoServicio.includes("TECNICO");
+    const looks_cap =
+      !looks_st && tipoServicio.includes("CAPACITACION");
+    if (accessFilter === "capacitacion" && !looks_cap) {
       return null;
     }
-    if (
-      accessFilter === "servicios_tecnicos" &&
-      !tipoServicio.includes("SERVICIOS TECNICOS") &&
-      !tipoServicio.includes("SERVICIO TECNICO")
-    ) {
+    if (accessFilter === "servicios_tecnicos" && !looks_st) {
       return null;
     }
 
@@ -575,18 +578,29 @@ export async function getOSIPreviewBundle(
 
     let ecc_children: Record<string, unknown>[] = [];
     if (id_ecc > 0) {
-      const { data: children } = await supabase
+      const { data: children, error: children_error } = await supabase
         .from("ecc_encabezado")
         .select(
-          "servicio_id, numero_areas, numero_trabajadores, numero_puntos_evaluar, pretenciones_cliente, observaciones_cliente",
+          "id_servicio, numero_areas, numero_trabajadores, numero_puntos_evaluar, pretenciones_cliente, observaciones_cliente",
         )
         .eq("id_ecc_consolidada", id_ecc);
+      if (children_error) {
+        console.error(
+          "Error fetching ECC children for OSI preview (contrapropuesta):",
+          children_error,
+        );
+      }
       ecc_children = (children ?? []) as Record<string, unknown>[];
     }
 
     const osi_sesiones_rows = sesionesResult.data;
 
-    const is_cap = tipoServicio.includes("CAPACITACION");
+    // Madre consolidada = contrapropuesta ST (CAP pone OSI en hijas, no en madre).
+    const clase_ecc = String(
+      (view_row as Record<string, unknown>).clase_ecc ?? "",
+    ).toLowerCase();
+    const is_cap =
+      clase_ecc !== "consolidada" && tipoServicio.includes("CAPACITACION");
     const visibility_formato = is_cap ? "capacitacion" : "servicios_tecnicos";
     const visibility_config =
       visibility_by_formato.get(visibility_formato) ?? null;

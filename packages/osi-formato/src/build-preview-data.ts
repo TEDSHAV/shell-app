@@ -197,6 +197,13 @@ function build_detalle_servicio(params: {
 }
 
 function resolve_is_capacitacion(view_row: GenericRow): boolean {
+  // OSI sobre ECC madre consolidada = contrapropuesta ST.
+  // (CAP pone OSI en hijas estandar, no en la madre consolidada.)
+  const clase = String(view_row.clase_ecc ?? "").toLowerCase();
+  if (clase === "consolidada") {
+    return false;
+  }
+
   const tipo = String(view_row.tipo_servicio ?? "").toLowerCase();
   if (
     tipo.includes("tecnico") ||
@@ -205,6 +212,13 @@ function resolve_is_capacitacion(view_row: GenericRow): boolean {
   ) {
     return false;
   }
+
+  // Departamento ejecutante ST (catálogo) gana sobre tipo_servicio mal tipado.
+  const dept = to_num(view_row.id_departamento_ejecutante);
+  if (dept === 4) {
+    return false;
+  }
+
   if (
     to_num(view_row.st_dias_campo) > 0 ||
     to_num(view_row.st_analistas) > 0 ||
