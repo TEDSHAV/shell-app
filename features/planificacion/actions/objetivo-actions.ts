@@ -18,6 +18,7 @@ import type {
 } from "../lib/types";
 import { is_plan_mes_emitido, type PlanMes } from "../lib/plan-mes";
 import { ensure_plan_mes, fetch_plan_mes } from "../lib/plan-mes-db";
+import { list_objetivo_solicitantes } from "../lib/objetivo-solicitantes";
 
 function revalidate_objetivos() {
   revalidatePath("/ted/planificacion");
@@ -287,6 +288,10 @@ export async function load_objetivos_month(
 > {
   const cover = await load_cubrir_workspace(mes, { unpublished_objetivos: "include" });
   if (!cover.ok) return cover;
+  const gate = await require_objetivos_read_context();
+  const usuarios = gate.ok
+    ? await list_objetivo_solicitantes(gate.ctx.supabase)
+    : [];
   return {
     ok: true,
     mes: cover.data.mes,
@@ -297,7 +302,7 @@ export async function load_objetivos_month(
       nombre: app.nombre,
       slug: app.slug,
     })),
-    usuarios: cover.data.usuarios,
+    usuarios,
   };
 }
 
@@ -523,17 +528,13 @@ export async function load_objetivo_form(id: number | null): Promise<
   await sync_shell_apps(gate.ctx.supabase);
   const { supabase } = gate.ctx;
 
-  const [apps_res, users_res] = await Promise.all([
+  const [apps_res, usuarios] = await Promise.all([
     supabase
       .from("ted_plan_apps" as never)
       .select("id, nombre, slug")
       .is("archived_at", null)
       .order("nombre"),
-    supabase
-      .from("usuarios")
-      .select("id, nombre_apellido, esta_activo")
-      .eq("esta_activo", true)
-      .order("nombre_apellido"),
+    list_objetivo_solicitantes(supabase),
   ]);
   if (apps_res.error) {
     console.error("[planificacion] form apps:", apps_res.error);
@@ -545,12 +546,6 @@ export async function load_objetivo_form(id: number | null): Promise<
     nombre: string;
     slug: string;
   }>;
-  const usuarios: PlanUsuarioOption[] = (
-    (users_res.data ?? []) as Array<{ id: number; nombre_apellido: string }>
-  ).map((user) => ({
-    id: user.id,
-    label: user.nombre_apellido || `Usuario ${user.id}`,
-  }));
 
   if (!id) {
     return {
@@ -586,10 +581,15 @@ export async function load_objetivo_form(id: number | null): Promise<
     ),
   ];
   if (app_ids.length === 0 && row.app_id) app_ids.push(row.app_id);
+  const extra = row.solicitado_por ? [row.solicitado_por] : [];
+  const solicitantes =
+    extra.length > 0 && !usuarios.some((user) => user.id === extra[0])
+      ? await list_objetivo_solicitantes(supabase, extra)
+      : usuarios;
   return {
     ok: true,
     apps: catalog,
-    usuarios,
+    usuarios: solicitantes,
     objetivo: { ...row, app_ids, solicitado_por: row.solicitado_por ?? null },
   };
 }

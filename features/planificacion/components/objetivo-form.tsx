@@ -148,7 +148,7 @@ export function ObjetivoForm({
             </p>
             <PlanField
               label="Solicitado por"
-              hint="A nombre de quien pidió este compromiso. Vacío = tú."
+              hint="Quién de gerencia pidió este compromiso. Vacío = tú."
             >
               <SearchSelect
                 value={solicitado_por}

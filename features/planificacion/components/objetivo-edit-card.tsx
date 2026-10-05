@@ -58,7 +58,7 @@ export function ObjetivoEditCard({
             onChange={(app_ids) => onChange({ app_ids })}
           />
         </PlanField>
-        <PlanField label="Solicitado por" hint="Vacío = tú">
+        <PlanField label="Solicitado por" hint="Gerencia (Liliana / Pedro). Vacío = tú.">
           <SearchSelect
             value={draft.solicitado_por ? String(draft.solicitado_por) : ""}
             placeholder="Quién lo pidió"
