@@ -23,13 +23,18 @@ export const metadata = {
 export default async function RequisicionesPage() {
   const isAdminView = await isRequisicionesAdmin();
   const isCapacitacionView = !isAdminView && (await isCurrentUserCapacitacion());
-  const coordinadorDepts = isAdminView ? [] : await getCoordinatedDepartments();
+  const coordinadorDepts = await getCoordinatedDepartments();
   const isCoordinador = coordinadorDepts.length > 0;
-  const liderDepts = isAdminView ? [] : await getDepartmentsInLedGerencias();
+  const liderDepts = await getDepartmentsInLedGerencias();
   const isLider = liderDepts.length > 0;
+  const isApprover = isLider || isCoordinador;
 
   const [records, osiPairs] = await Promise.all([
-    isAdminView ? getOwnRequisiciones() : getAllRequisiciones(false),
+    isApprover
+      ? getAllRequisiciones(false)
+      : isAdminView
+        ? getOwnRequisiciones()
+        : getAllRequisiciones(false),
     getOsiNumbersForLookup(),
   ]);
 
@@ -56,14 +61,14 @@ export default async function RequisicionesPage() {
             Mis Requisiciones
           </h1>
           <p className="mt-1 text-sm text-gray-600">
-            {isAdminView
-              ? "Listado de las solicitudes de requisición que has creado."
-              : (isLider || isCoordinador) && pendingApprovalCount > 0
-                ? `Tienes ${pendingApprovalCount} ${
-                    pendingApprovalCount === 1
-                      ? "requisición pendiente"
-                      : "requisiciones pendientes"
-                  } por aprobar.`
+            {isApprover && pendingApprovalCount > 0
+              ? `Tienes ${pendingApprovalCount} ${
+                  pendingApprovalCount === 1
+                    ? "requisición pendiente"
+                    : "requisiciones pendientes"
+                } por aprobar.`
+              : isAdminView
+                ? "Listado de las solicitudes de requisición que has creado."
                 : isCapacitacionView
                   ? "Listado de las requisiciones creadas por el departamento de Capacitación."
                   : "Listado de todas las solicitudes de requisición que has creado."}

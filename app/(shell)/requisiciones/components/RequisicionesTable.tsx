@@ -22,8 +22,7 @@ import { Search, X, ChevronLeft, ChevronRight } from "lucide-react";
 
 const PAGE_SIZE_OPTIONS = [10, 30, 50];
 
-// "Historial" tab is appended dynamically inside the component (only for non-admin
-// liders/coordinadors) so regular users and admins don't see it.
+// "Historial" se agrega en el componente para coordinador/líder.
 
 const EMPTY_FILTERS: RequisicionFilters = {
   tab: "todas",
@@ -69,9 +68,8 @@ export default function RequisicionesTable({
     tab: showApproverTabs ? "por_aprobar" : "todas",
   }));
 
-  // "Historial" tab is only shown to non-admin liders/coordinadors so they can
-  // see requisiciones they've already approved/rejected (tagged with
-  // _isApprovalHistory by getAllRequisiciones).
+  // "Historial" para coordinador/líder en Mis requisiciones (también si además
+  // pueden procesar). En Gestión no se muestra.
   const tabs = useMemo(() => {
     const base: { key: RequisicionFilters["tab"]; label: string }[] = [
       { key: "todas", label: "Todas" },
