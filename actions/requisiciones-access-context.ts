@@ -4,10 +4,9 @@ import { cache } from "react";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { getUserPermissionsByApp, getUserRolesByApp } from "@/actions/apps";
 import {
-  catalog_names_for_keys,
   flatten_permission_slugs,
   is_admin_operative,
-  request_dept_keys,
+  request_dept_names,
   resolve_stamp_territory,
   type DeptCatalogRow,
 } from "@/lib/requisiciones-dept-context";
@@ -162,10 +161,11 @@ export const getRequisicionAccess = cache(async (): Promise<RequisicionAccess> =
   const coord_depts = stamp.coord_depts;
   const lider_depts = stamp.lider_depts;
 
-  const request_depts = catalog_names_for_keys(
+  const request_depts = request_dept_names({
     catalog,
-    request_dept_keys({ home_dept, roles_by_app }),
-  );
+    home_dept,
+    roles_by_app,
+  });
 
   return {
     usuario_id,

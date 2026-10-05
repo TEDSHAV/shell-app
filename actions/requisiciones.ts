@@ -239,9 +239,7 @@ export const canPlaceInterna = cache(async (deptName: string | null | undefined)
   if (!deptName) return false;
   const access = await getRequisicionAccess();
   if (!access.can_create) return false;
-  return access.request_depts.some(
-    (nombre) => nombre.toLowerCase() === deptName.trim().toLowerCase(),
-  );
+  return access.can_create && deptNameInList(deptName, access.request_depts);
 });
 
 export const getCoordinatedDepartments = cache(async (): Promise<string[]> => {
@@ -464,9 +462,9 @@ export async function createRequisicionRecord(
   if (!access.can_create) {
     throw new Error("No tiene permiso para crear requisiciones.");
   }
-  const deptOk = !formData.departamento || access.request_depts.some(
-    (nombre) => nombre.toLowerCase() === formData.departamento.trim().toLowerCase(),
-  );
+  const deptOk =
+    !formData.departamento ||
+    deptNameInList(formData.departamento, access.request_depts);
   if (!deptOk) {
     throw new Error("No puede crear requisiciones para ese departamento.");
   }
@@ -484,25 +482,19 @@ export async function createRequisicionRecord(
   let needsCoordinadorApproval = false;
 
   if (isInterna) {
-    const isCoord = await isCoordinadorForDepartment(formData.departamento);
-    if (isCoord) {
-      const creatorIsLider = await isLiderForInternaApproval(formData.departamento);
-      if (creatorIsLider) {
-        liderBypassApproval = true;
+    const creatorIsLider =
+      (await isLiderForInternaApproval(formData.departamento)) ||
+      (await creatorIsLiderOfDepartment(userId, formData.departamento));
+    if (creatorIsLider) {
+      liderBypassApproval = true;
+    } else {
+      const isCoord = await isCoordinadorForDepartment(formData.departamento);
+      if (isCoord) {
+        needsLiderApproval = true;
+      } else if (await departmentHasCoordinador(formData.departamento)) {
+        needsCoordinadorApproval = true;
       } else {
         needsLiderApproval = true;
-      }
-    } else {
-      const hasCoord = await departmentHasCoordinador(formData.departamento);
-      if (!hasCoord) {
-        const creatorIsLider = await isLiderForInternaApproval(formData.departamento);
-        if (creatorIsLider) {
-          liderBypassApproval = true;
-        } else {
-          needsLiderApproval = true;
-        }
-      } else {
-        needsCoordinadorApproval = true;
       }
     }
   }

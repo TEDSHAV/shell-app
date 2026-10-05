@@ -551,7 +551,7 @@ function RequisicionFormContent({
       }, 2000);
     } catch (error) {
       console.error("Error saving requisition:", error);
-      alert("Error al guardar el registro");
+      alert(error instanceof Error ? error.message : "Error al guardar el registro");
     } finally {
       setIsLoading(false);
     }

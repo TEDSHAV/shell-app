@@ -168,6 +168,31 @@ export function request_dept_keys(args: {
   return keys;
 }
 
+/** Nombres de catálogo desde los que la persona puede pedir, más su depto de casa. */
+export function request_dept_names(args: {
+  catalog: DeptCatalogRow[];
+  home_dept: string | null | undefined;
+  roles_by_app: Record<string, string>;
+}): string[] {
+  const names = catalog_names_for_keys(
+    args.catalog,
+    request_dept_keys({
+      home_dept: args.home_dept,
+      roles_by_app: args.roles_by_app,
+    }),
+  );
+  const home = (args.home_dept || "").trim();
+  if (!home) return names;
+  const home_norm = normalizeDeptKey(home);
+  if (names.some((nombre) => normalizeDeptKey(nombre) === home_norm)) {
+    return names;
+  }
+  const hit = args.catalog.find(
+    (row) => normalizeDeptKey(row.nombre) === home_norm,
+  );
+  return [...names, hit?.nombre || home];
+}
+
 function product_coord_role(role_slug: string | undefined): boolean {
   return Boolean(role_slug && PRODUCT_COORD_ROLE_SLUGS.has(role_slug));
 }
@@ -264,9 +289,13 @@ export function resolve_stamp_territory(args: {
   const product_coord_keys = stamp_coord_dept_keys(args.roles_by_app);
   const product_lider_keys = stamp_lider_dept_keys(args.roles_by_app);
   const can_approve_coord =
-    slug_set.has(REQ_GESTION_APPROVE_COORD) || product_coord_keys.size > 0;
+    slug_set.has(REQ_GESTION_APPROVE_COORD) ||
+    product_coord_keys.size > 0 ||
+    args.organigram_coord_depts.length > 0;
   const can_approve_lider =
-    slug_set.has(REQ_GESTION_APPROVE_LIDER) || product_lider_keys.size > 0;
+    slug_set.has(REQ_GESTION_APPROVE_LIDER) ||
+    product_lider_keys.size > 0 ||
+    args.led_gerencias.length > 0;
   const can_process = slug_set.has(REQ_GESTION_PROCESS);
   const coord_depts = can_approve_coord
     ? [...new Set([
