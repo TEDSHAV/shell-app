@@ -231,6 +231,21 @@ async function markOsiEjecutada(
 ): Promise<void> {
   const now = new Date().toISOString();
 
+  const { data: osi_row, error: osi_read_error } = await admin
+    .from("ejecucion_osi")
+    .select("nro_osi_secuencial")
+    .eq("id", osiId)
+    .maybeSingle();
+  if (osi_read_error) {
+    throw new Error(`ejecucion_osi read failed (${osiId}): ${osi_read_error.message}`);
+  }
+  const nro = String(osi_row?.nro_osi_secuencial ?? "").trim();
+  if (/^PEN-\d+$/i.test(nro)) {
+    throw new Error(
+      `OSI ${osiId} sigue con correlativo pendiente (${nro}); no se puede marcar Ejecutada sin emitir.`,
+    );
+  }
+
   // 1. Update each osi_sesion row: fecha_ejecutada = fecha, hora_ejecutada = hora_inicio
   for (const s of sesiones) {
     const fechaEjecutada = s.fecha ? s.fecha.split("T")[0] : null;
