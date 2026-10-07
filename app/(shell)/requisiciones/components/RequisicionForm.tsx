@@ -12,8 +12,16 @@ import {
   getRequisicionRecord,
   getFacilitatorsForDropdown,
 } from "@/actions/requisiciones";
-import { mapGerenciaSolicitante } from "@/lib/requisiciones-gerencia";
+import {
+  externa_mode_for_departamento,
+  isCapacitacionDept as deptIsCapacitacion,
+  isServiciosTecnicosDept,
+  mapGerenciaSolicitante,
+  osi_matches_tipo_filter,
+  osi_tipo_filter_for_departamento,
+} from "@/lib/requisiciones-gerencia";
 import { apply_item_money_updates } from "@/lib/requisiciones-totals";
+import { RequisicionAumentoCostosPanel } from "./RequisicionAumentoCostosPanel";
 import { RequisicionTotalPriceInput, RequisicionUnitPriceInput } from "./RequisicionItemMoneyInputs";
 import { Input } from "@/components/ui/input";
 import { NumberInput } from "@/components/ui/number-input";
@@ -155,13 +163,11 @@ function RequisicionFormContent({
 
   // Determine department-based default mode
   const userDepartment = initialUserData?.departamentos?.nombre || userDept || "";
-  const deptLower = userDept.trim().toLowerCase();
-  const isCapacitacionDept = deptLower.includes("capacitacion");
-  const isServiciosDept = deptLower.includes("servicios") && deptLower.includes("tecnic");
-  const isNegociosDept = deptLower.includes("negocios");
+  const homeIsCapacitacion = deptIsCapacitacion(userDept);
+  const homeIsServicios = isServiciosTecnicosDept(userDept);
   // All users can place externas. Default mode is Interna for non-capacitacion/non-servicios
   // departments, but users can switch to Externa via the tab.
-  const defaultIsGeneral = !isCapacitacionDept && !isServiciosDept;
+  const defaultIsGeneral = !homeIsCapacitacion && !homeIsServicios;
   const editIsGeneral = editRecord ? (editRecord.tipo_solicitud === "Interno" || (!editRecord.tipo_solicitud && !editRecord.id_osi)) : defaultIsGeneral;
   const canUseExternal = true;
   // Gerencia Solicitante comes from the DB (departamentos.gerencia) when available,
@@ -226,12 +232,13 @@ function RequisicionFormContent({
     nro_cuenta: editRecord?.nro_cuenta || "",
 
     observaciones: editRecord?.observaciones_compras || "",
+    aumento_costos_justificacion: editRecord?.aumento_costos_justificacion || "",
   });
 
   const [mode, setMode] = useState<"general" | "capacitacion" | "servicios tecnicos" | "negocios">(
     editRecord
       ? (editIsGeneral ? "general" : (editRecord.gerencia_solicitante?.trim().toLowerCase() === "capacitacion" ? "capacitacion" : editRecord.gerencia_solicitante?.trim().toLowerCase() === "negocios" ? "negocios" : "servicios tecnicos"))
-      : (defaultIsGeneral ? "general" : (isCapacitacionDept ? "capacitacion" : "servicios tecnicos"))
+      : (defaultIsGeneral ? "general" : (homeIsCapacitacion ? "capacitacion" : "servicios tecnicos"))
   );
 
   // Handle outside click for OSI dropdown
@@ -246,15 +253,15 @@ function RequisicionFormContent({
   }, []);
 
   const isGeneralMode = mode === "general";
-  // Capacitacion-specific behavior is now driven by the user's department (not gerencia_solicitante,
-  // which is always the mapped grouping e.g. "Servicios").
+  const requestDept = formData.departamento || userDepartment;
+  const isCapacitacionDept = deptIsCapacitacion(requestDept);
+  const isServiciosDept = isServiciosTecnicosDept(requestDept);
+  // Capacitación behavior follows the department of THIS requisition, not the
+  // home department of the logged-in user (TED/admin can pedir por Capacitación).
   const isCapacitacion = !isGeneralMode && isCapacitacionDept;
-  // Only Servicios Técnicos can select multiple OSIs; everyone else (Capacitación,
-  // Negocios) is restricted to a single OSI selection. Internas have no OSI at all.
   const isSingleOSIMode = !isGeneralMode && !isServiciosDept;
-  // OSI selector is only shown for externas (not internas).
   const showOSISelector = !isGeneralMode;
-  const internaOsiTipoServicio = isCapacitacionDept ? "capacitacion" : "servicios tecnicos";
+  const osiTipoFilter = osi_tipo_filter_for_departamento(requestDept);
 
   const handleModeSwitch = (newMode: "general" | "capacitacion" | "servicios tecnicos" | "negocios") => {
     // Gerencia Solicitante comes from the DB (departamentos.gerencia) when available,
@@ -294,19 +301,10 @@ function RequisicionFormContent({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
-  const osiTipoServicio = isGeneralMode ? internaOsiTipoServicio : (isCapacitacion ? "capacitacion" : "servicios tecnicos");
-
   const isOSIRequired = !isGeneralMode;
 
   const filteredOSIs = osis.filter((osi) => {
-    if (!isNegociosDept) {
-      const tipo = (osi.tipo_servicio || "").toLowerCase();
-      if (osiTipoServicio === "servicios tecnicos") {
-        if (!tipo.includes("servicios tecnicos") && !tipo.includes("servicio tecnico")) return false;
-      } else if (!tipo.includes(osiTipoServicio)) {
-        return false;
-      }
-    }
+    if (!osi_matches_tipo_filter(osi.tipo_servicio, osiTipoFilter)) return false;
     if (osi.nro_osi?.toUpperCase().startsWith("PEN")) return false;
     const q = searchTerm.toLowerCase();
     if (q && !(osi.nro_osi?.toLowerCase().includes(q) || osi.servicio?.toLowerCase().includes(q))) return false;
@@ -601,7 +599,7 @@ function RequisicionFormContent({
         {canUseExternal && (
         <button
           type="button"
-          onClick={() => handleModeSwitch(isCapacitacionDept ? "capacitacion" : isServiciosDept ? "servicios tecnicos" : "negocios")}
+          onClick={() => handleModeSwitch(externa_mode_for_departamento(requestDept))}
           className={`px-4 py-2 text-sm font-bold rounded-t-lg border-b-2 transition-colors ${
             !isGeneralMode
               ? "border-blue-600 text-blue-600 bg-blue-50"
@@ -749,7 +747,15 @@ function RequisicionFormContent({
                       ...p,
                       departamento: nombre,
                       gerencia_solicitante: hit?.gerencia || p.gerencia_solicitante,
+                      selectedOSIs: [],
+                      osi_fixed_items: [],
+                      id_sesion: null,
+                      selectedSesion: null,
                     }));
+                    if (!isGeneralMode) {
+                      setMode(externa_mode_for_departamento(nombre));
+                    }
+                    setSearchTerm("");
                   }}
                 >
                   <SelectTrigger className="h-8 border-none focus:ring-0 px-0 text-sm font-medium uppercase">
@@ -1332,6 +1338,21 @@ function RequisicionFormContent({
               placeholder="Escriba aquí cualquier observación adicional..."
             />
           </div>
+          {!formData.is_general ? (
+            <RequisicionAumentoCostosPanel
+              isInterna={formData.is_general}
+              idOsi={formData.selectedOSIs[0]?.id_osi ?? null}
+              osiFixedItems={formData.osi_fixed_items}
+              additionalItems={formData.additional_items}
+              justification={formData.aumento_costos_justificacion || ""}
+              onJustificationChange={(value) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  aumento_costos_justificacion: value,
+                }))
+              }
+            />
+          ) : null}
 
           {isCapacitacion && (
           <>

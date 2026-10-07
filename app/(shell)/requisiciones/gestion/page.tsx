@@ -5,6 +5,7 @@ import {
   isRequisicionesAdmin,
   getOsiNumbersForLookup,
 } from "@/actions/requisiciones";
+import { getRequisicionAccess } from "@/actions/requisiciones-access-context";
 import RequisicionesTable from "../components/RequisicionesTable";
 
 export const metadata = {
@@ -17,9 +18,10 @@ export default async function GestionRequisicionesPage() {
     redirect("/requisiciones");
   }
 
-  const [records, osiPairs] = await Promise.all([
+  const [records, osiPairs, access] = await Promise.all([
     getGestionRequisiciones(),
     getOsiNumbersForLookup(),
+    getRequisicionAccess(),
   ]);
 
   const osiLookup = new Map<number, string>();
@@ -60,6 +62,7 @@ export default async function GestionRequisicionesPage() {
         isAdminView
         listMode="gestion"
         osiLookup={osiLookup}
+        canApproveAumento={access.can_approve_aumento}
       />
     </div>
   );

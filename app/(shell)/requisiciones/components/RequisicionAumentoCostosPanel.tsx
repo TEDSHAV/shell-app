@@ -1,0 +1,165 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
+import {
+  preview_aumento_costos,
+  type AumentoCostosPatch,
+} from "@/actions/requisiciones-aumento-costos";
+import { Textarea } from "@/components/ui/textarea";
+import type { RequisicionFormData } from "@/types/requisiciones";
+
+type Props = {
+  isInterna: boolean;
+  idOsi: number | null;
+  osiFixedItems: RequisicionFormData["osi_fixed_items"];
+  additionalItems: RequisicionFormData["additional_items"];
+  justification: string;
+  onJustificationChange: (value: string) => void;
+};
+
+function usd(value: number | null | undefined): string {
+  const amount = Number(value ?? 0);
+  return `$ ${amount.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })} USD`;
+}
+
+function estado_from_analysis(analysis: {
+  extra: number;
+  level: number;
+  needs_approval: boolean;
+  needs_justification: boolean;
+}): "base" | "moderado" | "riesgoso" | "aprobacion" {
+  if (analysis.needs_approval) return "aprobacion";
+  if (analysis.needs_justification || analysis.level >= 2) return "riesgoso";
+  if (analysis.extra > 0) return "moderado";
+  return "base";
+}
+
+export function RequisicionAumentoCostosPanel({
+  isInterna,
+  idOsi,
+  osiFixedItems,
+  additionalItems,
+  justification,
+  onJustificationChange,
+}: Props) {
+  const [patch, setPatch] = useState<AumentoCostosPatch | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (isInterna || !idOsi) {
+      setPatch(null);
+      return;
+    }
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      setLoading(true);
+      void preview_aumento_costos({
+        is_interna: isInterna,
+        id_osi: idOsi,
+        form: {
+          osi_fixed_items: osiFixedItems,
+          additional_items: additionalItems,
+        },
+      })
+        .then((next) => {
+          if (!cancelled) setPatch(next);
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    }, 350);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [additionalItems, idOsi, isInterna, osiFixedItems]);
+
+  if (isInterna) return null;
+
+  if (!idOsi) {
+    return (
+      <div className="border-b border-gray-300 bg-slate-50 p-3">
+        <p className="text-sm font-semibold text-slate-800">Estado del costo</p>
+        <p className="mt-1 text-sm text-slate-600">
+          Elige una OSI para ver si el ajuste es moderado, riesgoso o si queda
+          sujeto a aprobación.
+        </p>
+      </div>
+    );
+  }
+
+  const analysis = patch?.aumento_costos_analisis;
+  const estado = analysis ? estado_from_analysis(analysis) : null;
+  const show_justificacion = estado === "riesgoso" || estado === "aprobacion";
+  const tone =
+    estado === "aprobacion"
+      ? "border-rose-200 bg-rose-50 text-rose-950"
+      : estado === "riesgoso"
+        ? "border-amber-200 bg-amber-50 text-amber-950"
+        : estado === "moderado"
+          ? "border-sky-200 bg-sky-50 text-sky-950"
+          : "border-emerald-200 bg-emerald-50 text-emerald-950";
+
+  const headline =
+    !analysis
+      ? loading
+        ? "Revisando el ajuste…"
+        : "Aún no hay estado."
+      : estado === "aprobacion"
+        ? "Riesgoso · sujeta a aprobación"
+        : estado === "riesgoso"
+          ? "Riesgoso"
+          : estado === "moderado"
+            ? "Moderado"
+            : "Base";
+
+  const detail =
+    !analysis
+      ? "Al cambiar ítems se actualiza solo."
+      : estado === "aprobacion"
+        ? `La requisición (${usd(analysis.cost_req)}) supera a la OSI (${usd(analysis.cost_osi)}) en ${usd(analysis.extra)}. Completa la justificación: esta solicitud queda sujeta a aprobación.`
+        : estado === "riesgoso"
+          ? `El ajuste es riesgoso. Completa la justificación para poder emitir.`
+          : estado === "moderado"
+            ? "El ajuste es moderado. No hace falta justificación ni aprobación."
+            : "Sin extra respecto a la OSI. No hace falta justificación ni aprobación.";
+
+  return (
+    <div className="border-b border-gray-300 p-3 space-y-3">
+      <div>
+        <p className="text-sm font-semibold uppercase tracking-wide text-slate-700">
+          Estado del costo
+        </p>
+        <p className="mt-0.5 text-sm text-slate-600">
+          Moderado, riesgoso o sujeto a aprobación, según lo que pides frente a
+          la OSI.
+        </p>
+      </div>
+      <div className={`rounded-xl border p-3 text-sm ${tone}`}>
+        <p className="font-semibold">{headline}</p>
+        <p className="mt-1 leading-relaxed">{detail}</p>
+      </div>
+      {show_justificacion ? (
+        <div>
+          <label className="mb-1 block text-sm font-semibold text-slate-800">
+            Justificación (obligatoria)
+          </label>
+          <Textarea
+            value={justification}
+            onChange={(event) => onJustificationChange(event.target.value)}
+            className="min-h-[72px] text-sm border-gray-300"
+            placeholder={
+              estado === "aprobacion"
+                ? "Explica el extra. Esta requisición quedará sujeta a aprobación."
+                : "Explica por qué este ajuste riesgoso es necesario."
+            }
+          />
+        </div>
+      ) : null}
+    </div>
+  );
+}

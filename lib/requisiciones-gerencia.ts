@@ -16,8 +16,16 @@
 //   TED, Marketing, Negocios                            -> "Negocios"
 //   Administracion, Recursos Humanos, Contabilidad       -> "Administracion"
 //   (fallback)                                          -> the department name itself
+export function fold_requisicion_text(value: string | null | undefined): string {
+  return (value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
 export function mapGerenciaSolicitante(deptName: string | null | undefined): string {
-  const d = (deptName || "").trim().toLowerCase();
+  const d = fold_requisicion_text(deptName);
   if (!d) return "";
   if (
     d.includes("capacitacion") ||
@@ -43,24 +51,52 @@ export function mapGerenciaSolicitante(deptName: string | null | undefined): str
 
 // True when the given department name corresponds to the Capacitacion department.
 export function isCapacitacionDept(deptName: string | null | undefined): boolean {
-  return (deptName || "").trim().toLowerCase().includes("capacitacion");
+  return fold_requisicion_text(deptName).includes("capacitacion");
 }
 
 // True when the given department name corresponds to the Servicios Tecnicos department.
 export function isServiciosTecnicosDept(deptName: string | null | undefined): boolean {
-  const d = (deptName || "").trim().toLowerCase();
+  const d = fold_requisicion_text(deptName);
   return d.includes("servicios") && d.includes("tecnic");
+}
+
+export type OsiTipoFilter = "capacitacion" | "servicios tecnicos" | "all";
+
+export function osi_tipo_filter_for_departamento(
+  deptName: string | null | undefined,
+): OsiTipoFilter {
+  if (isCapacitacionDept(deptName)) return "capacitacion";
+  if (isServiciosTecnicosDept(deptName)) return "servicios tecnicos";
+  return "all";
+}
+
+export function osi_matches_tipo_filter(
+  tipo_servicio: string | null | undefined,
+  filter: OsiTipoFilter,
+): boolean {
+  if (filter === "all") return true;
+  const tipo = fold_requisicion_text(tipo_servicio);
+  if (filter === "servicios tecnicos") {
+    return tipo.includes("servicios tecnicos") || tipo.includes("servicio tecnico");
+  }
+  return tipo.includes("capacitacion");
+}
+
+export function externa_mode_for_departamento(
+  deptName: string | null | undefined,
+): "capacitacion" | "servicios tecnicos" | "negocios" {
+  if (isCapacitacionDept(deptName)) return "capacitacion";
+  if (isServiciosTecnicosDept(deptName)) return "servicios tecnicos";
+  return "negocios";
 }
 
 // True when the department is Administración (name contains "admin").
 export function isAdministracionDept(deptName: string | null | undefined): boolean {
-  return (deptName || "").trim().toLowerCase().includes("admin");
+  return fold_requisicion_text(deptName).includes("admin");
 }
 
 export function normalizeDeptKey(deptName: string | null | undefined): string {
-  return (deptName || "")
-    .trim()
-    .toLowerCase()
+  return fold_requisicion_text(deptName)
     .replace(/[_-]+/g, " ")
     .replace(/\s+/g, " ");
 }
@@ -92,6 +128,7 @@ export type ApproverRecordFlags = {
   departamento?: string | null;
   lider_estatus?: string | null;
   coordinador_estatus?: string | null;
+  aumento_costos_estatus?: string | null;
   costos_confirmados_at?: string | null;
   _isApprovalHistory?: boolean;
   _isOwn?: boolean;
@@ -116,6 +153,12 @@ export function isLiderGatePending(record: ApproverRecordFlags): boolean {
 export function admin_tramite_blocked_reason(
   record: ApproverRecordFlags,
 ): string | null {
+  if (record.aumento_costos_estatus === "pendiente") {
+    return "Espere el sello de aumento de costos.";
+  }
+  if (record.aumento_costos_estatus === "rechazada") {
+    return "El aumento de costos fue rechazado.";
+  }
   if (!isInternaRecord(record)) return null;
   if (record.coordinador_estatus === "pendiente") {
     return "Espere el sello del coordinador.";

@@ -11,6 +11,7 @@ import {
   VerificacionStatus,
   OSIFixedItem,
 } from "@/types/requisiciones";
+import { build_aumento_costos_patch } from "@/actions/requisiciones-aumento-costos";
 import {
   notifyAdminsOfNewRequisicion,
   notifyCreatorOfProcesada,
@@ -572,6 +573,12 @@ export async function createRequisicionRecord(
     // Locked at creation: rev.01 / 20/08/2026 for all new requisiciones.
     revision: "01",
     fecha_revision: "20/08/2026",
+    ...(await build_aumento_costos_patch({
+      is_interna: isInterna,
+      id_osi: primaryOSI?.id_osi || null,
+      form: formData,
+      justificacion: formData.aumento_costos_justificacion || "",
+    })),
   };
 
   const fullRecord = { ...baseRecord, ...newColumns, original_snapshot: buildRequisicionSnapshot({ ...baseRecord, ...newColumns }) };
@@ -605,8 +612,14 @@ export async function createRequisicionRecord(
   } else if (isInterna && needsCoordinadorApproval) {
     await notifyCoordinadorOfPendingExterna(data.id, formData.solicitante, formData.departamento || "");
   } else if (!isInterna) {
-    const label = `de la OSI N° ${primaryOSI?.nro_osi || ""}`;
-    await notifyAdminsOfNewRequisicion(data.id, formData.solicitante, label);
+    const aumento = String(
+      (data as { aumento_costos_estatus?: string | null })
+        .aumento_costos_estatus || "no_aplica",
+    );
+    if (aumento !== "pendiente") {
+      const label = `de la OSI N° ${primaryOSI?.nro_osi || ""}`;
+      await notifyAdminsOfNewRequisicion(data.id, formData.solicitante, label);
+    }
   }
 
   // Revalidate both the shell and potentially the capacitacion app list if needed
@@ -868,6 +881,12 @@ export async function updateRequisicionRecord(
   const newColumns = {
     departamento: formData.departamento || null,
     id_sesion: formData.id_sesion || null,
+    ...(await build_aumento_costos_patch({
+      is_interna: isInterna,
+      id_osi: primaryOSI?.id_osi || null,
+      form: formData,
+      justificacion: formData.aumento_costos_justificacion || "",
+    })),
   };
 
   // Refresh the original_snapshot on every creator save so it always reflects the

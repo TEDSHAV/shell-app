@@ -43,7 +43,7 @@ export interface RequisicionItem {
 }
 
 export interface RequisicionFilters {
-  tab: "todas" | "por_aprobar" | "internas" | "externas" | "historial";
+  tab: "todas" | "por_aprobar" | "por_aprobar_aumento" | "internas" | "externas" | "historial";
   gerencia: string;
   estatus: "" | EstatusAdmin;
   fechaDesde: string;
@@ -124,6 +124,7 @@ export interface RequisicionFormData {
   nro_cuenta: string;
 
   observaciones: string;
+  aumento_costos_justificacion?: string;
 }
 
 // Full OSI data from v_osi_formato_completo view for control servicios

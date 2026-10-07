@@ -7,6 +7,8 @@ export const REQ_GESTION_EDIT = "requisiciones:gestion:edit";
 export const REQ_GESTION_PROCESS = "requisiciones:gestion:process";
 export const REQ_GESTION_APPROVE_COORD = "requisiciones:gestion:approve-coordinador";
 export const REQ_GESTION_APPROVE_LIDER = "requisiciones:gestion:approve-lider";
+export const REQ_GESTION_APPROVE_AUMENTO =
+  "requisiciones:gestion:approve-aumento-costos";
 export const REQ_CONFIG_MANAGE = "requisiciones:config:manage";
 
 export const ADMIN_APP_SLUG = "sadministracion";

@@ -10,6 +10,7 @@ import {
   getDepartmentsInLedGerencias,
 } from "@/actions/requisiciones";
 import RequisicionesTable from "./components/RequisicionesTable";
+import { getRequisicionAccess } from "@/actions/requisiciones-access-context";
 import { FilePlus2 } from "lucide-react";
 import {
   isPendingForCurrentApprover,
@@ -29,13 +30,14 @@ export default async function RequisicionesPage() {
   const isLider = liderDepts.length > 0;
   const isApprover = isLider || isCoordinador;
 
-  const [records, osiPairs] = await Promise.all([
+  const [records, osiPairs, access] = await Promise.all([
     isApprover
       ? getAllRequisiciones(false)
       : isAdminView
         ? getOwnRequisiciones()
         : getAllRequisiciones(false),
     getOsiNumbersForLookup(),
+    getRequisicionAccess(),
   ]);
 
   const osiLookup = new Map<number, string>();
@@ -108,6 +110,7 @@ export default async function RequisicionesPage() {
         coordinadorDepts={coordinadorDepts}
         isLider={isLider}
         liderDepts={liderDepts}
+        canApproveAumento={access.can_approve_aumento}
       />
     </div>
   );

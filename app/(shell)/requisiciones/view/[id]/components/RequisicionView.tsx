@@ -14,6 +14,10 @@ import {
 } from "@/components/ui/select";
 import { RequisicionItem, OSIFixedItem } from "@/types/requisiciones";
 import { setRequisicionEstatus, updateItemVerificacion, updateFixedItemVerificacion, saveVerificacionProgress, getExchangeRate, updateFacilitadorBankingDetails, acknowledgeRequisicionReceipt, approveRequisicionByCoordinador, rejectRequisicionByCoordinador, approveRequisicionByLider, rejectRequisicionByLider, updateRequisicionByApprover, updateRequisicionDepartamento, updateRequisicionItemsByGestion, registrarEntregaItem } from "@/actions/requisiciones";
+import {
+  approveRequisicionAumentoCostos,
+  rejectRequisicionAumentoCostos,
+} from "@/actions/requisiciones-aumento-costos";
 import { CheckCircle2, XCircle, Undo2, Clock, AlertTriangle, CalendarClock, Copy, Check, Download, Save, Printer, PackageCheck, Plus, Trash2 } from "lucide-react";
 import MotivoModal from "../../../components/MotivoModal";
 import ApproverDiff from "./ApproverDiff";
@@ -47,6 +51,7 @@ export default function RequisicionView({
   canEditDepartamento = false,
   canEditTramite = false,
   deptCatalog = [],
+  canApproveAumento = false,
 }: {
   record: any,
   osiData: any,
@@ -64,6 +69,7 @@ export default function RequisicionView({
   /** gestion:edit o process: agregar/editar ítems en trámite. */
   canEditTramite?: boolean,
   deptCatalog?: { nombre: string; gerencia: string }[],
+  canApproveAumento?: boolean,
 }) {
   const router = useRouter();
   const [isUpdating, setIsUpdating] = useState(false);
@@ -127,6 +133,19 @@ export default function RequisicionView({
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [coordinadorRejectOpen, setCoordinadorRejectOpen] = useState(false);
   const [liderRejectOpen, setLiderRejectOpen] = useState(false);
+  const [aumentoRejectOpen, setAumentoRejectOpen] = useState(false);
+  const aumentoPendiente = record.aumento_costos_estatus === "pendiente";
+  const aumentoAnalisis = (record.aumento_costos_analisis || {}) as {
+    extra?: number;
+    pote?: number;
+    cost_req?: number;
+    cost_osi?: number;
+    colchon_ecc_osi?: number;
+    remaining_for_req?: number;
+    needs_approval?: boolean;
+    needs_justification?: boolean;
+    level?: number;
+  };
   const [entregaItem, setEntregaItem] = useState<RequisicionItem | null>(null);
   const [cierreOpen, setCierreOpen] = useState(false);
   const [cierreLastItemId, setCierreLastItemId] = useState<string | null>(null);
@@ -1142,6 +1161,56 @@ export default function RequisicionView({
           {isAdminView && isPendiente && flowHint ? (
             <p className="text-[11px] text-slate-600">{flowHint}</p>
           ) : null}
+          {aumentoPendiente || record.aumento_costos_estatus === "aprobada" || record.aumento_costos_estatus === "rechazada" ? (
+            <div className="rounded-xl border bg-white p-3 text-xs space-y-2">
+              <p className="font-semibold">Estado del costo</p>
+              <p className="font-medium">
+                {aumentoPendiente
+                  ? "Riesgoso · sujeta a aprobación"
+                  : record.aumento_costos_estatus === "aprobada"
+                    ? "Aumento aprobado."
+                    : record.aumento_costos_estatus === "rechazada"
+                      ? "Aumento rechazado."
+                      : aumentoAnalisis.needs_justification
+                        ? "Riesgoso · con justificación"
+                        : Number(aumentoAnalisis.extra ?? 0) > 0
+                          ? "Moderado"
+                          : "Base"}
+              </p>
+              {record.aumento_costos_justificacion ? (
+                <p>Justificación: {record.aumento_costos_justificacion}</p>
+              ) : null}
+              {canApproveAumento && aumentoPendiente ? (
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={isUpdating}
+                    onClick={async () => {
+                      setIsUpdating(true);
+                      try {
+                        await approveRequisicionAumentoCostos(record.id);
+                        router.refresh();
+                      } finally {
+                        setIsUpdating(false);
+                      }
+                    }}
+                  >
+                    Aprobar aumento
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={isUpdating}
+                    onClick={() => setAumentoRejectOpen(true)}
+                  >
+                    Rechazar
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           {canAdminAct && itemsDirty ? (
             <div className="flex items-center justify-between gap-2 pt-1 border-t border-dashed border-slate-200">
               <span className="text-[11px] text-amber-700">Hay cambios en ítems sin guardar.</span>
@@ -2127,6 +2196,56 @@ export default function RequisicionView({
           {isAdminView && isPendiente && flowHint ? (
             <p className="text-[11px] text-slate-600">{flowHint}</p>
           ) : null}
+          {aumentoPendiente || record.aumento_costos_estatus === "aprobada" || record.aumento_costos_estatus === "rechazada" ? (
+            <div className="rounded-xl border bg-white p-3 text-xs space-y-2">
+              <p className="font-semibold">Estado del costo</p>
+              <p className="font-medium">
+                {aumentoPendiente
+                  ? "Riesgoso · sujeta a aprobación"
+                  : record.aumento_costos_estatus === "aprobada"
+                    ? "Aumento aprobado."
+                    : record.aumento_costos_estatus === "rechazada"
+                      ? "Aumento rechazado."
+                      : aumentoAnalisis.needs_justification
+                        ? "Riesgoso · con justificación"
+                        : Number(aumentoAnalisis.extra ?? 0) > 0
+                          ? "Moderado"
+                          : "Base"}
+              </p>
+              {record.aumento_costos_justificacion ? (
+                <p>Justificación: {record.aumento_costos_justificacion}</p>
+              ) : null}
+              {canApproveAumento && aumentoPendiente ? (
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={isUpdating}
+                    onClick={async () => {
+                      setIsUpdating(true);
+                      try {
+                        await approveRequisicionAumentoCostos(record.id);
+                        router.refresh();
+                      } finally {
+                        setIsUpdating(false);
+                      }
+                    }}
+                  >
+                    Aprobar aumento
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={isUpdating}
+                    onClick={() => setAumentoRejectOpen(true)}
+                  >
+                    Rechazar
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           {canAdminAct && itemsDirty ? (
             <div className="flex items-center justify-between gap-2 pt-1 border-t border-dashed border-slate-200">
               <span className="text-[11px] text-amber-700">Hay cambios en ítems sin guardar.</span>
@@ -2204,6 +2323,22 @@ export default function RequisicionView({
         confirmLabel="Rechazar"
         onConfirm={handleLiderReject}
         onClose={() => setLiderRejectOpen(false)}
+      />
+      <MotivoModal
+        open={aumentoRejectOpen}
+        title="Rechazar aumento de costos"
+        description="La requisición vuelve al solicitante y no entra a trámite."
+        confirmLabel="Rechazar"
+        onConfirm={async (motivo) => {
+          setIsUpdating(true);
+          try {
+            await rejectRequisicionAumentoCostos(record.id, motivo);
+            router.refresh();
+          } finally {
+            setIsUpdating(false);
+          }
+        }}
+        onClose={() => setAumentoRejectOpen(false)}
       />
       <RequisicionEntregaModal
         open={Boolean(entregaItem)}

@@ -153,6 +153,7 @@ export default async function ViewRequisicionPage({
         canEditDepartamento={canEditDepartamento}
         canEditTramite={canEditTramite}
         deptCatalog={deptCatalog}
+        canApproveAumento={access.can_approve_aumento}
       />
     </div>
   );

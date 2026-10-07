@@ -52,6 +52,7 @@ export default function RequisicionesTable({
   coordinadorDepts = [],
   isLider = false,
   liderDepts = [],
+  canApproveAumento = false,
 }: {
   records: any[];
   isAdminView: boolean;
@@ -61,6 +62,7 @@ export default function RequisicionesTable({
   coordinadorDepts?: string[];
   isLider?: boolean;
   liderDepts?: string[];
+  canApproveAumento?: boolean;
 }) {
   const showApproverTabs = listMode !== "gestion" && (isLider || isCoordinador);
   const [filters, setFilters] = useState<RequisicionFilters>(() => ({
@@ -77,6 +79,12 @@ export default function RequisicionesTable({
     if (showApproverTabs) {
       base.push({ key: "por_aprobar", label: "Por aprobar" });
     }
+    if (canApproveAumento) {
+      base.push({
+        key: "por_aprobar_aumento",
+        label: "Por aprobar aumento",
+      });
+    }
     base.push(
       { key: "internas", label: "Internas" },
       { key: "externas", label: "Externas" },
@@ -85,7 +93,7 @@ export default function RequisicionesTable({
       base.push({ key: "historial", label: "Historial" });
     }
     return base;
-  }, [showApproverTabs]);
+  }, [showApproverTabs, canApproveAumento]);
 
   // Normalize a department name: trim, replace underscores/hyphens with spaces,
   // collapse whitespace, and title-case. This deduplicates variants like
@@ -140,6 +148,12 @@ export default function RequisicionesTable({
       if (
         filters.tab === "por_aprobar" &&
         !isPendingForCurrentApprover(r, liderDepts, coordinadorDepts)
+      ) {
+        return false;
+      }
+      if (
+        filters.tab === "por_aprobar_aumento" &&
+        (isInterna(r) || r.aumento_costos_estatus !== "pendiente")
       ) {
         return false;
       }
@@ -231,6 +245,9 @@ export default function RequisicionesTable({
       todas: records.length,
       por_aprobar: records.filter((r) =>
         isPendingForCurrentApprover(r, liderDepts, coordinadorDepts),
+      ).length,
+      por_aprobar_aumento: records.filter(
+        (r) => !isInterna(r) && r.aumento_costos_estatus === "pendiente",
       ).length,
       internas: records.filter(isInterna).length,
       externas: records.filter((r) => !isInterna(r)).length,

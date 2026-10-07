@@ -14,6 +14,7 @@ import { deptNameInList } from "@/lib/requisiciones-gerencia";
 import {
   REQ_CONFIG_MANAGE,
   REQ_GESTION_EDIT,
+  REQ_GESTION_APPROVE_AUMENTO,
   REQ_GESTION_PROCESS,
   REQ_SOLICITUD_ACCESS,
   REQ_SOLICITUD_ACCESS_DEPTO,
@@ -74,6 +75,7 @@ export type RequisicionAccess = {
   can_edit_departamento_emitida: boolean;
   can_approve_coord: boolean;
   can_approve_lider: boolean;
+  can_approve_aumento: boolean;
   can_edit_config: boolean;
   can_select_dept: boolean;
 };
@@ -186,6 +188,7 @@ export const getRequisicionAccess = cache(async (): Promise<RequisicionAccess> =
       slug_set.has(REQ_GESTION_EDIT) && is_admin_operative(roles_by_app),
     can_approve_coord,
     can_approve_lider,
+    can_approve_aumento: slug_set.has(REQ_GESTION_APPROVE_AUMENTO),
     can_edit_config: slug_set.has(REQ_CONFIG_MANAGE),
     can_select_dept: is_admin_operative(roles_by_app),
   };
