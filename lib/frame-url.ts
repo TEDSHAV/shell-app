@@ -1,4 +1,5 @@
 import { getAppById } from "@/config/apps";
+import { has_live_navigable_frame } from "@/lib/frame-protocol";
 
 const SCAP_OSI_PREVIEW_PATH_RE =
   /^(?:scapacitacion\/)?osi\/preview\/\d+(?:\/.*)?$/;
@@ -87,6 +88,16 @@ export function prefetchFrameUrl(src: string): void {
     is_non_prefetchable_frame_url(src)
   ) {
     return;
+  }
+
+  // Si ya hay un iframe vivo de ese origen que navega por mensaje, el HTML
+  // prefetcheado no se usaría (y en apps force-dynamic cuesta un render SSR).
+  try {
+    if (has_live_navigable_frame(new URL(src).origin)) {
+      return;
+    }
+  } catch {
+    // URL inválida: seguir con el comportamiento anterior.
   }
 
   prefetched_srcs.add(src);

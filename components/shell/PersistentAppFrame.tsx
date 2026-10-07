@@ -7,6 +7,13 @@ import { buildFrameUrl } from "@/lib/frame-url";
 import { use_shell_pathname } from "@/lib/shell-iframe-nav";
 import { setActiveFrameWindow } from "@/lib/active-frame-window";
 import { getActiveFramePath, setActiveFramePath } from "@/lib/active-frame-path";
+import {
+  ensure_frame_protocol_listener,
+  frame_supports,
+  post_frame_visibility,
+  request_frame_navigation,
+  subscribe_frame_ready,
+} from "@/lib/frame-protocol";
 
 const MAX_CACHED_FRAMES = 6;
 
@@ -33,6 +40,24 @@ interface FrameEntry {
 
 let nextFrameId = 1;
 
+function url_origin(src: string): string | null {
+  try {
+    return new URL(src).origin;
+  } catch {
+    return null;
+  }
+}
+
+/** pathname + search de la URL del frame (lo que la app interpreta como ruta). */
+function url_internal_path(src: string): string | null {
+  try {
+    const url = new URL(src);
+    return `${url.pathname}${url.search}`;
+  } catch {
+    return null;
+  }
+}
+
 export function PersistentAppFrame({ appId }: PersistentAppFrameProps) {
   const pathname = use_shell_pathname();
   const app = getAppById(appId)!;
@@ -53,6 +78,24 @@ export function PersistentAppFrame({ appId }: PersistentAppFrameProps) {
   const [loadedSrcs, setLoadedSrcs] = useState<Set<string>>(() => new Set());
   const [isLoadingActive, setIsLoadingActive] = useState(true);
 
+  // Espejo de `frames` para decidir fuera del updater de setFrames (que no
+  // debe tener efectos: StrictMode lo invoca dos veces).
+  const framesRef = useRef(frames);
+  framesRef.current = frames;
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    ensure_frame_protocol_listener();
+  }, []);
+
+  /** contentWindow de un frame por id (sin refs extra: la ref del activo ya tiene efectos). */
+  const getFrameWindow = useCallback((id: number): Window | null => {
+    const el = containerRef.current?.querySelector<HTMLIFrameElement>(
+      `iframe[data-frame-id="${id}"]`,
+    );
+    return el?.contentWindow ?? null;
+  }, []);
+
   // Latest activeSrc in a ref so the effect closure sees the current value
   // without re-running on every activeSrc change (we read the active-frame
   // path inside the effect to decide whether to create a new iframe).
@@ -62,6 +105,54 @@ export function PersistentAppFrame({ appId }: PersistentAppFrameProps) {
   useEffect(() => {
     const current = activeSrcRef.current;
     const activePath = getActiveFramePath();
+
+    // Navegación del Shell (sidebar/breadcrumb/back) hacia otra ruta de la
+    // misma app: si el iframe activo sabe navegar por mensaje, se reutiliza
+    // en vez de arrancar otra instancia completa de la app.
+    const snapshot = framesRef.current;
+    const activeFrame = snapshot[0];
+    const alreadyCached = snapshot.some((f) => f.currentSrc === current);
+    const reportedByFrame = (() => {
+      if (!activeFrame || !activePath) return false;
+      const expectedSubPath = activePath.split("?")[0].replace(/^\//, "");
+      return buildFrameUrl(appId, expectedSubPath || undefined) === current;
+    })();
+    if (activeFrame && !alreadyCached && !reportedByFrame) {
+      const win = getFrameWindow(activeFrame.id);
+      const origin = url_origin(current);
+      const path = url_internal_path(current);
+      if (
+        win &&
+        origin &&
+        path &&
+        origin === url_origin(activeFrame.initialSrc) &&
+        frame_supports(win, "navigate")
+      ) {
+        const previousSrc = activeFrame.currentSrc;
+        setFrames((prev) =>
+          prev[0]?.id === activeFrame.id
+            ? [{ ...prev[0], currentSrc: current }, ...prev.slice(1)]
+            : prev,
+        );
+        void request_frame_navigation(win, origin, path).then((ok) => {
+          if (ok || activeSrcRef.current !== current) return;
+          // Sin confirmación: comportamiento anterior (iframe nuevo).
+          setFrames((prev) => {
+            if (prev.some((f) => f.initialSrc === current)) return prev;
+            const restored = prev.map((f) =>
+              f.id === activeFrame.id ? { ...f, currentSrc: previousSrc } : f,
+            );
+            const entry: FrameEntry = {
+              id: nextFrameId++,
+              initialSrc: current,
+              currentSrc: current,
+            };
+            return [entry, ...restored].slice(0, MAX_CACHED_FRAMES);
+          });
+        });
+        return;
+      }
+    }
 
     setFrames((prev) => {
       // Case 1: an existing frame already has this URL as its currentSrc.
@@ -102,7 +193,7 @@ export function PersistentAppFrame({ appId }: PersistentAppFrameProps) {
       };
       return [entry, ...prev].slice(0, MAX_CACHED_FRAMES);
     });
-  }, [activeSrc, appId]);
+  }, [activeSrc, appId, getFrameWindow]);
 
   // Determine whether the active frame is loaded. We track loaded srcs by
   // the frame's initialSrc (the <iframe src> attribute), since onLoad
@@ -118,6 +209,24 @@ export function PersistentAppFrame({ appId }: PersistentAppFrameProps) {
   useEffect(() => {
     setIsLoadingActive(!activeIsLoaded);
   }, [activeIsLoaded]);
+
+  // Avisar a cada iframe si quedó visible u oculto en la caché, para que pause
+  // refetch/realtime mientras no se ve (si la app lo soporta).
+  const postVisibility = useCallback(() => {
+    framesRef.current.forEach((frame, index) => {
+      const win = getFrameWindow(frame.id);
+      const origin = url_origin(frame.initialSrc);
+      if (win && origin && frame_supports(win, "visibility")) {
+        post_frame_visibility(win, origin, index === 0);
+      }
+    });
+  }, [getFrameWindow]);
+
+  useEffect(() => {
+    postVisibility();
+  }, [frames, postVisibility]);
+
+  useEffect(() => subscribe_frame_ready(() => postVisibility()), [postVisibility]);
 
   const handleFrameLoad = useCallback(
     (initialSrc: string) => {
@@ -144,13 +253,17 @@ export function PersistentAppFrame({ appId }: PersistentAppFrameProps) {
   }, []);
 
   return (
-    <div className="relative flex-1 min-h-0 h-full w-full overflow-hidden">
+    <div
+      ref={containerRef}
+      className="relative flex-1 min-h-0 h-full w-full overflow-hidden"
+    >
       {frames.map((frame, index) => {
         const isActive = index === 0;
         return (
           <iframe
             key={frame.id}
             src={frame.initialSrc}
+            data-frame-id={frame.id}
             ref={isActive ? setActiveRef : undefined}
             title={app.name}
             className="absolute inset-0 h-full w-full border-0"
