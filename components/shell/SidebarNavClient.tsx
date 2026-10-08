@@ -397,6 +397,14 @@ export function SidebarNavClient({
       (link.requiredRoles?.length ?? 0) > 0 || (link.requiredPermissions?.length ?? 0) > 0;
     if (isPrivileged && !hasExplicitRules) return true;
 
+    // Special clause: Negocios analistas and coordinadores can view Facilitadores Gestión in Capacitación
+    if (link.path === "/dashboard/capacitacion/gestion-de-facilitadores") {
+      const negRole = userRolesByApp["snegocios"]?.toLowerCase();
+      if (negRole === "analista" || negRole === "coordinador") {
+        return true;
+      }
+    }
+
     // Check roles first if defined
     if (link.requiredRoles && link.requiredRoles.length > 0) {
       if (!lowerRole || !link.requiredRoles.some(r => r.toLowerCase() === lowerRole)) {
