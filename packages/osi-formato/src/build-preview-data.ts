@@ -25,6 +25,7 @@ import {
   resolve_st_hora_reunion_pre_inicio,
 } from "./st-fechas-document";
 import { extract_osi_solicitud_observacion_text } from "./rich-html";
+import { extra_solped_observaciones } from "./osi-observaciones-document";
 import {
   parse_osi_session_slots,
   pad_osi_session_slots,
@@ -508,7 +509,10 @@ export function build_osi_preview_data(input: BuildOsiPreviewInput): OsiPreviewD
     observacionesTotales: to_str(view_row.observaciones_totales),
     pretensionesSolped: to_str(view_row.pretenciones_cliente),
     pretensionesOsi: null,
-    observacionesSolped: to_str(view_row.observaciones_cliente),
+    observacionesSolped:
+      format_version === 2
+        ? extra_solped_observaciones(to_str(view_row.observaciones_cliente))
+        : to_str(view_row.observaciones_cliente),
     observacionesOsiSolicitud: extract_osi_solicitud_observacion_text(
       to_str(osi_base_row?.observaciones_adicionales_osi),
     ) || null,

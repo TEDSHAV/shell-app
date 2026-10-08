@@ -860,6 +860,7 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
     observacionesOsiSolicitud: data.observacionesOsiSolicitud,
     observacionesOsi: data.observacionesOsi,
     hideOsiSolicitud: content_hidden("osi_content_hidden:osi_solicitud_obs"),
+    detalleServicio: data.detalleServicio,
   });
   const observaciones_items_visible = observaciones_items.filter(
     (item) => !item.maskKey || !content_hidden(item.maskKey),

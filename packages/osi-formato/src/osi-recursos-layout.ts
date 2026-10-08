@@ -267,9 +267,6 @@ function detect_omitidos(
   if (!nums_uniform(slices.map((s) => s.costoOtros))) {
     omitidos.add("otros");
   }
-  if (!bools_uniform(slices.map((s) => s.popIncluido))) {
-    omitidos.add("pop");
-  }
   if (
     !nums_uniform(slices.map((s) => s.stDiasCampo)) ||
     !nums_uniform(slices.map((s) => s.stDiasInforme)) ||
@@ -329,7 +326,7 @@ function sum_slices(
       ? 0
       : first.tarifaHoraHonorarios,
     costoHonorariosInstructor: sum((s) => s.costoHonorariosInstructor),
-    popIncluido: omitidos.has("pop") ? false : first.popIncluido,
+    popIncluido: slices.some((s) => s.popIncluido),
     costoCarnetizacion: sum((s) => s.costoCarnetizacion),
     costoDiasEspecialista: sum((s) => s.costoDiasEspecialista),
     costoHospedaje: omitidos.has("hospedaje") ? 0 : first.costoHospedaje,
@@ -586,7 +583,7 @@ function session_group_texto(
       if (!(horas > 0 || tarifa > 0 || total > 0)) {
         return "N/A";
       }
-      return `${horas}h × ${format_money(tarifa)}/h = ${format_money(total)}`;
+      return `${horas}H × ${format_money(tarifa)}/H\n${format_money(total)}`;
     }
     case "impresion":
     case "traslado":
@@ -650,8 +647,6 @@ function session_full_cost_total(
     logistica +
     hospedaje +
     slice.costoOtros +
-    slice.costoPop +
-    slice.costoCarnetizacion +
     slice.costoDiasEspecialista +
     slice.costoBateria +
     st_envios +
@@ -703,7 +698,6 @@ function select_detail_group_keys(
         "traslado_externo",
         "otros",
         "impresion",
-        "pop",
       ] as OsiRecursosGroupKey[])
     : ([
         "st_dias",

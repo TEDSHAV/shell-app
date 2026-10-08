@@ -69,6 +69,10 @@ export type {
 } from "./st-fechas-document";
 export type { BuildOsiPreviewInput } from "./build-preview-data";
 export { build_osi_preview_data } from "./build-preview-data";
+export {
+  build_osi_observaciones_document_items,
+  extra_solped_observaciones,
+} from "./osi-observaciones-document";
 export { OsiDocumentView } from "./osi-document-view";
 export {
   OsiCapFechaPlanificadaV2Table,

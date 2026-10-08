@@ -28,8 +28,15 @@ function CellValue({
   }
   // TOTAL SESIÓN y tonos base: siempre texto plano.
   if (!allow_badge || celda.tone === "base") {
+    const stacked = celda.texto.includes("\n");
     return (
-      <span className="osi-doc-value font-medium tabular-nums text-slate-900 whitespace-nowrap">
+      <span
+        className={
+          stacked
+            ? "osi-doc-value font-medium tabular-nums text-slate-900 whitespace-pre-line leading-tight"
+            : "osi-doc-value font-medium tabular-nums text-slate-900 whitespace-nowrap"
+        }
+      >
         {celda.texto}
       </span>
     );
@@ -112,7 +119,14 @@ export function OsiRecursosVariacionesTable({
                   Boolean(maskMonetary) &&
                   !NON_MONETARY_VARIATION_KEYS.has(col.key);
                 return (
-                  <td key={col.key} className="px-1.5 py-1.5 text-center">
+                  <td
+                    key={col.key}
+                    className={
+                      col.key === "honorarios"
+                        ? "px-1 py-1 text-center min-w-[5.5rem] max-w-[7.5rem]"
+                        : "px-1.5 py-1.5 text-center"
+                    }
+                  >
                     {celda && !hide_money ? (
                       <CellValue
                         celda={celda}

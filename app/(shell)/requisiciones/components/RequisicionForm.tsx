@@ -1344,6 +1344,7 @@ function RequisicionFormContent({
               idOsi={formData.selectedOSIs[0]?.id_osi ?? null}
               osiFixedItems={formData.osi_fixed_items}
               additionalItems={formData.additional_items}
+              idSesion={formData.id_sesion}
               justification={formData.aumento_costos_justificacion || ""}
               onJustificationChange={(value) =>
                 setFormData((prev) => ({

@@ -14,6 +14,7 @@ type Props = {
   idOsi: number | null;
   osiFixedItems: RequisicionFormData["osi_fixed_items"];
   additionalItems: RequisicionFormData["additional_items"];
+  idSesion?: number | null;
   justification: string;
   onJustificationChange: (value: string) => void;
 };
@@ -33,7 +34,7 @@ function estado_from_analysis(analysis: {
   needs_justification: boolean;
 }): "base" | "moderado" | "riesgoso" | "aprobacion" {
   if (analysis.needs_approval) return "aprobacion";
-  if (analysis.needs_justification || analysis.level >= 2) return "riesgoso";
+  if (analysis.needs_justification) return "riesgoso";
   if (analysis.extra > 0) return "moderado";
   return "base";
 }
@@ -43,6 +44,7 @@ export function RequisicionAumentoCostosPanel({
   idOsi,
   osiFixedItems,
   additionalItems,
+  idSesion = null,
   justification,
   onJustificationChange,
 }: Props) {
@@ -63,6 +65,7 @@ export function RequisicionAumentoCostosPanel({
         form: {
           osi_fixed_items: osiFixedItems,
           additional_items: additionalItems,
+          id_sesion: idSesion,
         },
       })
         .then((next) => {
@@ -76,7 +79,7 @@ export function RequisicionAumentoCostosPanel({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [additionalItems, idOsi, isInterna, osiFixedItems]);
+  }, [additionalItems, idOsi, idSesion, isInterna, osiFixedItems]);
 
   if (isInterna) return null;
 
