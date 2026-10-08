@@ -21,12 +21,23 @@ export {
 export {
   count_osi_session_slots,
   map_sesiones_planificadas_dia_hora,
+  merge_session_slot_day_quantities,
   OSI_FECHA_POR_PLANIFICAR_LABEL,
   pad_osi_session_slots,
+  parse_execution_day_quantities,
   parse_osi_session_slots,
   resolve_osi_sesiones_documento_count,
 } from "./osi-session-slots";
-export type { OsiSessionSlotRow } from "./osi-session-slots";
+export type {
+  OsiExecutionDayQuantity,
+  OsiSessionSlotRow,
+} from "./osi-session-slots";
+export {
+  OSI_FORM_META_ST,
+  osi_form_meta_cap,
+  resolve_osi_document_format_version,
+} from "./osi-formato-version";
+export type { OsiDocumentFormatVersion } from "./osi-formato-version";
 export {
   count_sesiones_programadas,
   osi_recursos_were_persisted,
@@ -59,6 +70,11 @@ export type {
 export type { BuildOsiPreviewInput } from "./build-preview-data";
 export { build_osi_preview_data } from "./build-preview-data";
 export { OsiDocumentView } from "./osi-document-view";
+export {
+  OsiCapFechaPlanificadaV2Table,
+  map_sesiones_planificadas_v2,
+  same_group_participantes_footnote,
+} from "./osi-cap-fecha-planificada-v2";
 export type {
   OsiDocumentAssets,
   OsiPreviewData,

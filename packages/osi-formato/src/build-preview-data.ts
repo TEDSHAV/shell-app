@@ -28,8 +28,11 @@ import { extract_osi_solicitud_observacion_text } from "./rich-html";
 import {
   parse_osi_session_slots,
   pad_osi_session_slots,
+  parse_execution_day_quantities,
+  merge_session_slot_day_quantities,
   resolve_osi_sesiones_documento_count,
 } from "./osi-session-slots";
+import { resolve_osi_document_format_version } from "./osi-formato-version";
 
 type GenericRow = Record<string, unknown>;
 
@@ -271,14 +274,21 @@ export function build_osi_preview_data(input: BuildOsiPreviewInput): OsiPreviewD
   );
   const sesiones = resolve_osi_sesiones_count(view_row, sesiones_contrato);
   const horas_totales = resolve_osi_horas_count(view_row, horas_contrato);
-
-  const detalle_servicio = build_detalle_servicio({
-    participantes,
-    sesiones,
-    horasTotales: horas_totales,
-    certificado: certificado_impreso,
-    carnet: carnet_impreso,
-  });
+  const format_version = is_capacitacion
+    ? resolve_osi_document_format_version(view_row.formato_version)
+    : 1;
+  const distribuir_participantes = Boolean(view_row.distribuir_participantes);
+  const obs_solped = to_str(view_row.observaciones_cliente);
+  const detalle_servicio =
+    format_version === 2 && obs_solped
+      ? obs_solped
+      : build_detalle_servicio({
+          participantes,
+          sesiones,
+          horasTotales: horas_totales,
+          certificado: certificado_impreso,
+          carnet: carnet_impreso,
+        });
   const detalle_contrato = build_detalle_servicio({
     participantes: participantes_contrato,
     sesiones: sesiones_contrato,
@@ -298,9 +308,10 @@ export function build_osi_preview_data(input: BuildOsiPreviewInput): OsiPreviewD
   const osi_sesiones_rows = Array.isArray(input.osi_sesiones)
     ? input.osi_sesiones
     : [];
-  let sesiones_fecha_planificada = pad_osi_session_slots(
-    sesiones_programadas_exec,
-    sesiones_target_count,
+  let sesiones_fecha_planificada = merge_session_slot_day_quantities(
+    pad_osi_session_slots(sesiones_programadas_exec, sesiones_target_count),
+    parse_execution_day_quantities(view_row.distribucion_ejecucion),
+    distribuir_participantes,
   );
   if (osi_sesiones_rows.length > 0) {
     sesiones_fecha_planificada = sesiones_fecha_planificada.map((slot, index) => {
@@ -309,6 +320,7 @@ export function build_osi_preview_data(input: BuildOsiPreviewInput): OsiPreviewD
       const fecha_db =
         typeof db_row.fecha === "string" ? db_row.fecha.trim() : "";
       return {
+        ...slot,
         fecha: fecha_db || slot.fecha,
         hora_inicio:
           typeof db_row.hora_inicio === "string"
@@ -462,7 +474,9 @@ export function build_osi_preview_data(input: BuildOsiPreviewInput): OsiPreviewD
     sesionesFechaSugerida: sesiones_fecha_sugerida,
     sesionesFechaPlanificada: sesiones_fecha_planificada,
     sesionesFechaEjecutada: sesiones_fecha_ejecutada,
-    revisionDocumento: "1",
+    revisionDocumento: String(format_version),
+    documentFormatVersion: format_version,
+    distribuirParticipantes: distribuir_participantes,
     detalleServicio: detalle_servicio,
     servicio: to_str(view_row.servicio),
     tipoServicio: to_str(view_row.tipo_servicio),
@@ -519,6 +533,7 @@ export function build_osi_preview_data(input: BuildOsiPreviewInput): OsiPreviewD
     costoHospedaje: to_num(view_row.costo_hospedaje),
     costoBateria: to_num(view_row.costo_bateria),
     certificadoImpreso: certificado_impreso,
+    horasCertificado: to_num(view_row.horas_certificado) || null,
     carnetImpreso: carnet_impreso,
     incluyeRefrigerio: Boolean(view_row.incluye_refrigerio),
     entregaCertificado: entrega_certificado,

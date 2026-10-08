@@ -50,6 +50,7 @@ export type OsiRecursosCostSlice = {
   impresionMaterialIncluida: boolean;
   bateriaIncluida: boolean;
   certificadoImpreso: boolean;
+  horasCertificado?: number | null;
   carnetImpreso: boolean;
   incluyeRefrigerio: boolean;
   entregaCertificado: "retira_cliente" | "se_envia" | null;
@@ -182,6 +183,7 @@ function session_to_cost_slice(
     impresionMaterialIncluida: session.impresionMaterialIncluida !== false,
     bateriaIncluida: session.bateriaIncluida !== false,
     certificadoImpreso: data.certificadoImpreso,
+    horasCertificado: data.horasCertificado ?? null,
     carnetImpreso: data.carnetImpreso,
     incluyeRefrigerio: Boolean(data.incluyeRefrigerio),
     entregaCertificado: data.entregaCertificado ?? null,
@@ -220,6 +222,7 @@ function global_to_cost_slice(data: OsiPreviewData): OsiRecursosCostSlice {
     impresionMaterialIncluida: data.impresionMaterialIncluida !== false,
     bateriaIncluida: data.bateriaIncluida !== false,
     certificadoImpreso: data.certificadoImpreso,
+    horasCertificado: data.horasCertificado ?? null,
     carnetImpreso: data.carnetImpreso,
     incluyeRefrigerio: Boolean(data.incluyeRefrigerio),
     entregaCertificado: data.entregaCertificado ?? null,
@@ -370,6 +373,7 @@ function sum_slices(
       ? false
       : first.bateriaIncluida,
     certificadoImpreso: data.certificadoImpreso,
+    horasCertificado: data.horasCertificado ?? null,
     carnetImpreso: data.carnetImpreso,
     incluyeRefrigerio: Boolean(data.incluyeRefrigerio),
     entregaCertificado: data.entregaCertificado ?? null,

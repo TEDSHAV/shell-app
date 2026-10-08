@@ -30,19 +30,16 @@ import {
   compute_osi_page1_fill_gap,
   distribute_osi_page1_fill,
 } from "./osi-print-layout";
-
-/** Fixed header metadata (CÓDIGO / FECHA / REVISIÓN / PÁGINA block). */
-const OSI_FORM_META_CAP = {
-  codigo: "RG-NEG-003",
-  fecha: "14/08/2026",
-  revision: "1",
-} as const;
-
-const OSI_FORM_META_ST = {
-  codigo: "RG-NEG-004",
-  fecha: "14/08/2026",
-  revision: "1",
-} as const;
+import {
+  OSI_FORM_META_ST,
+  osi_form_meta_cap,
+  resolve_osi_document_format_version,
+} from "./osi-formato-version";
+import {
+  OsiCapFechaPlanificadaV2Table,
+  map_sesiones_planificadas_v2,
+  same_group_participantes_footnote,
+} from "./osi-cap-fecha-planificada-v2";
 
 const OSI_TABLE_CLASS =
   "w-full table-fixed border-collapse border border-black text-[12px] [&_td]:border [&_td]:border-black [&_td]:px-2 [&_td]:py-2 [&_td]:align-middle [&_td]:text-center [&_th]:border [&_th]:border-black [&_th]:bg-slate-100 [&_th]:px-2 [&_th]:py-2 [&_th]:text-center [&_th]:text-[12px] [&_th]:font-bold [&_th]:uppercase";
@@ -65,7 +62,7 @@ function OsiRichHtmlContent({
       className={cn(
         RICH_HTML_CONTENT_CLASS,
         "osi-rich-html text-[12px] leading-snug text-left",
-        "whitespace-pre-wrap break-words",
+        "break-words",
         "[&_strong]:font-bold [&_em]:italic",
         className,
       )}
@@ -811,7 +808,14 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
     data.participantesDocumento != null && data.participantesDocumento >= 0
       ? data.participantesDocumento
       : data.participantesMaxSolped;
-  const form_meta = data.isCapacitacion ? OSI_FORM_META_CAP : OSI_FORM_META_ST;
+  const format_version = data.isCapacitacion
+    ? resolve_osi_document_format_version(
+        data.documentFormatVersion ?? data.revisionDocumento,
+      )
+    : 1;
+  const form_meta = data.isCapacitacion
+    ? osi_form_meta_cap(format_version)
+    : OSI_FORM_META_ST;
   const cellHl = (on: boolean | undefined) =>
     on ? "bg-amber-50 ring-2 ring-amber-300 ring-inset" : "";
   const pretensiones_por_servicio = st_lines_with_field(
@@ -1169,9 +1173,16 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
                         className="h-16 w-16 object-contain opacity-10"
                       />
                     </div>
-                    <span className="relative z-10">
-                      {data.detalleServicio || data.servicio || "N/A"}
-                    </span>
+                    <div className="relative z-10 text-left">
+                      {data.detalleServicio ? (
+                        <OsiRichHtmlContent
+                          content={data.detalleServicio}
+                          className="text-black"
+                        />
+                      ) : (
+                        data.servicio || "N/A"
+                      )}
+                    </div>
                   </td>
                 </tr>
                 <OsiPretensionesRows
@@ -1218,9 +1229,31 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
                     colSpan={3}
                     className={cn("align-top", cellHl(hl.fechaServicio))}
                   >
-                    <OsiSesionesDiaHoraTable
-                      sessions={sesiones_fecha_planificada_detalle}
-                    />
+                    {format_version === 2 ? (
+                      <OsiCapFechaPlanificadaV2Table
+                        sessions={map_sesiones_planificadas_v2({
+                          sessions:
+                            data.sesionesFechaPlanificada ??
+                            data.sesionesProgramadas,
+                          target_count: sesionesDoc ?? undefined,
+                        })}
+                        showParticipantesColumn={Boolean(
+                          data.distribuirParticipantes,
+                        )}
+                        sameGroupFootnote={
+                          data.distribuirParticipantes
+                            ? null
+                            : same_group_participantes_footnote({
+                                participantes: participantesDoc,
+                                dias: sesionesDoc,
+                              })
+                        }
+                      />
+                    ) : (
+                      <OsiSesionesDiaHoraTable
+                        sessions={sesiones_fecha_planificada_detalle}
+                      />
+                    )}
                   </td>
                   <td colSpan={3} className="align-top">
                     <OsiSesionesDiaHoraTable
