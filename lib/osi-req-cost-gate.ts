@@ -123,6 +123,26 @@ export function sum_req_direct_cost(params: {
   return money(from_fixed + from_extra);
 }
 
+/** S3: extras already committed by other REQs eat remaining, then colchón. */
+export function consume_shared_air(params: {
+  remaining: number;
+  colchon: number;
+  extras: number[];
+}): { remaining: number; colchon: number } {
+  let remaining = money(Math.max(0, params.remaining));
+  let colchon = money(Math.max(0, params.colchon));
+  for (const raw of params.extras) {
+    const extra = money(Math.max(0, raw));
+    if (extra <= 0) continue;
+    const from_pool = money(Math.min(extra, remaining));
+    remaining = money(remaining - from_pool);
+    const rest = money(extra - from_pool);
+    const from_colchon = money(Math.min(rest, colchon));
+    colchon = money(colchon - from_colchon);
+  }
+  return { remaining, colchon };
+}
+
 export function analyze_req_osi_cost_gate(params: {
   cost_osi: number;
   cost_req: number;

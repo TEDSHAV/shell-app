@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { getCurrentUserUsuarioId, getRequisicionAccess } from "@/actions/requisiciones-access-context";
 import {
   analyze_req_osi_cost_gate,
+  consume_shared_air,
   resolve_osi_cost_for_req,
   sum_req_direct_cost,
   type OsiReqSlice,
@@ -31,8 +32,55 @@ export type AumentoCostosPatch = {
     cost_osi: number;
     colchon_ecc_osi: number;
     remaining_for_req: number;
+    sessions_total: number;
+    sessions_open: number;
+    sibling_reqs: number;
   };
 };
+
+type SiblingReqRow = {
+  id: number;
+  id_sesion: number | null;
+  tipo_solicitud: string | null;
+  estatus_admin: string | null;
+  coordinador_estatus: string | null;
+  lider_estatus: string | null;
+  aumento_costos_estatus: string | null;
+  osi_fixed_items: unknown;
+  additional_items: unknown;
+};
+
+function is_live_externa(row: SiblingReqRow): boolean {
+  if (String(row.tipo_solicitud ?? "") === "Interno") return false;
+  const rejected = new Set(["rechazada"]);
+  if (rejected.has(String(row.estatus_admin ?? ""))) return false;
+  if (rejected.has(String(row.coordinador_estatus ?? ""))) return false;
+  if (rejected.has(String(row.lider_estatus ?? ""))) return false;
+  if (rejected.has(String(row.aumento_costos_estatus ?? ""))) return false;
+  return true;
+}
+
+function parse_items(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value;
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+function session_ids_from_desglose(desglose: OsiReqSlice[]): number[] {
+  const ids = new Set<number>();
+  for (const row of desglose) {
+    const id = Number(row.id_sesion ?? row.id ?? 0);
+    if (id > 0) ids.add(id);
+  }
+  return [...ids];
+}
 
 async function compute_aumento_costos_analisis(params: {
   is_interna: boolean;
@@ -42,6 +90,7 @@ async function compute_aumento_costos_analisis(params: {
     "osi_fixed_items" | "additional_items" | "id_sesion"
   >;
   justificacion: string;
+  exclude_req_id?: number | null;
 }): Promise<AumentoCostosPatch> {
   if (params.is_interna || !params.id_osi) {
     return {
@@ -61,6 +110,9 @@ async function compute_aumento_costos_analisis(params: {
         cost_osi: 0,
         colchon_ecc_osi: 0,
         remaining_for_req: 0,
+        sessions_total: 0,
+        sessions_open: 0,
+        sibling_reqs: 0,
       },
     };
   }
@@ -90,27 +142,29 @@ async function compute_aumento_costos_analisis(params: {
       ?.nivel_descuento_utilidad ?? 0,
   );
   const req_item = params.form.osi_fixed_items?.[0] ?? null;
-  const cost_osi = resolve_osi_cost_for_req({
-    view_totals: {
-      costo_honorarios_instructor: Number(
-        (osi_view as { costo_honorarios_instructor?: number } | null)
-          ?.costo_honorarios_instructor ?? 0,
-      ),
-      costo_impresion_material: Number(
-        (osi_view as { costo_impresion_material?: number } | null)
-          ?.costo_impresion_material ?? 0,
-      ),
-      costo_traslado: Number(
-        (osi_view as { costo_traslado?: number } | null)?.costo_traslado ?? 0,
-      ),
-      traslado_externo: Number(
-        (osi_view as { traslado_externo?: number } | null)?.traslado_externo ?? 0,
-      ),
-    },
-    desglose: parse_desglose(
-      (osi_view as { desglose_recursos_sesiones?: unknown } | null)
-        ?.desglose_recursos_sesiones,
+  const view_totals = {
+    costo_honorarios_instructor: Number(
+      (osi_view as { costo_honorarios_instructor?: number } | null)
+        ?.costo_honorarios_instructor ?? 0,
     ),
+    costo_impresion_material: Number(
+      (osi_view as { costo_impresion_material?: number } | null)
+        ?.costo_impresion_material ?? 0,
+    ),
+    costo_traslado: Number(
+      (osi_view as { costo_traslado?: number } | null)?.costo_traslado ?? 0,
+    ),
+    traslado_externo: Number(
+      (osi_view as { traslado_externo?: number } | null)?.traslado_externo ?? 0,
+    ),
+  };
+  const desglose = parse_desglose(
+    (osi_view as { desglose_recursos_sesiones?: unknown } | null)
+      ?.desglose_recursos_sesiones,
+  );
+  const cost_osi = resolve_osi_cost_for_req({
+    view_totals,
+    desglose,
     id_sesion: params.form.id_sesion ?? null,
     req_item,
   });
@@ -120,6 +174,7 @@ async function compute_aumento_costos_analisis(params: {
   });
   let utilidad = 0;
   let just_n = 2;
+  let percents = { n1: 10, n2: 20, n3: 30 };
   const version_id = Number(
     (osi as { id_catalogo_version?: number } | null)?.id_catalogo_version ?? 0,
   );
@@ -142,54 +197,68 @@ async function compute_aumento_costos_analisis(params: {
       (ver as { osi_req_justificacion_nivel?: number } | null)
         ?.osi_req_justificacion_nivel ?? 2,
     );
-    const n3_pct = Number(
-      (ver as { osi_utilidad_recorte_pct_n3?: number } | null)
-        ?.osi_utilidad_recorte_pct_n3 ?? 30,
-    );
-    const remaining =
-      remaining_stored != null && Number.isFinite(remaining_stored)
-        ? remaining_stored
-        : Math.round(Math.max(0, utilidad * (n3_pct / 100) - consumed) * 100) /
-          100;
-    const gate = analyze_req_osi_cost_gate({
-      cost_osi,
-      cost_req,
-      remaining_for_req: remaining,
-      colchon_ecc_osi: colchon,
-      consumed_osi: consumed,
-      utilidad_ecc: utilidad,
-      percents: {
-        n1: Number((ver as { osi_utilidad_recorte_pct_n1?: number } | null)?.osi_utilidad_recorte_pct_n1 ?? 10),
-        n2: Number((ver as { osi_utilidad_recorte_pct_n2?: number } | null)?.osi_utilidad_recorte_pct_n2 ?? 20),
-        n3: n3_pct,
-      },
-      nivel_justificacion_req: just_n,
-      osi_level,
-    });
-    const estatus = gate.needs_approval ? "pendiente" : "no_aplica";
-    return {
-      aumento_costos_estatus: estatus,
-      aumento_costos_justificacion: String(params.justificacion ?? "").trim() || null,
-      aumento_costos_analisis: {
-        ...gate,
-        cost_req,
-        cost_osi,
-        colchon_ecc_osi: colchon,
-        remaining_for_req: remaining,
-      },
+    percents = {
+      n1: Number((ver as { osi_utilidad_recorte_pct_n1?: number } | null)?.osi_utilidad_recorte_pct_n1 ?? 10),
+      n2: Number((ver as { osi_utilidad_recorte_pct_n2?: number } | null)?.osi_utilidad_recorte_pct_n2 ?? 20),
+      n3: Number((ver as { osi_utilidad_recorte_pct_n3?: number } | null)?.osi_utilidad_recorte_pct_n3 ?? 30),
     };
   }
-  const remaining =
+  let remaining =
     remaining_stored != null && Number.isFinite(remaining_stored)
       ? remaining_stored
-      : Math.round(Math.max(0, utilidad * 0.3 - consumed) * 100) / 100;
+      : Math.round(Math.max(0, utilidad * (percents.n3 / 100) - consumed) * 100) /
+        100;
+  let colchon_live = Math.max(0, colchon);
+  const { data: sibling_rows } = await admin
+    .from("requisiciones")
+    .select(
+      "id,id_sesion,tipo_solicitud,estatus_admin,coordinador_estatus,lider_estatus,aumento_costos_estatus,osi_fixed_items,additional_items",
+    )
+    .eq("id_osi", params.id_osi);
+  const siblings = ((sibling_rows ?? []) as SiblingReqRow[]).filter((row) => {
+    if (params.exclude_req_id && row.id === params.exclude_req_id) return false;
+    return is_live_externa(row);
+  });
+  const sibling_extras = siblings.map((row) => {
+    const items = parse_items(row.osi_fixed_items) as RequisicionFormData["osi_fixed_items"];
+    const extra_items = parse_items(row.additional_items) as RequisicionFormData["additional_items"];
+    const sibling_req = sum_req_direct_cost({
+      osi_fixed_items: items,
+      additional_items: extra_items,
+    });
+    const sibling_osi = resolve_osi_cost_for_req({
+      view_totals,
+      desglose,
+      id_sesion: row.id_sesion,
+      req_item: items[0] ?? null,
+    });
+    return Math.max(0, sibling_req - sibling_osi);
+  });
+  const air = consume_shared_air({
+    remaining,
+    colchon: colchon_live,
+    extras: sibling_extras,
+  });
+  remaining = air.remaining;
+  colchon_live = air.colchon;
+  const session_ids = session_ids_from_desglose(desglose);
+  const covered = new Set<number>();
+  const current_sesion = Number(params.form.id_sesion ?? 0);
+  if (current_sesion > 0) covered.add(current_sesion);
+  for (const row of siblings) {
+    const sid = Number(row.id_sesion ?? 0);
+    if (sid > 0) covered.add(sid);
+  }
+  const sessions_total = session_ids.length || (current_sesion > 0 ? 1 : 0);
+  const sessions_open = session_ids.filter((id) => !covered.has(id)).length;
   const gate = analyze_req_osi_cost_gate({
     cost_osi,
     cost_req,
     remaining_for_req: remaining,
-    colchon_ecc_osi: colchon,
+    colchon_ecc_osi: colchon_live,
     consumed_osi: consumed,
     utilidad_ecc: utilidad,
+    percents,
     nivel_justificacion_req: just_n,
     osi_level,
   });
@@ -200,8 +269,11 @@ async function compute_aumento_costos_analisis(params: {
       ...gate,
       cost_req,
       cost_osi,
-      colchon_ecc_osi: colchon,
+      colchon_ecc_osi: colchon_live,
       remaining_for_req: remaining,
+      sessions_total,
+      sessions_open,
+      sibling_reqs: siblings.length,
     },
   };
 }
@@ -213,6 +285,7 @@ export async function preview_aumento_costos(params: {
     RequisicionFormData,
     "osi_fixed_items" | "additional_items" | "id_sesion"
   >;
+  exclude_req_id?: number | null;
 }): Promise<AumentoCostosPatch> {
   return compute_aumento_costos_analisis({
     ...params,
@@ -228,6 +301,7 @@ export async function build_aumento_costos_patch(params: {
     "osi_fixed_items" | "additional_items" | "id_sesion"
   >;
   justificacion: string;
+  exclude_req_id?: number | null;
 }): Promise<AumentoCostosPatch> {
   const patch = await compute_aumento_costos_analisis(params);
   const gate = patch.aumento_costos_analisis;

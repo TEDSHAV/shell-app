@@ -886,6 +886,7 @@ export async function updateRequisicionRecord(
       id_osi: primaryOSI?.id_osi || null,
       form: formData,
       justificacion: formData.aumento_costos_justificacion || "",
+      exclude_req_id: id,
     })),
   };
 

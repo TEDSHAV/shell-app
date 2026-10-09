@@ -19,6 +19,7 @@ type Props = {
   osiFixedItems: RequisicionFormData["osi_fixed_items"];
   additionalItems: RequisicionFormData["additional_items"];
   idSesion?: number | null;
+  excludeReqId?: number | null;
   justification: string;
   onJustificationChange: (value: string) => void;
   canRestoreJornada?: boolean;
@@ -51,6 +52,7 @@ export function RequisicionAumentoCostosPanel({
   osiFixedItems,
   additionalItems,
   idSesion = null,
+  excludeReqId = null,
   justification,
   onJustificationChange,
   canRestoreJornada = false,
@@ -75,6 +77,7 @@ export function RequisicionAumentoCostosPanel({
           additional_items: additionalItems,
           id_sesion: idSesion,
         },
+        exclude_req_id: excludeReqId,
       })
         .then((next) => {
           if (!cancelled) setPatch(next);
@@ -87,7 +90,7 @@ export function RequisicionAumentoCostosPanel({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [additionalItems, idOsi, idSesion, isInterna, osiFixedItems]);
+  }, [additionalItems, excludeReqId, idOsi, idSesion, isInterna, osiFixedItems]);
 
   if (isInterna) return null;
 
@@ -195,6 +198,17 @@ export function RequisicionAumentoCostosPanel({
           </div>
         ) : null}
         <p className="mt-2 leading-relaxed">{detail}</p>
+        {analysis &&
+        analysis.extra > 0 &&
+        analysis.sessions_total > 1 ? (
+          <p className="mt-2 rounded-md border border-dashed border-current/30 bg-white/50 px-2 py-1.5 text-xs leading-relaxed">
+            {analysis.sessions_open > 0
+              ? "Esta OSI tiene otros días sin requisición. El extra de este pedido se toma de un aire compartido: puede dejar menos margen para la sesión siguiente."
+              : analysis.sibling_reqs > 0
+                ? "Otra requisición de esta OSI ya pidió de más. Este pedido se evalúa con el aire que queda, no con el de toda la orden."
+                : "Hay más de un día en esta OSI. El extra de este pedido se toma de un aire compartido entre sesiones."}
+          </p>
+        ) : null}
       </div>
       <p className="text-xs text-slate-500">
         <Link

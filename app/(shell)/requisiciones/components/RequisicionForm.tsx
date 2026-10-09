@@ -1448,6 +1448,7 @@ function RequisicionFormContent({
               osiFixedItems={formData.osi_fixed_items}
               additionalItems={formData.additional_items}
               idSesion={formData.id_sesion}
+              excludeReqId={editRecord?.id ? Number(editRecord.id) : null}
               justification={formData.aumento_costos_justificacion || ""}
               canRestoreJornada={
                 !isLocked &&
