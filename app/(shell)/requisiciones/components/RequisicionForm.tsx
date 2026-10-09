@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, Suspense, useRef, Fragment } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Plus, Trash2, CheckCircle2, Lock } from "lucide-react";
+import { Plus, Trash2, CheckCircle2, Lock, RotateCcw } from "lucide-react";
 import { RequisicionFormData, OSIFullData, RequisicionItem, OSIFixedItem, OSISesion } from "@/types/requisiciones";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,7 +21,12 @@ import {
   osi_tipo_filter_for_departamento,
 } from "@/lib/requisiciones-gerencia";
 import { apply_item_money_updates } from "@/lib/requisiciones-totals";
+import {
+  osi_fixed_clone_differs,
+  osi_fixed_line_total,
+} from "@/lib/requisicion-osi-clone";
 import { RequisicionAumentoCostosPanel } from "./RequisicionAumentoCostosPanel";
+import { OsiVsPedidoAmount } from "./OsiVsPedidoAmount";
 import { RequisicionTotalPriceInput, RequisicionUnitPriceInput } from "./RequisicionItemMoneyInputs";
 import { Input } from "@/components/ui/input";
 import { NumberInput } from "@/components/ui/number-input";
@@ -331,6 +336,64 @@ function RequisicionFormContent({
     verificacion_honorarios: "pendiente",
     verificacion_informe_final: "pendiente",
   });
+
+  const sesionForOsi = (osi: OSIFullData): OSISesion | null => {
+    const sesiones = getSessionsForOsi(osi);
+    if (formData.id_sesion) {
+      return sesiones.find((row) => row.id_sesion === formData.id_sesion) ?? null;
+    }
+    if (sesiones.length === 1) return sesiones[0];
+    return formData.selectedSesion;
+  };
+
+  const originalFixedFor = (idOsi: number): OSIFixedItem | null => {
+    const osi = formData.selectedOSIs.find((row) => row.id_osi === idOsi);
+    if (!osi) return null;
+    return buildFixedItem(osi, sesionForOsi(osi));
+  };
+
+  const restoreOsiJornada = (idOsi?: number) => {
+    setFormData((prev) => {
+      const targets = idOsi
+        ? prev.osi_fixed_items.filter((row) => row.id_osi === idOsi)
+        : prev.osi_fixed_items;
+      if (targets.length === 0) return prev;
+      const restored = prev.osi_fixed_items.map((row) => {
+        if (idOsi && row.id_osi !== idOsi) return row;
+        const osi = prev.selectedOSIs.find((item) => item.id_osi === row.id_osi);
+        if (!osi) return row;
+        const sesiones = getSessionsForOsi(osi);
+        const sesion = prev.id_sesion
+          ? sesiones.find((item) => item.id_sesion === prev.id_sesion) ?? null
+          : sesiones.length === 1
+            ? sesiones[0]
+            : prev.selectedSesion;
+        const clone = buildFixedItem(osi, sesion);
+        return {
+          ...row,
+          dias_traslado: clone.dias_traslado,
+          costo_traslado: clone.costo_traslado,
+          impresion_total: clone.impresion_total,
+          honorarios_horas: clone.honorarios_horas,
+          honorarios_costo_hora: clone.honorarios_costo_hora,
+          honorarios_total: clone.honorarios_total,
+          informe_final_total: clone.informe_final_total,
+        };
+      });
+      const firstFixed = restored[0];
+      return {
+        ...prev,
+        osi_fixed_items: restored,
+        costo_traslado: firstFixed?.costo_traslado || 0,
+        impresion_total: firstFixed?.impresion_total || 0,
+        honorarios_horas: firstFixed?.honorarios_horas || 0,
+        honorarios_costo_hora: firstFixed?.honorarios_costo_hora || 0,
+        honorarios_total: firstFixed?.honorarios_total || 0,
+        dias_traslado: firstFixed?.dias_traslado ?? 1,
+        informe_final_total: firstFixed?.informe_final_total || 0,
+      };
+    });
+  };
 
   const handleOSIToggle = (osi: OSIFullData) => {
     setFormData((prev) => {
@@ -849,24 +912,46 @@ function RequisicionFormContent({
                 let dynItemNum = formData.osi_fixed_items.length * 4 + 1;
                 return (<>
                 {formData.osi_fixed_items.map((osiFi, osiIdx) => {
-                const osiTotal =
-                  (osiFi.dias_traslado || 0) * (osiFi.costo_traslado || 0) +
-                  (osiFi.impresion_total || 0) +
-                  (osiFi.honorarios_total || 0) +
-                  (osiFi.informe_final_total || 0);
+                const originalFi = originalFixedFor(osiFi.id_osi);
+                const osiTotal = osi_fixed_line_total(osiFi);
+                const osiOriginalTotal = originalFi
+                  ? osi_fixed_line_total(originalFi)
+                  : osiTotal;
+                const jornadaDirty = originalFi
+                  ? osi_fixed_clone_differs(osiFi, originalFi)
+                  : false;
+                const trasladoNow =
+                  (osiFi.dias_traslado || 0) * (osiFi.costo_traslado || 0);
+                const trasladoOsi = originalFi
+                  ? (originalFi.dias_traslado || 0) * (originalFi.costo_traslado || 0)
+                  : trasladoNow;
                 return (
                 <Fragment key={`osi-block-${osiFi.id_osi}`}>
               {/* OSI block header */}
               <tr className="bg-blue-100/60 border-b border-gray-300">
-                <td colSpan={formData.selectedOSIs.length > 1 ? 8 : 7} className="p-2 font-bold text-xs text-blue-800 flex items-center justify-between">
-                  <span>OSI: {osiFi.nro_osi || `#${osiFi.id_osi}`}</span>
-                  <button
-                    type="button"
-                    onClick={() => removeOSIFixedItemRow(osiFi.id_osi)}
-                    className="text-red-500 hover:text-red-700"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+                <td colSpan={formData.selectedOSIs.length > 1 ? 8 : 7} className="p-2 font-bold text-xs text-blue-800">
+                  <div className="flex items-center justify-between gap-2">
+                    <span>OSI: {osiFi.nro_osi || `#${osiFi.id_osi}`}</span>
+                    <span className="flex items-center gap-2">
+                      {jornadaDirty && !isLocked ? (
+                        <button
+                          type="button"
+                          onClick={() => restoreOsiJornada(osiFi.id_osi)}
+                          className="inline-flex items-center gap-1 rounded border border-blue-300 bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-800 hover:bg-blue-50"
+                        >
+                          <RotateCcw className="h-3 w-3" />
+                          Jornada OSI
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => removeOSIFixedItemRow(osiFi.id_osi)}
+                        className="text-red-500 hover:text-red-700"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </span>
+                  </div>
                 </td>
               </tr>
               {/* Item 1: Traslado */}
@@ -896,11 +981,11 @@ function RequisicionFormContent({
                   </div>
                 </td>
                 <td className="p-2 border-r border-gray-300 text-center font-bold">
-                  ${((osiFi.dias_traslado || 0) * (osiFi.costo_traslado || 0)).toFixed(2)}
+                  <OsiVsPedidoAmount current={trasladoNow} original={trasladoOsi} />
                 </td>
                 {formData.selectedOSIs.length > 1 && (
                   <td className="p-2 border-r border-gray-300 text-center font-bold">
-                    ${((osiFi.dias_traslado || 0) * (osiFi.costo_traslado || 0)).toFixed(2)}
+                    <OsiVsPedidoAmount current={trasladoNow} original={trasladoOsi} />
                   </td>
                 )}
                 <td className="p-2 text-center font-bold">
@@ -927,11 +1012,17 @@ function RequisicionFormContent({
                   </div>
                 </td>
                 <td className="p-2 border-r border-gray-300 text-center font-bold">
-                  ${(osiFi.impresion_total || 0).toFixed(2)}
+                  <OsiVsPedidoAmount
+                    current={osiFi.impresion_total || 0}
+                    original={originalFi?.impresion_total || 0}
+                  />
                 </td>
                 {formData.selectedOSIs.length > 1 && (
                   <td className="p-2 border-r border-gray-300 text-center font-bold">
-                    ${(osiFi.impresion_total || 0).toFixed(2)}
+                    <OsiVsPedidoAmount
+                      current={osiFi.impresion_total || 0}
+                      original={originalFi?.impresion_total || 0}
+                    />
                   </td>
                 )}
                 <td className="p-2 text-center font-bold">
@@ -967,11 +1058,17 @@ function RequisicionFormContent({
                   </div>
                 </td>
                 <td className="p-2 border-r border-gray-300 text-center font-bold">
-                  ${(osiFi.honorarios_total || 0).toFixed(2)}
+                  <OsiVsPedidoAmount
+                    current={osiFi.honorarios_total || 0}
+                    original={originalFi?.honorarios_total || 0}
+                  />
                 </td>
                 {formData.selectedOSIs.length > 1 && (
                   <td className="p-2 border-r border-gray-300 text-center font-bold">
-                    ${(osiFi.honorarios_total || 0).toFixed(2)}
+                    <OsiVsPedidoAmount
+                      current={osiFi.honorarios_total || 0}
+                      original={originalFi?.honorarios_total || 0}
+                    />
                   </td>
                 )}
                 <td className="p-2 text-center font-bold">
@@ -999,11 +1096,17 @@ function RequisicionFormContent({
                   </div>
                 </td>
                 <td className="p-2 border-r border-gray-300 text-center font-bold">
-                  ${(osiFi.informe_final_total || 0).toFixed(2)}
+                  <OsiVsPedidoAmount
+                    current={osiFi.informe_final_total || 0}
+                    original={originalFi?.informe_final_total || 0}
+                  />
                 </td>
                 {formData.selectedOSIs.length > 1 && (
                   <td className="p-2 border-r border-gray-300 text-center font-bold">
-                    ${(osiFi.informe_final_total || 0).toFixed(2)}
+                    <OsiVsPedidoAmount
+                      current={osiFi.informe_final_total || 0}
+                      original={originalFi?.informe_final_total || 0}
+                    />
                   </td>
                 )}
                 <td className="p-2 text-center font-bold">
@@ -1015,13 +1118,13 @@ function RequisicionFormContent({
               <tr className="bg-gray-50 border-b border-gray-300">
                 <td colSpan={4} className="p-2 text-right font-bold uppercase text-[10px]">Subtotal OSI {osiFi.nro_osi}:</td>
                 <td className="p-2 border-r border-gray-300 text-center font-bold text-xs">
-                  ${osiTotal.toFixed(2)}
+                  <OsiVsPedidoAmount current={osiTotal} original={osiOriginalTotal} />
                 </td>
                 {formData.selectedOSIs.length > 1 && (
                   <td className="p-2 border-r border-gray-300"></td>
                 )}
                 <td className="p-2 text-center font-bold text-xs bg-yellow-50">
-                  ${osiTotal.toFixed(2)}
+                  <OsiVsPedidoAmount current={osiTotal} original={osiOriginalTotal} />
                 </td>
                 <td className="p-2 border-l border-gray-300"></td>
               </tr>
@@ -1346,6 +1449,14 @@ function RequisicionFormContent({
               additionalItems={formData.additional_items}
               idSesion={formData.id_sesion}
               justification={formData.aumento_costos_justificacion || ""}
+              canRestoreJornada={
+                !isLocked &&
+                formData.osi_fixed_items.some((row) => {
+                  const original = originalFixedFor(row.id_osi);
+                  return original ? osi_fixed_clone_differs(row, original) : false;
+                })
+              }
+              onRestoreJornada={() => restoreOsiJornada()}
               onJustificationChange={(value) =>
                 setFormData((prev) => ({
                   ...prev,

@@ -2,6 +2,11 @@
 
 import { ManualArticle } from "@/components/manual/ManualArticle";
 import type { MapaRequisiciones } from "@/actions/requisiciones-mapa";
+import type { ReqCostManualModel } from "../lib/req-cost-analysis-manual";
+import {
+  operator_req_cost_sections,
+  sensitive_req_cost_sections,
+} from "./requisiciones-cost-manual-sections";
 
 function names_or(empty: string, names: string[]) {
   if (names.length === 0) return empty;
@@ -63,15 +68,33 @@ function InternaDeptTable({
   );
 }
 
-export function RequisicionesManual({ mapa }: { mapa: MapaRequisiciones }) {
+export function RequisicionesManual({
+  mapa,
+  sensitive,
+  model,
+}: {
+  mapa: MapaRequisiciones;
+  sensitive: boolean;
+  model: ReqCostManualModel | null;
+}) {
+  const cost_sections = [
+    ...operator_req_cost_sections(),
+    ...(sensitive && model ? sensitive_req_cost_sections(model) : []),
+  ];
   return (
     <ManualArticle
       kicker="Administración"
       title="Manual de requisiciones"
-      lead="Cómo pedir un gasto y quién lo aprueba en cada departamento."
+      lead="Cómo pedir un gasto, quién lo aprueba y cómo se lee el estado del costo."
       chips={[
         { id: "manual-interna", label: "Interna" },
         { id: "manual-externa", label: "Externa" },
+        { id: "manual-costo-operador", label: "Estado del costo" },
+        { id: "manual-costo-niveles", label: "Los cuatro estados" },
+        { id: "manual-costo-cuando", label: "Cuándo justificar" },
+        ...(sensitive
+          ? [{ id: "manual-costo-finanzas", label: "Lectura completa" }]
+          : []),
         { id: "manual-mapa-interna", label: "Quién aprueba" },
         { id: "manual-mapa-externa", label: "Quién tramita" },
       ]}
@@ -106,6 +129,7 @@ export function RequisicionesManual({ mapa }: { mapa: MapaRequisiciones }) {
             </>
           ),
         },
+        ...cost_sections,
         {
           id: "manual-mapa-interna",
           title: "Quién aprueba cada departamento",

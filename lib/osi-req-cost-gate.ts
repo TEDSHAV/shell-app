@@ -156,15 +156,19 @@ export function analyze_req_osi_cost_gate(params: {
       estatus: "no_aplica",
     };
   }
-  const needs_approval = extra > remaining_pool;
-  const n1 = money((params.utilidad_ecc || 0) * ((params.percents?.n1 ?? 10) / 100));
-  const n2 = money((params.utilidad_ecc || 0) * ((params.percents?.n2 ?? 20) / 100));
-  const consumed_after = money(Math.max(0, params.consumed_osi) + extra);
-  let level: 0 | 1 | 2 | 3 = 0;
-  if (consumed_after <= 0) level = 0;
-  else if (consumed_after <= n1 || n1 <= 0) level = 1;
-  else if (consumed_after <= n2) level = 2;
-  else level = 3;
+  const needs_approval = extra > money(remaining_pool + colchon);
+  const n1 = params.percents?.n1 ?? 10;
+  const n2 = params.percents?.n2 ?? 20;
+  const n3 = params.percents?.n3 ?? 30;
+  const denom = n3 > 0 ? n3 : 100;
+  let level: 0 | 1 | 2 | 3 = 3;
+  if (remaining_pool > 0) {
+    const cap1 = money(remaining_pool * (n1 / denom));
+    const cap2 = money(remaining_pool * (n2 / denom));
+    if (extra <= cap1) level = 1;
+    else if (extra <= cap2) level = 2;
+    else level = 3;
+  }
   const just_n = Math.min(
     3,
     Math.max(1, Math.floor(Number(params.nivel_justificacion_req ?? 2))),

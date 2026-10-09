@@ -1,6 +1,10 @@
 "use client";
 
+import Link from "next/link";
+import { RotateCcw } from "lucide-react";
 import { useEffect, useState } from "react";
+
+import { Button } from "@/components/ui/button";
 
 import {
   preview_aumento_costos,
@@ -17,6 +21,8 @@ type Props = {
   idSesion?: number | null;
   justification: string;
   onJustificationChange: (value: string) => void;
+  canRestoreJornada?: boolean;
+  onRestoreJornada?: () => void;
 };
 
 function usd(value: number | null | undefined): string {
@@ -47,6 +53,8 @@ export function RequisicionAumentoCostosPanel({
   idSesion = null,
   justification,
   onJustificationChange,
+  canRestoreJornada = false,
+  onRestoreJornada,
 }: Props) {
   const [patch, setPatch] = useState<AumentoCostosPatch | null>(null);
   const [loading, setLoading] = useState(false);
@@ -143,9 +151,59 @@ export function RequisicionAumentoCostosPanel({
         </p>
       </div>
       <div className={`rounded-xl border p-3 text-sm ${tone}`}>
-        <p className="font-semibold">{headline}</p>
-        <p className="mt-1 leading-relaxed">{detail}</p>
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <p className="font-semibold">{headline}</p>
+          {canRestoreJornada && onRestoreJornada ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 gap-1.5 text-xs"
+              onClick={onRestoreJornada}
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              Volver a la jornada OSI
+            </Button>
+          ) : null}
+        </div>
+        {analysis ? (
+          <div className="mt-3 grid grid-cols-3 gap-2 rounded-lg bg-white/70 p-2 text-center text-xs text-slate-800">
+            <div>
+              <p className="font-medium uppercase tracking-wide text-slate-500">
+                Jornada OSI
+              </p>
+              <p className="mt-0.5 text-sm font-semibold tabular-nums">
+                {usd(analysis.cost_osi)}
+              </p>
+            </div>
+            <div>
+              <p className="font-medium uppercase tracking-wide text-slate-500">
+                Pedido ahora
+              </p>
+              <p className="mt-0.5 text-sm font-semibold tabular-nums">
+                {usd(analysis.cost_req)}
+              </p>
+            </div>
+            <div>
+              <p className="font-medium uppercase tracking-wide text-slate-500">
+                Extra
+              </p>
+              <p className="mt-0.5 text-sm font-semibold tabular-nums">
+                {usd(analysis.extra)}
+              </p>
+            </div>
+          </div>
+        ) : null}
+        <p className="mt-2 leading-relaxed">{detail}</p>
       </div>
+      <p className="text-xs text-slate-500">
+        <Link
+          href="/requisiciones/manual#manual-costo-operador"
+          className="font-medium text-sky-800 underline underline-offset-2"
+        >
+          Cómo se lee este recuadro
+        </Link>
+      </p>
       {show_justificacion ? (
         <div>
           <label className="mb-1 block text-sm font-semibold text-slate-800">

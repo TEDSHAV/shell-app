@@ -1,4 +1,5 @@
 import { get_mapa_requisiciones } from "@/actions/requisiciones-mapa";
+import { load_req_cost_manual_page } from "@/features/requisiciones/actions/load-req-cost-manual";
 import { RequisicionesManual } from "@/features/requisiciones/components/requisiciones-manual";
 
 export const dynamic = "force-dynamic";
@@ -8,6 +9,15 @@ export const metadata = {
 };
 
 export default async function RequisicionesManualPage() {
-  const mapa = await get_mapa_requisiciones();
-  return <RequisicionesManual mapa={mapa} />;
+  const [mapa, cost] = await Promise.all([
+    get_mapa_requisiciones(),
+    load_req_cost_manual_page(),
+  ]);
+  return (
+    <RequisicionesManual
+      mapa={mapa}
+      sensitive={cost.sensitive}
+      model={cost.model}
+    />
+  );
 }
