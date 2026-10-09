@@ -2,8 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 
-import { createAdminClient } from "@/lib/supabase/server";
+import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { getCurrentUserUsuarioId, getRequisicionAccess } from "@/actions/requisiciones-access-context";
+import { notifyAdminsOfNewRequisicion } from "@/actions/requisicion-notifications";
+import { deptNameInList } from "@/lib/requisiciones-gerencia";
 import {
   analyze_req_osi_cost_gate,
   consume_shared_air,
@@ -316,16 +318,13 @@ export async function build_aumento_costos_patch(params: {
   return patch;
 }
 
-export async function approveRequisicionAumentoCostos(id: number) {
-  const access = await getRequisicionAccess();
-  if (!access.can_approve_aumento) {
-    throw new Error("No tiene permiso para aprobar el aumento de costos.");
-  }
-  const usuarioId = await getCurrentUserUsuarioId();
+async function loadAumentoPendingRow(id: number) {
   const admin = await createAdminClient();
   const { data: existing, error: fetchError } = await admin
     .from("requisiciones")
-    .select("tipo_solicitud, aumento_costos_estatus")
+    .select(
+      "tipo_solicitud, aumento_costos_estatus, departamento, created_by, solicitante",
+    )
     .eq("id", id)
     .single();
   if (fetchError || !existing) throw new Error("Requisición no encontrada.");
@@ -335,6 +334,33 @@ export async function approveRequisicionAumentoCostos(id: number) {
   if (existing.aumento_costos_estatus !== "pendiente") {
     throw new Error("Esta requisición no está pendiente de aumento de costos.");
   }
+  return { admin, existing };
+}
+
+async function assertCanStampAumentoCostos(row: {
+  created_by?: string | null;
+  departamento?: string | null;
+}) {
+  const access = await getRequisicionAccess();
+  const supabase = await createClient();
+  const userId = (await supabase.auth.getUser()).data.user?.id;
+  if (row.created_by && userId && row.created_by === userId) {
+    throw new Error("No puede sellar el aumento de su propia requisición.");
+  }
+  const coversDept =
+    (access.can_approve_lider &&
+      deptNameInList(row.departamento, access.lider_depts)) ||
+    (access.can_approve_coord &&
+      deptNameInList(row.departamento, access.coord_depts));
+  if (!access.can_approve_aumento && !coversDept) {
+    throw new Error("No tiene permiso para sellar el aumento de costos.");
+  }
+}
+
+export async function approveRequisicionAumentoCostos(id: number) {
+  const { admin, existing } = await loadAumentoPendingRow(id);
+  await assertCanStampAumentoCostos(existing);
+  const usuarioId = await getCurrentUserUsuarioId();
   const { error } = await admin
     .from("requisiciones")
     .update({
@@ -344,6 +370,11 @@ export async function approveRequisicionAumentoCostos(id: number) {
     })
     .eq("id", id);
   if (error) throw error;
+  await notifyAdminsOfNewRequisicion(
+    id,
+    existing.solicitante || "",
+    "externa (aumento de costos aprobado)",
+  );
   revalidatePath("/requisiciones");
   revalidatePath("/requisiciones/gestion");
   revalidatePath(`/requisiciones/view/${id}`);
@@ -351,21 +382,9 @@ export async function approveRequisicionAumentoCostos(id: number) {
 
 export async function rejectRequisicionAumentoCostos(id: number, motivo: string) {
   if (!motivo?.trim()) throw new Error("Debe indicar el motivo del rechazo.");
-  const access = await getRequisicionAccess();
-  if (!access.can_approve_aumento) {
-    throw new Error("No tiene permiso para rechazar el aumento de costos.");
-  }
+  const { admin, existing } = await loadAumentoPendingRow(id);
+  await assertCanStampAumentoCostos(existing);
   const usuarioId = await getCurrentUserUsuarioId();
-  const admin = await createAdminClient();
-  const { data: existing, error: fetchError } = await admin
-    .from("requisiciones")
-    .select("tipo_solicitud, aumento_costos_estatus")
-    .eq("id", id)
-    .single();
-  if (fetchError || !existing) throw new Error("Requisición no encontrada.");
-  if (existing.aumento_costos_estatus !== "pendiente") {
-    throw new Error("Esta requisición no está pendiente de aumento de costos.");
-  }
   const { error } = await admin
     .from("requisiciones")
     .update({

@@ -128,6 +128,53 @@ export async function notifyLiderOfPendingInterna(
   }
 }
 
+export async function notifyLiderOfPendingAumento(
+  requisicionId: number,
+  solicitanteName: string,
+  departamentoName: string,
+) {
+  try {
+    if (!departamentoName?.trim()) {
+      console.error(
+        "[notifyLiderOfPendingAumento] Missing departamento_nombre",
+        { requisicionId },
+      );
+      return;
+    }
+
+    const supabase = await createAdminClient();
+    if (!(await isAdminOsiConfigMode(supabase))) {
+      await legacyNotifyLiderOfPendingInterna(
+        supabase,
+        requisicionId,
+        solicitanteName,
+        departamentoName,
+      );
+      return;
+    }
+
+    const rows = await fanOutNotifyByConfig(supabase, {
+      appSlug: APP_SLUG,
+      eventKey: "requisicion_pending_lider",
+      title: "Requisición externa pendiente de aumento de costos",
+      body: `${solicitanteName} tiene una requisición externa de ${departamentoName.trim()} que requiere su sello por aumento de costos.`,
+      linkPath: `/requisiciones/view/${requisicionId}`,
+      dedupeKey: `requisicion:${requisicionId}:pending_aumento`,
+      priority: 2,
+      context: { departamento_nombre: departamentoName.trim() },
+    });
+
+    if (rows === 0) {
+      console.error(
+        "[notifyLiderOfPendingAumento] No recipients for pending_lider",
+        { requisicionId, departamentoName },
+      );
+    }
+  } catch (err) {
+    console.error("[notifyLiderOfPendingAumento] Unexpected error:", err);
+  }
+}
+
 export async function notifyCoordinadorOfPendingExterna(
   requisicionId: number,
   solicitanteName: string,

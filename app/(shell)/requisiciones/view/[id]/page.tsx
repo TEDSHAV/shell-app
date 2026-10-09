@@ -17,6 +17,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Edit, Lock } from "lucide-react";
 import { hasApproverMaterialDiff } from "@/lib/requisiciones-approver-diff";
+import { canStampAumentoCostos } from "@/lib/requisiciones-gerencia";
 
 export const metadata = {
   title: "Detalle de Requisición | PRISMA",
@@ -153,7 +154,12 @@ export default async function ViewRequisicionPage({
         canEditDepartamento={canEditDepartamento}
         canEditTramite={canEditTramite}
         deptCatalog={deptCatalog}
-        canApproveAumento={access.can_approve_aumento}
+        canApproveAumento={canStampAumentoCostos({
+          record,
+          can_approve_aumento: access.can_approve_aumento,
+          liderDepts,
+          coordinadorDepts,
+        })}
       />
     </div>
   );

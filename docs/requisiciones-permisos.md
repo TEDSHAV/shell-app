@@ -86,11 +86,11 @@ El depto que cubre un coordinador/líder **no** va en el slug: sale del **organi
 |------|--------|
 | `requisiciones:gestion:approve-coordinador` | 1.er sello (internas). |
 | `requisiciones:gestion:approve-lider` | 2.º sello **y** el 1.º (herencia). Si el creador es ese líder, se salta coordinación igual que hoy. |
-| `requisiciones:gestion:approve-aumento-costos` | Sello de **aumento de costos** en externas (tab Por aprobar aumento). Colgar en coordinador de negocios y superadmin/`admin-ted`. TED lo crea; este doc no inserta el slug. |
+| `requisiciones:gestion:approve-aumento-costos` | Sello **global** de aumento de costos (tab Por aprobar aumento). El líder/coordinador del departamento de la externa también sella desde **Por aprobar**, sin este slug. TED lo crea; este doc no inserta el slug. |
 | `requisiciones:gestion:process` | Verificar ítems, procesar, rechazar en Admin, tasa, OSI, banco del facilitador. |
 | `requisiciones:gestion:edit` | Editar como tramitador (req ajena), con diff al creador. También permite a **Administración operativa** corregir el **departamento** de una requisición ya emitida (detalle). |
 
-Nadie aprueba la suya. Externas hoy no usan sellos: las ve quien tiene `process`.
+Nadie aprueba la suya. Externas no usan sellos de líder/coordinador de internas; si el extra de costos queda `aumento_costos_estatus=pendiente`, el líder (o coordinador) del departamento sella ese aumento. Administración tramita después con `process`.
 
 ---
 

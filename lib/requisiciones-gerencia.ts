@@ -180,12 +180,39 @@ export function assert_admin_tramite_allowed(record: ApproverRecordFlags): void 
   if (reason) throw new Error(reason);
 }
 
+export function isAumentoGatePending(record: ApproverRecordFlags): boolean {
+  if (isInternaRecord(record)) return false;
+  return record.aumento_costos_estatus === "pendiente";
+}
+
+export function canStampAumentoCostos(params: {
+  record: ApproverRecordFlags;
+  can_approve_aumento: boolean;
+  liderDepts: string[];
+  coordinadorDepts: string[];
+}): boolean {
+  if (!isAumentoGatePending(params.record)) return false;
+  if (params.record._isOwn) return false;
+  if (params.can_approve_aumento) return true;
+  return (
+    deptNameInList(params.record.departamento, params.liderDepts) ||
+    deptNameInList(params.record.departamento, params.coordinadorDepts)
+  );
+}
+
 export function isPendingForCurrentApprover(
   record: ApproverRecordFlags,
   liderDepts: string[],
   coordinadorDepts: string[],
 ): boolean {
   if (record._isApprovalHistory) return false;
+  if (isAumentoGatePending(record)) {
+    if (record._isOwn) return false;
+    return (
+      deptNameInList(record.departamento, liderDepts) ||
+      deptNameInList(record.departamento, coordinadorDepts)
+    );
+  }
   if (!isInternaRecord(record)) return false;
   if (
     isLiderGatePending(record) &&

@@ -23,6 +23,7 @@ import {
   notifyCreatorOfLiderRechazada,
   notifyCreatorOfApproverChanges,
   notifyLiderOfPendingInterna,
+  notifyLiderOfPendingAumento,
   notifyCoordinadorOfPendingExterna,
 } from "@/actions/requisicion-notifications";
 import { getUsdToVesRate } from "@/lib/exchange-rate";
@@ -616,7 +617,13 @@ export async function createRequisicionRecord(
       (data as { aumento_costos_estatus?: string | null })
         .aumento_costos_estatus || "no_aplica",
     );
-    if (aumento !== "pendiente") {
+    if (aumento === "pendiente") {
+      await notifyLiderOfPendingAumento(
+        data.id,
+        formData.solicitante,
+        formData.departamento || "",
+      );
+    } else {
       const label = `de la OSI N° ${primaryOSI?.nro_osi || ""}`;
       await notifyAdminsOfNewRequisicion(data.id, formData.solicitante, label);
     }
@@ -1139,6 +1146,23 @@ async function fetchRequisicionesList(scope: "own" | "gestion" | "inbox") {
         console.error("[getAllRequisiciones] Error fetching pending approvals for lider:", pendingErr);
       } else {
         addPending(pendingAll);
+      }
+    }
+    if (isLider || isCoord) {
+      const { data: pendingAumento, error: aumentoErr } = await supabase
+        .from("requisiciones")
+        .select(SELECT_RELATIONS)
+        .eq("aumento_costos_estatus", "pendiente")
+        .neq("created_by", userId)
+        .is("deleted_at", null)
+        .order("id", { ascending: false });
+      if (aumentoErr) {
+        console.error(
+          "[getAllRequisiciones] Error fetching pending aumento for approver:",
+          aumentoErr,
+        );
+      } else {
+        addPending(pendingAumento);
       }
     }
     if (isCoord && coordDepts.length > 0) {
