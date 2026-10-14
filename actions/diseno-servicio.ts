@@ -138,7 +138,12 @@ export async function getDisenoServicioList(): Promise<DisenoServicioListItem[]>
     id: row.id,
     nombre_sugerido: row.nombre_sugerido,
     tipo_solicitud: row.tipo_solicitud,
-    tipo_servicio: row.catalogo_servicios?.nombre || "",
+    tipo_servicio:
+      (row.catalogo_servicios as any)?.id_departamento_ejecutante === 3
+        ? "Capacitación (CAP)"
+        : (row.catalogo_servicios as any)?.id_departamento_ejecutante === 4
+        ? "Servicio Técnico (ST)"
+        : row.catalogo_servicios?.nombre || "",
     id_departamento_ejecutante:
       (row.catalogo_servicios as any)?.id_departamento_ejecutante ?? null,
     id_estatus: row.id_estatus,
@@ -198,7 +203,16 @@ export async function getDisenoServicioById(id: number): Promise<DisenoServicioF
     id_estatus: data.id_estatus,
     nombre_sugerido: data.nombre_sugerido,
     objetivo_proposito: data.objetivo_proposito,
-    tipo_servicio: data.catalogo_servicios?.nombre || "",
+    tipo_servicio:
+      (data.catalogo_servicios as any)?.id_departamento_ejecutante === 3
+        ? "Capacitación (CAP)"
+        : (data.catalogo_servicios as any)?.id_departamento_ejecutante === 4
+        ? "Servicio Técnico (ST)"
+        : (data.bloque_recursos_requisitos as any)?.tipo_naturaleza_servicio === "cap"
+        ? "Capacitación (CAP)"
+        : (data.bloque_recursos_requisitos as any)?.tipo_naturaleza_servicio === "st"
+        ? "Servicio Técnico (ST)"
+        : data.catalogo_servicios?.nombre || "",
     id_departamento_ejecutante:
       (data.catalogo_servicios as any)?.id_departamento_ejecutante ?? null,
     fecha_aprobacion: data.fecha_aprobacion,

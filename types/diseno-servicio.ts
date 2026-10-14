@@ -24,6 +24,10 @@ export interface DisenoServicioHeader {
 
 // Bloque I: Recursos, Requisitos y Antecedentes
 export interface BloqueRecursosRequisitos {
+  objetivo?: string;
+  proposito?: string;
+  objetivo_especifico?: string;
+  tipo_naturaleza_servicio?: "cap" | "st";
   personal_requerido: string;
   equipos_herramientas: string;
   software: string;
@@ -159,6 +163,10 @@ export const ST_CHECKLIST_ITEMS = [
 
 // Default empty blocks
 export const EMPTY_BLOQUE_RECURSOS: BloqueRecursosRequisitos = {
+  objetivo: "",
+  proposito: "",
+  objetivo_especifico: "",
+  tipo_naturaleza_servicio: undefined,
   personal_requerido: "",
   equipos_herramientas: "",
   software: "",
