@@ -120,6 +120,16 @@ const administracionNavGroup: NavGroup = {
         href: "/requisiciones/manual",
         icon: BookOpen,
       },
+    {
+      label: "Catálogo base",
+      path: "/requisiciones/catalogo-base",
+      href: "/requisiciones/catalogo-base",
+      icon: BookOpen,
+      requiredPermissions: [
+        "administracion:catalogo:base",
+        "finance:catalogo:access",
+      ],
+    },
     ],
   };
 
@@ -467,7 +477,10 @@ export const apps: AppConfig[] = [
             label: "Catálogo de costos",
             path: "/ingenieria/catalogo-costos",
             icon: BookOpen,
-            requiredPermissions: ["finance:catalogo:access"],
+            requiredPermissions: [
+              "finance:catalogo:access",
+              "administracion:catalogo:base",
+            ],
           },
         ],
       },

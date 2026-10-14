@@ -62,7 +62,8 @@ export function buildFrameUrl(appId: string, subPath?: string): string {
     return `${app.upstreamUrl!}${path}`;
   }
 
-  return `${app.upstreamUrl!}${path}?shell=1`;
+  const joiner = path.includes("?") ? "&" : "?";
+  return `${app.upstreamUrl!}${path}${joiner}shell=1`;
 }
 
 const prefetched_srcs = new Set<string>();

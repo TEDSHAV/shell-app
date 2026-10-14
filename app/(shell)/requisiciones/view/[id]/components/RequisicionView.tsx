@@ -37,6 +37,14 @@ import {
 } from "@/lib/requisiciones-entrega";
 import { RequisicionEntregaModal } from "@/features/requisiciones/components/requisicion-entrega-modal";
 import { RequisicionCierreModal } from "@/features/requisiciones/components/requisicion-cierre-modal";
+import {
+  ReqGestionLineas,
+  ReqHermanaChip,
+} from "@/features/requisiciones/components/req-gestion-lineas";
+import {
+  req_interna_fuera_ventana,
+  texto_aviso_ventana,
+} from "@/features/requisiciones/lib/req-ventana-mensual";
 
 export default function RequisicionView({
   record,
@@ -1230,8 +1238,25 @@ export default function RequisicionView({
         </div>
       )}
 
+      {record.clase_pedido === "departamento" &&
+      req_interna_fuera_ventana(record.fecha_solicitud || "") ? (
+        <div className="mb-3 rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900">
+          {texto_aviso_ventana()}
+        </div>
+      ) : null}
+
       <Card className="shadow-md border-gray-300">
         <CardContent className="p-0">
+          {record.id_requisicion_hermana ? (
+            <div className="flex flex-wrap gap-2 border-b border-gray-200 px-3 py-2">
+              <ReqHermanaChip hermana={record.hermana || {
+                id: record.id_requisicion_hermana,
+                clase_pedido: record.clase_pedido === "servicio_directo"
+                  ? "servicio_inventario"
+                  : "servicio_directo",
+              }} />
+            </div>
+          ) : null}
           {/* Header section */}
           <div className="grid grid-cols-12 border-b border-gray-300">
             <div className="col-span-3 p-3 border-r border-gray-300 bg-gray-50 flex items-center font-bold text-sm">
@@ -1383,6 +1408,13 @@ export default function RequisicionView({
               )}
             </div>
           </div>
+
+          <ReqGestionLineas
+            lineas={record.req_lineas || []}
+            departamento={record.departamento || ""}
+            clase_pedido={record.clase_pedido || null}
+            can_edit={Boolean(canAdminGestionEdit)}
+          />
 
           {/* Details Table section */}
           <div className="bg-gray-200 py-1 font-bold text-center text-sm border-b border-gray-300 uppercase">

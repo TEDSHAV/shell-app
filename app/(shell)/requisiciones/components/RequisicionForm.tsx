@@ -13,6 +13,33 @@ import {
   getFacilitatorsForDropdown,
 } from "@/actions/requisiciones";
 import {
+  list_catalogo_pedido_action,
+  list_req_lineas_action,
+  save_req_with_lineas_action,
+} from "@/actions/req-lineas";
+import { ReqDestinoQuestions } from "@/features/requisiciones/components/req-destino-questions";
+import { ReqLineasEditor } from "@/features/requisiciones/components/req-lineas-editor";
+import { ReqWizardHermana } from "@/features/requisiciones/components/req-wizard-hermana";
+import {
+  ambito_from_departamento,
+  cajon_from_clase,
+  clase_from_destino,
+  osi_obligatoria,
+  tipo_solicitud_from_clase,
+  type ClasePedido,
+  type DestinoPedido,
+  type ServicioKind,
+} from "@/features/requisiciones/lib/req-destino";
+import { sugerir_reposicion_fase2 } from "@/features/requisiciones/lib/req-sugerir-reposicion";
+import {
+  req_interna_fuera_ventana,
+  texto_aviso_ventana,
+} from "@/features/requisiciones/lib/req-ventana-mensual";
+import {
+  new_linea_id,
+  type ReqLineaDraft,
+} from "@/features/requisiciones/lib/req-lineas-types";
+import {
   externa_mode_for_departamento,
   isCapacitacionDept as deptIsCapacitacion,
   isServiciosTecnicosDept,
@@ -174,7 +201,6 @@ function RequisicionFormContent({
   // departments, but users can switch to Externa via the tab.
   const defaultIsGeneral = !homeIsCapacitacion && !homeIsServicios;
   const editIsGeneral = editRecord ? (editRecord.tipo_solicitud === "Interno" || (!editRecord.tipo_solicitud && !editRecord.id_osi)) : defaultIsGeneral;
-  const canUseExternal = true;
   // Gerencia Solicitante comes from the DB (departamentos.gerencia) when available,
   // falling back to the hardcoded mapping for safety.
   const defaultGerencia = userGerencia || mapGerenciaSolicitante(userDepartment);
@@ -238,7 +264,32 @@ function RequisicionFormContent({
 
     observaciones: editRecord?.observaciones_compras || "",
     aumento_costos_justificacion: editRecord?.aumento_costos_justificacion || "",
+    clase_pedido: editRecord?.clase_pedido || null,
+    id_lote_pedido: editRecord?.id_lote_pedido || null,
+    id_requisicion_hermana: editRecord?.id_requisicion_hermana || null,
   });
+
+  const editClase = editRecord?.clase_pedido as ClasePedido | undefined;
+  const [destino, setDestino] = useState<DestinoPedido | null>(
+    editClase === "departamento"
+      ? "departamento"
+      : editClase
+        ? "servicio"
+        : null,
+  );
+  const [servicioKind, setServicioKind] = useState<ServicioKind | null>(
+    editClase === "servicio_directo"
+      ? "directo"
+      : editClase === "servicio_inventario"
+        ? "inventario"
+        : null,
+  );
+  const [reqLineas, setReqLineas] = useState<ReqLineaDraft[]>([]);
+  const [hermanaLineas, setHermanaLineas] = useState<ReqLineaDraft[]>([]);
+  const [hermanaConfirm, setHermanaConfirm] = useState(false);
+  const [sugeridosInv, setSugeridosInv] = useState<
+    ReturnType<typeof sugerir_reposicion_fase2>
+  >([]);
 
   const [mode, setMode] = useState<"general" | "capacitacion" | "servicios tecnicos" | "negocios">(
     editRecord
@@ -288,6 +339,7 @@ function RequisicionFormContent({
 
   // Ensure at least one empty row for personalized items
   useEffect(() => {
+    if (formData.clase_pedido) return;
     if (formData.additional_items.length === 0) {
       const newItem: RequisicionItem = {
         id: Math.random().toString(36).substr(2, 9),
@@ -306,7 +358,59 @@ function RequisicionFormContent({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
-  const isOSIRequired = !isGeneralMode;
+  const clasePedido = formData.clase_pedido || clase_from_destino(destino, servicioKind);
+  const isOSIRequired = clasePedido
+    ? osi_obligatoria(clasePedido)
+    : !isGeneralMode;
+  const useCatalogLineas = Boolean(clasePedido);
+  const ambitoPedido = clasePedido
+    ? ambito_from_departamento(requestDept, clasePedido)
+    : "departamentos";
+  const showVentanaAviso =
+    clasePedido === "departamento" &&
+    req_interna_fuera_ventana(formData.fecha_solicitud);
+
+  const applyDestino = (nextDest: DestinoPedido, nextServicio: ServicioKind | null) => {
+    setDestino(nextDest);
+    setServicioKind(nextServicio);
+    const clase = clase_from_destino(nextDest, nextServicio);
+    if (!clase) {
+      setFormData((prev) => ({ ...prev, clase_pedido: null }));
+      return;
+    }
+    const tipo = tipo_solicitud_from_clase(clase);
+    const isInterno = tipo === "Interno";
+    setMode(
+      isInterno ? "general" : externa_mode_for_departamento(requestDept),
+    );
+    setFormData((prev) => ({
+      ...prev,
+      clase_pedido: clase,
+      is_general: isInterno,
+      tipo_solicitud: tipo,
+      selectedOSIs: isInterno && clase !== "servicio_inventario" ? [] : prev.selectedOSIs,
+      osi_fixed_items: isInterno ? [] : prev.osi_fixed_items,
+    }));
+    setReqLineas([]);
+    setHermanaConfirm(false);
+    setHermanaLineas([]);
+  };
+
+  useEffect(() => {
+    const recId = editRecord?.id ? Number(editRecord.id) : 0;
+    if (!recId) return;
+    list_req_lineas_action(recId).then(setReqLineas);
+  }, [editRecord?.id]);
+
+  useEffect(() => {
+    if (clasePedido !== "servicio_directo") {
+      setSugeridosInv([]);
+      return;
+    }
+    list_catalogo_pedido_action("inventario", ambitoPedido).then((rows) => {
+      setSugeridosInv(sugerir_reposicion_fase2(rows, ambitoPedido));
+    });
+  }, [clasePedido, ambitoPedido]);
 
   const filteredOSIs = osis.filter((osi) => {
     if (!osi_matches_tipo_filter(osi.tipo_servicio, osiTipoFilter)) return false;
@@ -343,7 +447,7 @@ function RequisicionFormContent({
       return sesiones.find((row) => row.id_sesion === formData.id_sesion) ?? null;
     }
     if (sesiones.length === 1) return sesiones[0];
-    return formData.selectedSesion;
+    return formData.selectedSesion ?? null;
   };
 
   const originalFixedFor = (idOsi: number): OSIFixedItem | null => {
@@ -601,7 +705,29 @@ function RequisicionFormContent({
 
     setIsLoading(true);
     try {
-      if (editId) {
+      if (clasePedido && useCatalogLineas) {
+        const hermanaForm: RequisicionFormData = {
+          ...formData,
+          is_general: true,
+          tipo_solicitud: "Interno",
+          clase_pedido: "servicio_inventario",
+          osi_fixed_items: [],
+          aumento_costos_justificacion: "",
+        };
+        await save_req_with_lineas_action({
+          form: { ...formData, clase_pedido: clasePedido },
+          lineas: reqLineas,
+          cajon: cajon_from_clase(clasePedido),
+          edit_id: editId ? parseInt(editId) : null,
+          hermana:
+            !editId &&
+            clasePedido === "servicio_directo" &&
+            hermanaConfirm &&
+            hermanaLineas.length > 0
+              ? { form: hermanaForm, lineas: hermanaLineas }
+              : null,
+        });
+      } else if (editId) {
         await updateRequisicionRecord(parseInt(editId), formData);
       } else {
         await createRequisicionRecord(formData);
@@ -646,33 +772,19 @@ function RequisicionFormContent({
         </div>
       )}
 
-      {/* Mode tabs — visible to all users */}
-      <div className="flex gap-1 mb-4">
-        <button
-          type="button"
-          onClick={() => handleModeSwitch("general")}
-          className={`px-4 py-2 text-sm font-bold rounded-t-lg border-b-2 transition-colors ${
-            isGeneralMode
-              ? "border-blue-600 text-blue-600 bg-blue-50"
-              : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
-          }`}
-        >
-          Interna
-        </button>
-        {canUseExternal && (
-        <button
-          type="button"
-          onClick={() => handleModeSwitch(externa_mode_for_departamento(requestDept))}
-          className={`px-4 py-2 text-sm font-bold rounded-t-lg border-b-2 transition-colors ${
-            !isGeneralMode
-              ? "border-blue-600 text-blue-600 bg-blue-50"
-              : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
-          }`}
-        >
-          Externa
-        </button>
-        )}
-      </div>
+      <ReqDestinoQuestions
+        destino={destino}
+        servicio={servicioKind}
+        disabled={isLocked}
+        on_destino={(v) => applyDestino(v, v === "departamento" ? null : servicioKind)}
+        on_servicio={(v) => applyDestino("servicio", v)}
+      />
+
+      {showVentanaAviso && (
+        <div className="mb-4 rounded border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
+          {texto_aviso_ventana()}
+        </div>
+      )}
 
       <Card className="shadow-md border-gray-300">
         <CardContent className="p-0">
@@ -874,6 +986,50 @@ function RequisicionFormContent({
               </RadioGroup>
             </div>
           </div>
+
+          {useCatalogLineas && clasePedido ? (
+            <ReqLineasEditor
+              cajon={cajon_from_clase(clasePedido)}
+              ambito={ambitoPedido}
+              lineas={reqLineas}
+              disabled={isLocked}
+              on_change={setReqLineas}
+            />
+          ) : null}
+
+          {useCatalogLineas &&
+          clasePedido === "servicio_directo" &&
+          !editId &&
+          formData.selectedOSIs.length > 0 ? (
+            <ReqWizardHermana
+              open
+              suggested={sugeridosInv}
+              ambito={ambitoPedido}
+              lineas={hermanaLineas}
+              confirmed={hermanaConfirm}
+              disabled={isLocked}
+              on_confirmed={(v) => {
+                setHermanaConfirm(v);
+                if (v && hermanaLineas.length === 0) {
+                  setHermanaLineas(
+                    sugeridosInv.map((row) => ({
+                      local_id: new_linea_id(),
+                      id_item_costo: row.id,
+                      cajon: "inventario",
+                      nombre_item: row.nombre_item,
+                      unidad: row.unidad || "und",
+                      cantidad: 1,
+                      costo_catalogo: Number(row.costo_unitario_base || 0),
+                      costo_pagado: null,
+                      esta_suelto: false,
+                    })),
+                  );
+                }
+              }}
+              on_lineas={setHermanaLineas}
+              on_skip={() => setHermanaConfirm(false)}
+            />
+          ) : null}
 
           {/* Details Table section */}
           <div className="bg-gray-200 py-1 font-bold text-center text-sm border-b border-gray-300 uppercase">

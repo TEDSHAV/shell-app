@@ -1,0 +1,151 @@
+"use server";
+
+import { createClient } from "@/lib/supabase/server";
+import {
+  createRequisicionRecord,
+  updateRequisicionRecord,
+} from "@/actions/requisiciones";
+import type { RequisicionFormData, RequisicionItem } from "@/types/requisiciones";
+import type { CajonPedido, CatalogAmbitoPedido } from "@/features/requisiciones/lib/req-destino";
+import type { CatalogoPedidoItem } from "@/features/requisiciones/lib/req-sugerir-reposicion";
+import type { ReqLineaDraft } from "@/features/requisiciones/lib/req-lineas-types";
+
+export async function list_catalogo_pedido_action(
+  cajon: CajonPedido,
+  ambito: CatalogAmbitoPedido,
+): Promise<CatalogoPedidoItem[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("v_catalogo_pedido")
+    .select("id,nombre_item,unidad,ambito_catalogo,rol,costo_unitario_base")
+    .eq("rol", cajon)
+    .in("ambito_catalogo", [ambito, "general"]);
+  if (error) {
+    console.error("[list_catalogo_pedido_action]", error.message);
+    return [];
+  }
+  return (data || []) as CatalogoPedidoItem[];
+}
+
+export async function list_req_lineas_action(
+  id_requisicion: number,
+): Promise<ReqLineaDraft[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("req_lineas")
+    .select("*")
+    .eq("id_requisicion", id_requisicion)
+    .order("id");
+  if (error) return [];
+  return (data || []).map((row) => ({
+    local_id: String(row.id),
+    id: row.id as number,
+    id_item_costo: (row.id_item_costo as number | null) ?? null,
+    cajon: row.cajon as CajonPedido,
+    nombre_item: String(row.nombre_item),
+    unidad: String(row.unidad || "und"),
+    cantidad: Number(row.cantidad || 1),
+    costo_catalogo: Number(row.costo_catalogo || 0),
+    costo_pagado:
+      row.costo_pagado == null ? null : Number(row.costo_pagado),
+    esta_suelto: Boolean(row.esta_suelto),
+  }));
+}
+
+function dual_write_items(lineas: ReqLineaDraft[]): RequisicionItem[] {
+  return lineas.map((row) => {
+    const unit = row.costo_pagado ?? row.costo_catalogo ?? 0;
+    const cant = Number(row.cantidad || 0);
+    return {
+      id: row.local_id,
+      cant,
+      unidad: row.unidad || "und",
+      descripcion: row.nombre_item,
+      costo_unitario: unit,
+      total: cant * unit,
+      verificacion: "pendiente",
+    };
+  });
+}
+
+async function replace_lineas(
+  id_requisicion: number,
+  lineas: ReqLineaDraft[],
+  cajon: CajonPedido,
+) {
+  const supabase = await createClient();
+  await supabase.from("req_lineas").delete().eq("id_requisicion", id_requisicion);
+  if (lineas.length === 0) return;
+  const { error } = await supabase.from("req_lineas").insert(
+    lineas.map((row) => ({
+      id_requisicion,
+      id_item_costo: row.id_item_costo,
+      cajon,
+      nombre_item: row.nombre_item,
+      unidad: row.unidad,
+      cantidad: row.cantidad,
+      costo_catalogo: row.costo_catalogo,
+      costo_pagado: row.costo_pagado,
+      esta_suelto: row.esta_suelto,
+    })),
+  );
+  if (error) throw error;
+}
+
+export async function save_req_with_lineas_action(params: {
+  form: RequisicionFormData;
+  lineas: ReqLineaDraft[];
+  cajon: CajonPedido;
+  edit_id?: number | null;
+  hermana?: {
+    form: RequisicionFormData;
+    lineas: ReqLineaDraft[];
+  } | null;
+}): Promise<{ id: number; hermana_id: number | null }> {
+  const lote =
+    params.form.id_lote_pedido ||
+    (params.hermana ? crypto.randomUUID() : null);
+  const payload: RequisicionFormData = {
+    ...params.form,
+    id_lote_pedido: lote,
+    additional_items:
+      params.lineas.length > 0
+        ? dual_write_items(params.lineas)
+        : params.form.additional_items,
+  };
+
+  let id = params.edit_id || 0;
+  if (params.edit_id) {
+    await updateRequisicionRecord(params.edit_id, payload);
+  } else {
+    const created = await createRequisicionRecord(payload);
+    id = Number((created as { id?: number })?.id);
+  }
+  if (!id) throw new Error("No se pudo guardar la requisición.");
+  await replace_lineas(id, params.lineas, params.cajon);
+
+  let hermana_id: number | null = null;
+  if (params.hermana && params.hermana.lineas.length > 0 && !params.edit_id) {
+    const hermana_form: RequisicionFormData = {
+      ...params.hermana.form,
+      id_lote_pedido: lote,
+      additional_items: dual_write_items(params.hermana.lineas),
+    };
+    const created_h = await createRequisicionRecord(hermana_form);
+    hermana_id = Number((created_h as { id?: number })?.id);
+    if (hermana_id) {
+      await replace_lineas(hermana_id, params.hermana.lineas, "inventario");
+      const supabase = await createClient();
+      await supabase
+        .from("requisiciones")
+        .update({ id_requisicion_hermana: hermana_id })
+        .eq("id", id);
+      await supabase
+        .from("requisiciones")
+        .update({ id_requisicion_hermana: id })
+        .eq("id", hermana_id);
+    }
+  }
+
+  return { id, hermana_id };
+}

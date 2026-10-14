@@ -580,6 +580,9 @@ export async function createRequisicionRecord(
       form: formData,
       justificacion: formData.aumento_costos_justificacion || "",
     })),
+    clase_pedido: formData.clase_pedido || null,
+    id_lote_pedido: formData.id_lote_pedido || null,
+    id_requisicion_hermana: formData.id_requisicion_hermana || null,
   };
 
   const fullRecord = { ...baseRecord, ...newColumns, original_snapshot: buildRequisicionSnapshot({ ...baseRecord, ...newColumns }) };
@@ -689,6 +692,25 @@ export async function getRequisicionRecord(id: number) {
   if (error) {
     console.error("Error fetching requisicion record:", error);
     return null;
+  }
+
+  const { data: req_lineas } = await supabase
+    .from("req_lineas")
+    .select("*")
+    .eq("id_requisicion", id)
+    .order("id");
+  if (data) {
+    (data as { req_lineas?: unknown }).req_lineas = req_lineas || [];
+    const hermana_id = (data as { id_requisicion_hermana?: number | null })
+      .id_requisicion_hermana;
+    if (hermana_id) {
+      const { data: hermana } = await supabase
+        .from("requisiciones")
+        .select("id,clase_pedido,nro_correlativo")
+        .eq("id", hermana_id)
+        .maybeSingle();
+      (data as { hermana?: unknown }).hermana = hermana;
+    }
   }
 
   // Collect verificador ids from additional_items and osi_fixed_items
@@ -895,6 +917,9 @@ export async function updateRequisicionRecord(
       justificacion: formData.aumento_costos_justificacion || "",
       exclude_req_id: id,
     })),
+    clase_pedido: formData.clase_pedido || null,
+    id_lote_pedido: formData.id_lote_pedido || null,
+    id_requisicion_hermana: formData.id_requisicion_hermana || null,
   };
 
   // Refresh the original_snapshot on every creator save so it always reflects the

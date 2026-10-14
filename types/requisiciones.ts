@@ -125,6 +125,13 @@ export interface RequisicionFormData {
 
   observaciones: string;
   aumento_costos_justificacion?: string;
+  clase_pedido?:
+    | "departamento"
+    | "servicio_directo"
+    | "servicio_inventario"
+    | null;
+  id_lote_pedido?: string | null;
+  id_requisicion_hermana?: number | null;
 }
 
 // Full OSI data from v_osi_formato_completo view for control servicios
