@@ -100,6 +100,7 @@ export function resolve_osi_cost_for_req(params: {
 
 export function sum_req_direct_cost(params: {
   osi_fixed_items?: Array<{
+    dias_traslado?: number | null;
     costo_traslado?: number | null;
     impresion_total?: number | null;
     honorarios_total?: number | null;
@@ -108,9 +109,11 @@ export function sum_req_direct_cost(params: {
   additional_items?: Array<{ total?: number | null }>;
 }): number {
   const from_fixed = (params.osi_fixed_items ?? []).reduce((sum, row) => {
+    const dias = Number(row.dias_traslado ?? 1);
+    const unit_traslado = Number(row.costo_traslado ?? 0);
     return (
       sum +
-      Number(row.costo_traslado ?? 0) +
+      dias * unit_traslado +
       Number(row.impresion_total ?? 0) +
       Number(row.honorarios_total ?? 0) +
       Number(row.informe_final_total ?? 0)

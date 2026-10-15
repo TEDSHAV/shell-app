@@ -1638,7 +1638,7 @@ export default function RequisicionView({
               {osiAddlItems.length > 0 && (
                 <tr className="bg-blue-100/40 border-b border-gray-300">
                   <td colSpan={isAdminView ? (osiFixedItems.length > 1 ? 8 : 7) : (osiFixedItems.length > 1 ? 7 : 6)} className="p-2 font-bold text-[10px] text-blue-700">
-                    Items dinámicos — OSI: {fi.nro_osi || `#${fi.id_osi}`}
+                    Ítems adicionales — OSI: {fi.nro_osi || `#${fi.id_osi}`}
                   </td>
                 </tr>
               )}
@@ -1712,9 +1712,9 @@ export default function RequisicionView({
                 if (unassignedItems.length === 0) return null;
                 return (
                   <Fragment key="addl-unassigned">
-                    <tr className="bg-amber-100/60 border-b border-gray-300">
-                      <td colSpan={isAdminView ? (osiFixedItems.length > 1 ? 8 : 7) : (osiFixedItems.length > 1 ? 7 : 6)} className="p-2 font-bold text-xs text-amber-800">
-                        Items dinámicos — Sin OSI asignada
+                    <tr className="bg-blue-50 border-b border-gray-300">
+                      <td colSpan={isAdminView ? (osiFixedItems.length > 1 ? 8 : 7) : (osiFixedItems.length > 1 ? 7 : 6)} className="p-2 font-bold text-xs text-blue-800">
+                        Ítems adicionales
                       </td>
                     </tr>
                     {unassignedItems.map((item) => {

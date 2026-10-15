@@ -36,15 +36,18 @@ export function ReqGestionLineas({
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState<number | null>(null);
-  if (!lineas?.length) return null;
+  const sueltos = (lineas || []).filter(
+    (row) => row.esta_suelto && !row.id_item_costo,
+  );
+  if (!sueltos.length) return null;
   const ambito = clase_pedido
     ? ambito_from_departamento(departamento, clase_pedido)
     : "departamentos";
 
   return (
     <div className="border-b border-gray-300 p-3 space-y-2">
-      <p className="text-xs font-bold uppercase text-gray-600">
-        Líneas de catálogo
+      <p className="text-xs font-bold uppercase text-amber-800">
+        Ítems sueltos — al tramitar, Administración decide si van al catálogo
       </p>
       <table className="w-full text-xs">
         <thead>
@@ -57,7 +60,7 @@ export function ReqGestionLineas({
           </tr>
         </thead>
         <tbody>
-          {lineas.map((row) => (
+          {sueltos.map((row) => (
             <tr key={row.id} className="border-t">
               <td className="p-1">
                 {row.nombre_item}
