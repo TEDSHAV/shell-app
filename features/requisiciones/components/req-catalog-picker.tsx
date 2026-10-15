@@ -10,11 +10,15 @@ import type { CatalogoPedidoItem } from "../lib/req-sugerir-reposicion";
 export function ReqCatalogPicker({
   cajon,
   ambito,
+  id_departamento,
+  departamento_nombre,
   disabled,
   on_pick,
 }: {
   cajon: CajonPedido;
   ambito: CatalogAmbitoPedido;
+  id_departamento?: number | null;
+  departamento_nombre?: string | null;
   disabled?: boolean;
   on_pick: (item: CatalogoPedidoItem) => void;
 }) {
@@ -24,13 +28,18 @@ export function ReqCatalogPicker({
 
   useEffect(() => {
     let alive = true;
-    list_catalogo_pedido_action(cajon, ambito).then((rows) => {
+    list_catalogo_pedido_action(
+      cajon,
+      ambito,
+      id_departamento,
+      departamento_nombre,
+    ).then((rows) => {
       if (alive) setItems(rows);
     });
     return () => {
       alive = false;
     };
-  }, [cajon, ambito]);
+  }, [cajon, ambito, id_departamento, departamento_nombre]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();

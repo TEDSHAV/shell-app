@@ -66,6 +66,13 @@ function buildRequisicionesNavGroup(fromApp: string): NavGroup {
         requiresRequisicionesGestion: true,
       },
       {
+        label: "Depósitos",
+        path: "/depositos",
+        href: `/requisiciones/depositos${q}`,
+        icon: Package,
+        requiresRequisicionesGestion: true,
+      },
+      {
         label: "Nueva Requisición",
         path: "/create",
         href: `/requisiciones/create${q}`,
@@ -120,6 +127,13 @@ const administracionNavGroup: NavGroup = {
         href: "/requisiciones/manual",
         icon: BookOpen,
       },
+    {
+      label: "Depósitos",
+      path: "/requisiciones/depositos",
+      href: "/requisiciones/depositos",
+      icon: Package,
+      requiresRequisicionesGestion: true,
+    },
     {
       label: "Catálogo base",
       path: "/requisiciones/catalogo-base",

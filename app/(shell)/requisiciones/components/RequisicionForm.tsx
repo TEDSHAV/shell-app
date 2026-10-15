@@ -991,6 +991,10 @@ function RequisicionFormContent({
             <ReqLineasEditor
               cajon={cajon_from_clase(clasePedido)}
               ambito={ambitoPedido}
+              id_departamento={
+                Number(initialUserData?.departamento) || null
+              }
+              departamento_nombre={formData.departamento}
               lineas={reqLineas}
               disabled={isLocked}
               on_change={setReqLineas}

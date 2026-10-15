@@ -7,24 +7,44 @@ import {
 } from "@/actions/requisiciones";
 import type { RequisicionFormData, RequisicionItem } from "@/types/requisiciones";
 import type { CajonPedido, CatalogAmbitoPedido } from "@/features/requisiciones/lib/req-destino";
-import type { CatalogoPedidoItem } from "@/features/requisiciones/lib/req-sugerir-reposicion";
+import {
+  catalogo_interno_visible,
+  type CatalogoPedidoItem,
+} from "@/features/requisiciones/lib/req-sugerir-reposicion";
 import type { ReqLineaDraft } from "@/features/requisiciones/lib/req-lineas-types";
 
 export async function list_catalogo_pedido_action(
   cajon: CajonPedido,
   ambito: CatalogAmbitoPedido,
+  id_departamento?: number | null,
+  departamento_nombre?: string | null,
 ): Promise<CatalogoPedidoItem[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("v_catalogo_pedido")
-    .select("id,nombre_item,unidad,ambito_catalogo,rol,costo_unitario_base")
+    .select(
+      "id,nombre_item,unidad,ambito_catalogo,rol,costo_unitario_base,id_departamentos",
+    )
     .eq("rol", cajon)
     .in("ambito_catalogo", [ambito, "general"]);
   if (error) {
     console.error("[list_catalogo_pedido_action]", error.message);
     return [];
   }
-  return (data || []) as CatalogoPedidoItem[];
+  const rows = (data || []) as CatalogoPedidoItem[];
+  if (cajon !== "interno") return rows;
+  let depto_id = id_departamento ?? null;
+  if (depto_id == null && departamento_nombre) {
+    const { data: depto } = await supabase
+      .from("departamentos")
+      .select("id")
+      .ilike("nombre", departamento_nombre)
+      .maybeSingle();
+    depto_id = depto?.id ?? null;
+  }
+  return rows.filter((row) =>
+    catalogo_interno_visible(row.id_departamentos, depto_id),
+  );
 }
 
 export async function list_req_lineas_action(

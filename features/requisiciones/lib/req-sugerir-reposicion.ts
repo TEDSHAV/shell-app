@@ -5,7 +5,18 @@ export type CatalogoPedidoItem = {
   ambito_catalogo: string | null;
   rol: string | null;
   costo_unitario_base: number | null;
+  id_departamentos?: number[] | null;
 };
+
+export function catalogo_interno_visible(
+  id_departamentos: number[] | null | undefined,
+  id_departamento: number | null,
+): boolean {
+  if (id_departamento == null) return true;
+  const owned = (id_departamentos ?? []).map(Number).filter((n) => n > 0);
+  if (owned.length === 0) return true;
+  return owned.includes(id_departamento);
+}
 
 const HINT_RE =
   /refrigerio|agua|galleta|snack|cafe|café|comida|insumo/i;

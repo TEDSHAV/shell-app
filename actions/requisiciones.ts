@@ -38,6 +38,7 @@ import {
   ADMIN_APP_SLUG,
 } from "@/lib/requisiciones-slugs";
 import { hasApproverMaterialDiff } from "@/lib/requisiciones-approver-diff";
+import { sync_req_entregada_and_stock } from "@/actions/req-stock";
 import {
   all_items_resolved,
   apply_item_entrega,
@@ -1414,6 +1415,14 @@ export async function setRequisicionEstatus(
     throw error;
   }
 
+  if (applied === "procesada" || applied === "parcial") {
+    await sync_req_entregada_and_stock({
+      id_requisicion: id,
+      items: gate?.additional_items as RequisicionItem[] | undefined,
+      fill_remaining: true,
+    });
+  }
+
   if (isClosed) {
     const { data: req, error: fetchError } = await adminClient
       .from("requisiciones")
@@ -2099,6 +2108,13 @@ export async function registrarEntregaItem(
     console.error("[registrarEntregaItem] Update error:", JSON.stringify(error));
     throw error;
   }
+
+  await sync_req_entregada_and_stock({
+    id_requisicion: requisicionId,
+    items,
+    fill_remaining: false,
+  });
+
   revalidatePath("/requisiciones");
   revalidatePath("/requisiciones/gestion");
   revalidatePath(`/requisiciones/view/${requisicionId}`);
@@ -2633,6 +2649,11 @@ export async function acknowledgeRequisicionReceipt(id: number) {
     .eq("id", id);
 
   if (updateError) throw updateError;
+
+  await sync_req_entregada_and_stock({
+    id_requisicion: id,
+    fill_remaining: true,
+  });
 
   // Notify the admin who processed it
   if (req.procesada_por) {

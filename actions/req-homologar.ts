@@ -12,7 +12,9 @@ export async function homologar_req_linea_action(params: {
   const supabase = await createClient();
   const { data: linea, error: line_err } = await supabase
     .from("req_lineas")
-    .select("id,nombre_item,unidad,id_item_costo,esta_suelto")
+    .select(
+      "id,nombre_item,unidad,id_item_costo,esta_suelto,costo_pagado,costo_catalogo,id_requisicion,cajon",
+    )
     .eq("id", params.id_linea)
     .single();
   if (line_err || !linea) {
@@ -20,6 +22,26 @@ export async function homologar_req_linea_action(params: {
   }
   if (linea.id_item_costo) {
     return { ok: true };
+  }
+
+  const costo_base = Number(
+    linea.costo_pagado ?? linea.costo_catalogo ?? 0,
+  );
+  let id_departamentos: number[] = [];
+  if ((linea.cajon as string) === "interno") {
+    const { data: req } = await supabase
+      .from("requisiciones")
+      .select("departamento")
+      .eq("id", linea.id_requisicion)
+      .maybeSingle();
+    if (req?.departamento) {
+      const { data: depto } = await supabase
+        .from("departamentos")
+        .select("id")
+        .ilike("nombre", String(req.departamento))
+        .maybeSingle();
+      if (depto?.id) id_departamentos = [Number(depto.id)];
+    }
   }
 
   const { data: rol } = await supabase
@@ -41,13 +63,14 @@ export async function homologar_req_linea_action(params: {
     .from("ecc_catalogo_costos")
     .insert({
       nombre_item: linea.nombre_item,
-      costo_unitario_base: 0,
+      costo_unitario_base: costo_base,
       id_categoria: params.id_categoria ?? null,
       id_unidad: unidad?.id ?? null,
       esta_activo: true,
       ambito_catalogo: params.ambito_catalogo,
       id_rol: rol?.id ?? null,
-    })
+      id_departamentos,
+    } as never)
     .select("id")
     .single();
 

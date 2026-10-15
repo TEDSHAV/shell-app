@@ -17,12 +17,16 @@ import { ReqItemSueltoDialog } from "./req-item-suelto-dialog";
 export function ReqLineasEditor({
   cajon,
   ambito,
+  id_departamento,
+  departamento_nombre,
   lineas,
   disabled,
   on_change,
 }: {
   cajon: CajonPedido;
   ambito: CatalogAmbitoPedido;
+  id_departamento?: number | null;
+  departamento_nombre?: string | null;
   lineas: ReqLineaDraft[];
   disabled?: boolean;
   on_change: (next: ReqLineaDraft[]) => void;
@@ -54,6 +58,8 @@ export function ReqLineasEditor({
       <ReqCatalogPicker
         cajon={cajon}
         ambito={ambito}
+        id_departamento={id_departamento}
+        departamento_nombre={departamento_nombre}
         disabled={disabled}
         on_pick={add_from_catalog}
       />
