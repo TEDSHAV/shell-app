@@ -8,6 +8,7 @@ interface MultiSelectProps {
   selectedIds: number[];
   onChange: (selectedIds: number[]) => void;
   placeholder?: string;
+  searchPlaceholder?: string;
   disabled?: boolean;
   isLoading?: boolean;
 }
@@ -17,6 +18,7 @@ export const MultiSelect = ({
   selectedIds,
   onChange,
   placeholder = "Seleccionar...",
+  searchPlaceholder = "Buscar…",
   disabled = false,
   isLoading = false,
 }: MultiSelectProps) => {
@@ -129,7 +131,7 @@ export const MultiSelect = ({
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Buscar sede..."
+                placeholder={searchPlaceholder}
                 className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:border-blue-500"
               />
             </div>
@@ -142,7 +144,7 @@ export const MultiSelect = ({
               </div>
             ) : filteredOptions.length === 0 ? (
               <div className="p-4 text-center text-sm text-gray-500">
-                No se encontraron sedes
+                Sin coincidencias
               </div>
             ) : (
               filteredOptions.map((option) => (

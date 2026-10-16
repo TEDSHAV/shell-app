@@ -30,6 +30,7 @@ import {
   type ReqStockMinimoRow,
   type ReqStockRow,
 } from "../lib/req-stock-types";
+import Link from "next/link";
 import { ReqDepositosInspector } from "./req-depositos-inspector";
 import { ReqDepositosItemList } from "./req-depositos-item-list";
 import { ReqDepositosKpis, type DepositoKpiKey } from "./req-depositos-kpis";
@@ -193,6 +194,11 @@ export function ReqDepositosScreen() {
           ))}
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {canProcess || canEditMinimos ? (
+            <Button type="button" variant="outline" size="sm" asChild>
+              <Link href="/requisiciones/depositos/importar">Cargar Excel</Link>
+            </Button>
+          ) : null}
           {canEditMinimos && tab !== "todos" ? (
             <ReqDepositosMinimos
               deposito={tab}
