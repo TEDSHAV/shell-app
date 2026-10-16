@@ -6,7 +6,11 @@ import {
   updateRequisicionRecord,
 } from "@/actions/requisiciones";
 import type { RequisicionFormData, RequisicionItem } from "@/types/requisiciones";
-import type { CajonPedido, CatalogAmbitoPedido } from "@/features/requisiciones/lib/req-destino";
+import {
+  ambitos_para_catalogo,
+  type CajonPedido,
+  type CatalogAmbitoPedido,
+} from "@/features/requisiciones/lib/req-destino";
 import {
   catalogo_interno_visible,
   type CatalogoPedidoItem,
@@ -15,6 +19,21 @@ import {
   linea_es_persistible,
   type ReqLineaDraft,
 } from "@/features/requisiciones/lib/req-lineas-types";
+
+export async function get_catalogo_pedido_item_action(
+  id_item_costo: number,
+): Promise<CatalogoPedidoItem | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("v_catalogo_pedido")
+    .select(
+      "id,nombre_item,unidad,ambito_catalogo,rol,costo_unitario_base,id_departamentos",
+    )
+    .eq("id", id_item_costo)
+    .maybeSingle();
+  if (error || !data) return null;
+  return data as CatalogoPedidoItem;
+}
 
 export async function list_catalogo_pedido_action(
   cajon: CajonPedido,
@@ -29,7 +48,7 @@ export async function list_catalogo_pedido_action(
       "id,nombre_item,unidad,ambito_catalogo,rol,costo_unitario_base,id_departamentos",
     )
     .eq("rol", cajon)
-    .in("ambito_catalogo", [ambito, "general"]);
+    .in("ambito_catalogo", ambitos_para_catalogo(cajon, ambito));
   if (error) {
     console.error("[list_catalogo_pedido_action]", error.message);
     return [];
@@ -215,8 +234,8 @@ export async function attach_req_hermana_action(params: {
       ...params.form,
       id_lote_pedido: lote,
       clase_pedido: "servicio_inventario",
-      is_general: true,
-      tipo_solicitud: "Interno",
+      is_general: false,
+      tipo_solicitud: "Externo",
       osi_fixed_items: [],
       selectedOSIs: [],
     },

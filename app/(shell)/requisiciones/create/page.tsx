@@ -3,12 +3,14 @@ import {
   getCurrentUser,
   getAllOsiSessions,
 } from "@/actions/requisiciones";
+import { get_catalogo_pedido_item_action } from "@/actions/req-lineas";
 import { list_request_departments } from "@/actions/requisiciones-access-context";
 import {
   dept_key_for_app,
   dept_matches_key,
 } from "@/lib/requisiciones-dept-context";
 import { ReqAltaAsistente } from "@/features/requisiciones/components/alta/req-alta-asistente";
+import type { ReqDeposito } from "@/features/requisiciones/lib/req-stock-types";
 
 export const metadata = {
   title: "Nueva Requisición | PRISMA",
@@ -17,14 +19,22 @@ export const metadata = {
 export default async function CreateRequisicionPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string }>;
+  searchParams: Promise<{ from?: string; item?: string; deposito?: string }>;
 }) {
-  const { from } = await searchParams;
-  const [osis, userData, osiSessions, allowedDepts] = await Promise.all([
+  const { from, item, deposito } = await searchParams;
+  const item_id = Number(item || 0);
+  const deposito_ok: ReqDeposito | null =
+    deposito === "departamento" ||
+    deposito === "capacitacion" ||
+    deposito === "tecnico"
+      ? deposito
+      : null;
+  const [osis, userData, osiSessions, allowedDepts, catalog_item] = await Promise.all([
     getAllOSIsForRequisiciones(),
     getCurrentUser(),
     getAllOsiSessions(),
     list_request_departments(),
+    item_id > 0 ? get_catalogo_pedido_item_action(item_id) : Promise.resolve(null),
   ]);
 
   const fromKey = dept_key_for_app(from || "");
@@ -50,6 +60,11 @@ export default async function CreateRequisicionPage({
         userDept={userDept}
         userGerencia={userGerencia}
         osiSessions={osiSessions || []}
+        restock={
+          catalog_item && deposito_ok
+            ? { deposito: deposito_ok, item: catalog_item }
+            : null
+        }
       />
     </div>
   );

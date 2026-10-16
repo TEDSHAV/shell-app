@@ -76,6 +76,8 @@ export interface AppConfig {
   headerGroupId?: string;
   /** Label in the header dropdown; defaults to `name`. */
   headerLabel?: string;
+  /** Destino al abrir el tile en Utilidades/header; defaults to `basePath`. */
+  headerHref?: string;
   hiddenFromDashboard?: boolean;
   dashboardOrder?: number;
   /**

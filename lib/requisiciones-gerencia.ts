@@ -115,7 +115,14 @@ export const deptInList = deptNameInList;
 function isInternaRecord(record: {
   tipo_solicitud?: string | null;
   id_osi?: unknown;
+  clase_pedido?: string | null;
 }): boolean {
+  if (
+    record.clase_pedido === "servicio_inventario" ||
+    record.clase_pedido === "servicio_directo"
+  ) {
+    return false;
+  }
   return (
     record.tipo_solicitud === "Interno" ||
     (!record.tipo_solicitud && !record.id_osi)
@@ -125,6 +132,7 @@ function isInternaRecord(record: {
 export type ApproverRecordFlags = {
   tipo_solicitud?: string | null;
   id_osi?: unknown;
+  clase_pedido?: string | null;
   departamento?: string | null;
   lider_estatus?: string | null;
   coordinador_estatus?: string | null;

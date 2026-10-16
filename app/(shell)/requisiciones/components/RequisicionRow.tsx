@@ -9,6 +9,7 @@ import { Eye, Edit, Trash2, Lock, CheckCircle2, Undo2, XCircle, CalendarClock, A
 import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/utils";
 import { mapGerenciaSolicitante, getRequisicionDisplayDate, deptInList, isLiderGatePending, skipsCoordinadorGate, admin_tramite_blocked_reason } from "@/lib/requisiciones-gerencia";
+import { es_req_interna } from "@/features/requisiciones/lib/req-destino";
 import MotivoModal from "./MotivoModal";
 import type { RequisicionItem } from "@/types/requisiciones";
 import { format_entregado_ratio } from "@/lib/requisiciones-entrega";
@@ -48,9 +49,7 @@ export default function RequisicionRow({
   const isResolved = isProcesada || isRechazada;
   const isAcuseRecibido = record.acuse_recibido === true;
   const canAcknowledge = isProcesada && !isAcuseRecibido && !isAdminView;
-  const isInterna =
-    record.tipo_solicitud === "Interno" ||
-    (!record.tipo_solicitud && !record.id_osi);
+  const isInterna = es_req_interna(record);
   const locked = isResolved && !isAdminView;
 
   // --- Lider approval: internas pending lider approval. ---

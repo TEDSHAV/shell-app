@@ -45,13 +45,19 @@ import {
   Settings,
 } from "lucide-react";
 import { build_app_config } from "@/lib/app-theme";
-import { AppConfig, AppGroupConfig, NavGroup } from "@/types";
+import { AppConfig, AppGroupConfig, NavGroup, NavLink } from "@/types";
 
 function buildRequisicionesNavGroup(fromApp: string): NavGroup {
   const q = `?from=${fromApp}`;
   return {
     groupLabel: "Requisiciones",
     links: [
+      {
+        label: "Nueva Requisición",
+        path: "/create",
+        href: `/requisiciones/create${q}`,
+        icon: FilePlus2,
+      },
       {
         label: "Mis Requisiciones",
         path: "/",
@@ -66,42 +72,32 @@ function buildRequisicionesNavGroup(fromApp: string): NavGroup {
         requiresRequisicionesGestion: true,
       },
       {
-        label: "Depósitos",
+        label: "Inventario",
         path: "/depositos",
         href: `/requisiciones/depositos${q}`,
         icon: Package,
-        requiresRequisicionesGestion: true,
-      },
-      {
-        label: "Nueva Requisición",
-        path: "/create",
-        href: `/requisiciones/create${q}`,
-        icon: FilePlus2,
-      },
-      {
-        label: "Manual",
-        path: "/manual",
-        href: `/requisiciones/manual${q}`,
-        icon: BookOpen,
       },
     ],
   };
 }
 
-const administracionDashboardNavGroup: NavGroup = {
-  groupLabel: "General",
-  links: [
-    {
-      label: "Dashboard",
-      path: "/",
-      icon: LayoutDashboard,
-    },
-  ],
+const administracionDashboardLink: NavLink = {
+  label: "Dashboard",
+  path: "/",
+  icon: LayoutDashboard,
 };
 
 const administracionNavGroup: NavGroup = {
-  groupLabel: "Requisiciones",
+  groupLabel: "Compras",
+  icon: ClipboardList,
+  collapsible: "always",
   links: [
+    {
+      label: "Nueva Requisición",
+      path: "/requisiciones/create",
+      href: "/requisiciones/create?from=administracion",
+      icon: FilePlus2,
+    },
     {
       label: "Mis Requisiciones",
       path: "/requisiciones",
@@ -116,26 +112,13 @@ const administracionNavGroup: NavGroup = {
       requiresRequisicionesGestion: true,
     },
     {
-      label: "Nueva Requisición",
-      path: "/requisiciones/create",
-      href: "/requisiciones/create?from=administracion",
-      icon: FilePlus2,
-    },
-      {
-        label: "Manual",
-        path: "/requisiciones/manual",
-        href: "/requisiciones/manual",
-        icon: BookOpen,
-      },
-    {
-      label: "Depósitos",
+      label: "Inventario",
       path: "/requisiciones/depositos",
       href: "/requisiciones/depositos",
       icon: Package,
-      requiresRequisicionesGestion: true,
     },
     {
-      label: "Catálogo base",
+      label: "Catálogo",
       path: "/requisiciones/catalogo-base",
       href: "/requisiciones/catalogo-base",
       icon: BookOpen,
@@ -144,11 +127,13 @@ const administracionNavGroup: NavGroup = {
         "finance:catalogo:access",
       ],
     },
-    ],
-  };
+  ],
+};
 
 const administracionFacturacionNavGroup: NavGroup = {
   groupLabel: "Facturación",
+  icon: Landmark,
+  collapsible: "always",
   links: [
     {
       label: "Facturación",
@@ -729,10 +714,11 @@ export const apps: AppConfig[] = [
     embedMode: "native",
     groupId: "procesos-de-apoyo",
     headerGroupId: "utilidades",
-    headerLabel: "Administración",
+    headerLabel: "Requisiciones",
+    headerHref: "/requisiciones",
     dashboardOrder: 1,
     navLinks: [
-      administracionDashboardNavGroup,
+      administracionDashboardLink,
       administracionNavGroup,
       administracionFacturacionNavGroup,
     ],

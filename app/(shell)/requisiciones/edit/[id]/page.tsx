@@ -11,6 +11,7 @@ import {
 import RequisicionForm from "../../components/RequisicionForm";
 import { notFound, redirect } from "next/navigation";
 import { hasApproverMaterialDiff } from "@/lib/requisiciones-approver-diff";
+import { es_req_interna } from "@/features/requisiciones/lib/req-destino";
 
 export const metadata = {
   title: "Editar Requisición | PRISMA",
@@ -80,11 +81,11 @@ export default async function EditRequisicionPage({
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold text-gray-900">Editar Requisición</h1>
           <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold uppercase ${
-            editRecord?.tipo_solicitud === "Interno"
+            es_req_interna(editRecord)
               ? "bg-blue-100 text-blue-800"
               : "bg-green-100 text-green-800"
           }`}>
-            {editRecord?.tipo_solicitud === "Interno" ? "Interna" : "Externa"}
+            {es_req_interna(editRecord) ? "Interna" : "Externa"}
           </span>
         </div>
         <p className="text-sm text-gray-600">Actualice los datos de la solicitud.</p>

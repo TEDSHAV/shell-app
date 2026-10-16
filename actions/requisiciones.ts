@@ -29,6 +29,10 @@ import {
 import { getUsdToVesRate } from "@/lib/exchange-rate";
 import { assert_admin_tramite_allowed, deptNameInList, isCapacitacionDept } from "@/lib/requisiciones-gerencia";
 import {
+  es_clase_pedido_externa,
+  usa_flujo_entrega_deposito,
+} from "@/features/requisiciones/lib/req-destino";
+import {
   getCurrentUserDepartment,
   getCurrentUserUsuarioId,
   getRequisicionAccess,
@@ -58,6 +62,8 @@ function assert_record_admin_tramite(record: {
   tipo_solicitud?: string | null;
   coordinador_estatus?: string | null;
   lider_estatus?: string | null;
+  clase_pedido?: string | null;
+  id_osi?: unknown;
 } | null) {
   if (!record) throw new Error("Requisición no encontrada.");
   assert_admin_tramite_allowed(record);
@@ -474,7 +480,9 @@ export async function createRequisicionRecord(
 
   const isCapacitacion = !formData.is_general && isCapacitacionDept(formData.departamento);
   const primaryOSI = formData.selectedOSIs[0] || null;
-  const isInterna = formData.is_general;
+  const isInterna = es_clase_pedido_externa(formData.clase_pedido)
+    ? false
+    : Boolean(formData.is_general);
 
   // Internas (modo provisional): Coordinador → Líder → Administración.
   // Si el creador es coordinador, o el depto no tiene coordinador, se salta al líder.
@@ -853,7 +861,9 @@ export async function updateRequisicionRecord(
 
   const isCapacitacion = !formData.is_general && isCapacitacionDept(formData.departamento);
   const primaryOSI = formData.selectedOSIs[0] || null;
-  const isInterna = formData.is_general;
+  const isInterna = es_clase_pedido_externa(formData.clase_pedido)
+    ? false
+    : Boolean(formData.is_general);
 
   // Calculate totals for fixed items
   const totalTraslado = (formData.dias_traslado || 0) * (formData.costo_traslado || 0);
@@ -1314,6 +1324,8 @@ export async function setRequisicionEstatus(
     lider_estatus?: string | null;
     additional_items?: RequisicionItem[] | null;
     osi_fixed_items?: OSIFixedItem[] | null;
+    clase_pedido?: string | null;
+    id_osi?: unknown;
   } | null = null;
   let isInterna = false;
 
@@ -1321,15 +1333,17 @@ export async function setRequisicionEstatus(
     const gateClient = await createAdminClient();
     const { data } = await gateClient
       .from("requisiciones")
-      .select("tipo_solicitud, coordinador_estatus, lider_estatus, additional_items, osi_fixed_items")
+      .select("tipo_solicitud, coordinador_estatus, lider_estatus, additional_items, osi_fixed_items, clase_pedido, id_osi")
       .eq("id", id)
       .maybeSingle();
     gate = data;
-    isInterna = gate?.tipo_solicitud === "Interno";
+    isInterna = usa_flujo_entrega_deposito(gate || {});
     assert_admin_tramite_allowed({
       tipo_solicitud: gate?.tipo_solicitud,
       coordinador_estatus: gate?.coordinador_estatus,
       lider_estatus: gate?.lider_estatus,
+      clase_pedido: gate?.clase_pedido,
+      id_osi: gate?.id_osi,
     });
   }
 
@@ -1986,7 +2000,7 @@ export async function updateItemVerificacion(
   const adminClient = await createAdminClient();
   const { data: record, error: fetchError } = await adminClient
     .from("requisiciones")
-    .select("additional_items, tipo_solicitud, coordinador_estatus, lider_estatus")
+    .select("additional_items, tipo_solicitud, coordinador_estatus, lider_estatus, clase_pedido, id_osi")
     .eq("id", requisicionId)
     .single();
 
@@ -2046,7 +2060,7 @@ export async function registrarEntregaItem(
   const adminClient = await createAdminClient();
   const { data: record, error: fetchError } = await adminClient
     .from("requisiciones")
-    .select("additional_items, tipo_solicitud, estatus_admin, created_by, coordinador_estatus, lider_estatus")
+    .select("additional_items, tipo_solicitud, estatus_admin, created_by, coordinador_estatus, lider_estatus, clase_pedido, id_osi")
     .eq("id", requisicionId)
     .single();
 
@@ -2055,8 +2069,8 @@ export async function registrarEntregaItem(
     throw fetchError;
   }
   assert_record_admin_tramite(record);
-  if (record?.tipo_solicitud !== "Interno") {
-    throw new Error("La entrega parcial solo aplica a requisiciones internas.");
+  if (!usa_flujo_entrega_deposito(record)) {
+    throw new Error("La entrega parcial solo aplica a requisiciones de depósito.");
   }
 
   const current: RequisicionItem[] = record?.additional_items || [];
@@ -2157,7 +2171,7 @@ export async function updateFixedItemVerificacion(
   const adminClient = await createAdminClient();
   const { data: record, error: fetchError } = await adminClient
     .from("requisiciones")
-    .select("osi_fixed_items, tipo_solicitud, coordinador_estatus, lider_estatus")
+    .select("osi_fixed_items, tipo_solicitud, coordinador_estatus, lider_estatus, clase_pedido, id_osi")
     .eq("id", requisicionId)
     .single();
 
@@ -2213,7 +2227,7 @@ export async function updateRequisicionItemsByGestion(
   const admin = await createAdminClient();
   const { data: existing, error: fetchError } = await admin
     .from("requisiciones")
-    .select("estatus_admin, tipo_solicitud, coordinador_estatus, lider_estatus")
+    .select("estatus_admin, tipo_solicitud, coordinador_estatus, lider_estatus, clase_pedido, id_osi")
     .eq("id", id)
     .maybeSingle();
   if (fetchError || !existing) throw new Error("Requisición no encontrada.");
@@ -2259,7 +2273,7 @@ export async function markAllItemsVerificadas(requisicionId: number) {
   const adminClient = await createAdminClient();
   const { data: record, error: fetchError } = await adminClient
     .from("requisiciones")
-    .select("additional_items, osi_fixed_items, tipo_solicitud, coordinador_estatus, lider_estatus")
+    .select("additional_items, osi_fixed_items, tipo_solicitud, coordinador_estatus, lider_estatus, clase_pedido, id_osi")
     .eq("id", requisicionId)
     .single();
 
@@ -2311,6 +2325,8 @@ export async function saveVerificacionProgress(requisicionId: number) {
       tipo_solicitud,
       coordinador_estatus,
       lider_estatus,
+      clase_pedido,
+      id_osi,
       v_osi_formato_completo!left (nro_osi)
     `)
     .eq("id", requisicionId)

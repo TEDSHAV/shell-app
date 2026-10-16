@@ -13,7 +13,7 @@ export function empty_alta_form(params: {
   const tipo = tipo_solicitud_from_clase(params.clase);
   return {
     selectedOSIs: [],
-    is_general: params.clase !== "servicio_directo",
+    is_general: params.clase === "departamento",
     corresponde_a: "",
     fecha_solicitud: new Date().toISOString().split("T")[0],
     tipo_solicitud: tipo,

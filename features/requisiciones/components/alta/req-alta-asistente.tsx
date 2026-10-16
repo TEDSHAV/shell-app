@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { OSIFullData, OSISesion, RequisicionFormData } from "@/types/requisiciones";
+import type { OSIFullData, RequisicionFormData } from "@/types/requisiciones";
 import { save_req_with_lineas_action } from "@/actions/req-lineas";
 import {
   preview_req_osi_gate_action,
@@ -12,7 +12,8 @@ import {
 } from "@/actions/req-alta-gate";
 import { osi_fixed_line_total } from "@/lib/requisicion-osi-clone";
 import {
-  ambito_from_departamento,
+  ambito_from_tipo_servicio,
+  ambito_pedido_req,
   cajon_from_clase,
   clase_from_destino,
   type ClasePedido,
@@ -26,6 +27,11 @@ import {
   linea_total,
   type ReqLineaDraft,
 } from "../../lib/req-lineas-types";
+import {
+  seed_alta_restock,
+  sesiones_de_osi,
+  type ReqAltaRestock,
+} from "../../lib/req-alta-restock";
 import { isCapacitacionDept } from "@/lib/requisiciones-gerencia";
 import {
   pasos_visibles_alta,
@@ -35,29 +41,6 @@ import { ReqAltaPasoComoSeUsa, ReqAltaPasoParaQuien } from "./req-alta-paso-dest
 import { ReqAltaEstatusFinal } from "./req-alta-revision";
 import { ReqAltaStepper } from "./req-alta-stepper";
 import { ReqAltaPasoCreacion } from "./req-alta-paso-creacion";
-
-function sesiones_de_osi(
-  osi: OSIFullData,
-  osi_sessions: ReqAltaAsistenteProps["osiSessions"],
-): OSISesion[] {
-  const desglose = (osi.desglose_recursos_sesiones as OSISesion[] | null) || [];
-  if (desglose.length > 0) return desglose;
-  return osi_sessions
-    .filter((row) => row.id_osi === osi.id_osi)
-    .map((row) => ({
-      id: row.id,
-      id_sesion: row.id,
-      nro_sesion: row.nro_sesion,
-      fecha: row.fecha,
-      hora_inicio: row.hora_inicio,
-      hora_fin: row.hora_fin,
-      costo_traslado: null,
-      costo_impresion_material: null,
-      horas_honorarios_instructor: null,
-      tarifa_hora_honorarios: null,
-      costo_honorarios_instructor: null,
-    }));
-}
 
 type ReqAltaAsistenteProps = {
   osis: OSIFullData[];
@@ -72,6 +55,7 @@ type ReqAltaAsistenteProps = {
     hora_inicio: string | null;
     hora_fin: string | null;
   }>;
+  restock?: ReqAltaRestock | null;
 };
 
 export function ReqAltaAsistente({
@@ -80,33 +64,53 @@ export function ReqAltaAsistente({
   userDept,
   userGerencia,
   osiSessions,
+  restock = null,
 }: ReqAltaAsistenteProps) {
+  const seed = restock
+    ? seed_alta_restock({
+        restock,
+        departamento: userDept,
+        gerencia: userGerencia,
+        solicitante: userData?.nombre_apellido || "",
+      })
+    : null;
   const router = useRouter();
-  const [paso, setPaso] = useState<PasoAlta>("destino");
-  const [destino, setDestino] = useState<DestinoPedido | null>(null);
-  const [servicio, setServicio] = useState<ServicioKind | null>(null);
-  const [lineas, setLineas] = useState<ReqLineaDraft[]>([]);
+  const [paso, setPaso] = useState<PasoAlta>(seed?.paso ?? "destino");
+  const [destino, setDestino] = useState<DestinoPedido | null>(
+    seed?.destino ?? null,
+  );
+  const [servicio, setServicio] = useState<ServicioKind | null>(
+    seed?.servicio ?? null,
+  );
+  const [lineas, setLineas] = useState<ReqLineaDraft[]>(seed?.lineas ?? []);
   const [hermana, setHermana] = useState<ReqLineaDraft[]>([]);
   const [emitHermana, setEmitHermana] = useState(false);
   const [createdId, setCreatedId] = useState<number | null>(null);
   const [createdHermanaId, setCreatedHermanaId] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [gate, setGate] = useState<ReqGatePreview | null>(null);
-  const [form, setForm] = useState<RequisicionFormData>(() =>
-    empty_alta_form({
-      departamento: userDept,
-      gerencia: userGerencia,
-      solicitante: userData?.nombre_apellido || "",
-      clase: "departamento",
-    }),
+  const [form, setForm] = useState<RequisicionFormData>(
+    () =>
+      seed?.form ??
+      empty_alta_form({
+        departamento: userDept,
+        gerencia: userGerencia,
+        solicitante: userData?.nombre_apellido || "",
+        clase: "departamento",
+      }),
   );
 
   const clase: ClasePedido | null = clase_from_destino(destino, servicio);
+  const osi = form.selectedOSIs[0] || null;
   const ambito = clase
-    ? ambito_from_departamento(form.departamento || userDept, clase)
+    ? ambito_pedido_req({
+        clase,
+        departamento: form.departamento || userDept,
+        tipo_servicio: osi?.tipo_servicio || form.tipo_servicio,
+        servicio_nombre: osi?.servicio,
+      })
     : "departamentos";
   const cajon = clase ? cajon_from_clase(clase) : "interno";
-  const osi = form.selectedOSIs[0] || null;
   const pasos = useMemo(
     () => pasos_visibles_alta(destino, servicio),
     [destino, servicio],
@@ -139,9 +143,11 @@ export function ReqAltaAsistente({
           osi_fixed_items: [fixed],
           id_sesion: sesion?.id_sesion ?? null,
           selectedSesion: sesion,
-          tipo_servicio: isCapacitacionDept(prev.departamento)
-            ? "Capacitación"
-            : "Servicio Técnico",
+          tipo_servicio:
+            ambito_from_tipo_servicio(next.tipo_servicio, next.servicio) ===
+            "tecnico"
+              ? "Servicio Técnico"
+              : "Capacitación",
         },
         fixed,
       ),
@@ -223,8 +229,8 @@ export function ReqAltaAsistente({
             ? {
                 form: {
                   ...form,
-                  is_general: true,
-                  tipo_solicitud: "Interno",
+                  is_general: false,
+                  tipo_solicitud: "Externo",
                   clase_pedido: "servicio_inventario",
                   osi_fixed_items: [],
                   selectedOSIs: [],
@@ -326,7 +332,12 @@ export function ReqAltaAsistente({
             on_emit_hermana={setEmitHermana}
             hermana={hermana}
             on_hermana={setHermana}
-            ambito_hermana={ambito === "departamentos" ? "capacitacion" : ambito}
+            ambito_hermana={
+              ambito === "departamentos" || ambito === "general"
+                ? ambito_from_tipo_servicio(osi?.tipo_servicio, osi?.servicio) ??
+                  "capacitacion"
+                : ambito
+            }
             on_justificacion={(value) =>
               setForm((prev) => ({
                 ...prev,

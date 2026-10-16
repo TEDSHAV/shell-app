@@ -45,6 +45,7 @@ import {
   req_interna_fuera_ventana,
   texto_aviso_ventana,
 } from "@/features/requisiciones/lib/req-ventana-mensual";
+import { es_req_interna } from "@/features/requisiciones/lib/req-destino";
 
 export default function RequisicionView({
   record,
@@ -102,7 +103,10 @@ export default function RequisicionView({
   const [editCedula, setEditCedula] = useState<string>(record.cedula_facilitador || "");
   const [editRif, setEditRif] = useState<string>(record.rif_facilitador || "");
   const [isSavingBanking, setIsSavingBanking] = useState(false);
-  const isGeneralMode = record.tipo_solicitud === "Interno";
+  const isInterna = es_req_interna(record);
+  const isGeneralMode =
+    record.clase_pedido === "servicio_inventario" ||
+    record.tipo_solicitud === "Interno";
   // Use the DB-resolved gerencia (departamentos.gerencia) when available, falling
   // back to the stored gerencia_solicitante for legacy records.
   const displayGerencia = record.gerencia_display || record.gerencia_solicitante;
@@ -115,9 +119,9 @@ export default function RequisicionView({
   // --- Lider approval state (internas only) ---
   const liderEstatus = record.lider_estatus as "pendiente" | "aprobada" | "rechazada" | null | undefined;
   const coordinadorEstatus = record.coordinador_estatus as "pendiente" | "aprobada" | "rechazada" | null | undefined;
-  const isLiderPendiente = isGeneralMode && isLiderGatePending(record);
-  const isLiderAprobada = isGeneralMode && liderEstatus === "aprobada";
-  const isLiderRechazada = isGeneralMode && liderEstatus === "rechazada";
+  const isLiderPendiente = isInterna && isLiderGatePending(record);
+  const isLiderAprobada = isInterna && liderEstatus === "aprobada";
+  const isLiderRechazada = isInterna && liderEstatus === "rechazada";
   // The lider can approve/reject internas whose departamento belongs to one of the
   // gerencias they lead (legacy records without departamento allow any lider; the
   // server action re-checks either way).
@@ -127,9 +131,9 @@ export default function RequisicionView({
   const showInternaMontos = false;
 
   // --- Coordinador approval state (internas only) ---
-  const isCoordinadorPendiente = isGeneralMode && coordinadorEstatus === "pendiente";
-  const isCoordinadorAprobada = isGeneralMode && coordinadorEstatus === "aprobada";
-  const isCoordinadorRechazada = isGeneralMode && coordinadorEstatus === "rechazada";
+  const isCoordinadorPendiente = isInterna && coordinadorEstatus === "pendiente";
+  const isCoordinadorAprobada = isInterna && coordinadorEstatus === "aprobada";
+  const isCoordinadorRechazada = isInterna && coordinadorEstatus === "rechazada";
   // A coordinador can only approve/reject internas of the departments they coordinate.
   // Fallback: if record.departamento is null (legacy record), allow any coordinador.
   const coordinadorDeptMatches = isCoordinador && deptInList(record.departamento, coordinadorDepts);
@@ -998,7 +1002,7 @@ export default function RequisicionView({
       )}
 
       {/* Lider status bar (internas only) */}
-      {isGeneralMode && liderEstatus && (
+      {isInterna && liderEstatus && (
         <div className="mb-4 flex flex-wrap items-center gap-3 px-4 py-3 bg-white border border-gray-200 rounded-lg shadow-sm">
           <span className="text-sm font-medium text-gray-600">Lider:</span>
           <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
@@ -1043,7 +1047,7 @@ export default function RequisicionView({
       )}
 
       {/* Coordinador status bar (internas only) */}
-      {isGeneralMode && coordinadorEstatus && (
+      {isInterna && coordinadorEstatus && (
         <div className="mb-4 flex flex-wrap items-center gap-3 px-4 py-3 bg-white border border-gray-200 rounded-lg shadow-sm">
           <span className="text-sm font-medium text-gray-600">Coordinador:</span>
           <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${

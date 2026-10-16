@@ -28,8 +28,7 @@ export function sugerir_reposicion_fase2(
   const in_ambito = items.filter(
     (row) =>
       row.rol === "inventario" &&
-      (row.ambito_catalogo === ambito ||
-        row.ambito_catalogo === "general"),
+      row.ambito_catalogo === ambito,
   );
   const hinted = in_ambito.filter((row) => HINT_RE.test(row.nombre_item));
   if (hinted.length > 0) return hinted.slice(0, 8);

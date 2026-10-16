@@ -21,7 +21,7 @@ import { ReqDestinoQuestions } from "@/features/requisiciones/components/req-des
 import { ReqLineasEditor } from "@/features/requisiciones/components/req-lineas-editor";
 import { ReqWizardHermana } from "@/features/requisiciones/components/req-wizard-hermana";
 import {
-  ambito_from_departamento,
+  ambito_pedido_req,
   cajon_from_clase,
   clase_from_destino,
   osi_obligatoria,
@@ -200,7 +200,11 @@ function RequisicionFormContent({
   // All users can place externas. Default mode is Interna for non-capacitacion/non-servicios
   // departments, but users can switch to Externa via the tab.
   const defaultIsGeneral = !homeIsCapacitacion && !homeIsServicios;
-  const editIsGeneral = editRecord ? (editRecord.tipo_solicitud === "Interno" || (!editRecord.tipo_solicitud && !editRecord.id_osi)) : defaultIsGeneral;
+  const editIsGeneral = editRecord
+    ? editRecord.clase_pedido === "servicio_inventario" ||
+      editRecord.tipo_solicitud === "Interno" ||
+      (!editRecord.tipo_solicitud && !editRecord.id_osi)
+    : defaultIsGeneral;
   // Gerencia Solicitante comes from the DB (departamentos.gerencia) when available,
   // falling back to the hardcoded mapping for safety.
   const defaultGerencia = userGerencia || mapGerenciaSolicitante(userDepartment);
@@ -363,8 +367,14 @@ function RequisicionFormContent({
     ? osi_obligatoria(clasePedido)
     : !isGeneralMode;
   const useCatalogLineas = Boolean(clasePedido);
+  const osiCatalogo = formData.selectedOSIs[0] || null;
   const ambitoPedido = clasePedido
-    ? ambito_from_departamento(requestDept, clasePedido)
+    ? ambito_pedido_req({
+        clase: clasePedido,
+        departamento: requestDept,
+        tipo_servicio: osiCatalogo?.tipo_servicio || formData.tipo_servicio,
+        servicio_nombre: osiCatalogo?.servicio,
+      })
     : "departamentos";
   const showVentanaAviso =
     clasePedido === "departamento" &&
@@ -708,8 +718,8 @@ function RequisicionFormContent({
       if (clasePedido && useCatalogLineas) {
         const hermanaForm: RequisicionFormData = {
           ...formData,
-          is_general: true,
-          tipo_solicitud: "Interno",
+          is_general: false,
+          tipo_solicitud: "Externo",
           clase_pedido: "servicio_inventario",
           osi_fixed_items: [],
           aumento_costos_justificacion: "",

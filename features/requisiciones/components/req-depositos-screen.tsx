@@ -1,243 +1,301 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { NumberInput } from "@/components/ui/number-input";
 import {
-  confirmar_consumo_osi_action,
+  confirmar_consumo_osis_prorrateo_action,
+  count_osis_reparto_action,
+  delete_req_stock_minimo_action,
+  get_depositos_ui_access_action,
+  list_ingresos_pendientes_action,
   list_req_kardex_action,
   list_req_osis_reparto_action,
-  list_req_stock_action,
+  list_req_stock_all_action,
+  list_req_stock_minimo_action,
+  procesar_ingreso_action,
   registrar_salida_stock_action,
+  restock_en_curso_action,
+  upsert_req_stock_minimo_action,
 } from "@/actions/req-stock";
+import { stock_nivel } from "../lib/req-stock-status";
 import {
-  DEPOSITO_LABEL,
+  DEPOSITO_TAB_LABEL,
+  DEPOSITO_TABS,
   type ReqDeposito,
+  type ReqDepositoTab,
+  type ReqIngresoPendiente,
   type ReqKardexRow,
   type ReqOsiRepartoRow,
+  type ReqStockMinimoRow,
   type ReqStockRow,
 } from "../lib/req-stock-types";
-
-const TABS: ReqDeposito[] = ["departamento", "capacitacion", "tecnico"];
-const SALIDAS = ["entregado", "gastado", "danado", "cambiado"] as const;
+import { ReqDepositosInspector } from "./req-depositos-inspector";
+import { ReqDepositosItemList } from "./req-depositos-item-list";
+import { ReqDepositosKpis, type DepositoKpiKey } from "./req-depositos-kpis";
+import { ReqDepositosHistorial } from "./req-depositos-historial";
+import { ReqDepositosMinimos } from "./req-depositos-minimos";
 
 export function ReqDepositosScreen() {
-  const [tab, setTab] = useState<ReqDeposito>("departamento");
-  const [rows, setRows] = useState<ReqStockRow[]>([]);
+  const router = useRouter();
+  const [tab, setTab] = useState<ReqDepositoTab>("todos");
+  const [allRows, setAllRows] = useState<ReqStockRow[]>([]);
+  const [allRules, setAllRules] = useState<ReqStockMinimoRow[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [selected, setSelected] = useState<ReqStockRow | null>(null);
   const [kardex, setKardex] = useState<ReqKardexRow[]>([]);
+  const [kardexLimit, setKardexLimit] = useState(80);
   const [osis, setOsis] = useState<ReqOsiRepartoRow[]>([]);
-  const [qty, setQty] = useState(1);
-  const [tipo, setTipo] = useState<(typeof SALIDAS)[number]>("entregado");
+  const [osisCap, setOsisCap] = useState(0);
+  const [osisSt, setOsisSt] = useState(0);
+  const [ingresos, setIngresos] = useState<ReqIngresoPendiente[]>([]);
+  const [restockOpen, setRestockOpen] = useState(false);
+  const [kpi, setKpi] = useState<DepositoKpiKey | null>(null);
   const [busy, setBusy] = useState(false);
+  const [canProcess, setCanProcess] = useState(false);
+  const [canEditMinimos, setCanEditMinimos] = useState(false);
 
-  const reload = async (deposito: ReqDeposito) => {
-    const data = await list_req_stock_action(deposito);
-    setRows(data);
+  const active_deposito: ReqDeposito =
+    selected?.deposito || (tab === "todos" ? "departamento" : tab);
+
+  const rows = useMemo(
+    () =>
+      tab === "todos"
+        ? allRows
+        : allRows.filter((row) => row.deposito === tab),
+    [allRows, tab],
+  );
+  const rules = useMemo(
+    () => (tab === "todos" ? [] : allRules.filter((row) => row.deposito === tab)),
+    [allRules, tab],
+  );
+  const osisCount =
+    tab === "departamento" ? 0 : tab === "capacitacion" ? osisCap : tab === "tecnico" ? osisSt : osisCap + osisSt;
+
+  const reload = async () => {
+    const [data, mins, cap, st, access] = await Promise.all([
+      list_req_stock_all_action(),
+      list_req_stock_minimo_action(),
+      count_osis_reparto_action("capacitacion"),
+      count_osis_reparto_action("tecnico"),
+      get_depositos_ui_access_action(),
+    ]);
+    setAllRows(data);
+    setAllRules(mins);
+    setOsisCap(cap);
+    setOsisSt(st);
+    setCanProcess(access.can_process);
+    setCanEditMinimos(access.can_edit_minimos);
+    setSelected((prev) => data.find((row) => row.id === prev?.id) || null);
+    setLoaded(true);
   };
 
   useEffect(() => {
+    void reload();
+  }, []);
+
+  useEffect(() => {
     setSelected(null);
-    void reload(tab);
+    setKpi(null);
   }, [tab]);
 
   useEffect(() => {
     if (!selected) {
       setKardex([]);
       setOsis([]);
+      setIngresos([]);
+      setRestockOpen(false);
       return;
     }
-    void list_req_kardex_action(selected.id).then(setKardex);
-    if (tab !== "departamento") {
-      void list_req_osis_reparto_action(tab, selected.id_item_costo).then(
-        setOsis,
-      );
+    void list_req_kardex_action(selected.id, kardexLimit).then(setKardex);
+    void restock_en_curso_action({ id_item_costo: selected.id_item_costo }).then(
+      setRestockOpen,
+    );
+    if (canProcess) {
+      void list_ingresos_pendientes_action({
+        id_item_costo: selected.id_item_costo,
+      }).then(setIngresos);
+    }
+    if (selected.deposito !== "departamento") {
+      void list_req_osis_reparto_action(
+        selected.deposito,
+        selected.id_item_costo,
+      ).then(setOsis);
     } else {
       setOsis([]);
     }
-  }, [selected, tab]);
+  }, [selected, kardexLimit, canProcess]);
+
+  const total = rows.filter((row) => Number(row.cantidad) > 0).length;
+  const bajo = rows.filter((row) => {
+    const nivel = stock_nivel(Number(row.cantidad), row.minimo ?? 1);
+    return nivel === "bajo" || nivel === "agotado";
+  }).length;
+
+  const visible = useMemo(() => {
+    if (kpi === "bajo") {
+      return rows.filter((row) => {
+        const nivel = stock_nivel(Number(row.cantidad), row.minimo ?? 1);
+        return nivel === "bajo" || nivel === "agotado";
+      });
+    }
+    if (kpi === "total") {
+      return rows.filter((row) => Number(row.cantidad) > 0);
+    }
+    return rows;
+  }, [rows, kpi]);
+
+  const run = async (fn: () => Promise<{ ok: boolean; error?: string }>) => {
+    setBusy(true);
+    const res = await fn();
+    setBusy(false);
+    if (!res.ok) {
+      window.alert(res.error || "No se pudo completar.");
+      return;
+    }
+    await reload();
+    if (selected) {
+      const next = await list_req_kardex_action(selected.id, kardexLimit);
+      setKardex(next);
+    }
+  };
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
-      <div>
-        <div className="mb-4 flex flex-wrap gap-2">
-          {TABS.map((key) => (
+    <div className="space-y-5">
+      <ReqDepositosKpis
+        total={total}
+        bajo={bajo}
+        osis={osisCount}
+        active={kpi}
+        showOsis={tab !== "departamento"}
+        onSelect={(key) => {
+          setKpi(key);
+          if (key === "osis") {
+            const first =
+              rows.find((row) => row.deposito !== "departamento") || rows[0];
+            if (first) setSelected(first);
+          }
+        }}
+      />
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="inline-flex rounded-full border border-slate-200 bg-white p-1">
+          {DEPOSITO_TABS.map((key) => (
             <Button
               key={key}
               type="button"
-              variant={tab === key ? "default" : "outline"}
+              variant={tab === key ? "default" : "ghost"}
               size="sm"
+              className="rounded-full"
               onClick={() => setTab(key)}
             >
-              {DEPOSITO_LABEL[key]}
+              {DEPOSITO_TAB_LABEL[key]}
             </Button>
           ))}
         </div>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-gray-50 text-left text-xs uppercase text-gray-500">
-              <th className="p-2">Ítem</th>
-              {tab === "departamento" ? (
-                <th className="p-2">Departamento</th>
-              ) : null}
-              <th className="p-2">Saldo</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr
-                key={row.id}
-                className={`cursor-pointer border-t ${
-                  selected?.id === row.id ? "bg-blue-50" : ""
-                }`}
-                onClick={() => setSelected(row)}
-              >
-                <td className="p-2">{row.nombre_item}</td>
-                {tab === "departamento" ? (
-                  <td className="p-2">{row.departamento || "—"}</td>
-                ) : null}
-                <td className="p-2 font-medium">
-                  {Number(row.cantidad).toFixed(2)} {row.unidad || ""}
-                </td>
-              </tr>
-            ))}
-            {rows.length === 0 ? (
-              <tr>
-                <td className="p-4 text-sm text-gray-500" colSpan={3}>
-                  Este depósito no tiene saldo todavía.
-                </td>
-              </tr>
-            ) : null}
-          </tbody>
-        </table>
+        <div className="flex flex-wrap items-center gap-2">
+          {canEditMinimos && tab !== "todos" ? (
+            <ReqDepositosMinimos
+              deposito={tab}
+              rows={rows}
+              rules={rules}
+              onSave={async (params) => {
+                await run(() =>
+                  upsert_req_stock_minimo_action({ deposito: tab, ...params }),
+                );
+              }}
+              onDelete={async (id) => {
+                await run(() => delete_req_stock_minimo_action(id));
+              }}
+            />
+          ) : null}
+          <ReqDepositosHistorial />
+        </div>
       </div>
-
-      <div className="space-y-4 rounded border border-gray-200 p-3">
-        {!selected ? (
-          <p className="text-sm text-gray-500">
-            Elija un ítem para ver el kardex y registrar salidas.
-          </p>
-        ) : (
-          <>
-            <p className="text-sm font-semibold">{selected.nombre_item}</p>
-            <div className="flex items-end gap-2">
-              <div>
-                <p className="text-[11px] uppercase text-gray-500">Salida</p>
-                <select
-                  className="h-8 rounded border px-2 text-xs"
-                  value={tipo}
-                  onChange={(e) =>
-                    setTipo(e.target.value as (typeof SALIDAS)[number])
-                  }
-                >
-                  {SALIDAS.map((row) => (
-                    <option key={row} value={row}>
-                      {row}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <NumberInput
-                value={qty}
-                min={0}
-                allowDecimal
-                className="h-8 w-24 text-xs"
-                onValueChange={(n) => setQty(n)}
-              />
-              <Button
-                type="button"
-                size="sm"
-                disabled={busy}
-                onClick={async () => {
-                  setBusy(true);
-                  const res = await registrar_salida_stock_action({
-                    id_stock: selected.id,
-                    tipo,
-                    cantidad: qty,
-                  });
-                  setBusy(false);
-                  if (!res.ok) {
-                    alert(res.error || "No se pudo registrar");
-                    return;
-                  }
-                  await reload(tab);
-                  const next = await list_req_stock_action(tab);
-                  setSelected(next.find((r) => r.id === selected.id) || null);
-                }}
-              >
-                Registrar
-              </Button>
-            </div>
-
-            {tab !== "departamento" ? (
-              <div>
-                <p className="mb-1 text-[11px] font-bold uppercase text-gray-500">
-                  Reparto a OSI (desde el último relleno)
-                </p>
-                {osis.length === 0 ? (
-                  <p className="text-xs text-gray-500">
-                    No hay OSI ejecutadas pendientes de confirmar.
-                  </p>
-                ) : (
-                  <ul className="space-y-1">
-                    {osis.map((osi) => (
-                      <li
-                        key={osi.id_osi}
-                        className="flex items-center justify-between gap-2 text-xs"
-                      >
-                        <span>{osi.nro_osi_secuencial}</span>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="h-7 text-[10px]"
-                          disabled={busy}
-                          onClick={async () => {
-                            setBusy(true);
-                            const res = await confirmar_consumo_osi_action({
-                              id_stock: selected.id,
-                              id_osi: osi.id_osi,
-                              cantidad: qty || 1,
-                            });
-                            setBusy(false);
-                            if (!res.ok) {
-                              alert(res.error || "No se pudo confirmar");
-                              return;
-                            }
-                            await reload(tab);
-                            setOsis((prev) =>
-                              prev.filter((row) => row.id_osi !== osi.id_osi),
-                            );
-                          }}
-                        >
-                          Confirmar {qty || 1}
-                        </Button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            ) : null}
-
-            <div>
-              <p className="mb-1 text-[11px] font-bold uppercase text-gray-500">
-                Kardex
-              </p>
-              <ul className="max-h-64 space-y-1 overflow-y-auto text-xs">
-                {kardex.map((row) => (
-                  <li key={row.id} className="flex justify-between gap-2">
-                    <span>
-                      {row.tipo} · {Number(row.cantidad).toFixed(2)}
-                    </span>
-                    <span className="text-gray-500">
-                      {new Date(row.creado_en).toLocaleDateString("es-VE")}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </>
-        )}
+      <div
+        className={
+          selected ? "grid gap-4 lg:grid-cols-2" : "grid grid-cols-1"
+        }
+      >
+        <ReqDepositosItemList
+          rows={loaded ? visible : []}
+          selectedId={selected?.id ?? null}
+          showDepartamento={tab === "departamento"}
+          expanded={!selected}
+          grouped={tab === "todos"}
+          loading={!loaded}
+          onSelect={(row) => {
+            if (selected?.id === row.id) {
+              setSelected(null);
+              return;
+            }
+            setKardexLimit(80);
+            setSelected(row);
+          }}
+        />
+        {selected ? (
+          <ReqDepositosInspector
+            deposito={active_deposito}
+            row={selected}
+            kardex={kardex}
+            osis={osis}
+            ingresos={ingresos}
+            kardex_limit={kardexLimit}
+            busy={busy}
+            can_process={canProcess}
+            restock_open={restockOpen}
+            onInterno={(cantidad) =>
+              selected
+                ? run(() =>
+                    registrar_salida_stock_action({
+                      id_stock: selected.id,
+                      tipo: "gastado",
+                      cantidad,
+                    }),
+                  )
+                : Promise.resolve()
+            }
+            onSalida={(cantidad, ids_osi) =>
+              selected
+                ? run(() =>
+                    confirmar_consumo_osis_prorrateo_action({
+                      id_stock: selected.id,
+                      ids_osi,
+                      cantidad,
+                    }),
+                  )
+                : Promise.resolve()
+            }
+            onDanado={(cantidad) =>
+              selected
+                ? run(() =>
+                    registrar_salida_stock_action({
+                      id_stock: selected.id,
+                      tipo: "danado",
+                      cantidad,
+                      notas: "Dañado / roto",
+                    }),
+                  )
+                : Promise.resolve()
+            }
+            onIngreso={(ingreso) =>
+              run(() =>
+                procesar_ingreso_action({
+                  id_requisicion: ingreso.id_requisicion,
+                  id_linea: ingreso.id_linea,
+                }),
+              )
+            }
+            onRestock={() => {
+              if (!selected) return;
+              const qs = new URLSearchParams({
+                item: String(selected.id_item_costo),
+                deposito: selected.deposito,
+              });
+              router.push(`/requisiciones/create?${qs.toString()}`);
+            }}
+            onMoreKardex={() => setKardexLimit(400)}
+          />
+        ) : null}
       </div>
     </div>
   );

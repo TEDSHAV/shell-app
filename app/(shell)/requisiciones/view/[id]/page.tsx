@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Edit, Lock } from "lucide-react";
 import { hasApproverMaterialDiff } from "@/lib/requisiciones-approver-diff";
 import { canStampAumentoCostos } from "@/lib/requisiciones-gerencia";
+import { es_req_interna } from "@/features/requisiciones/lib/req-destino";
 
 export const metadata = {
   title: "Detalle de Requisición | PRISMA",
@@ -109,11 +110,11 @@ export default async function ViewRequisicionPage({
                 Detalle de Requisición
               </h1>
               <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold uppercase ${
-                record.tipo_solicitud === "Interno"
+                es_req_interna(record)
                   ? "bg-blue-100 text-blue-800"
                   : "bg-green-100 text-green-800"
               }`}>
-                {record.tipo_solicitud === "Interno" ? "Interna" : "Externa"}
+                {es_req_interna(record) ? "Interna" : "Externa"}
               </span>
             </div>
             <p className="text-sm text-gray-600">

@@ -265,7 +265,7 @@ export function SidebarNavClient({
           ) : (
             <Link
               key={app.id}
-              href={app.basePath}
+              href={app.headerHref ?? app.basePath}
               onClick={onClose}
               className={cn(
                 default_link_class,
@@ -495,7 +495,10 @@ export function SidebarNavClient({
                   onClick={() => toggleGroup(item.groupLabel, !isExpanded)}
                   title={item.groupLabel}
                   className={cn(
-                    "w-full flex items-center justify-between px-3 py-2 text-sm font-medium rounded-md transition-colors text-slate-600 hover:text-slate-900 hover:bg-slate-100",
+                    "sidebar-link-item w-full flex items-center justify-between px-3 py-2 text-sm font-medium rounded-md transition-colors",
+                    has_active
+                      ? "is-active"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-100",
                     isCollapsed && "justify-center",
                   )}
                 >
@@ -592,7 +595,7 @@ function GroupedSidebarItem({
           ) : (
             <Link
               key={app.id}
-              href={app.basePath}
+              href={app.headerHref ?? app.basePath}
               onClick={onClose}
               className={cn(default_link_class, "justify-center")}
               title={app.headerLabel ?? app.name}
@@ -610,8 +613,10 @@ function GroupedSidebarItem({
       <button
         onClick={() => setIsOpen((v) => !v)}
         className={cn(
-          "w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-all sidebar-link text-slate-600 hover:text-slate-900 hover:bg-slate-100",
-          anyChildActive && "text-slate-900 font-medium",
+          "sidebar-link-item w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-all sidebar-link",
+          anyChildActive
+            ? "is-active"
+            : "text-slate-600 hover:text-slate-900 hover:bg-slate-100",
         )}
       >
         <group.icon className="h-4 w-4 shrink-0" style={icon_style} />
@@ -646,7 +651,7 @@ function GroupedSidebarItem({
             ) : (
               <Link
                 key={app.id}
-                href={app.basePath}
+                href={app.headerHref ?? app.basePath}
                 onClick={onClose}
                 className={cn(
                   default_link_class,

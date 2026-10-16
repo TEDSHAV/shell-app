@@ -45,8 +45,14 @@ export function ReqDescripcionCombo({
 
   const filtered = useMemo(() => {
     const q = value.trim().toLowerCase();
-    if (!q) return items.slice(0, 8);
-    return items
+    const seen = new Set<number>();
+    const unique = items.filter((row) => {
+      if (seen.has(row.id)) return false;
+      seen.add(row.id);
+      return true;
+    });
+    if (!q) return unique.slice(0, 8);
+    return unique
       .filter((row) => row.nombre_item.toLowerCase().includes(q))
       .slice(0, 8);
   }, [items, value]);
@@ -71,7 +77,7 @@ export function ReqDescripcionCombo({
         <div className="absolute z-40 mt-0.5 max-h-40 w-full overflow-y-auto rounded border border-gray-300 bg-white shadow">
           {filtered.map((row) => (
             <button
-              key={row.id}
+              key={`${row.id}-${row.ambito_catalogo}`}
               type="button"
               className="flex w-full items-start justify-between gap-2 px-2 py-1 text-left text-[11px] hover:bg-blue-50"
               onMouseDown={(e) => e.preventDefault()}

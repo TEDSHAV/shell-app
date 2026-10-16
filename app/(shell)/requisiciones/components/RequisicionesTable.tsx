@@ -18,6 +18,7 @@ import {
   getRequisicionDisplayDate,
   isPendingForCurrentApprover,
 } from "@/lib/requisiciones-gerencia";
+import { es_req_interna } from "@/features/requisiciones/lib/req-destino";
 import { Search, X, ChevronLeft, ChevronRight } from "lucide-react";
 
 const PAGE_SIZE_OPTIONS = [10, 30, 50];
@@ -37,10 +38,7 @@ const EMPTY_FILTERS: RequisicionFilters = {
 };
 
 function isInterna(record: any): boolean {
-  return (
-    record.tipo_solicitud === "Interno" ||
-    (!record.tipo_solicitud && !record.id_osi)
-  );
+  return es_req_interna(record);
 }
 
 export default function RequisicionesTable({
