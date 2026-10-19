@@ -2,6 +2,7 @@ import type { PrismaKpis, RatioKpi } from "../lib/prisma-kpis";
 import {
   PRISMA_ALCANCE_LEVANTADO_PCT,
   PRISMA_ALCANCE_NOTA,
+  PRISMA_INCUMPLIMIENTO_INTRO,
 } from "../lib/prisma-kpis";
 
 function RatioStat({
@@ -106,6 +107,11 @@ export function PrismaKpiStrip({
 }) {
   return (
     <div className="space-y-3">
+      {alcance_publico ? (
+        <p className="px-0.5 text-sm font-medium leading-relaxed text-slate-700">
+          {PRISMA_INCUMPLIMIENTO_INTRO}
+        </p>
+      ) : null}
       <div
         className={`grid grid-cols-2 gap-3 sm:grid-cols-3 ${
           alcance_publico ? "lg:grid-cols-6" : "lg:grid-cols-5"

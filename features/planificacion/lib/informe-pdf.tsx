@@ -1,7 +1,11 @@
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
-import type { InformeMonth } from "../actions/informe-actions";
-import { format_month_label } from "../lib/plan-month";
-import { ORIGIN_LABELS } from "../lib/display";
+import type { InformeMonth } from "./informe-types";
+import { format_month_label } from "./plan-month";
+import { ORIGIN_LABELS } from "./display";
+import {
+  format_analisis_for_display,
+  parse_analisis_texto,
+} from "./informe-analisis";
 
 const styles = StyleSheet.create({
   page: { padding: 32, fontSize: 10, fontFamily: "Helvetica", color: "#1e293b" },
@@ -21,6 +25,7 @@ const styles = StyleSheet.create({
   row: { marginBottom: 8, paddingBottom: 6, borderBottomWidth: 1, borderBottomColor: "#f1f5f9" },
   objTitle: { fontSize: 11, fontWeight: 700 },
   task: { fontSize: 9, color: "#475569", marginTop: 2 },
+  analisis: { fontSize: 9, color: "#334155", lineHeight: 1.4, marginTop: 4 },
 });
 
 export function InformePdfDocument({
@@ -48,6 +53,22 @@ export function InformePdfDocument({
             <Text style={styles.kpiValue}>{data.plus_count}</Text>
           </View>
         </View>
+        {data.analisis_texto?.trim() ? (
+          <View>
+            <Text style={styles.heading}>Análisis y evaluación</Text>
+            <Text style={styles.analisis}>
+              {format_analisis_for_display(
+                parse_analisis_texto(data.analisis_texto) ?? {
+                  version: 1,
+                  notas_cumplimiento: "",
+                  incumplimientos: [],
+                  notas_extras: "",
+                  observaciones: data.analisis_texto,
+                },
+              )}
+            </Text>
+          </View>
+        ) : null}
         <Text style={styles.heading}>Compromiso</Text>
         {data.objetivos.length === 0 ? (
           <Text style={styles.muted}>Sin objetivos en este mes.</Text>

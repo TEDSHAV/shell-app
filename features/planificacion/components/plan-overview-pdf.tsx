@@ -12,9 +12,12 @@ import {
   PRISMA_ALCANCE_LEVANTADO_PCT,
   PRISMA_ALCANCE_NOTA,
   PRISMA_APP_ALCANCE_NOTA,
+  PRISMA_INCUMPLIMIENTO_INTRO,
+  PRISMA_PLANNED_PUBLIC_LABEL,
   is_plan_app_alcance_parcial,
   prisma_kpis_from_tareas,
   prisma_plan_rango,
+  prisma_salud_label,
   type RatioKpi,
 } from "../lib/prisma-kpis";
 import { sort_tareas_adicional_last } from "../lib/sort-tareas";
@@ -194,7 +197,8 @@ function AppBlock({
         <View style={styles.appHead}>
           <Text style={styles.appName}>{app.nombre}</Text>
           <Text style={styles.appMeta}>
-            {app.progress}% · {app.salud}
+            {app.progress}% ·{" "}
+            {prisma_salud_label(app.salud, alcance_publico, true)}
             {alcance_publico
               ? ` · ${lead ? owner_label(lead.nombre) : "Sin asignar"}`
               : ""}
@@ -230,7 +234,11 @@ function AppBlock({
               tareas={modulo.tareas.filter((t) => is_tarea_in_progress(t))}
             />
             <TaskLines
-              title="Planificado"
+              title={
+                alcance_publico
+                  ? PRISMA_PLANNED_PUBLIC_LABEL
+                  : "Planificado"
+              }
               tareas={modulo.tareas.filter((t) => is_tarea_planned(t))}
             />
             <TaskLines
@@ -278,6 +286,9 @@ export function PlanOverviewPdfDocument({
 
         {captured_at ? (
           <View>
+            <View style={styles.alcanceBox} wrap={false}>
+              <Text style={styles.kpiNote}>{PRISMA_INCUMPLIMIENTO_INTRO}</Text>
+            </View>
             <View style={styles.kpiRow} wrap={false}>
               <KpiCell label="Tareas" value={kpis.tareas} />
               <KpiCell label="Plan inicial" value={kpis.plan} />

@@ -8,8 +8,10 @@ import { average_avance, is_tarea_pending } from "../lib/task-progress";
 import { user_initials } from "../lib/display";
 import { unique_people } from "../lib/people";
 import type {
+  CubrirWorkspace,
   PlanApp,
   PlanObjetivo,
+  PlanObjetivoCover,
   PlanObjetivoEstado,
   PlanOrigen,
   PlanParticipante,
@@ -55,20 +57,6 @@ type ObjetivoRow = {
   estado: PlanObjetivoEstado;
   created_by: number | null;
   solicitado_por: number | null;
-};
-
-export type PlanObjetivoCover = PlanObjetivo & { tareas: PlanTarea[] };
-
-export type CubrirWorkspace = {
-  mes: string;
-  plan_mes: PlanMes;
-  unpublished_hidden: boolean;
-  current_user_id: number | null;
-  objetivos: PlanObjetivoCover[];
-  sueltas: PlanTarea[];
-  apps: Array<{ id: number; nombre: string }>;
-  plan_apps: PlanApp[];
-  usuarios: PlanUsuarioOption[];
 };
 
 function sorted_ids(ids: number[]): number[] {

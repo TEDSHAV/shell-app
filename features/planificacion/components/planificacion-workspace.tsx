@@ -304,6 +304,7 @@ export function PlanificacionWorkspace({
         counts={counts}
         origin_counts={origin_counts}
         usuarios={usuarios}
+        public_labels={read_only}
         on_change={(next) => set_query((prev) => ({ ...prev, ...next }))}
       />
 

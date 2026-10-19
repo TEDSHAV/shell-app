@@ -22,6 +22,10 @@ import {
 } from "../lib/plan-selection";
 import { PlanPeopleBadges } from "./plan-assignee-chip";
 import { people_on_modulo } from "../lib/people";
+import {
+  PRISMA_PLANNED_PUBLIC_LABEL,
+  prisma_salud_label,
+} from "../lib/prisma-kpis";
 
 export function PlanificacionModuleRow({
   modulo,
@@ -102,10 +106,17 @@ export function PlanificacionModuleRow({
             ) : null}
           </div>
           <div
-            className={`flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${sc.bg} ${sc.text}`}
+            className={`flex max-w-[11rem] shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${sc.bg} ${sc.text}`}
+            title={
+              read_only && modulo.salud === "Planificado"
+                ? prisma_salud_label(modulo.salud, true)
+                : undefined
+            }
           >
             <span className={`h-1.5 w-1.5 rounded-full ${sc.dot}`} />
-            {modulo.salud}
+            <span className="leading-tight">
+              {prisma_salud_label(modulo.salud, read_only, true)}
+            </span>
           </div>
           <div className="flex min-w-0 flex-1 items-center gap-3">
             <div className="h-2 flex-1 overflow-hidden rounded-full bg-gray-100">
@@ -169,6 +180,9 @@ export function PlanificacionModuleRow({
                 planned={planned}
                 skipped={skipped}
                 read_only={read_only}
+                planned_label={
+                  read_only ? PRISMA_PLANNED_PUBLIC_LABEL : "Planificado"
+                }
                 select_mode={select_mode}
                 selected={selected}
                 on_toggle_task={on_toggle_task}

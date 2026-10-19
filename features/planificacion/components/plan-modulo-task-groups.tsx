@@ -197,6 +197,7 @@ export function PlanModuloTaskGroups({
   select_mode,
   selected,
   read_only,
+  planned_label = "Planificado",
   on_toggle_task,
   on_edit_tarea,
 }: {
@@ -207,6 +208,8 @@ export function PlanModuloTaskGroups({
   select_mode?: boolean;
   selected?: Set<number>;
   read_only?: boolean;
+  /** Solo foto pública: «No logrado / Sin cumplimiento / Fuera de alcance». */
+  planned_label?: string;
   on_toggle_task?: (tarea_id: number) => void;
   on_edit_tarea: (tarea: PlanTarea) => void;
 }) {
@@ -235,7 +238,7 @@ export function PlanModuloTaskGroups({
         on_edit_tarea={on_edit_tarea}
       />
       <Group
-        title="Planificado"
+        title={planned_label}
         dot="bg-slate-400"
         tareas={planned}
         variant="planned"

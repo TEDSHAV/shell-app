@@ -20,6 +20,7 @@ import { people_on_modulos, top_contributor_on_modulos } from "../lib/people";
 import {
   is_plan_app_alcance_parcial,
   PRISMA_APP_ALCANCE_NOTA,
+  prisma_salud_label,
 } from "../lib/prisma-kpis";
 
 export function PlanificacionAppRow({
@@ -111,10 +112,17 @@ export function PlanificacionAppRow({
             </p>
           </div>
           <div
-            className={`flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${sc.bg} ${sc.text}`}
+            className={`flex max-w-[11rem] shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${sc.bg} ${sc.text}`}
+            title={
+              read_only && app.salud === "Planificado"
+                ? prisma_salud_label(app.salud, true)
+                : undefined
+            }
           >
             <span className={`h-1.5 w-1.5 rounded-full ${sc.dot}`} />
-            {app.salud}
+            <span className="leading-tight">
+              {prisma_salud_label(app.salud, read_only, true)}
+            </span>
           </div>
           <div className="flex min-w-0 flex-1 items-center gap-3">
             <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">

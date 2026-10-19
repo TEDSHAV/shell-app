@@ -1,28 +1,20 @@
-import { load_cubrir_workspace, type PlanObjetivoCover } from "./objetivo-actions";
-import { flatten_plan_tasks, type FlatPlanTask } from "../lib/flatten-plan-tasks";
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { load_cubrir_workspace } from "./objetivo-actions";
+import { flatten_plan_tasks } from "../lib/flatten-plan-tasks";
 import { is_tarea_done, is_tarea_no_solicitada } from "../lib/task-progress";
 import { iso_date } from "../lib/task-dates";
 import { month_bounds, parse_plan_month } from "../lib/plan-month";
-import { empty_plan_mes, type PlanMes } from "../lib/plan-mes";
-
-export type InformePlusItem = {
-  id: number;
-  titulo: string;
-  origen: FlatPlanTask["tarea"]["origen"];
-  avance: number;
-  app_nombre: string;
-  modulo_nombre: string;
-};
-
-export type InformeMonth = {
-  mes: string;
-  plan_mes?: PlanMes;
-  unpublished_hidden?: boolean;
-  compromiso_pct: number;
-  plus_count: number;
-  objetivos: PlanObjetivoCover[];
-  plus: InformePlusItem[];
-};
+import { empty_plan_mes } from "../lib/plan-mes";
+import { people_on_tarea } from "../lib/people";
+import { ensure_plan_mes } from "../lib/plan-mes-db";
+import { require_objetivos_write_context } from "./assert-ted";
+import {
+  as_informe_snapshot,
+  type InformeMonth,
+  type InformePlusItem,
+} from "../lib/informe-types";
 
 function in_month(iso: string | null | undefined, start: string, end: string): boolean {
   if (!iso) return false;
@@ -55,6 +47,8 @@ export async function load_informe_month(
       avance: tarea.avance,
       app_nombre,
       modulo_nombre,
+      asignado_ids: people_on_tarea(tarea).map((p) => p.usuario_id),
+      tarea,
     }));
 
   const objetivos = cover.data.objetivos;
@@ -65,18 +59,42 @@ export async function load_informe_month(
           objetivos.reduce((sum, item) => sum + item.avance, 0) / objetivos.length,
         );
 
+  const plan_mes = cover.data.plan_mes ?? empty_plan_mes(mes);
+
   return {
     ok: true,
     data: {
       mes,
-      plan_mes: cover.data.plan_mes ?? empty_plan_mes(mes),
+      plan_mes,
       unpublished_hidden: cover.data.unpublished_hidden,
       compromiso_pct,
       plus_count: plus.length,
       objetivos,
       plus,
+      analisis_texto: plan_mes.analisis_texto ?? null,
     },
   };
+}
+
+export async function save_informe_analisis(
+  mes_raw: string,
+  texto: string,
+): Promise<{ ok: true; analisis_texto: string } | { ok: false; error: string }> {
+  const gate = await require_objetivos_write_context();
+  if (!gate.ok) return gate;
+  const mes = parse_plan_month(mes_raw);
+  const trimmed = texto.trim();
+  await ensure_plan_mes(gate.ctx.supabase, mes);
+  const { error } = await gate.ctx.supabase
+    .from("ted_plan_mes" as never)
+    .update({ analisis_texto: trimmed || null } as never)
+    .eq("mes", mes);
+  if (error) {
+    console.error("[planificacion] save analisis:", error);
+    return { ok: false, error: "No se pudo guardar el análisis." };
+  }
+  revalidatePath("/ted/planificacion/informe");
+  return { ok: true, analisis_texto: trimmed };
 }
 
 export async function load_public_informe(
@@ -105,14 +123,4 @@ export async function load_public_informe(
     return { ok: false, error: "Esta foto no es un informe." };
   }
   return { ok: true, data: payload, captured_at: row.created_at };
-}
-
-export function as_informe_snapshot(value: unknown): InformeMonth | null {
-  if (!value || typeof value !== "object") return null;
-  const row = value as { kind?: string; mes?: string; objetivos?: unknown; plus?: unknown };
-  if (row.kind !== "informe") return null;
-  if (typeof row.mes !== "string" || !Array.isArray(row.objetivos) || !Array.isArray(row.plus)) {
-    return null;
-  }
-  return value as InformeMonth;
 }

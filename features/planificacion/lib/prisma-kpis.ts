@@ -28,6 +28,27 @@ export const PRISMA_ALCANCE_NOTA =
 export const PRISMA_APP_ALCANCE_NOTA =
   "Este % se lee sobre el 70% de alcance previsto hasta hoy.";
 
+/** Solo foto pública / PDF capturado: enunciado sobre ítems no ejecutados. */
+export const PRISMA_INCUMPLIMIENTO_INTRO =
+  "Se describen las actividades no ejecutadas como incumplimiento en los ítems planificados";
+
+/** Solo foto pública / PDF capturado: reemplaza el título de grupo «Planificado». */
+export const PRISMA_PLANNED_PUBLIC_LABEL =
+  "No logrado / Sin cumplimiento / Fuera de alcance";
+
+/** Versión corta para chips de filtro (el title lleva el texto completo). */
+export const PRISMA_PLANNED_PUBLIC_CHIP = "Sin cumplimiento";
+
+/** Etiqueta de salud visible en foto pública / PDF. */
+export function prisma_salud_label(
+  salud: string,
+  public_view: boolean,
+  compact = false,
+): string {
+  if (!public_view || salud !== "Planificado") return salud;
+  return compact ? PRISMA_PLANNED_PUBLIC_CHIP : PRISMA_PLANNED_PUBLIC_LABEL;
+}
+
 export function fold_plan_label(nombre: string): string {
   return nombre
     .normalize("NFD")

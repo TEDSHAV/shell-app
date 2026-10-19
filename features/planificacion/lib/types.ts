@@ -93,6 +93,8 @@ export type PlanTarea = {
   sync_avance_checklist: boolean;
 };
 
+export type PlanObjetivoCover = PlanObjetivo & { tareas: PlanTarea[] };
+
 export type PlanModulo = {
   id: number;
   app_id: number;
@@ -134,5 +136,17 @@ export type PlanUsuarioOption = {
 
 export type PlanWorkspaceData = {
   apps: PlanApp[];
+  usuarios: PlanUsuarioOption[];
+};
+
+export type CubrirWorkspace = {
+  mes: string;
+  plan_mes: import("./plan-mes").PlanMes;
+  unpublished_hidden: boolean;
+  current_user_id: number | null;
+  objetivos: PlanObjetivoCover[];
+  sueltas: PlanTarea[];
+  apps: Array<{ id: number; nombre: string }>;
+  plan_apps: PlanApp[];
   usuarios: PlanUsuarioOption[];
 };

@@ -14,7 +14,7 @@ import { ObjetivoParaMiToggle } from "./objetivo-para-mi-toggle";
 import { people_on_tarea } from "../lib/people";
 import { tarea_avance } from "../lib/task-progress";
 import { vincular_tarea_objetivo } from "../actions/objetivo-actions";
-import type { CubrirWorkspace } from "../actions/objetivo-actions";
+import type { CubrirWorkspace } from "../lib/types";
 import type { PlanModulo, PlanTarea } from "../lib/types";
 
 export function CubrirWorkspace({

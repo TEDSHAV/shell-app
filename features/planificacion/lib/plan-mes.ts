@@ -8,6 +8,7 @@ export type PlanMes = {
   version: number;
   emitido_at: string | null;
   emitido_por: number | null;
+  analisis_texto: string | null;
 };
 
 export type PlanObjetivoResumen = {
@@ -25,6 +26,7 @@ export function empty_plan_mes(mes: string): PlanMes {
     version: 0,
     emitido_at: null,
     emitido_por: null,
+    analisis_texto: null,
   };
 }
 
