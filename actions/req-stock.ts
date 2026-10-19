@@ -147,6 +147,8 @@ export async function lookup_stock_for_items_action(params: {
     minimo: number;
     unidad: string | null;
     nombre_item: string;
+    deposito: ReqDeposito;
+    departamento: string | null;
   }>
 > {
   if (!(await can_view_depositos())) return [];
@@ -162,7 +164,7 @@ export async function lookup_stock_for_items_action(params: {
       ) {
         return Number(row.id_departamento) === params.id_departamento;
       }
-      return true;
+      return row.deposito === params.deposito;
     })
     .map((row) => ({
       id_stock: row.id,
@@ -171,6 +173,8 @@ export async function lookup_stock_for_items_action(params: {
       minimo: row.minimo ?? 1,
       unidad: row.unidad,
       nombre_item: row.nombre_item,
+      deposito: row.deposito,
+      departamento: row.departamento ?? null,
     }));
 }
 

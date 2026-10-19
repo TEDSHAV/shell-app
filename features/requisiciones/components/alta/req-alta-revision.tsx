@@ -8,10 +8,11 @@ import {
   req_interna_fuera_ventana,
   texto_aviso_ventana,
 } from "../../lib/req-ventana-mensual";
-import type {
-  CajonPedido,
-  CatalogAmbitoPedido,
-  ClasePedido,
+import {
+  deposito_stock_from_clase,
+  type CajonPedido,
+  type CatalogAmbitoPedido,
+  type ClasePedido,
 } from "../../lib/req-destino";
 import {
   empty_linea_draft,
@@ -22,6 +23,7 @@ import {
 import { RequisicionAumentoCostosPanel } from "@/app/(shell)/requisiciones/components/RequisicionAumentoCostosPanel";
 import { ReqAltaCabecera } from "./req-alta-cabecera";
 import { ReqAltaTablaDetalles } from "./req-alta-tabla-detalles";
+import { ReqAltaStockAnalisis } from "./req-alta-stock-analisis";
 
 export function ReqAltaRevision({
   clase,
@@ -203,17 +205,28 @@ export function ReqAltaEstatusFinal({
             </span>
           </label>
           {emit_hermana ? (
-            <div className="overflow-hidden rounded-md border border-gray-300 bg-white">
-              <ReqAltaTablaDetalles
-                modo="editar"
-                mostrar_osi={false}
-                osi_fixed={[]}
+            <div className="space-y-3">
+              <div className="overflow-hidden rounded-md border border-gray-300 bg-white">
+                <ReqAltaTablaDetalles
+                  modo="editar"
+                  mostrar_osi={false}
+                  osi_fixed={[]}
+                  lineas={hermana}
+                  on_lineas={on_hermana}
+                  cajon="inventario"
+                  ambito={ambito_hermana}
+                  id_departamento={id_departamento}
+                  departamento_nombre={form.departamento}
+                />
+              </div>
+              <ReqAltaStockAnalisis
+                deposito={deposito_stock_from_clase(
+                  "servicio_inventario",
+                  ambito_hermana,
+                )}
+                id_departamento={null}
                 lineas={hermana}
                 on_lineas={on_hermana}
-                cajon="inventario"
-                ambito={ambito_hermana}
-                id_departamento={id_departamento}
-                departamento_nombre={form.departamento}
               />
             </div>
           ) : null}

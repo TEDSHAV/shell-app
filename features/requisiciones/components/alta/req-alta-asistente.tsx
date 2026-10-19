@@ -14,6 +14,7 @@ import { osi_fixed_line_total } from "@/lib/requisicion-osi-clone";
 import {
   ambito_from_tipo_servicio,
   ambito_pedido_req,
+  deposito_stock_from_clase,
   cajon_from_clase,
   clase_from_destino,
   type ClasePedido,
@@ -297,8 +298,9 @@ export function ReqAltaAsistente({
             form={form}
             on_form={setForm}
             id_departamento={Number(userData?.departamento) || null}
-            deposito_stock={restock?.deposito ?? "departamento"}
-            abastecer_inicial={abastecer || Boolean(restock)}
+            deposito_stock={
+              restock?.deposito ?? deposito_stock_from_clase(clase, ambito)
+            }
             osis={osis}
             osi_sessions={osiSessions}
             osi={osi}

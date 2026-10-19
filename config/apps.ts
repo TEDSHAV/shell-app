@@ -807,17 +807,19 @@ export const apps: AppConfig[] = [
         icon: ClipboardList,
         collapsible: "always",
         links: [
+          // Shell nativo + ?from= (no iframe Cap): evita quedarse en Inventario
+          // con URL de create por pushState.
           {
             label: "Mis Requisiciones",
-            path: "/dashboard/capacitacion/requisiciones",
+            path: "/",
+            href: "/requisiciones?from=capacitacion",
             icon: ClipboardList,
-            requiredPermissions: ["scapacitacion:all:access"],
           },
           {
             label: "Nueva Requisición",
-            path: "/dashboard/capacitacion/requisiciones/create",
+            path: "/create",
+            href: "/requisiciones/create?from=capacitacion",
             icon: FilePlus2,
-            requiredPermissions: ["scapacitacion:all:access"],
           },
           {
             label: "Inventario",

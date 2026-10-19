@@ -157,3 +157,15 @@ export function etiqueta_hermana(clase: ClasePedido | null): string {
   if (clase === "servicio_inventario") return "Va con req de curso";
   return "";
 }
+
+/** Depósito de stock a consultar en el alta según clase/ámbito. */
+export function deposito_stock_from_clase(
+  clase: ClasePedido,
+  ambito: CatalogAmbitoPedido,
+): "departamento" | "capacitacion" | "tecnico" {
+  if (clase === "servicio_inventario") {
+    return ambito === "tecnico" ? "tecnico" : "capacitacion";
+  }
+  return "departamento";
+}
+
