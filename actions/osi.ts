@@ -27,6 +27,7 @@ import type {
   OSISession,
   OSISessionsFinalCheck,
   SessionExecutionPayload,
+  OsiNota,
 } from "@/types/osi";
 import { OSI_STATUS_EJECUTADO_ID } from "@/types/osi";
 
@@ -260,7 +261,7 @@ export async function getOSIList(
 
     const adminClientPromise = pageOsiIds.length > 0 ? createAdminClient() : null;
 
-    const [statuses, cityResult, visibleOsiIds, sesionesProgramadasResult, attachmentResult] = await Promise.all([
+    const [statuses, cityResult, visibleOsiIds, sesionesProgramadasResult, attachmentResult, notasResult] = await Promise.all([
       getOSIStatuses(await peek_dev_db_target()),
       uniqueCityIds.length > 0
         ? supabase
@@ -284,6 +285,41 @@ export async function getOSIList(
               .eq("is_active", true)
           )
         : Promise.resolve({ data: null }),
+      adminClientPromise
+        ? adminClientPromise.then(async (admin) => {
+            const { data: notas } = await admin
+              .from("capacitacion_osi_notas")
+              .select("id, osi_id, nota, created_at, created_by")
+              .in("osi_id", pageOsiIds)
+              .order("created_at", { ascending: false });
+
+            if (!notas || notas.length === 0) return { data: [] };
+
+            const userIds = [
+              ...new Set(notas.map((n: any) => n.created_by).filter(Boolean)),
+            ] as string[];
+            const userNameMap = new Map<string, string>();
+            if (userIds.length > 0) {
+              const { data: usuarios } = await admin
+                .from("usuarios")
+                .select("id_auth, nombre")
+                .in("id_auth", userIds);
+              for (const u of usuarios || []) {
+                if (u.id_auth && u.nombre) userNameMap.set(u.id_auth, u.nombre);
+              }
+            }
+
+            return {
+              data: notas.map((n: any) => ({
+                id: n.id as number,
+                osiId: n.osi_id as number,
+                nota: n.nota as string,
+                createdAt: n.created_at as string,
+                autorNombre: n.created_by ? userNameMap.get(n.created_by) ?? null : null,
+              })),
+            };
+          })
+        : Promise.resolve({ data: [] }),
     ]);
 
     const statusMap = new Map(statuses.map((s) => [s.id, s]));
@@ -304,6 +340,14 @@ export async function getOSIList(
         at: row.attachment_received_at ?? null,
         by: row.attachment_received_by ?? null,
       });
+    }
+
+    // Map notas by osi_id
+    const notasByOsi = new Map<number, OsiNota[]>();
+    for (const n of ((notasResult as any)?.data || []) as OsiNota[]) {
+      const existing = notasByOsi.get(n.osiId) || [];
+      existing.push(n);
+      notasByOsi.set(n.osiId, existing);
     }
 
     const enrichedOSIs: OSIListItem[] = (data || []).map((osi: any) => {
@@ -331,6 +375,7 @@ export async function getOSIList(
         attachment_received: attachment?.received ?? false,
         attachment_received_at: attachment?.at ?? null,
         attachment_received_by: attachment?.by ?? null,
+        notas: osi.id_osi ? notasByOsi.get(osi.id_osi) ?? [] : [],
       };
     });
 
@@ -1467,5 +1512,107 @@ export async function checkAllSessionsFinal(
   } catch (err) {
     console.error("Unexpected error in checkAllSessionsFinal:", err);
     return { allFinal: false, totalSessions: 0, finalCount: 0 };
+  }
+}
+
+export async function addOsiNota(
+  osiId: number,
+  nota: string,
+): Promise<{ success: boolean; data?: OsiNota; error?: string }> {
+  if (!Number.isFinite(osiId) || osiId <= 0) {
+    return { success: false, error: "OSI id inválido" };
+  }
+
+  const trimmed = (nota ?? "").trim();
+  if (!trimmed) {
+    return { success: false, error: "La nota no puede estar vacía" };
+  }
+
+  if (trimmed.length > 2000) {
+    return { success: false, error: "La nota no puede exceder 2000 caracteres" };
+  }
+
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    const userId = user?.id ?? null;
+
+    const admin = await createAdminClient();
+
+    const { data: inserted, error: insertError } = await admin
+      .from("capacitacion_osi_notas")
+      .insert({
+        osi_id: osiId,
+        nota: trimmed,
+        created_by: userId,
+      })
+      .select("id, osi_id, nota, created_at, created_by")
+      .single();
+
+    if (insertError) {
+      console.error("[actions/osi] Error inserting nota:", insertError);
+      return { success: false, error: insertError.message };
+    }
+
+    let autorNombre: string | null = null;
+    if (userId) {
+      const { data: usuario } = await admin
+        .from("usuarios")
+        .select("nombre")
+        .eq("id_auth", userId)
+        .single();
+      autorNombre = usuario?.nombre ?? null;
+    }
+
+    await clearOsiListServerCache();
+
+    return {
+      success: true,
+      data: {
+        id: inserted.id as number,
+        osiId: inserted.osi_id as number,
+        nota: inserted.nota as string,
+        createdAt: inserted.created_at as string,
+        autorNombre,
+      },
+    };
+  } catch (err) {
+    console.error("[actions/osi] Unexpected error adding nota:", err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Error desconocido",
+    };
+  }
+}
+
+export async function deleteOsiNota(
+  notaId: number,
+): Promise<{ success: boolean; error?: string }> {
+  if (!Number.isFinite(notaId) || notaId <= 0) {
+    return { success: false, error: "Nota id inválido" };
+  }
+
+  try {
+    const admin = await createAdminClient();
+    const { error: deleteError } = await admin
+      .from("capacitacion_osi_notas")
+      .delete()
+      .eq("id", notaId);
+
+    if (deleteError) {
+      console.error("[actions/osi] Error deleting nota:", deleteError);
+      return { success: false, error: deleteError.message };
+    }
+
+    await clearOsiListServerCache();
+    return { success: true };
+  } catch (err) {
+    console.error("[actions/osi] Unexpected error deleting nota:", err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Error desconocido",
+    };
   }
 }
