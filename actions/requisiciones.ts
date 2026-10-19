@@ -777,10 +777,12 @@ export async function getRequisicionRecord(id: number) {
       (async () => {
         const { data: dept } = await supabase
           .from("departamentos")
-          .select("gerencia")
+          .select("id, gerencia")
           .ilike("nombre", data.departamento!)
           .maybeSingle();
         (data as Record<string, unknown>).gerencia_display = dept?.gerencia || data.gerencia_solicitante || null;
+        (data as Record<string, unknown>).id_departamento =
+          dept?.id != null ? Number(dept.id) : null;
       })(),
     );
   } else {

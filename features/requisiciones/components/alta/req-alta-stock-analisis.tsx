@@ -12,6 +12,7 @@ import { stock_nivel } from "../../lib/req-stock-status";
 import { DEPOSITO_LABEL, type ReqDeposito } from "../../lib/req-stock-types";
 import type { ReqLineaDraft } from "../../lib/req-lineas-types";
 import { StockNivelBadge } from "../depositos/req-stock-ui";
+import { ReqStockAnalisisHistorial } from "./req-stock-analisis-historial";
 
 type StockHit = {
   id_stock: number;
@@ -39,9 +40,72 @@ function bump_req_qty(
   if (idx < 0) return lineas;
   const next = [...lineas];
   const row = next[idx];
-  const cantidad = Math.max(0.001, Number(row.cantidad || 0) + delta);
+  // Enteros limpios: evita residuos tipo 0.001 → 1.001 → 2.001
+  const base = Math.max(1, Math.round(Number(row.cantidad || 0)));
+  const cantidad = Math.max(1, base + delta);
   next[idx] = { ...row, cantidad };
   return next;
+}
+
+function Stepper({
+  value,
+  label,
+  tone,
+  disabled_minus,
+  disabled_plus,
+  hide_plus,
+  on_minus,
+  on_plus,
+}: {
+  value: string;
+  label: string;
+  tone: "slate" | "rose" | "emerald";
+  disabled_minus: boolean;
+  disabled_plus: boolean;
+  /** Si true, no se muestra el + (p. ej. ya estás en el stock real). */
+  hide_plus?: boolean;
+  on_minus: () => void;
+  on_plus: () => void;
+}) {
+  const value_cls =
+    tone === "rose"
+      ? "text-rose-700"
+      : tone === "emerald"
+        ? "text-emerald-800"
+        : "text-slate-900";
+
+  return (
+    <div className="flex items-center gap-2">
+      <Button
+        type="button"
+        variant="outline"
+        disabled={disabled_minus}
+        className="h-11 w-11 shrink-0 rounded-xl"
+        aria-label={`Bajar ${label}`}
+        onClick={on_minus}
+      >
+        <Minus className="h-5 w-5" />
+      </Button>
+      <div className="min-w-[4.5rem] text-center">
+        <p className={`text-xl font-bold tabular-nums ${value_cls}`}>{value}</p>
+        <p className="text-[10px] leading-tight text-slate-500">{label}</p>
+      </div>
+      {hide_plus ? (
+        <span className="h-11 w-11 shrink-0" aria-hidden />
+      ) : (
+        <Button
+          type="button"
+          variant="outline"
+          disabled={disabled_plus}
+          className="h-11 w-11 shrink-0 rounded-xl"
+          aria-label={`Subir ${label}`}
+          onClick={on_plus}
+        >
+          <Plus className="h-5 w-5" />
+        </Button>
+      )}
+    </div>
+  );
 }
 
 export function ReqAltaStockAnalisis({
@@ -61,6 +125,8 @@ export function ReqAltaStockAnalisis({
   /** Consumo pendiente por id_stock (aún no guardado en BD). */
   const [consumo, setConsumo] = useState<Record<number, number>>({});
   const [aviso, setAviso] = useState<string | null>(null);
+  /** Token para refrescar historial tras un consumo confirmado. */
+  const [historial_tick, setHistorialTick] = useState(0);
 
   const ids = useMemo(
     () =>
@@ -136,6 +202,7 @@ export function ReqAltaStockAnalisis({
     setAviso(
       `Stock actualizado: −${cantidad.toFixed(2)} ${hit.unidad || "und"} (consumo).`,
     );
+    setHistorialTick((n) => n + 1);
     const next = await lookup_stock_for_items_action({
       ids_item: ids,
       deposito,
@@ -155,8 +222,8 @@ export function ReqAltaStockAnalisis({
             Stock actual de estos ítems
           </p>
           <p className="text-xs text-slate-500">
-            − resta del stock (consumo). + suma a lo pedido en la requisición.
-            Confirmá el consumo con «Actualizar stock».
+            Dos ajustes aparte: el pedido de la requisición, y el consumo de lo
+            que ya tenés en stock.
           </p>
         </div>
       </div>
@@ -217,141 +284,151 @@ export function ReqAltaStockAnalisis({
                   </div>
                 </div>
 
-                <div className="mt-3 space-y-1.5 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
-                  <p>
-                    Pedís en la requisición{" "}
+                {/* Cuenta clara: stock − consumo + pedido */}
+                <div className="mt-3 grid grid-cols-3 gap-2 rounded-lg bg-slate-50 px-3 py-2.5 text-center text-xs text-slate-600">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wide text-slate-400">
+                      Stock
+                    </p>
+                    <p className="text-base font-bold tabular-nums text-slate-900">
+                      {hit.cantidad.toFixed(0)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wide text-slate-400">
+                      − Consumo
+                    </p>
+                    <p
+                      className={`text-base font-bold tabular-nums ${
+                        pending > 0 ? "text-rose-700" : "text-slate-400"
+                      }`}
+                    >
+                      {pending > 0 ? `−${pending.toFixed(0)}` : "0"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wide text-slate-400">
+                      + Pedido
+                    </p>
+                    <p className="text-base font-bold tabular-nums text-emerald-800">
+                      {pedida.toFixed(0)}
+                    </p>
+                  </div>
+                  <div className="col-span-3 border-t border-slate-200 pt-2 text-sm text-slate-700">
+                    Quedarían{" "}
                     <span className="font-semibold tabular-nums">
-                      {pedida.toFixed(2)} {und}
+                      {stock_tras.toFixed(2)}
                     </span>
-                    {pending > 0 ? (
+                    {pedida > 0 ? (
                       <>
-                        {" · "}consumo pendiente{" "}
-                        <span className="font-semibold tabular-nums text-rose-700">
-                          −{pending.toFixed(2)}
-                        </span>
-                      </>
-                    ) : null}
-                  </p>
-                  <p className="text-xs leading-relaxed text-slate-600">
-                    {pending > 0 ? (
-                      <>
-                        Tras consumir:{" "}
-                        <span className="font-semibold tabular-nums">
-                          {stock_tras.toFixed(2)}
-                        </span>
-                        {pedida > 0 ? (
-                          <>
-                            {" "}
-                            + pedido ({pedida.toFixed(2)}) →{" "}
-                            <span className="font-semibold tabular-nums text-emerald-800">
-                              {proyeccion.toFixed(2)} {und}
-                            </span>
-                          </>
-                        ) : (
-                          <> {und} en stock.</>
-                        )}
-                      </>
-                    ) : pedida > 0 ? (
-                      <>
-                        Con lo que pedís: {hit.cantidad.toFixed(2)} +{" "}
-                        {pedida.toFixed(2)} →{" "}
+                        {" "}
+                        + lo pedido →{" "}
                         <span className="font-semibold tabular-nums text-emerald-800">
                           {proyeccion.toFixed(2)} {und}
-                        </span>{" "}
-                        cuando entre el abastecimiento.
+                        </span>
                       </>
                     ) : (
-                      <>Sin cantidad en la requisición todavía.</>
+                      <> {und}</>
                     )}
-                  </p>
-                  {stock_tras < hit.minimo ? (
-                    <p className="flex items-center gap-1 text-xs text-amber-800">
-                      <AlertTriangle className="h-3.5 w-3.5" />
-                      Quedaría bajo el mínimo ({hit.minimo.toFixed(2)}).
-                    </p>
-                  ) : null}
+                    {stock_tras < hit.minimo ? (
+                      <span className="mt-1 flex items-center justify-center gap-1 text-xs text-amber-800">
+                        <AlertTriangle className="h-3.5 w-3.5" />
+                        Bajo el mínimo ({hit.minimo.toFixed(2)})
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
 
-                <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
-                  <div className="flex items-center gap-1.5">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={
-                        busy ||
-                        !canConsume ||
-                        pending >= hit.cantidad ||
-                        hit.cantidad <= 0
-                      }
-                      className="h-12 w-12 rounded-xl"
-                      title="Restar 1 del stock (consumo pendiente)"
-                      aria-label="Restar del stock"
-                      onClick={() => {
-                        const next = pending + 1;
-                        set_consumo(hit.id_stock, next, hit.cantidad);
-                        setAviso(
-                          `Consumo pendiente −${next.toFixed(0)} ${und}. Confirmá con «Actualizar stock».`,
-                        );
-                      }}
-                    >
-                      <Minus className="h-5 w-5" />
-                    </Button>
-
-                    <div className="min-w-[5.5rem] px-1 text-center">
-                      <p className="text-lg font-bold tabular-nums text-slate-900">
-                        {pending > 0 ? (
-                          <span className="text-rose-700">
-                            −{pending.toFixed(0)}
-                          </span>
-                        ) : (
-                          pedida.toFixed(0)
-                        )}
-                      </p>
-                      <p className="text-[10px] leading-tight text-slate-500">
-                        {pending > 0 ? "consumo pend." : "pedido en req"}
-                      </p>
+                {/* 1) Pedido en la requisición — independiente */}
+                {on_lineas ? (
+                  <div className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50/40 px-3 py-2.5">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-emerald-950">
+                          Pedido en la requisición
+                        </p>
+                        <p className="text-xs text-emerald-900/70">
+                          Cambia la cantidad de la tabla de arriba. No toca el
+                          stock.
+                        </p>
+                      </div>
+                      <Stepper
+                        value={pedida.toFixed(0)}
+                        label={und}
+                        tone="emerald"
+                        disabled_minus={busy || pedida <= 1}
+                        disabled_plus={busy}
+                        on_minus={() => {
+                          on_lineas(
+                            bump_req_qty(lineas, hit.id_item_costo, -1),
+                          );
+                          setAviso(
+                            "Se bajó la cantidad pedida en la requisición.",
+                          );
+                        }}
+                        on_plus={() => {
+                          on_lineas(
+                            bump_req_qty(lineas, hit.id_item_costo, 1),
+                          );
+                          setAviso(
+                            "Se aumentó la cantidad pedida en la requisición (+1).",
+                          );
+                        }}
+                      />
                     </div>
-
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={busy || !on_lineas}
-                      className="h-12 w-12 rounded-xl"
-                      title="Sumar 1 a la cantidad de la requisición"
-                      aria-label="Sumar a la requisición"
-                      onClick={() => {
-                        if (!on_lineas) return;
-                        on_lineas(bump_req_qty(lineas, hit.id_item_costo, 1));
-                        setAviso(
-                          "Se aumentó la cantidad pedida en la requisición (+1).",
-                        );
-                      }}
-                    >
-                      <Plus className="h-5 w-5" />
-                    </Button>
                   </div>
+                ) : null}
 
-                  {canConsume ? (
-                    <>
-                      {dirty ? (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          disabled={busy}
-                          className="h-12 rounded-xl text-slate-600"
-                          onClick={() => {
-                            set_consumo(hit.id_stock, 0, hit.cantidad);
-                            setAviso("Consumo pendiente cancelado.");
-                          }}
-                        >
-                          Deshacer −
-                        </Button>
-                      ) : null}
+                {/* 2) Consumo del stock — independiente, arranca en 0 */}
+                {canConsume ? (
+                  <div className="mt-2 rounded-xl border border-rose-100 bg-rose-50/40 px-3 py-2.5">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-rose-950">
+                          Consumo del stock actual
+                        </p>
+                        <p className="text-xs text-rose-900/70">
+                          Arranca en lo que hay ahora. − implica consumo; +
+                          deshace hasta el stock real (ahí se oculta el +).
+                        </p>
+                      </div>
+                      <Stepper
+                        value={stock_tras.toFixed(0)}
+                        label={
+                          pending > 0
+                            ? `quedan (${und})`
+                            : `stock actual (${und})`
+                        }
+                        tone={pending > 0 ? "rose" : "slate"}
+                        disabled_minus={
+                          busy || stock_tras <= 0 || hit.cantidad <= 0
+                        }
+                        disabled_plus={busy || pending <= 0}
+                        hide_plus={pending <= 0}
+                        on_minus={() => {
+                          const next = pending + 1;
+                          set_consumo(hit.id_stock, next, hit.cantidad);
+                          setAviso(
+                            `Consumo pendiente −${next.toFixed(0)} ${und} (quedan ${(hit.cantidad - next).toFixed(0)}). Confirmá con «Actualizar stock».`,
+                          );
+                        }}
+                        on_plus={() => {
+                          const next = Math.max(0, pending - 1);
+                          set_consumo(hit.id_stock, next, hit.cantidad);
+                          setAviso(
+                            next > 0
+                              ? `Deshecho: quedan ${(hit.cantidad - next).toFixed(0)} ${und}.`
+                              : "Volviste al stock actual (sin consumo pendiente).",
+                          );
+                        }}
+                      />
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-rose-100/80 pt-2">
                       <Button
                         type="button"
                         variant="ghost"
                         disabled={busy || hit.cantidad <= 0}
-                        className="h-12 rounded-xl text-rose-700 hover:bg-rose-50 hover:text-rose-800"
+                        className="h-10 rounded-xl text-rose-700 hover:bg-rose-100/80 hover:text-rose-800"
                         onClick={() => {
                           set_consumo(hit.id_stock, hit.cantidad, hit.cantidad);
                           setAviso(
@@ -364,14 +441,19 @@ export function ReqAltaStockAnalisis({
                       <Button
                         type="button"
                         disabled={busy || !dirty}
-                        className="h-12 rounded-xl bg-amber-600 hover:bg-amber-700"
+                        className="h-10 rounded-xl bg-amber-600 hover:bg-amber-700"
                         onClick={() => void actualizar_stock(hit)}
                       >
                         Actualizar stock
                       </Button>
-                    </>
-                  ) : null}
-                </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                <ReqStockAnalisisHistorial
+                  id_stock={hit.id_stock}
+                  refresh_token={historial_tick}
+                />
               </div>
             );
           })

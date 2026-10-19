@@ -41,6 +41,7 @@ import {
   ReqGestionLineas,
   ReqHermanaChip,
 } from "@/features/requisiciones/components/req-gestion-lineas";
+import { ReqViewStockAnalisis } from "@/features/requisiciones/components/req-view-stock-analisis";
 import {
   req_interna_fuera_ventana,
   texto_aviso_ventana,
@@ -1951,6 +1952,17 @@ export default function RequisicionView({
               )}
             </tbody>
           </table>
+
+          <ReqViewStockAnalisis
+            clase_pedido={record.clase_pedido}
+            departamento={record.departamento}
+            id_departamento={
+              record.id_departamento != null
+                ? Number(record.id_departamento)
+                : null
+            }
+            req_lineas={record.req_lineas || []}
+          />
 
           {/* Observations and Facilitator section */}
           <div className="bg-gray-200 py-0.5 font-bold px-2 text-sm border-b border-gray-300 uppercase">
