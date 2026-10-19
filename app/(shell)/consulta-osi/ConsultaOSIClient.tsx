@@ -10,6 +10,7 @@ import type {
   OSIStatusOption,
   OSIAccessFilter,
   OSIListFilterOptions,
+  OsiNota,
 } from "@/types/osi";
 import { getOSIList, getOSIListFilterOptions, updateOSIStatus, updateSessionStatus, setOSIHiddenForClient, toggleOSIAttachmentReceived } from "@/actions/osi";
 import OSIFilters from "./components/OSIFilters";
@@ -396,6 +397,22 @@ export default function ConsultaOSIClient({
     [filters, currentPage, itemsPerPage],
   );
 
+  const handleNotasUpdated = useCallback(
+    (osiId: number, updatedNotas: OsiNota[]) => {
+      setOsis((prev) =>
+        prev.map((o) => (o.id_osi === osiId ? { ...o, notas: updatedNotas } : o)),
+      );
+      const key = cacheKey(filters, currentPage, itemsPerPage);
+      const cached = cacheRef.current.get(key);
+      if (cached) {
+        cached.osis = cached.osis.map((o) =>
+          o.id_osi === osiId ? { ...o, notas: updatedNotas } : o,
+        );
+      }
+    },
+    [filters, currentPage, itemsPerPage],
+  );
+
   const totalPages = Math.ceil(totalCount / itemsPerPage);
 
   return (
@@ -458,6 +475,7 @@ export default function ConsultaOSIClient({
           onToggleHidden={canHideForClient ? handleToggleHidden : undefined}
           canToggleAttachment={canToggleAttachment}
           onToggleAttachment={canToggleAttachment ? handleToggleAttachment : undefined}
+          onNotasUpdated={handleNotasUpdated}
         />
 
         <div className="mt-4">

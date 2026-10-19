@@ -132,18 +132,46 @@ function GroupedNavDropdown({
   );
 
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
+    if (!isOpen) return;
+
+    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) {
         setIsOpen(false);
       }
     };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsOpen(false);
+      }
+    };
+
+    const handleBlur = () => {
+      // Handles clicking outside into an embedded iframe
+      setIsOpen(false);
+    };
+
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+    document.addEventListener("touchstart", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("blur", handleBlur);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("blur", handleBlur);
+    };
+  }, [isOpen]);
 
   return (
-    <div ref={ref} className="relative">
+    <div
+      ref={ref}
+      className="relative"
+      onMouseLeave={() => setIsOpen(false)}
+    >
       <button
+        type="button"
         onClick={() => setIsOpen((v) => !v)}
         onMouseEnter={() => setIsOpen(true)}
         className={cn(
@@ -152,16 +180,19 @@ function GroupedNavDropdown({
             ? "font-medium text-slate-900 bg-slate-100 border-slate-200"
             : "border-transparent text-slate-600 hover:text-black hover:bg-slate-100",
         )}
+        aria-expanded={isOpen}
       >
         <group.icon className="h-3.5 w-3.5" style={icon_style} />
         {group.label}
-        <ChevronDown className="h-3 w-3 text-slate-400" />
+        <ChevronDown
+          className={cn(
+            "h-3 w-3 text-slate-400 transition-transform",
+            isOpen && "rotate-180",
+          )}
+        />
       </button>
       {isOpen && (
-        <div
-          className="absolute top-full right-0 mt-1 min-w-[180px] rounded-md border border-slate-200 bg-white shadow-lg z-50 py-1"
-          onMouseLeave={() => setIsOpen(false)}
-        >
+        <div className="absolute top-full right-0 mt-1 min-w-[180px] rounded-md border border-slate-200 bg-white shadow-lg z-50 py-1">
           {groupApps.map((app) => {
             const external = opens_in_new_tab(app);
             const appIconStyle = get_app_icon_style(app.brandColor);
@@ -173,6 +204,7 @@ function GroupedNavDropdown({
                 href={app.upstreamUrl}
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={() => setIsOpen(false)}
                 className="flex items-center gap-2 px-3 py-1.5 text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors"
               >
                 <app.icon className="h-3.5 w-3.5" style={appIconStyle} />
@@ -182,6 +214,7 @@ function GroupedNavDropdown({
               <Link
                 key={app.id}
                 href={app.basePath}
+                onClick={() => setIsOpen(false)}
                 className={cn(
                   "flex items-center gap-2 px-3 py-1.5 text-sm transition-colors",
                   isActive

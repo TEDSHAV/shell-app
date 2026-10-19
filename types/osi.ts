@@ -18,6 +18,14 @@ export interface OSIStatusOption {
   es_estado_final: boolean | null;
 }
 
+export interface OsiNota {
+  id: number;
+  osiId: number;
+  nota: string;
+  createdAt: string;
+  autorNombre: string | null;
+}
+
 export interface OSIListItem {
   id_osi: number | null;
   nro_osi: string | null;
@@ -39,6 +47,8 @@ export interface OSIListItem {
   attachment_received?: boolean | null;
   attachment_received_at?: string | null;
   attachment_received_by?: string | null;
+  // Notes and observations from capacitacion_osi_notas
+  notas?: OsiNota[];
 }
 
 export interface OSIListResult {
