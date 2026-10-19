@@ -44,6 +44,14 @@ function cacheKey(filters: OSIListFilters, page: number, itemsPerPage: number): 
   return JSON.stringify({ ...filters, page, itemsPerPage });
 }
 
+const SESSION_STORAGE_KEY = "consulta_osi_filter_state";
+
+interface SavedFilterState {
+  filters: OSIListFilters;
+  currentPage: number;
+  itemsPerPage: number;
+}
+
 export default function ConsultaOSIClient({
   canChangeStatus,
   canHideForClient,
@@ -83,6 +91,54 @@ export default function ConsultaOSIClient({
   const cacheRef = useRef<Map<CacheKey, CacheEntry>>(new Map());
   const filtersLoadedRef = useRef(Boolean(initialFilterOptions));
   const isFirstMountWithInitialData = useRef(Boolean(initialOsis));
+
+  // --- Restore filters from sessionStorage on mount (if returning from preview or other route) ---
+  const restoredFromStorageRef = useRef(false);
+
+  useEffect(() => {
+    if (restoredFromStorageRef.current || initialNroOsi) return;
+    restoredFromStorageRef.current = true;
+
+    try {
+      const saved = sessionStorage.getItem(SESSION_STORAGE_KEY);
+      if (saved) {
+        const parsed: SavedFilterState = JSON.parse(saved);
+        if (parsed && typeof parsed.filters === "object") {
+          const hasAny = Object.values(parsed.filters).some((v) => Boolean(v));
+          if (hasAny || (parsed.currentPage && parsed.currentPage > 1)) {
+            // Cancel initial server data bypass so fresh fetch occurs for restored filters
+            isFirstMountWithInitialData.current = false;
+            setFilters(parsed.filters);
+            if (parsed.currentPage && parsed.currentPage > 0) {
+              setCurrentPage(parsed.currentPage);
+            }
+            if (parsed.itemsPerPage && parsed.itemsPerPage > 0) {
+              setItemsPerPage(parsed.itemsPerPage);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to restore filter state from sessionStorage:", err);
+    }
+  }, [initialNroOsi]);
+
+  // --- Persist filters to sessionStorage whenever filters or pagination change ---
+  useEffect(() => {
+    try {
+      const hasAny = Object.values(filters).some((v) => Boolean(v));
+      if (hasAny || currentPage > 1 || itemsPerPage !== 20) {
+        sessionStorage.setItem(
+          SESSION_STORAGE_KEY,
+          JSON.stringify({ filters, currentPage, itemsPerPage }),
+        );
+      } else {
+        sessionStorage.removeItem(SESSION_STORAGE_KEY);
+      }
+    } catch (err) {
+      console.warn("Failed to save filter state to sessionStorage:", err);
+    }
+  }, [filters, currentPage, itemsPerPage]);
   // Monotonic id for the latest in-flight fetch. Only the most recent request
   // is allowed to clear loading/fetching in its finally — earlier cancelled
   // requests must NOT touch loading state, otherwise a cancelled request can
