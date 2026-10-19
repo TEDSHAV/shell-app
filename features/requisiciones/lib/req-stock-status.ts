@@ -37,15 +37,15 @@ export function stock_nivel(cantidad: number, minimo: number): StockNivel {
 }
 
 export const STOCK_NIVEL_LABEL: Record<StockNivel, string> = {
-  en_stock: "En Stock",
-  bajo: "Bajo Stock",
-  agotado: "Out of Stock",
+  en_stock: "En stock",
+  bajo: "Bajo stock",
+  agotado: "Agotado",
 };
 
 export const STOCK_NIVEL_CLASS: Record<StockNivel, string> = {
-  en_stock: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  bajo: "bg-amber-50 text-amber-800 border-amber-200",
-  agotado: "bg-rose-50 text-rose-700 border-rose-200",
+  en_stock: "bg-emerald-100 text-emerald-900 border-emerald-300",
+  bajo: "bg-amber-100 text-amber-950 border-amber-300",
+  agotado: "bg-rose-100 text-rose-950 border-rose-300",
 };
 
 export function kardex_label(tipo: string): string {

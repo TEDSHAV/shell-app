@@ -2,6 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import {
+  Building2,
+  GraduationCap,
+  Package,
+  Wrench,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   confirmar_consumo_osis_prorrateo_action,
@@ -30,12 +37,20 @@ import {
   type ReqStockMinimoRow,
   type ReqStockRow,
 } from "../lib/req-stock-types";
-import Link from "next/link";
+import { build_dept_cards } from "../lib/req-stock-group";
 import { ReqDepositosInspector } from "./req-depositos-inspector";
 import { ReqDepositosItemList } from "./req-depositos-item-list";
 import { ReqDepositosKpis, type DepositoKpiKey } from "./req-depositos-kpis";
 import { ReqDepositosHistorial } from "./req-depositos-historial";
 import { ReqDepositosMinimos } from "./req-depositos-minimos";
+import { ReqDepositosDeptCards } from "./depositos/req-depositos-dept-cards";
+
+const TAB_ICON: Record<ReqDepositoTab, typeof Package> = {
+  todos: Package,
+  departamento: Building2,
+  capacitacion: GraduationCap,
+  tecnico: Wrench,
+};
 
 export function ReqDepositosScreen() {
   const router = useRouter();
@@ -54,6 +69,8 @@ export function ReqDepositosScreen() {
   const [kpi, setKpi] = useState<DepositoKpiKey | null>(null);
   const [busy, setBusy] = useState(false);
   const [canProcess, setCanProcess] = useState(false);
+  const [canConsume, setCanConsume] = useState(false);
+  const [canRequest, setCanRequest] = useState(false);
   const [canEditMinimos, setCanEditMinimos] = useState(false);
 
   const active_deposito: ReqDeposito =
@@ -67,11 +84,19 @@ export function ReqDepositosScreen() {
     [allRows, tab],
   );
   const rules = useMemo(
-    () => (tab === "todos" ? [] : allRules.filter((row) => row.deposito === tab)),
+    () =>
+      tab === "todos" ? [] : allRules.filter((row) => row.deposito === tab),
     [allRules, tab],
   );
+  const dept_cards = useMemo(() => build_dept_cards(allRows), [allRows]);
   const osisCount =
-    tab === "departamento" ? 0 : tab === "capacitacion" ? osisCap : tab === "tecnico" ? osisSt : osisCap + osisSt;
+    tab === "departamento"
+      ? 0
+      : tab === "capacitacion"
+        ? osisCap
+        : tab === "tecnico"
+          ? osisSt
+          : osisCap + osisSt;
 
   const reload = async () => {
     const [data, mins, cap, st, access] = await Promise.all([
@@ -86,6 +111,8 @@ export function ReqDepositosScreen() {
     setOsisCap(cap);
     setOsisSt(st);
     setCanProcess(access.can_process);
+    setCanConsume(access.can_consume);
+    setCanRequest(access.can_request);
     setCanEditMinimos(access.can_edit_minimos);
     setSelected((prev) => data.find((row) => row.id === prev?.id) || null);
     setLoaded(true);
@@ -156,8 +183,7 @@ export function ReqDepositosScreen() {
     }
     await reload();
     if (selected) {
-      const next = await list_req_kardex_action(selected.id, kardexLimit);
-      setKardex(next);
+      setKardex(await list_req_kardex_action(selected.id, kardexLimit));
     }
   };
 
@@ -179,19 +205,34 @@ export function ReqDepositosScreen() {
         }}
       />
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="inline-flex rounded-full border border-slate-200 bg-white p-1">
-          {DEPOSITO_TABS.map((key) => (
-            <Button
-              key={key}
-              type="button"
-              variant={tab === key ? "default" : "ghost"}
-              size="sm"
-              className="rounded-full"
-              onClick={() => setTab(key)}
-            >
-              {DEPOSITO_TAB_LABEL[key]}
-            </Button>
-          ))}
+        <div className="inline-flex flex-wrap gap-1 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm">
+          {DEPOSITO_TABS.map((key) => {
+            const Icon = TAB_ICON[key];
+            const active = tab === key;
+            return (
+              <Button
+                key={key}
+                type="button"
+                variant={active ? "default" : "ghost"}
+                size="sm"
+                className={
+                  active
+                    ? "rounded-xl gap-1.5 bg-amber-600 hover:bg-amber-700"
+                    : "rounded-xl gap-1.5 text-slate-700"
+                }
+                onClick={() => setTab(key)}
+              >
+                <Icon className="h-4 w-4" />
+                {key === "departamento"
+                  ? "Departamentos"
+                  : key === "capacitacion"
+                    ? "Capacitación"
+                    : key === "tecnico"
+                      ? "Serv. técnicos"
+                      : DEPOSITO_TAB_LABEL[key]}
+              </Button>
+            );
+          })}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {canProcess || canEditMinimos ? (
@@ -199,7 +240,7 @@ export function ReqDepositosScreen() {
               <Link href="/requisiciones/depositos/importar">Cargar Excel</Link>
             </Button>
           ) : null}
-          {canEditMinimos && tab !== "todos" ? (
+          {canEditMinimos && tab !== "todos" && tab !== "departamento" ? (
             <ReqDepositosMinimos
               deposito={tab}
               rows={rows}
@@ -217,92 +258,134 @@ export function ReqDepositosScreen() {
           <ReqDepositosHistorial />
         </div>
       </div>
-      <div
-        className={
-          selected ? "grid gap-4 lg:grid-cols-2" : "grid grid-cols-1"
-        }
-      >
-        <ReqDepositosItemList
-          rows={loaded ? visible : []}
-          selectedId={selected?.id ?? null}
-          showDepartamento={tab === "departamento"}
-          expanded={!selected}
-          grouped={tab === "todos"}
-          loading={!loaded}
-          onSelect={(row) => {
-            if (selected?.id === row.id) {
-              setSelected(null);
-              return;
+
+      {tab === "departamento" ? (
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-amber-200/80 bg-amber-50/80 px-4 py-3">
+            <p className="text-sm font-semibold text-amber-950">
+              Almacenes por departamento
+            </p>
+            <p className="mt-0.5 text-sm text-amber-900/80">
+              Entra a un departamento para ver cada artículo una sola vez,
+              consumir stock o pedir reposición.
+            </p>
+          </div>
+          <ReqDepositosDeptCards cards={loaded ? dept_cards : []} />
+        </div>
+      ) : null}
+
+      {tab === "capacitacion" || tab === "tecnico" ? (
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="outline" size="sm" asChild>
+            <Link href={`/requisiciones/depositos/ejecutante/${tab}`}>
+              Abrir vista {tab === "capacitacion" ? "Capacitación" : "ST"}
+            </Link>
+          </Button>
+        </div>
+      ) : null}
+
+      {tab !== "departamento" ? (
+        <div
+          className={
+            selected
+              ? "grid gap-4 lg:grid-cols-2 lg:h-[calc(100dvh-13rem)] lg:min-h-[28rem] lg:items-stretch"
+              : "grid grid-cols-1"
+          }
+        >
+          <div
+            className={
+              selected ? "flex min-h-0 h-full flex-col" : undefined
             }
-            setKardexLimit(80);
-            setSelected(row);
-          }}
-        />
-        {selected ? (
-          <ReqDepositosInspector
-            deposito={active_deposito}
-            row={selected}
-            kardex={kardex}
-            osis={osis}
-            ingresos={ingresos}
-            kardex_limit={kardexLimit}
-            busy={busy}
-            can_process={canProcess}
-            restock_open={restockOpen}
-            onInterno={(cantidad) =>
-              selected
-                ? run(() =>
-                    registrar_salida_stock_action({
-                      id_stock: selected.id,
-                      tipo: "gastado",
-                      cantidad,
+          >
+            <ReqDepositosItemList
+              rows={loaded ? visible : []}
+              selectedId={selected?.id ?? null}
+              showDepartamento={false}
+              expanded={!selected}
+              grouped={tab === "todos"}
+              loading={!loaded}
+              paginate
+              onSelect={(row) => {
+                if (selected?.id === row.id) {
+                  setSelected(null);
+                  return;
+                }
+                setKardexLimit(80);
+                setSelected(row);
+              }}
+            />
+          </div>
+          {selected ? (
+            <div className="min-h-0 overflow-y-auto overscroll-contain lg:sticky lg:top-0">
+              <ReqDepositosInspector
+                deposito={active_deposito}
+                row={selected}
+                kardex={kardex}
+                osis={osis}
+                ingresos={ingresos}
+                kardex_limit={kardexLimit}
+                busy={busy}
+                can_process={canProcess}
+                can_consume={canConsume}
+                can_request={canRequest}
+                restock_open={restockOpen}
+                onInterno={(cantidad) =>
+                  selected
+                    ? run(() =>
+                        registrar_salida_stock_action({
+                          id_stock: selected.id,
+                          tipo: "gastado",
+                          cantidad,
+                        }),
+                      )
+                    : Promise.resolve()
+                }
+                onSalida={(cantidad, ids_osi) =>
+                  selected
+                    ? run(() =>
+                        confirmar_consumo_osis_prorrateo_action({
+                          id_stock: selected.id,
+                          ids_osi,
+                          cantidad,
+                        }),
+                      )
+                    : Promise.resolve()
+                }
+                onDanado={(cantidad) =>
+                  selected
+                    ? run(() =>
+                        registrar_salida_stock_action({
+                          id_stock: selected.id,
+                          tipo: "danado",
+                          cantidad,
+                          notas: "Dañado / roto",
+                        }),
+                      )
+                    : Promise.resolve()
+                }
+                onIngreso={(ingreso) =>
+                  run(() =>
+                    procesar_ingreso_action({
+                      id_requisicion: ingreso.id_requisicion,
+                      id_linea: ingreso.id_linea,
                     }),
                   )
-                : Promise.resolve()
-            }
-            onSalida={(cantidad, ids_osi) =>
-              selected
-                ? run(() =>
-                    confirmar_consumo_osis_prorrateo_action({
-                      id_stock: selected.id,
-                      ids_osi,
-                      cantidad,
-                    }),
-                  )
-                : Promise.resolve()
-            }
-            onDanado={(cantidad) =>
-              selected
-                ? run(() =>
-                    registrar_salida_stock_action({
-                      id_stock: selected.id,
-                      tipo: "danado",
-                      cantidad,
-                      notas: "Dañado / roto",
-                    }),
-                  )
-                : Promise.resolve()
-            }
-            onIngreso={(ingreso) =>
-              run(() =>
-                procesar_ingreso_action({
-                  id_requisicion: ingreso.id_requisicion,
-                  id_linea: ingreso.id_linea,
-                }),
-              )
-            }
-            onRestock={() => {
-              if (!selected) return;
-              const qs = new URLSearchParams({
-                item: String(selected.id_item_costo),
-                deposito: selected.deposito,
-              });
-              router.push(`/requisiciones/create?${qs.toString()}`);
-            }}
-            onMoreKardex={() => setKardexLimit(400)}
-          />
-        ) : null}
-      </div>
+                }
+                onRestock={() => {
+                  if (!selected) return;
+                  const qs = new URLSearchParams({
+                    item: String(selected.id_item_costo),
+                    deposito: selected.deposito,
+                    abastecer: "1",
+                  });
+                  router.push(`/requisiciones/create?${qs.toString()}`);
+                }}
+                onMoreKardex={() => setKardexLimit(400)}
+              />
+            </div>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

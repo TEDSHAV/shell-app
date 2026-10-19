@@ -1,25 +1,48 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, Search } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  Building2,
+  ChevronRight,
+  GraduationCap,
+  Package,
+  Search,
+  Warehouse,
+  Wrench,
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import {
-  STOCK_NIVEL_CLASS,
-  STOCK_NIVEL_LABEL,
-  stock_nivel,
-} from "../lib/req-stock-status";
+import { stock_nivel } from "../lib/req-stock-status";
 import {
   DEPOSITO_LABEL,
   type ReqDeposito,
   type ReqStockRow,
 } from "../lib/req-stock-types";
+import { group_departamental_by_item } from "../lib/req-stock-group";
+import {
+  INV_PAGE_SIZE_OPTIONS,
+  ReqDepositosPagination,
+} from "./depositos/req-depositos-pagination";
+import {
+  StockDeptChip,
+  StockDeptLabel,
+  StockNivelBadge,
+  StockSectionBanner,
+  StockWarehouseShell,
+} from "./depositos/req-stock-ui";
 
 const DEPOSITOS: ReqDeposito[] = ["departamento", "capacitacion", "tecnico"];
 
+function DepositoIcon({ deposito }: { deposito: ReqDeposito }) {
+  if (deposito === "departamento") return <Building2 className="h-4 w-4" />;
+  if (deposito === "capacitacion") return <GraduationCap className="h-4 w-4" />;
+  return <Wrench className="h-4 w-4" />;
+}
+
 function matches(row: ReqStockRow, term: string): boolean {
   if (!term) return true;
-  const blob = `${row.nombre_item} ${row.departamento || ""} ${row.categoria || ""} ${DEPOSITO_LABEL[row.deposito]}`.toLowerCase();
+  const blob =
+    `${row.nombre_item} ${row.departamento || ""} ${row.categoria || ""} ${DEPOSITO_LABEL[row.deposito]}`.toLowerCase();
   return blob.includes(term);
 }
 
@@ -30,6 +53,7 @@ export function ReqDepositosItemList({
   expanded,
   grouped,
   loading,
+  paginate = true,
   onSelect,
 }: {
   rows: ReqStockRow[];
@@ -38,9 +62,12 @@ export function ReqDepositosItemList({
   expanded?: boolean;
   grouped?: boolean;
   loading?: boolean;
+  paginate?: boolean;
   onSelect: (row: ReqStockRow) => void;
 }) {
   const [q, setQ] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(INV_PAGE_SIZE_OPTIONS[0]);
   const [open, setOpen] = useState<Record<ReqDeposito, boolean>>({
     departamento: true,
     capacitacion: true,
@@ -52,182 +79,345 @@ export function ReqDepositosItemList({
     [rows, term],
   );
 
-  const cols = expanded
-    ? grouped || showDepartamento
-      ? "grid-cols-[minmax(0,2fr)_minmax(8rem,1fr)_minmax(8rem,1fr)_auto_8rem]"
-      : "grid-cols-[minmax(0,2fr)_minmax(8rem,1fr)_auto_8rem]"
-    : "grid-cols-[1fr_auto_7rem]";
+  useEffect(() => {
+    setPage(1);
+  }, [term, pageSize, rows.length, grouped]);
 
-  const show_depto_col = Boolean(expanded && (showDepartamento || grouped));
-  const show_cat_col = Boolean(expanded);
+  const flat_page = useMemo(() => {
+    if (grouped) return filtered;
+    const start = (page - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, grouped, page, pageSize]);
 
   return (
-    <div className="flex h-full min-h-[28rem] w-full flex-col rounded-2xl border border-white/60 bg-white/80 p-4 shadow-sm backdrop-blur">
-      <div className="relative mb-3">
-        <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
-        <Input
-          value={q}
-          placeholder="Buscar ítem, categoría o inventario…"
-          className="h-9 pl-8"
-          onChange={(e) => setQ(e.target.value)}
-        />
+    <StockWarehouseShell>
+      <div className="border-b border-slate-200/80 bg-white px-4 py-3">
+        <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-800">
+          <Warehouse className="h-4 w-4 text-amber-700" />
+          Artículos en almacén
+        </div>
+        <div className="relative">
+          <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Input
+            value={q}
+            placeholder="Buscar artículo, departamento o categoría…"
+            className="h-10 border-slate-200 bg-white pl-9 text-sm"
+            onChange={(e) => setQ(e.target.value)}
+          />
+        </div>
       </div>
-      <div
-        className={cn(
-          "mb-3 grid gap-2 px-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400",
-          cols,
-        )}
-      >
-        <span>Ítems</span>
-        {show_depto_col ? <span>Departamento</span> : null}
-        {show_cat_col ? <span>Categoría</span> : null}
-        <span>Estatus</span>
-        <span className="text-right">Saldo</span>
-      </div>
-      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
         {loading ? (
-          <p className="py-12 text-center text-sm text-slate-400">
+          <p className="py-16 text-center text-sm text-slate-500">
             Cargando inventario…
           </p>
-        ) : grouped
-          ? DEPOSITOS.map((deposito) => {
-              const group = filtered.filter((row) => row.deposito === deposito);
-              if (term && group.length === 0) return null;
-              const is_open = term ? true : open[deposito];
-              return (
-                <div key={deposito} className="rounded-xl border border-slate-100">
-                  <button
-                    type="button"
-                    className="flex w-full items-center justify-between px-3 py-2 text-left text-sm font-semibold text-slate-700"
-                    onClick={() =>
-                      setOpen((prev) => ({ ...prev, [deposito]: !prev[deposito] }))
-                    }
-                  >
-                    <span className="flex items-center gap-1">
-                      {is_open ? (
-                        <ChevronDown className="h-4 w-4" />
-                      ) : (
-                        <ChevronRight className="h-4 w-4" />
-                      )}
-                      {DEPOSITO_LABEL[deposito]}
-                    </span>
-                    <span className="text-xs font-normal text-slate-400">
-                      {group.length}
-                    </span>
-                  </button>
-                  {is_open ? (
-                    <div className="space-y-2 border-t border-slate-100 p-2">
-                      {group.length === 0 ? (
-                        <p className="py-4 text-center text-xs text-slate-400">
-                          Sin ítems en este inventario.
-                        </p>
-                      ) : (
-                        group.map((row) => (
-                          <ItemRow
-                            key={row.id}
-                            row={row}
-                            cols={cols}
-                            selected={selectedId === row.id}
-                            showDeptoCol={show_depto_col}
-                            showCatCol={show_cat_col}
-                            showDeptoHint={!expanded}
-                            onSelect={onSelect}
-                          />
-                        ))
-                      )}
-                    </div>
-                  ) : null}
-                </div>
-              );
-            })
-          : filtered.map((row) => (
-              <ItemRow
+        ) : grouped ? (
+          DEPOSITOS.map((deposito) => {
+            const group = filtered.filter((row) => row.deposito === deposito);
+            if (term && group.length === 0) return null;
+            const is_open = term ? true : open[deposito];
+            const grouped_items =
+              deposito === "departamento"
+                ? group_departamental_by_item(group)
+                : null;
+            const count = grouped_items?.length ?? group.length;
+
+            return (
+              <div
+                key={deposito}
+                className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+              >
+                <StockSectionBanner
+                  title={DEPOSITO_LABEL[deposito]}
+                  count={count}
+                  icon={<DepositoIcon deposito={deposito} />}
+                  open={is_open}
+                  on_toggle={() =>
+                    setOpen((prev) => ({
+                      ...prev,
+                      [deposito]: !prev[deposito],
+                    }))
+                  }
+                />
+                {is_open ? (
+                  <div className="space-y-2 bg-white p-3">
+                    {count === 0 ? (
+                      <p className="py-6 text-center text-sm text-slate-500">
+                        Sin artículos en este almacén.
+                      </p>
+                    ) : grouped_items ? (
+                      <GroupedDeptPage
+                        items={grouped_items}
+                        selectedId={selectedId}
+                        paginate={paginate}
+                        onSelect={onSelect}
+                      />
+                    ) : (
+                      <FlatPage
+                        rows={group}
+                        selectedId={selectedId}
+                        showDepto={false}
+                        showCat={Boolean(expanded)}
+                        paginate={paginate}
+                        onSelect={onSelect}
+                      />
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            );
+          })
+        ) : (
+          <div className="space-y-2">
+            {flat_page.map((row) => (
+              <ItemCard
                 key={row.id}
                 row={row}
-                cols={cols}
                 selected={selectedId === row.id}
-                showDeptoCol={show_depto_col}
-                showCatCol={show_cat_col}
+                showDepto={Boolean(showDepartamento)}
                 showDeptoHint={!expanded && showDepartamento}
+                showCat={Boolean(expanded)}
                 onSelect={onSelect}
               />
             ))}
+          </div>
+        )}
         {!loading && !grouped && filtered.length === 0 ? (
-          <p className="py-12 text-center text-sm text-slate-400">
+          <p className="py-16 text-center text-sm text-slate-500">
             {term
-              ? "Ningún ítem coincide con la búsqueda."
-              : "Este inventario no tiene saldo todavía."}
+              ? "Ningún artículo coincide con la búsqueda."
+              : "Este almacén aún no tiene artículos."}
           </p>
         ) : null}
       </div>
-    </div>
+
+      {paginate && !grouped && !loading ? (
+        <div className="border-t border-slate-200 bg-white px-4 py-2">
+          <ReqDepositosPagination
+            page={page}
+            page_size={pageSize}
+            total={filtered.length}
+            on_page={setPage}
+            on_page_size={setPageSize}
+          />
+        </div>
+      ) : null}
+    </StockWarehouseShell>
   );
 }
 
-function ItemRow({
+function FlatPage({
+  rows,
+  selectedId,
+  showDepto,
+  showCat,
+  paginate,
+  onSelect,
+}: {
+  rows: ReqStockRow[];
+  selectedId: number | null;
+  showDepto: boolean;
+  showCat: boolean;
+  paginate: boolean;
+  onSelect: (row: ReqStockRow) => void;
+}) {
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(INV_PAGE_SIZE_OPTIONS[0]);
+  useEffect(() => setPage(1), [rows.length, pageSize]);
+  const slice = paginate
+    ? rows.slice((page - 1) * pageSize, page * pageSize)
+    : rows;
+  return (
+    <>
+      {slice.map((row) => (
+        <ItemCard
+          key={row.id}
+          row={row}
+          selected={selectedId === row.id}
+          showDepto={showDepto}
+          showDeptoHint={false}
+          showCat={showCat}
+          onSelect={onSelect}
+        />
+      ))}
+      {paginate ? (
+        <ReqDepositosPagination
+          page={page}
+          page_size={pageSize}
+          total={rows.length}
+          on_page={setPage}
+          on_page_size={setPageSize}
+        />
+      ) : null}
+    </>
+  );
+}
+
+function GroupedDeptPage({
+  items,
+  selectedId,
+  paginate,
+  onSelect,
+}: {
+  items: ReturnType<typeof group_departamental_by_item>;
+  selectedId: number | null;
+  paginate: boolean;
+  onSelect: (row: ReqStockRow) => void;
+}) {
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(INV_PAGE_SIZE_OPTIONS[0]);
+  useEffect(() => setPage(1), [items.length, pageSize]);
+  const slice = paginate
+    ? items.slice((page - 1) * pageSize, page * pageSize)
+    : items;
+
+  return (
+    <>
+      {slice.map((item) => {
+        const selected = item.departamentos.some(
+          (d) => d.id_stock === selectedId,
+        );
+        return (
+          <button
+            key={item.id_item_costo}
+            type="button"
+            onClick={() => onSelect(item.representative)}
+            className={cn(
+              "w-full rounded-xl border bg-white p-4 text-left shadow-sm transition",
+              selected
+                ? "border-amber-400 ring-2 ring-amber-200"
+                : "border-slate-200 hover:border-amber-300 hover:shadow",
+            )}
+          >
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-start gap-2.5">
+                  <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-800">
+                    <Package className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-base font-semibold text-slate-900">
+                      {item.nombre_item}
+                    </p>
+                    {item.categoria ? (
+                      <p className="mt-0.5 text-sm text-slate-500">
+                        {item.categoria}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-col items-end gap-2">
+                <StockNivelBadge nivel={item.nivel} />
+                <p className="text-right">
+                  <span className="text-lg font-bold tabular-nums text-slate-900">
+                    {item.cantidad_total.toFixed(2)}
+                  </span>{" "}
+                  <span className="text-sm font-medium text-slate-500">
+                    {item.unidad || "und"}
+                  </span>
+                </p>
+              </div>
+            </div>
+            <div className="mt-3 border-t border-slate-100 pt-3">
+              <p className="mb-2 text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                Ubicaciones ({item.departamentos.length})
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {item.departamentos.map((dept) => (
+                  <StockDeptChip
+                    key={dept.id}
+                    nombre={dept.nombre}
+                    href={`/requisiciones/depositos/departamento/${dept.id}`}
+                    cantidad={dept.cantidad}
+                    nivel={dept.nivel}
+                  />
+                ))}
+              </div>
+            </div>
+          </button>
+        );
+      })}
+      {paginate ? (
+        <ReqDepositosPagination
+          page={page}
+          page_size={pageSize}
+          total={items.length}
+          on_page={setPage}
+          on_page_size={setPageSize}
+        />
+      ) : null}
+    </>
+  );
+}
+
+function ItemCard({
   row,
-  cols,
   selected,
-  showDeptoCol,
-  showCatCol,
+  showDepto,
   showDeptoHint,
+  showCat,
   onSelect,
 }: {
   row: ReqStockRow;
-  cols: string;
   selected: boolean;
-  showDeptoCol: boolean;
-  showCatCol: boolean;
+  showDepto: boolean;
   showDeptoHint: boolean;
+  showCat: boolean;
   onSelect: (row: ReqStockRow) => void;
 }) {
   const nivel = stock_nivel(Number(row.cantidad), row.minimo ?? 1);
+  const depto_name = row.departamento || DEPOSITO_LABEL[row.deposito];
+
   return (
     <button
       type="button"
       onClick={() => onSelect(row)}
       className={cn(
-        "grid w-full items-center gap-2 rounded-xl border px-3 py-2.5 text-left transition",
-        cols,
+        "flex w-full items-start gap-3 rounded-xl border bg-white p-4 text-left shadow-sm transition",
         selected
-          ? "border-sky-300 bg-sky-50/80"
-          : "border-slate-100 bg-white hover:border-sky-200",
+          ? "border-amber-400 ring-2 ring-amber-200"
+          : "border-slate-200 hover:border-amber-300 hover:shadow",
       )}
     >
-      <span className="min-w-0">
-        <span className="block truncate text-sm font-medium text-slate-900">
-          {row.nombre_item}
-        </span>
-        {showDeptoHint ? (
-          <span className="text-[11px] text-slate-400">
-            {row.departamento || DEPOSITO_LABEL[row.deposito]}
-          </span>
-        ) : null}
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-800">
+        <Package className="h-5 w-5" />
       </span>
-      {showDeptoCol ? (
-        <span className="truncate text-xs text-slate-500">
-          {row.departamento || DEPOSITO_LABEL[row.deposito]}
-        </span>
-      ) : null}
-      {showCatCol ? (
-        <span className="truncate text-xs text-slate-500">
-          {row.categoria || "—"}
-        </span>
-      ) : null}
-      <span
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="truncate text-base font-semibold text-slate-900">
+              {row.nombre_item}
+            </p>
+            {showCat && row.categoria ? (
+              <p className="mt-0.5 text-sm text-slate-500">{row.categoria}</p>
+            ) : null}
+            {showDepto || showDeptoHint ? (
+              <div className="mt-2">
+                <StockDeptLabel nombre={depto_name} />
+              </div>
+            ) : null}
+          </div>
+          <div className="flex flex-col items-end gap-2">
+            <StockNivelBadge nivel={nivel} />
+            <p className="text-right">
+              <span className="text-lg font-bold tabular-nums text-slate-900">
+                {Number(row.cantidad).toFixed(2)}
+              </span>{" "}
+              <span className="text-sm font-medium text-slate-500">
+                {row.unidad || "und"}
+              </span>
+            </p>
+          </div>
+        </div>
+      </div>
+      <ChevronRight
         className={cn(
-          "rounded-full border px-2 py-0.5 text-[10px] font-semibold",
-          STOCK_NIVEL_CLASS[nivel],
+          "mt-1 h-4 w-4 shrink-0",
+          selected ? "text-amber-600" : "text-slate-300",
         )}
-      >
-        {STOCK_NIVEL_LABEL[nivel]}
-      </span>
-      <span className="text-right text-sm font-semibold text-slate-800">
-        {Number(row.cantidad).toFixed(2)}{" "}
-        <span className="text-[11px] font-normal text-slate-400">
-          {row.unidad || ""}
-        </span>
-      </span>
+      />
     </button>
   );
 }

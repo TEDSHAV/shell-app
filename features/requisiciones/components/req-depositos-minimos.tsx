@@ -86,7 +86,7 @@ export function ReqDepositosMinimos({
           <SheetTitle>Alertas de stock bajo</SheetTitle>
           <SheetDescription>
             En {DEPOSITO_LABEL[deposito]}, un ítem pasa a “Bajo stock” cuando su
-            saldo es menor que el mínimo. Si no defines nada, se usa{" "}
+            stock es menor que el mínimo. Si no defines nada, se usa{" "}
             {FALLBACK_STOCK_MINIMO}.
           </SheetDescription>
         </SheetHeader>
@@ -184,7 +184,7 @@ export function ReqDepositosMinimos({
                   <MinimoInlineRow
                     key={row.id}
                     label={row.nombre_item}
-                    hint={`saldo ${Number(row.cantidad).toFixed(2)} ${row.unidad || ""} · usa ${Number(row.minimo ?? default_min)}`}
+                    hint={`stock ${Number(row.cantidad).toFixed(2)} ${row.unidad || ""} · mín. ${Number(row.minimo ?? default_min)}`}
                     inicial={Number(rule?.cantidad_minima ?? row.minimo ?? default_min)}
                     custom={Boolean(rule)}
                     onSave={(qty) =>

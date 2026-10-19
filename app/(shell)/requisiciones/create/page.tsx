@@ -19,9 +19,14 @@ export const metadata = {
 export default async function CreateRequisicionPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; item?: string; deposito?: string }>;
+  searchParams: Promise<{
+    from?: string;
+    item?: string;
+    deposito?: string;
+    abastecer?: string;
+  }>;
 }) {
-  const { from, item, deposito } = await searchParams;
+  const { from, item, deposito, abastecer } = await searchParams;
   const item_id = Number(item || 0);
   const deposito_ok: ReqDeposito | null =
     deposito === "departamento" ||
@@ -65,6 +70,7 @@ export default async function CreateRequisicionPage({
             ? { deposito: deposito_ok, item: catalog_item }
             : null
         }
+        abastecer={abastecer === "1" || abastecer === "true"}
       />
     </div>
   );

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type {
   OSIFixedItem,
   OSIFullData,
@@ -7,10 +8,12 @@ import type {
 } from "@/types/requisiciones";
 import type { CajonPedido, CatalogAmbitoPedido, ClasePedido } from "../../lib/req-destino";
 import type { ReqLineaDraft } from "../../lib/req-lineas-types";
+import type { ReqDeposito } from "../../lib/req-stock-types";
 import { apply_fixed_to_form } from "../../lib/req-alta-form";
 import { ReqAltaCabecera } from "./req-alta-cabecera";
 import { ReqAltaOsiPicker } from "./req-alta-osi";
 import { ReqAltaTablaDetalles } from "./req-alta-tabla-detalles";
+import { ReqAltaStockAnalisis } from "./req-alta-stock-analisis";
 
 export function ReqAltaPasoCreacion({
   clase,
@@ -27,6 +30,8 @@ export function ReqAltaPasoCreacion({
   on_sesion,
   lineas,
   on_lineas,
+  deposito_stock = "departamento",
+  abastecer_inicial = false,
 }: {
   clase: ClasePedido;
   ambito: CatalogAmbitoPedido;
@@ -49,7 +54,14 @@ export function ReqAltaPasoCreacion({
   on_sesion: (id: number) => void;
   lineas: ReqLineaDraft[];
   on_lineas: (next: ReqLineaDraft[]) => void;
+  deposito_stock?: ReqDeposito;
+  abastecer_inicial?: boolean;
 }) {
+  const show_stock =
+    clase === "servicio_inventario" || clase === "departamento";
+  const [analisis_open, setAnalisisOpen] = useState(
+    abastecer_inicial || clase === "servicio_inventario",
+  );
   const set_fixed = (next: OSIFixedItem[]) => {
     on_form(apply_fixed_to_form({ ...form, osi_fixed_items: next }, next[0]));
   };
@@ -98,6 +110,17 @@ export function ReqAltaPasoCreacion({
           departamento_nombre={form.departamento}
         />
       </div>
+      {show_stock ? (
+        <ReqAltaStockAnalisis
+          open={analisis_open}
+          on_open_change={setAnalisisOpen}
+          deposito={deposito_stock}
+          id_departamento={
+            deposito_stock === "departamento" ? id_departamento : null
+          }
+          lineas={lineas}
+        />
+      ) : null}
     </div>
   );
 }

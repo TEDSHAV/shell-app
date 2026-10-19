@@ -47,37 +47,61 @@ import {
 import { build_app_config } from "@/lib/app-theme";
 import { AppConfig, AppGroupConfig, NavGroup, NavLink } from "@/types";
 
+function inventarioHrefForApp(fromApp: string): string {
+  const q = `?from=${fromApp}`;
+  if (fromApp === "administracion") {
+    return `/requisiciones/depositos${q}`;
+  }
+  return `/requisiciones/depositos/para/${fromApp}${q}`;
+}
+
+function inventarioServiciosHrefForApp(fromApp: string): string | null {
+  const q = `?from=${fromApp}`;
+  if (fromApp === "capacitacion") {
+    return `/requisiciones/depositos/ejecutante/capacitacion${q}`;
+  }
+  if (fromApp === "servicios-tecnicos") {
+    return `/requisiciones/depositos/ejecutante/tecnico${q}`;
+  }
+  return null;
+}
+
 function buildRequisicionesNavGroup(fromApp: string): NavGroup {
   const q = `?from=${fromApp}`;
+  // Sin «Gestión»: esa cola es solo de Administración (tramitadores).
+  // Coordinadores/líderes sellan desde Mis Requisiciones.
+  const links: NavLink[] = [
+    {
+      label: "Nueva Requisición",
+      path: "/create",
+      href: `/requisiciones/create${q}`,
+      icon: FilePlus2,
+    },
+    {
+      label: "Mis Requisiciones",
+      path: "/",
+      href: `/requisiciones${q}`,
+      icon: ListOrdered,
+    },
+    {
+      label: "Inventario",
+      path: "/depositos",
+      href: inventarioHrefForApp(fromApp),
+      icon: Package,
+    },
+  ];
+  const servicios_href = inventarioServiciosHrefForApp(fromApp);
+  if (servicios_href) {
+    links.push({
+      label: "Inventario de servicios",
+      path: "/depositos/servicios",
+      href: servicios_href,
+      icon: Boxes,
+    });
+  }
   return {
     groupLabel: "Requisiciones",
-    links: [
-      {
-        label: "Nueva Requisición",
-        path: "/create",
-        href: `/requisiciones/create${q}`,
-        icon: FilePlus2,
-      },
-      {
-        label: "Mis Requisiciones",
-        path: "/",
-        href: `/requisiciones${q}`,
-        icon: ListOrdered,
-      },
-      {
-        label: "Gestión de Requisiciones",
-        path: "/gestion",
-        href: `/requisiciones/gestion${q}`,
-        icon: ClipboardList,
-        requiresRequisicionesGestion: true,
-      },
-      {
-        label: "Inventario",
-        path: "/depositos",
-        href: `/requisiciones/depositos${q}`,
-        icon: Package,
-      },
-    ],
+    links,
   };
 }
 
@@ -621,6 +645,7 @@ export const apps: AppConfig[] = [
           },
         ],
       },
+      buildRequisicionesNavGroup("negocios"),
     ],
   }),
   build_app_config({
@@ -701,6 +726,7 @@ export const apps: AppConfig[] = [
           },
         ],
       },
+      buildRequisicionesNavGroup("marketing"),
     ],
   }),
   build_app_config({
@@ -792,6 +818,18 @@ export const apps: AppConfig[] = [
             path: "/dashboard/capacitacion/requisiciones/create",
             icon: FilePlus2,
             requiredPermissions: ["scapacitacion:all:access"],
+          },
+          {
+            label: "Inventario",
+            path: "/depositos",
+            href: inventarioHrefForApp("capacitacion"),
+            icon: Package,
+          },
+          {
+            label: "Inventario de servicios",
+            path: "/depositos/servicios",
+            href: inventarioServiciosHrefForApp("capacitacion")!,
+            icon: Boxes,
           },
         ],
       },
@@ -970,7 +1008,7 @@ export const apps: AppConfig[] = [
       { label: "Control de Calibración", path: "/dashboard/control-calibracion", icon: Gauge },
       { label: "Entrada y Salida de Equipos", path: "/dashboard/entrada-salida-equipos", icon: ArrowLeftRight },
       { label: "Formulario de Novedades", path: "/dashboard/formulario-novedades", icon: FileText },
-      ...[buildRequisicionesNavGroup("servicios-tecnicos")],
+      buildRequisicionesNavGroup("servicios-tecnicos"),
     ],
   }),
   build_app_config({
@@ -1270,12 +1308,21 @@ export const apps: AppConfig[] = [
           },
         ],
       },
+      buildRequisicionesNavGroup("ted"),
     ],
   }),
 ];
 
-export function getAppByPath(pathname: string): AppConfig | undefined {
+export function getAppByPath(
+  pathname: string,
+  fromApp?: string | null,
+): AppConfig | undefined {
   if (pathname.startsWith("/requisiciones")) {
+    const from = (fromApp || "").trim().toLowerCase();
+    if (from && from !== "administracion") {
+      const origin = apps.find((app) => app.id === from);
+      if (origin) return origin;
+    }
     return apps.find((app) => app.id === "administracion");
   }
   return apps.find((app) => pathname.startsWith(app.basePath));

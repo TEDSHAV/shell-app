@@ -19,24 +19,32 @@ function as_stock_rows(data: unknown): ReqStockRow[] {
 
 export async function can_view_depositos(): Promise<boolean> {
   const access = await getRequisicionAccess();
-  return access.can_process || access.can_create || access.can_access_own;
+  return access.can_view_inventario;
 }
 
 export async function get_depositos_ui_access_action(): Promise<{
   can_view: boolean;
   can_process: boolean;
+  can_consume: boolean;
+  can_request: boolean;
   can_edit_minimos: boolean;
+  request_depts: string[];
+  home_dept: string | null;
 }> {
   const access = await getRequisicionAccess();
   return {
-    can_view:
-      access.can_process || access.can_create || access.can_access_own,
+    can_view: access.can_view_inventario,
     can_process: access.can_process,
+    can_consume: access.can_consume_inventario,
+    can_request: access.can_request_inventario,
     can_edit_minimos: access.can_process || access.can_edit_config,
+    request_depts: access.request_depts,
+    home_dept: access.home_dept,
   };
 }
 
-async function can_manage_stock(): Promise<boolean> {
+/** Ingreso / upsert global: solo gestion:process. */
+async function can_process_ingreso(): Promise<boolean> {
   const access = await getRequisicionAccess();
   return access.can_process;
 }
@@ -44,6 +52,38 @@ async function can_manage_stock(): Promise<boolean> {
 async function can_edit_minimos(): Promise<boolean> {
   const access = await getRequisicionAccess();
   return access.can_process || access.can_edit_config;
+}
+
+function dept_in_scope(
+  departamento: string | null | undefined,
+  request_depts: string[],
+  home_dept: string | null,
+): boolean {
+  const name = (departamento || "").trim().toLowerCase();
+  if (!name) return false;
+  const pool = [...request_depts, home_dept || ""].filter(Boolean);
+  return pool.some((d) => d.trim().toLowerCase() === name);
+}
+
+async function can_consume_stock_row(row: {
+  deposito: ReqDeposito;
+  departamento?: string | null;
+}): Promise<boolean> {
+  const access = await getRequisicionAccess();
+  if (!access.can_consume_inventario) return false;
+  if (access.can_process) return true;
+  if (row.deposito === "departamento") {
+    return dept_in_scope(
+      row.departamento,
+      access.request_depts,
+      access.home_dept,
+    );
+  }
+  // Cap / ST: home o request_depts del ejecutante
+  const needle =
+    row.deposito === "capacitacion" ? "capacita" : "tecnic";
+  const pool = [...access.request_depts, access.home_dept || ""];
+  return pool.some((d) => d.toLowerCase().includes(needle));
 }
 
 export async function list_req_stock_minimo_action(
@@ -92,6 +132,46 @@ export async function list_req_stock_action(
       rules,
     }),
   }));
+}
+
+/** Saldo de ítems para el panel de análisis en el alta (abastecimiento). */
+export async function lookup_stock_for_items_action(params: {
+  ids_item: number[];
+  deposito: ReqDeposito;
+  id_departamento?: number | null;
+}): Promise<
+  Array<{
+    id_stock: number;
+    id_item_costo: number;
+    cantidad: number;
+    minimo: number;
+    unidad: string | null;
+    nombre_item: string;
+  }>
+> {
+  if (!(await can_view_depositos())) return [];
+  const ids = [...new Set(params.ids_item.filter((id) => id > 0))];
+  if (ids.length === 0) return [];
+  const rows = await list_req_stock_action(params.deposito);
+  return rows
+    .filter((row) => {
+      if (!ids.includes(row.id_item_costo)) return false;
+      if (
+        params.deposito === "departamento" &&
+        params.id_departamento != null
+      ) {
+        return Number(row.id_departamento) === params.id_departamento;
+      }
+      return true;
+    })
+    .map((row) => ({
+      id_stock: row.id,
+      id_item_costo: row.id_item_costo,
+      cantidad: Number(row.cantidad),
+      minimo: row.minimo ?? 1,
+      unidad: row.unidad,
+      nombre_item: row.nombre_item,
+    }));
 }
 
 export async function list_req_stock_all_action(): Promise<ReqStockRow[]> {
@@ -252,10 +332,39 @@ export async function registrar_salida_stock_action(params: {
   cantidad: number;
   notas?: string;
 }): Promise<{ ok: boolean; error?: string }> {
-  if (!(await can_manage_stock())) {
-    return { ok: false, error: "Sin permiso." };
-  }
   const supabase = await createClient();
+  const { data: stock_raw } = await supabase
+    .from("req_stock" as never)
+    .select("id,deposito,id_departamento")
+    .eq("id", params.id_stock)
+    .maybeSingle();
+  const stock = stock_raw as {
+    id: number;
+    deposito: ReqDeposito;
+    id_departamento: number | null;
+  } | null;
+  if (!stock) return { ok: false, error: "Stock no encontrado." };
+
+  let departamento: string | null = null;
+  if (stock.id_departamento) {
+    const { data: dept } = await supabase
+      .from("departamentos" as never)
+      .select("nombre")
+      .eq("id", stock.id_departamento)
+      .maybeSingle();
+    departamento =
+      (dept as { nombre?: string } | null)?.nombre ?? null;
+  }
+
+  if (
+    !(await can_consume_stock_row({
+      deposito: stock.deposito,
+      departamento,
+    }))
+  ) {
+    return { ok: false, error: "Sin permiso de consumo en este inventario." };
+  }
+
   const { error } = await supabase.rpc("fn_req_registrar_salida" as never, {
     p_id_stock: params.id_stock,
     p_tipo: params.tipo,
@@ -272,7 +381,8 @@ export async function confirmar_consumo_osi_action(params: {
   id_osi: number;
   cantidad: number;
 }): Promise<{ ok: boolean; error?: string }> {
-  if (!(await can_manage_stock())) {
+  const access = await getRequisicionAccess();
+  if (!access.can_consume_inventario && !access.can_process) {
     return { ok: false, error: "Sin permiso." };
   }
   const supabase = await createClient();
@@ -392,7 +502,7 @@ export async function list_ingresos_pendientes_action(params: {
     pendiente: number;
   }>
 > {
-  if (!(await can_manage_stock())) return [];
+  if (!(await can_process_ingreso())) return [];
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("req_lineas" as never)
@@ -436,8 +546,8 @@ export async function procesar_ingreso_action(params: {
   id_requisicion: number;
   id_linea: number;
 }): Promise<{ ok: boolean; error?: string }> {
-  if (!(await can_manage_stock())) {
-    return { ok: false, error: "Sin permiso." };
+  if (!(await can_process_ingreso())) {
+    return { ok: false, error: "Sin permiso de ingreso." };
   }
   const supabase = await createClient();
   const { data: linea, error: read_err } = await supabase

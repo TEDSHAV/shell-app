@@ -5,13 +5,9 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { DEPOSITO_LABEL, type ReqDeposito, type ReqIngresoPendiente, type ReqKardexRow, type ReqOsiRepartoRow, type ReqStockRow } from "../lib/req-stock-types";
-import {
-  STOCK_NIVEL_CLASS,
-  STOCK_NIVEL_LABEL,
-  kardex_label,
-  stock_nivel,
-} from "../lib/req-stock-status";
+import { kardex_label, stock_nivel } from "../lib/req-stock-status";
 import { ReqDepositosConsumo } from "./req-depositos-consumo";
+import { StockNivelBadge } from "./depositos/req-stock-ui";
 
 export function ReqDepositosInspector({
   deposito,
@@ -22,6 +18,8 @@ export function ReqDepositosInspector({
   kardex_limit,
   busy,
   can_process,
+  can_consume = false,
+  can_request = false,
   restock_open,
   onInterno,
   onSalida,
@@ -38,6 +36,10 @@ export function ReqDepositosInspector({
   kardex_limit: number;
   busy: boolean;
   can_process: boolean;
+  /** Consumo / agotado (inventario:consume o process). */
+  can_consume?: boolean;
+  /** Pedir reabastecimiento (inventario:request). */
+  can_request?: boolean;
   restock_open: boolean;
   onInterno: (cantidad: number) => Promise<void>;
   onSalida: (cantidad: number, ids_osi: number[]) => Promise<void>;
@@ -89,26 +91,21 @@ export function ReqDepositosInspector({
           <div>
             <p className="text-lg font-semibold text-slate-900">{row.nombre_item}</p>
             <p className="text-xs text-slate-500">{DEPOSITO_LABEL[deposito]}</p>
-            <div className="mt-2 flex items-center gap-2">
-              <span className="text-2xl font-semibold text-slate-900">
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <span className="text-2xl font-bold tabular-nums text-slate-900">
                 {Number(row.cantidad).toFixed(2)}
               </span>
-              <span className="text-sm text-slate-500">{row.unidad || ""}</span>
-              <span
-                className={cn(
-                  "rounded-full border px-2 py-0.5 text-[10px] font-semibold",
-                  STOCK_NIVEL_CLASS[nivel],
-                )}
-              >
-                {STOCK_NIVEL_LABEL[nivel]}
+              <span className="text-sm font-medium text-slate-500">
+                {row.unidad || "und"}
               </span>
+              <StockNivelBadge nivel={nivel} />
             </div>
             <p className="mt-1 text-[11px] text-slate-400">
               Mínimo {Number(row.minimo ?? 1).toFixed(2)} {row.unidad || ""}
             </p>
           </div>
 
-          {can_process ? (
+          {can_consume || can_process ? (
             <ReqDepositosConsumo
               deposito={deposito}
               unidad={row.unidad}
@@ -120,7 +117,7 @@ export function ReqDepositosInspector({
             />
           ) : null}
 
-          <div className="relative">
+          <div className="relative space-y-2">
             {can_process ? (
               <Button
                 type="button"
@@ -130,11 +127,17 @@ export function ReqDepositosInspector({
               >
                 Procesar ingreso
               </Button>
-            ) : (
-              <Button type="button" variant="outline" className="w-full" onClick={onRestock}>
+            ) : null}
+            {can_request ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={onRestock}
+              >
                 Solicitar reabastecimiento
               </Button>
-            )}
+            ) : null}
             {can_process && ingreso_open ? (
               <div className="absolute z-10 mt-2 w-full rounded-xl border bg-white p-3 text-xs shadow-lg">
                 {ingresos.length === 0 ? (
@@ -164,7 +167,7 @@ export function ReqDepositosInspector({
               </div>
             ) : null}
           </div>
-          {restock_open && !can_process ? (
+          {restock_open && can_request ? (
             <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
               Ya hay una requisición abierta de este artículo. Ábrala desde Gestión o
               cree otra si necesita más cantidad.

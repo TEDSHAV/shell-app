@@ -10,6 +10,9 @@ export const REQ_GESTION_APPROVE_LIDER = "requisiciones:gestion:approve-lider";
 export const REQ_GESTION_APPROVE_AUMENTO =
   "requisiciones:gestion:approve-aumento-costos";
 export const REQ_CONFIG_MANAGE = "requisiciones:config:manage";
+export const REQ_INVENTARIO_ACCESS = "requisiciones:inventario:access";
+export const REQ_INVENTARIO_CONSUME = "requisiciones:inventario:consume";
+export const REQ_INVENTARIO_REQUEST = "requisiciones:inventario:request";
 
 export const ADMIN_APP_SLUG = "sadministracion";
 

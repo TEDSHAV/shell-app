@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { ChevronRight, Home } from "lucide-react";
 import { useState, useEffect, type MouseEvent } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { getAppByPath } from "@/config/apps";
 import { NavLink, NavGroup } from "@/types";
 import {
@@ -105,7 +105,8 @@ export const AppBreadcrumb = () => {
     };
   }, []);
 
-  const currentApp = getAppByPath(currentPathname);
+  const searchParams = useSearchParams();
+  const currentApp = getAppByPath(currentPathname, searchParams.get("from"));
 
   if (currentPathname === "/dashboard") {
     return (

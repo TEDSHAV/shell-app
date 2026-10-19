@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Home, ChevronDown, ChevronRight, FileCheck } from "lucide-react";
 import { useState } from "react";
 import {
@@ -48,8 +49,14 @@ function flatten_nav_paths(app: AppConfig): string[] {
   return paths;
 }
 
+function path_without_query(full_path: string): string {
+  const cut = full_path.indexOf("?");
+  return cut >= 0 ? full_path.slice(0, cut) : full_path;
+}
+
 function path_matches(pathname: string, full_path: string): boolean {
-  return pathname === full_path || pathname.startsWith(`${full_path}/`);
+  const base = path_without_query(full_path);
+  return pathname === base || pathname.startsWith(`${base}/`);
 }
 
 function is_nav_path_active(
@@ -146,7 +153,8 @@ export function SidebarNavClient({
   canAccessRequisicionesGestion = false,
 }: SidebarNavClientProps) {
   const pathname = use_shell_pathname();
-  const currentApp = getAppByPath(pathname);
+  const searchParams = useSearchParams();
+  const currentApp = getAppByPath(pathname, searchParams.get("from"));
   const { onClose } = useMobileSidebar();
   const { isCollapsed } = useSidebarCollapse();
 
@@ -308,11 +316,27 @@ export function SidebarNavClient({
     const fullPath =
       link.href ??
       `${currentApp.basePath}${link.path === "/" ? "" : link.path}`;
+    const inventario_base = path_without_query(fullPath);
+    const from_ok =
+      (searchParams.get("from") || "").toLowerCase() === currentApp.id;
+    const is_inventario_depto =
+      link.label === "Inventario" &&
+      inventario_base.includes("/requisiciones/depositos") &&
+      !inventario_base.includes("/ejecutante/");
+    const is_inventario_servicios =
+      link.label === "Inventario de servicios" &&
+      inventario_base.includes("/ejecutante/");
     const isActive =
       link.path === "/" && !link.href
         ? pathname === currentApp.basePath ||
           pathname === currentApp.basePath + "/"
-        : is_nav_path_active(pathname, fullPath, nav_paths);
+        : is_nav_path_active(pathname, fullPath, nav_paths) ||
+          (is_inventario_depto &&
+            from_ok &&
+            pathname.startsWith("/requisiciones/depositos/departamento/")) ||
+          (is_inventario_servicios &&
+            from_ok &&
+            pathname.startsWith("/requisiciones/depositos/ejecutante/"));
 
     const external = opens_in_new_tab(currentApp);
     const externalHref = external

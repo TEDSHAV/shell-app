@@ -314,6 +314,11 @@ export const isRequisicionesLider = cache(async (): Promise<boolean> => {
   return access.can_approve_lider;
 });
 
+/**
+ * Menú «Gestión de Requisiciones» (solo en app Administración).
+ * Aparece con `requisiciones:gestion:process` (tramitadores Admin).
+ * Coordinadores/líderes sellan en Mis Requisiciones; no ven este ítem.
+ */
 export const canAccessRequisicionesGestion = cache(async (): Promise<boolean> => {
   const access = await getRequisicionAccess();
   return access.can_process;

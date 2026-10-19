@@ -1,10 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
 import { ChevronDown } from "lucide-react";
-import { apps, appGroups, get_header_group_id, HOME_NAV_APP_IDS, HOME_NAV_GROUP_IDS, sort_header_group_apps } from "@/config/apps";
+import {
+  apps,
+  appGroups,
+  get_header_group_id,
+  HOME_NAV_APP_IDS,
+  HOME_NAV_GROUP_IDS,
+  sort_header_group_apps,
+} from "@/config/apps";
 import { canAccessConsultaOSI } from "@/actions/osi";
 import { AppConfig, AppGroupConfig } from "@/types";
 import {
@@ -15,6 +22,7 @@ import {
 } from "@/lib/app-theme";
 import { cn } from "@/lib/utils";
 import { can_access_shell_app } from "@/lib/shell-app-access";
+import { shell_app_id_from_query } from "@/lib/requisiciones-inventario-nav";
 
 interface AppNavigationProps {
   userRolesByApp?: Record<string, string>;
@@ -23,6 +31,11 @@ interface AppNavigationProps {
 
 export const AppNavigation = ({ userRolesByApp = {}, globalRole }: AppNavigationProps) => {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const from_app_id = shell_app_id_from_query(
+    pathname,
+    searchParams.get("from"),
+  );
   const [canAccessOsi, setCanAccessOsi] = useState(false);
 
   useEffect(() => {
@@ -58,7 +71,9 @@ export const AppNavigation = ({ userRolesByApp = {}, globalRole }: AppNavigation
     <nav className="hidden md:flex items-center gap-1 mr-2">
       {homeNavApps.map((app) => {
         const external = opens_in_new_tab(app);
-        const is_active = pathname.startsWith(app.basePath);
+        const is_active = from_app_id
+          ? from_app_id === app.id
+          : pathname.startsWith(app.basePath);
         const icon_style = get_app_icon_style(app.brandColor);
         const link_vars = get_header_nav_link_vars(app.brandColor);
 
@@ -108,6 +123,7 @@ export const AppNavigation = ({ userRolesByApp = {}, globalRole }: AppNavigation
             group={group}
             apps={groupApps}
             pathname={pathname}
+            from_app_id={from_app_id}
           />
         );
       })}
@@ -119,16 +135,20 @@ function GroupedNavDropdown({
   group,
   apps: groupApps,
   pathname,
+  from_app_id,
 }: {
   group: AppGroupConfig;
   apps: AppConfig[];
   pathname: string;
+  from_app_id: string | null;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const icon_style = get_app_icon_style(group.brandColor);
   const anyChildActive = groupApps.some((app) =>
-    pathname.startsWith(app.basePath),
+    from_app_id
+      ? from_app_id === app.id
+      : pathname.startsWith(app.basePath),
   );
 
   useEffect(() => {
@@ -165,7 +185,9 @@ function GroupedNavDropdown({
           {groupApps.map((app) => {
             const external = opens_in_new_tab(app);
             const appIconStyle = get_app_icon_style(app.brandColor);
-            const isActive = pathname.startsWith(app.basePath);
+            const isActive = from_app_id
+              ? from_app_id === app.id
+              : pathname.startsWith(app.basePath);
 
             return external ? (
               <a

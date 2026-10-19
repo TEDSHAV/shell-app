@@ -56,6 +56,8 @@ type ReqAltaAsistenteProps = {
     hora_fin: string | null;
   }>;
   restock?: ReqAltaRestock | null;
+  /** Deep-link desde inventario: abrir análisis de stock. */
+  abastecer?: boolean;
 };
 
 export function ReqAltaAsistente({
@@ -65,6 +67,7 @@ export function ReqAltaAsistente({
   userGerencia,
   osiSessions,
   restock = null,
+  abastecer = false,
 }: ReqAltaAsistenteProps) {
   const seed = restock
     ? seed_alta_restock({
@@ -294,6 +297,8 @@ export function ReqAltaAsistente({
             form={form}
             on_form={setForm}
             id_departamento={Number(userData?.departamento) || null}
+            deposito_stock={restock?.deposito ?? "departamento"}
+            abastecer_inicial={abastecer || Boolean(restock)}
             osis={osis}
             osi_sessions={osiSessions}
             osi={osi}

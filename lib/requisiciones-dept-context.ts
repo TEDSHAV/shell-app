@@ -39,6 +39,8 @@ const APP_TO_DEPT_KEY: Record<string, DeptKey> = {
   calidad: "calidad",
   sgestion: "negocios",
   negocios: "negocios",
+  marketing: "marketing",
+  ted: "ted",
 };
 
 const ADMIN_SIBLING_KEYS: DeptKey[] = ["administracion", "recursos_humanos"];

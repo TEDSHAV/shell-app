@@ -32,8 +32,35 @@ Casa del módulo: app **Administración** (`sadministracion`). El permiso es glo
 | `solicitud` | Solicitante: Mis requisiciones, crear, editar lo propio | `access`, `create`, `edit`, `access-depto` |
 | `gestion` | Trámite: colas de sello y proceso de Administración | `access`, `approve-coordinador`, `approve-lider`, `process`, `edit` |
 | `config` | Límite USD de internas (quién debe pasar por líder) | `manage` |
+| `inventario` | Depósito del depto / ejecutante: ver, consumir, pedir | `access`, `consume`, `request` |
 
 El permiso es global. No se duplica por app.
+
+---
+
+## `inventario`
+
+TED crea los slugs; el código solo los lee. Alcance depto/Cap/ST se valida en Shell (no en el slug).
+
+| Slug | Efecto |
+|------|--------|
+| `requisiciones:inventario:access` | Ver inventario de su alcance (depto casa / `request_depts`; Cap/ST si aplica). |
+| `requisiciones:inventario:consume` | Registrar consumo / marcar agotado **solo en su alcance**. |
+| `requisiciones:inventario:request` | Solicitar reabastecimiento desde inventario. |
+
+**Ingreso** por requisición (aplicar entradas) sigue en `requisiciones:gestion:process` (Administración).  
+Quien solo tiene `inventario:*` no procesa ingresos globales ni importa Excel.
+
+### Rutas de inventario (sidebar)
+
+| Ruta | Uso |
+|------|-----|
+| `/requisiciones/depositos` | Hub (Todos / tarjetas depto / Cap / ST) |
+| `/requisiciones/depositos/departamento/[id]` | Inventario de un departamento |
+| `/requisiciones/depositos/ejecutante/capacitacion` | Inventario ejecutante Cap |
+| `/requisiciones/depositos/ejecutante/tecnico` | Inventario ejecutante ST |
+
+**Capacitacion (prep):** dos links cuando se cuelgue nav nativo — Inventario departamental (depto Cap por `id`) + Inventario ejecutante Cap. Hoy el hub + rutas ya existen; el grupo Cap legacy embebido no se toca en este cambio.
 
 ---
 

@@ -16,6 +16,9 @@ import {
   REQ_GESTION_EDIT,
   REQ_GESTION_APPROVE_AUMENTO,
   REQ_GESTION_PROCESS,
+  REQ_INVENTARIO_ACCESS,
+  REQ_INVENTARIO_CONSUME,
+  REQ_INVENTARIO_REQUEST,
   REQ_SOLICITUD_ACCESS,
   REQ_SOLICITUD_ACCESS_DEPTO,
   REQ_SOLICITUD_CREATE,
@@ -78,6 +81,12 @@ export type RequisicionAccess = {
   can_approve_aumento: boolean;
   can_edit_config: boolean;
   can_select_dept: boolean;
+  /** Ver inventario (alcance depto / ejecutante). */
+  can_view_inventario: boolean;
+  /** Consumo / agotado en su alcance. */
+  can_consume_inventario: boolean;
+  /** Solicitar reabastecimiento desde inventario. */
+  can_request_inventario: boolean;
 };
 
 const get_departamento_catalog = cache(async (): Promise<DeptCatalogRow[]> => {
@@ -191,6 +200,19 @@ export const getRequisicionAccess = cache(async (): Promise<RequisicionAccess> =
     can_approve_aumento: slug_set.has(REQ_GESTION_APPROVE_AUMENTO),
     can_edit_config: slug_set.has(REQ_CONFIG_MANAGE),
     can_select_dept: is_admin_operative(roles_by_app),
+    can_view_inventario:
+      slug_set.has(REQ_INVENTARIO_ACCESS) ||
+      slug_set.has(REQ_INVENTARIO_CONSUME) ||
+      slug_set.has(REQ_INVENTARIO_REQUEST) ||
+      slug_set.has(REQ_GESTION_PROCESS) ||
+      slug_set.has(REQ_SOLICITUD_CREATE) ||
+      slug_set.has(REQ_SOLICITUD_ACCESS),
+    can_consume_inventario:
+      slug_set.has(REQ_INVENTARIO_CONSUME) || slug_set.has(REQ_GESTION_PROCESS),
+    can_request_inventario:
+      slug_set.has(REQ_INVENTARIO_REQUEST) ||
+      slug_set.has(REQ_SOLICITUD_CREATE) ||
+      slug_set.has(REQ_GESTION_PROCESS),
   };
 });
 
