@@ -788,34 +788,11 @@ export async function canAccessConsultaOSI(): Promise<boolean> {
   return filter !== "none";
 }
 
-export async function canChangeOSIStatus(osiId?: number): Promise<boolean> {
-  try {
-    const filter = await getUserOSIAccessFilter();
-
-    if (filter === "none" || filter === "other") return false;
-    if (filter === "all") return true;
-
-    if (osiId !== undefined) {
-      const supabase = await createClient();
-      const { data: osi } = await supabase
-        .from("v_osi_lista")
-        .select("tipo_servicio")
-        .eq("id_osi", osiId)
-        .single();
-
-      if (!osi?.tipo_servicio) return false;
-      const tipoUpper = osi.tipo_servicio.toUpperCase();
-
-      if (filter === "capacitacion") return tipoUpper.includes("CAPACITACION");
-      if (filter === "servicios_tecnicos")
-        return tipoUpper.includes("SERVICIOS TECNICOS") || tipoUpper.includes("SERVICIO TECNICO");
-    }
-
-    return true;
-  } catch (err) {
-    console.error("Error checking OSI status change permission:", err);
-    return false;
-  }
+export async function canChangeOSIStatus(_osiId?: number): Promise<boolean> {
+  // Los cambios de estatus de OSIs y sesiones ya no se permiten desde Consulta de OSIs.
+  // Toda la gestión de estatus (ejecutado, en proceso, reagendado, etc.) debe realizarse
+  // exclusivamente desde el módulo de Capacitación (Seguimiento de Servicios / Confirmación en Vivo).
+  return false;
 }
 
 // ─── Cliente visibility ("Ocultar para cliente") ───
@@ -1089,7 +1066,7 @@ export async function updateOSIStatus(
   try {
     const canChange = await canChangeOSIStatus(osiId);
     if (!canChange) {
-      return { success: false, error: "No tiene permisos para cambiar el estado de OSIs" };
+      return { success: false, error: "El estatus de las OSIs debe gestionarse exclusivamente desde el módulo de Capacitación." };
     }
 
     const supabase = await createClient();
@@ -1322,7 +1299,7 @@ export async function updateSessionStatus(
 
     const canChange = await canChangeOSIStatus(session.id_osi);
     if (!canChange) {
-      return { success: false, error: "No tiene permisos para cambiar el estado de sesiones" };
+      return { success: false, error: "El estatus de las sesiones debe gestionarse exclusivamente desde el módulo de Capacitación." };
     }
 
     const EJECUTADO_ID = 12;
