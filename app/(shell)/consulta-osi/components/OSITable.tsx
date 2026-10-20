@@ -36,7 +36,7 @@ interface OSITableProps {
 
 function getNotasTooltip(notas?: OsiNota[]): string {
   if (!notas || notas.length === 0) {
-    return "Sin notas u observaciones. Clic para agregar.";
+    return "Sin historial de estatus. Clic para ver.";
   }
   const lines = notas.slice(0, 3).map((n) => {
     const autor = n.autorNombre ? `[${n.autorNombre}] ` : "";
@@ -44,9 +44,9 @@ function getNotasTooltip(notas?: OsiNota[]): string {
   });
   const more =
     notas.length > 3
-      ? `\n(+${notas.length - 3} nota${notas.length - 3 === 1 ? "" : "s"} más...)`
+      ? `\n(+${notas.length - 3} evento${notas.length - 3 === 1 ? "" : "s"} más...)`
       : "";
-  return `${notas.length} nota${notas.length === 1 ? "" : "s"}:\n${lines.join("\n")}${more}\n\nClic para ver todas o agregar.`;
+  return `${notas.length} evento${notas.length === 1 ? "" : "s"} de estatus:\n${lines.join("\n")}${more}\n\nClic para ver historial.`;
 }
 
 export default function OSITable({
@@ -631,7 +631,7 @@ export default function OSITable({
                     {(osi.notas?.length ?? 0) > 0 ? (
                       <span className="text-[11px] font-semibold">{osi.notas!.length}</span>
                     ) : (
-                      <span className="text-[10px] text-gray-400 font-bold">+</span>
+                      <span className="text-[10px] text-gray-400 font-bold">—</span>
                     )}
                   </button>
                 ) : (
