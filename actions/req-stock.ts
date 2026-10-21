@@ -181,6 +181,11 @@ export async function lookup_stock_for_items_action(params: {
 export async function list_req_stock_all_action(): Promise<ReqStockRow[]> {
   if (!(await can_view_depositos())) return [];
   const supabase = await createClient();
+  // Autocura: slots en 0 para inventario externo del catálogo (cap/ST).
+  // No falla si la migración aún no está aplicada.
+  await supabase.rpc("fn_req_sync_stock_slots_catalogo" as never, {
+    p_id_item: null,
+  });
   const [depto, servicio, rules] = await Promise.all([
     supabase
       .from("v_req_stock_departamento" as never)
@@ -328,6 +333,39 @@ export async function count_osis_reparto_action(
   return ((data || []) as Array<{ id_osi: number }>).filter(
     (row) => !taken.has(Number(row.id_osi)),
   ).length;
+}
+
+/** Primera carga de integración: solo si el slot está en 0 y sin movimientos. */
+export async function registrar_stock_inicial_action(params: {
+  id_stock: number;
+  cantidad: number;
+}): Promise<{ ok: boolean; error?: string }> {
+  if (!(await can_process_ingreso())) {
+    return { ok: false, error: "Sin permiso para registrar stock inicial." };
+  }
+  if (!(params.cantidad > 0)) {
+    return { ok: false, error: "Indique una cantidad mayor que cero." };
+  }
+  const supabase = await createClient();
+  const { error } = await supabase.rpc(
+    "fn_req_registrar_stock_inicial" as never,
+    {
+      p_id_stock: params.id_stock,
+      p_cantidad: params.cantidad,
+    },
+  );
+  if (error) {
+    return {
+      ok: false,
+      error:
+        error.message.includes("movimientos") ||
+        error.message.includes("cantidad")
+          ? error.message
+          : error.message || "No se pudo registrar el stock inicial.",
+    };
+  }
+  revalidatePath("/requisiciones/depositos");
+  return { ok: true };
 }
 
 export async function registrar_salida_stock_action(params: {

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { NumberInput } from "@/components/ui/number-input";
 import { cn } from "@/lib/utils";
 import { DEPOSITO_LABEL, type ReqDeposito, type ReqIngresoPendiente, type ReqKardexRow, type ReqOsiRepartoRow, type ReqStockRow } from "../lib/req-stock-types";
 import { kardex_label, stock_nivel } from "../lib/req-stock-status";
@@ -25,6 +26,7 @@ export function ReqDepositosInspector({
   onSalida,
   onDanado,
   onIngreso,
+  onStockInicial,
   onRestock,
   onMoreKardex,
 }: {
@@ -45,11 +47,13 @@ export function ReqDepositosInspector({
   onSalida: (cantidad: number, ids_osi: number[]) => Promise<void>;
   onDanado: (cantidad: number) => Promise<void>;
   onIngreso: (ingreso: ReqIngresoPendiente) => Promise<void>;
+  onStockInicial?: (cantidad: number) => Promise<void>;
   onRestock: () => void;
   onMoreKardex: () => void;
 }) {
   const [tab, setTab] = useState<"gestion" | "historial">("gestion");
   const [ingreso_open, setIngresoOpen] = useState(false);
+  const [inicial_qty, setInicialQty] = useState(1);
 
   if (!row) {
     return (
@@ -62,6 +66,10 @@ export function ReqDepositosInspector({
   const nivel = stock_nivel(Number(row.cantidad), row.minimo ?? 1);
   const sign = (tipo: string, qty: number) =>
     tipo === "entrada" ? `+${qty}` : `−${qty}`;
+  const puede_stock_inicial =
+    Boolean(can_process && onStockInicial) &&
+    Number(row.cantidad) === 0 &&
+    kardex.length === 0;
 
   return (
     <div className="relative z-10 flex min-h-[28rem] flex-col overflow-visible rounded-2xl border border-sky-100/80 bg-gradient-to-b from-white/95 to-sky-50/70 p-5 shadow-sm backdrop-blur">
@@ -104,6 +112,39 @@ export function ReqDepositosInspector({
               Mínimo {Number(row.minimo ?? 1).toFixed(2)} {row.unidad || ""}
             </p>
           </div>
+
+          {puede_stock_inicial ? (
+            <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3">
+              <p className="text-sm font-semibold text-amber-950">
+                Stock inicial
+              </p>
+              <p className="mt-0.5 text-xs text-amber-900/80">
+                Carga de integración: con cuánto inicia este artículo. Solo si
+                aún no hay movimientos.
+              </p>
+              <div className="mt-2 flex items-center gap-2">
+                <NumberInput
+                  value={inicial_qty}
+                  min={0.01}
+                  allowDecimal
+                  className="h-9 w-28"
+                  onValueChange={setInicialQty}
+                />
+                <span className="text-xs text-slate-500">
+                  {row.unidad || "und"}
+                </span>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={busy || !(inicial_qty > 0)}
+                  className="bg-amber-600 hover:bg-amber-700"
+                  onClick={() => void onStockInicial?.(inicial_qty)}
+                >
+                  Establecer
+                </Button>
+              </div>
+            </div>
+          ) : null}
 
           {can_consume || can_process ? (
             <ReqDepositosConsumo

@@ -17,6 +17,7 @@ import {
   list_req_stock_all_action,
   procesar_ingreso_action,
   registrar_salida_stock_action,
+  registrar_stock_inicial_action,
   restock_en_curso_action,
 } from "@/actions/req-stock";
 import { stock_nivel } from "../../lib/req-stock-status";
@@ -275,6 +276,16 @@ export function ReqDepositosDetailScreen({
                     id_linea: ingreso.id_linea,
                   }),
                 )
+              }
+              onStockInicial={(cantidad) =>
+                selected
+                  ? run(() =>
+                      registrar_stock_inicial_action({
+                        id_stock: selected.id,
+                        cantidad,
+                      }),
+                    )
+                  : Promise.resolve()
               }
               onRestock={() => {
                 if (!selected) return;

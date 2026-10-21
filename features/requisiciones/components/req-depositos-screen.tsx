@@ -22,11 +22,13 @@ import {
   list_req_stock_minimo_action,
   procesar_ingreso_action,
   registrar_salida_stock_action,
+  registrar_stock_inicial_action,
   restock_en_curso_action,
   upsert_req_stock_minimo_action,
 } from "@/actions/req-stock";
 import { stock_nivel } from "../lib/req-stock-status";
 import {
+  DEPOSITO_TAB_HELP,
   DEPOSITO_TAB_LABEL,
   DEPOSITO_TABS,
   type ReqDeposito,
@@ -85,7 +87,9 @@ export function ReqDepositosScreen() {
   );
   const rules = useMemo(
     () =>
-      tab === "todos" ? [] : allRules.filter((row) => row.deposito === tab),
+      tab === "todos"
+        ? allRules
+        : allRules.filter((row) => row.deposito === tab),
     [allRules, tab],
   );
   const dept_cards = useMemo(() => build_dept_cards(allRows), [allRows]);
@@ -223,13 +227,7 @@ export function ReqDepositosScreen() {
                 onClick={() => setTab(key)}
               >
                 <Icon className="h-4 w-4" />
-                {key === "departamento"
-                  ? "Departamentos"
-                  : key === "capacitacion"
-                    ? "Capacitación"
-                    : key === "tecnico"
-                      ? "Serv. técnicos"
-                      : DEPOSITO_TAB_LABEL[key]}
+                {DEPOSITO_TAB_LABEL[key]}
               </Button>
             );
           })}
@@ -240,15 +238,18 @@ export function ReqDepositosScreen() {
               <Link href="/requisiciones/depositos/importar">Cargar Excel</Link>
             </Button>
           ) : null}
-          {canEditMinimos && tab !== "todos" && tab !== "departamento" ? (
+          {canEditMinimos ? (
             <ReqDepositosMinimos
-              deposito={tab}
-              rows={rows}
+              deposito={tab === "todos" ? undefined : tab}
+              depositos_seleccionables={
+                tab === "todos"
+                  ? ["departamento", "capacitacion", "tecnico"]
+                  : undefined
+              }
+              rows={tab === "todos" ? allRows : rows}
               rules={rules}
               onSave={async (params) => {
-                await run(() =>
-                  upsert_req_stock_minimo_action({ deposito: tab, ...params }),
-                );
+                await run(() => upsert_req_stock_minimo_action(params));
               }}
               onDelete={async (id) => {
                 await run(() => delete_req_stock_minimo_action(id));
@@ -259,17 +260,17 @@ export function ReqDepositosScreen() {
         </div>
       </div>
 
+      <div className="rounded-2xl border border-amber-200/80 bg-amber-50/80 px-4 py-3">
+        <p className="text-sm font-semibold text-amber-950">
+          {DEPOSITO_TAB_LABEL[tab]}
+        </p>
+        <p className="mt-0.5 text-sm text-amber-900/80">
+          {DEPOSITO_TAB_HELP[tab]}
+        </p>
+      </div>
+
       {tab === "departamento" ? (
         <div className="space-y-4">
-          <div className="rounded-2xl border border-amber-200/80 bg-amber-50/80 px-4 py-3">
-            <p className="text-sm font-semibold text-amber-950">
-              Almacenes por departamento
-            </p>
-            <p className="mt-0.5 text-sm text-amber-900/80">
-              Entra a un departamento para ver cada artículo una sola vez,
-              consumir stock o pedir reposición.
-            </p>
-          </div>
           <ReqDepositosDeptCards cards={loaded ? dept_cards : []} />
         </div>
       ) : null}
@@ -278,7 +279,7 @@ export function ReqDepositosScreen() {
         <div className="flex flex-wrap gap-2">
           <Button type="button" variant="outline" size="sm" asChild>
             <Link href={`/requisiciones/depositos/ejecutante/${tab}`}>
-              Abrir vista {tab === "capacitacion" ? "Capacitación" : "ST"}
+              Abrir vista {DEPOSITO_TAB_LABEL[tab]}
             </Link>
           </Button>
         </div>
@@ -370,6 +371,16 @@ export function ReqDepositosScreen() {
                       id_linea: ingreso.id_linea,
                     }),
                   )
+                }
+                onStockInicial={(cantidad) =>
+                  selected
+                    ? run(() =>
+                        registrar_stock_inicial_action({
+                          id_stock: selected.id,
+                          cantidad,
+                        }),
+                      )
+                    : Promise.resolve()
                 }
                 onRestock={() => {
                   if (!selected) return;

@@ -15,22 +15,34 @@ import {
 import { FALLBACK_STOCK_MINIMO } from "../lib/req-stock-status";
 import {
   DEPOSITO_LABEL,
+  DEPOSITO_TAB_LABEL,
   type ReqDeposito,
   type ReqStockMinimoRow,
   type ReqStockRow,
 } from "../lib/req-stock-types";
 
+const ALL_DEPOSITOS: ReqDeposito[] = [
+  "departamento",
+  "capacitacion",
+  "tecnico",
+];
+
 export function ReqDepositosMinimos({
-  deposito,
-  rows,
-  rules,
+  deposito: deposito_fixed,
+  rows: rows_all,
+  rules: rules_all,
+  depositos_seleccionables,
   onSave,
   onDelete,
 }: {
-  deposito: ReqDeposito;
+  /** Depósito fijo (si no hay selector). */
+  deposito?: ReqDeposito;
   rows: ReqStockRow[];
   rules: ReqStockMinimoRow[];
+  /** Si se pasa, el sheet permite elegir depósito. */
+  depositos_seleccionables?: ReqDeposito[];
   onSave: (params: {
+    deposito: ReqDeposito;
     alcance: "general" | "categoria" | "item";
     cantidad_minima: number;
     id_categoria?: number | null;
@@ -38,6 +50,27 @@ export function ReqDepositosMinimos({
   }) => Promise<void>;
   onDelete: (id: number) => Promise<void>;
 }) {
+  const selectable = depositos_seleccionables?.length
+    ? depositos_seleccionables
+    : null;
+  const [depositoPick, setDepositoPick] = useState<ReqDeposito>(
+    deposito_fixed ?? selectable?.[0] ?? "departamento",
+  );
+  const deposito = deposito_fixed ?? depositoPick;
+
+  useEffect(() => {
+    if (deposito_fixed) setDepositoPick(deposito_fixed);
+  }, [deposito_fixed]);
+
+  const rows = useMemo(
+    () => rows_all.filter((row) => row.deposito === deposito),
+    [rows_all, deposito],
+  );
+  const rules = useMemo(
+    () => rules_all.filter((row) => row.deposito === deposito),
+    [rules_all, deposito],
+  );
+
   const general = rules.find((row) => row.alcance === "general");
   const default_min = Number(general?.cantidad_minima || FALLBACK_STOCK_MINIMO);
   const [generalQty, setGeneralQty] = useState(default_min);
@@ -91,6 +124,22 @@ export function ReqDepositosMinimos({
           </SheetDescription>
         </SheetHeader>
         <div className="space-y-6 p-4">
+          {selectable ? (
+            <label className="block text-xs font-medium text-slate-600">
+              Inventario
+              <select
+                className="mt-1 flex h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-sm"
+                value={deposito}
+                onChange={(e) => setDepositoPick(e.target.value as ReqDeposito)}
+              >
+                {(selectable.length ? selectable : ALL_DEPOSITOS).map((key) => (
+                  <option key={key} value={key}>
+                    {DEPOSITO_TAB_LABEL[key]}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
           <section className="rounded-xl border border-sky-100 bg-sky-50/60 p-3">
             <h3 className="text-sm font-semibold text-slate-800">
               Mínimo para todo el inventario
@@ -112,6 +161,7 @@ export function ReqDepositosMinimos({
                 size="sm"
                 onClick={() =>
                   void onSave({
+                    deposito,
                     alcance: "general",
                     cantidad_minima: generalQty,
                   })
@@ -146,6 +196,7 @@ export function ReqDepositosMinimos({
                       custom={Boolean(rule)}
                       onSave={(qty) =>
                         void onSave({
+                          deposito,
                           alcance: "categoria",
                           id_categoria: cat.id,
                           cantidad_minima: qty,
@@ -189,6 +240,7 @@ export function ReqDepositosMinimos({
                     custom={Boolean(rule)}
                     onSave={(qty) =>
                       void onSave({
+                        deposito,
                         alcance: "item",
                         id_item_costo: row.id_item_costo,
                         cantidad_minima: qty,

@@ -71,5 +71,19 @@ export const DEPOSITO_TABS: ReqDepositoTab[] = [
 
 export const DEPOSITO_TAB_LABEL: Record<ReqDepositoTab, string> = {
   todos: "Todos",
-  ...DEPOSITO_LABEL,
+  departamento: "Departamentos",
+  capacitacion: "Serv. capacitación",
+  tecnico: "Serv. técnico",
+};
+
+/** Texto de ayuda bajo las tabs de Inventario. */
+export const DEPOSITO_TAB_HELP: Record<ReqDepositoTab, string> = {
+  todos:
+    "Vista general: almacenes de departamentos y depósitos de ejecución (capacitación y servicios técnicos).",
+  departamento:
+    "Almacén interno de cada área (Marketing, RH, etc.). Aquí vive el material de uso departamental, no el de cursos ni de ST.",
+  capacitacion:
+    "Depósito de ejecución de Capacitación: materiales e inventario externo usados en cursos/OSI de capacitación (aguas, galletas, kits, etc.).",
+  tecnico:
+    "Depósito de ejecución de Servicios técnicos: materiales e inventario externo usados en OSI técnicas (calibración, insumos de campo, etc.).",
 };
