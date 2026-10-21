@@ -43,7 +43,7 @@ function EstadoDemo({
           Estado del costo
         </p>
         <p className="mt-0.5 text-sm text-slate-600">
-          Lo que pides frente a la jornada de la OSI.
+          Lo que pedís frente a lo previsto en esa jornada de la OSI.
         </p>
       </div>
       <div className={`rounded-xl border p-3 text-sm ${tone}`}>
@@ -59,37 +59,47 @@ function EstadoDemo({
   );
 }
 
-export function operator_req_cost_sections(): Array<{
+export type CostManualSubsection = {
   id: string;
   title: string;
   body: ReactNode;
-}> {
+};
+
+/** Desplegables que van dentro de la tarjeta «Análisis de costos». */
+export function operator_analisis_costos_subsections(): CostManualSubsection[] {
   return [
     {
       id: "manual-costo-operador",
-      title: "Qué mira el recuadro",
+      title: "Estado del costo",
       body: (
         <>
           <p>
-            En una requisición <strong>externa</strong> se copia una jornada
-            de la OSI: ese día, con su traslado, impresión y honorarios. El
-            recuadro <strong>Estado del costo</strong> compara lo que pides
-            con esa jornada, no con todos los días de la orden.
+            Solo aparece en pedidos de <strong>curso / servicio</strong> (los
+            que van con una OSI). Compara lo que estás pidiendo ahora con lo
+            que ya estaba previsto para <strong>esa jornada</strong> de la
+            orden — no con todos los días del servicio.
+          </p>
+          <p>
+            Ejemplo: el traslado de ese día estaba en {usd(20)} y lo subís a{" "}
+            {usd(60)}. El recuadro marca un extra de {usd(40)} de esa jornada.
+            Según cuán grande sea ese extra, el recuadro pasa a Base, Moderado,
+            Riesgoso o pedirá aprobación.
           </p>
           <Figure
             title="Así se ve al armar el pedido"
-            caption="Si eliges otra OSI o cambias ítems, el recuadro se actualiza solo."
+            caption="Si elegís otra OSI o cambiás ítems, el recuadro se actualiza solo."
           >
             <EstadoDemo
               estado="base"
               tone="border-emerald-200 bg-emerald-50 text-emerald-950"
               headline="Base"
-              detail="Sin extra respecto a la OSI. No hace falta justificación ni aprobación."
+              detail="Sin extra respecto a la jornada de la OSI. Podés emitir sin explicar ni pedir sello."
             />
           </Figure>
           <p>
-            Ejemplo: el traslado de ese día estaba en {usd(20)} y lo subes a{" "}
-            {usd(60)}. El extra es {usd(40)} de esa jornada.
+            La requisición <strong>interna</strong> no usa este recuadro: ahí
+            aprueban coordinador y líder del departamento, sin comparar con
+            una OSI.
           </p>
         </>
       ),
@@ -100,22 +110,22 @@ export function operator_req_cost_sections(): Array<{
       body: (
         <>
           <p>
-            Son las mismas gradas que usa la OSI. Aquí se nombran más corto,
-            porque lo que importa al pedir es si hay que explicar o si
-            alguien debe sellar.
+            Son las mismas gradas del pool de la OSI, con nombres más cortos
+            porque al pedir importa si hay que explicar o si alguien debe
+            sellar.
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
             <EstadoDemo
               estado="base"
               tone="border-emerald-200 bg-emerald-50 text-emerald-950"
               headline="Base"
-              detail="No hay extra. Puedes emitir sin explicar."
+              detail="No hay extra. Podés emitir sin explicar."
             />
             <EstadoDemo
               estado="moderado"
               tone="border-sky-200 bg-sky-50 text-sky-950"
               headline="Moderado"
-              detail="Hay un ajuste, todavía sin justificación ni sello extra."
+              detail="Hay un ajuste chico; todavía sin justificación ni sello extra."
             />
             <EstadoDemo
               estado="riesgoso"
@@ -135,22 +145,21 @@ export function operator_req_cost_sections(): Array<{
     },
     {
       id: "manual-costo-cuando",
-      title: "Cuándo justificar y cuándo se espera un sello",
+      title: "Cuándo justificar y cuándo se espera aprobación",
       body: (
         <>
           <p>
-            Si el extra se queda en el mismo estado que ya tenía la OSI, no
-            se vuelve a pedir la misma explicación.
+            Si el extra se queda en el <strong>mismo estado</strong> que ya
+            tenía la OSI, no se vuelve a pedir la misma explicación.
           </p>
           <p>
             Hay que escribir la justificación cuando el recuadro pasa a{" "}
             <strong>Riesgoso</strong> o a{" "}
-            <strong>Riesgoso · sujeta a aprobación</strong>. En el segundo
-            caso, además, la solicitud queda pendiente de un aprobador.
+            <strong>Riesgoso · sujeta a aprobación</strong>.
           </p>
           <p>
-            Interna no usa este recuadro: ahí aprueban coordinador y líder
-            del departamento, sin comparar con una OSI.
+            En el segundo caso, además de explicar, la solicitud queda
+            pendiente de un aprobador antes de seguir el trámite.
           </p>
         </>
       ),
@@ -158,75 +167,81 @@ export function operator_req_cost_sections(): Array<{
   ];
 }
 
-export function sensitive_req_cost_sections(model: ReqCostManualModel): Array<{
-  id: string;
-  title: string;
-  body: ReactNode;
-}> {
+export function sensitive_analisis_costos_subsection(
+  model: ReqCostManualModel,
+): CostManualSubsection {
   const just =
     model.justificacion_req <= 1
       ? "Moderado"
       : model.justificacion_req === 2
         ? "Riesgoso"
         : "Máximo";
-  return [
-    {
-      id: "manual-costo-finanzas",
-      title: "Lectura completa (finanzas, coordinador, superadmin)",
-      body: (
-        <>
-          <p>
-            OSI y requisición comparten el mismo pool. En la OSI las gradas
-            se ven N0 · Base, N1 · Moderado, N2 · Riesgoso, N3 · Máximo. En
-            la requisición, la última se lee como Riesgoso · sujeta a
-            aprobación cuando el extra se pasa del tope que queda.
-          </p>
-          <Figure
-            title="Mismas gradas, con los techos vigentes"
-            caption={`Ejemplo con utilidad ${usd(model.utilidad_ejemplo)}. Si el catálogo cambia, estos montos se actualizan.`}
-          >
-            <div className="grid gap-2 sm:grid-cols-4">
-              {[
-                { name: "Base", hasta: usd(0), tone: "border-emerald-200 bg-emerald-50" },
-                {
-                  name: "Moderado",
-                  hasta: `Hasta ${usd(model.cap_n1)}`,
-                  tone: "border-sky-200 bg-sky-50",
-                },
-                {
-                  name: "Riesgoso",
-                  hasta: `Hasta ${usd(model.cap_n2)}`,
-                  tone: "border-amber-200 bg-amber-50",
-                },
-                {
-                  name: "Máximo",
-                  hasta: `Hasta ${usd(model.cap_n3)}`,
-                  tone: "border-rose-200 bg-rose-50",
-                },
-              ].map((card) => (
-                <div
-                  key={card.name}
-                  className={`rounded-xl border px-2.5 py-2.5 text-sm ${card.tone}`}
-                >
-                  <p className="font-semibold">{card.name}</p>
-                  <p className="opacity-80">{card.hasta}</p>
-                </div>
-              ))}
-            </div>
-          </Figure>
-          <p>
-            El extra se mide contra la jornada clonada. Traslado de {usd(20)}{" "}
-            a {usd(60)} = extra {usd(40)}, aunque el resto de la OSI sume más.
-          </p>
-          <p>
-            Hoy Moderado llega al {model.n1}% ({usd(model.cap_n1)}), Riesgoso
-            al {model.n2}% ({usd(model.cap_n2)}) y el tope al {model.n3}% (
-            {usd(model.cap_n3)}). La justificación de requisición se pide al
-            subir de grada, a partir de <strong>{just}</strong>. Si el extra
-            se pasa de lo que queda del tope, queda sujeta a aprobación.
-          </p>
-        </>
-      ),
-    },
-  ];
+  return {
+    id: "manual-costo-finanzas",
+    title: "Análisis de costos OSI + ECC",
+    body: (
+      <>
+        <p>
+          OSI y requisición comparten el mismo pool. En la OSI las gradas se
+          ven N0 · Base, N1 · Moderado, N2 · Riesgoso, N3 · Máximo. En la
+          requisición, la última se lee como Riesgoso · sujeta a aprobación
+          cuando el extra se pasa del tope que queda.
+        </p>
+        <Figure
+          title="Mismas gradas, con los techos vigentes"
+          caption={`Ejemplo con utilidad ${usd(model.utilidad_ejemplo)}. Si el catálogo cambia, estos montos se actualizan.`}
+        >
+          <div className="grid gap-2 sm:grid-cols-4">
+            {[
+              { name: "Base", hasta: usd(0), tone: "border-emerald-200 bg-emerald-50" },
+              {
+                name: "Moderado",
+                hasta: `Hasta ${usd(model.cap_n1)}`,
+                tone: "border-sky-200 bg-sky-50",
+              },
+              {
+                name: "Riesgoso",
+                hasta: `Hasta ${usd(model.cap_n2)}`,
+                tone: "border-amber-200 bg-amber-50",
+              },
+              {
+                name: "Máximo",
+                hasta: `Hasta ${usd(model.cap_n3)}`,
+                tone: "border-rose-200 bg-rose-50",
+              },
+            ].map((card) => (
+              <div
+                key={card.name}
+                className={`rounded-xl border px-2.5 py-2.5 text-sm ${card.tone}`}
+              >
+                <p className="font-semibold">{card.name}</p>
+                <p className="opacity-80">{card.hasta}</p>
+              </div>
+            ))}
+          </div>
+        </Figure>
+        <p>
+          El extra se mide contra la jornada clonada. Traslado de {usd(20)} a{" "}
+          {usd(60)} = extra {usd(40)}, aunque el resto de la OSI sume más.
+        </p>
+        <p>
+          Hoy Moderado llega al {model.n1}% ({usd(model.cap_n1)}), Riesgoso al{" "}
+          {model.n2}% ({usd(model.cap_n2)}) y el tope al {model.n3}% (
+          {usd(model.cap_n3)}). La justificación de requisición se pide al
+          subir de grada, a partir de <strong>{just}</strong>. Si el extra se
+          pasa de lo que queda del tope, queda sujeta a aprobación.
+        </p>
+      </>
+    ),
+  };
+}
+
+/** @deprecated Usar operator_analisis_costos_subsections — se mantiene por compat. */
+export function operator_req_cost_sections() {
+  return operator_analisis_costos_subsections();
+}
+
+/** @deprecated Usar sensitive_analisis_costos_subsection */
+export function sensitive_req_cost_sections(model: ReqCostManualModel) {
+  return [sensitive_analisis_costos_subsection(model)];
 }

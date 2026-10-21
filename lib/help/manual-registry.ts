@@ -6,16 +6,19 @@ import {
   FileSpreadsheet,
   GitBranch,
   HelpCircle,
+  History,
   Inbox,
   KeyRound,
   Layers3,
   LayoutGrid,
   ListChecks,
   Lock,
+  Package,
   Shield,
   Target,
   Ticket,
   Users,
+  Warehouse,
 } from "lucide-react";
 
 export type HelpTopic = {
@@ -39,11 +42,70 @@ export const MANUAL_OBJETIVOS = "/ted/planificacion/objetivos/manual";
 export const MANUAL_TICKETS = "/ted/planificacion/tickets/manual";
 export const MANUAL_ACCESOS = "/ted/usuarios/accesos/manual";
 export const MANUAL_REQUISICIONES = "/requisiciones/manual";
+export const MANUAL_INVENTARIO = "/requisiciones/depositos/manual";
 
 export const HELP_REGISTRY: {
   match: (pathname: string) => boolean;
   context: HelpContext;
 }[] = [
+  {
+    // Antes que /requisiciones genérico: el Hub muestra ayuda de inventario.
+    match: (p) => p.startsWith("/requisiciones/depositos"),
+    context: {
+      scopeLabel: "Inventario",
+      scopeIcon: Warehouse,
+      topics: [
+        {
+          id: "almacenes",
+          title: "Los tres almacenes",
+          summary: "Departamentos, Serv. capacitación y Serv. técnico.",
+          href: `${MANUAL_INVENTARIO}#manual-almacenes`,
+          icon: Layers3,
+          accent: "amber",
+        },
+        {
+          id: "articulos",
+          title: "Artículos y estados",
+          summary: "En stock, bajo o agotado — qué significa cada uno.",
+          href: `${MANUAL_INVENTARIO}#manual-articulos`,
+          icon: Package,
+          accent: "sky",
+        },
+        {
+          id: "consumo",
+          title: "Registrar consumo",
+          summary: "Bajá con − y confirmá con Actualizar stock.",
+          href: `${MANUAL_INVENTARIO}#manual-consumo`,
+          icon: ListChecks,
+          accent: "rose",
+        },
+        {
+          id: "pedido",
+          title: "Pedido y análisis",
+          summary: "Cómo se ve el stock al armar una requisición.",
+          href: `${MANUAL_INVENTARIO}#manual-pedido`,
+          icon: ClipboardList,
+          accent: "emerald",
+        },
+        {
+          id: "historial",
+          title: "Historial",
+          summary: "Quién movió el stock y cuándo.",
+          href: `${MANUAL_INVENTARIO}#manual-historial`,
+          icon: History,
+          accent: "violet",
+        },
+        {
+          id: "minimos-excel",
+          title: "Mínimos y Excel",
+          summary: "Avisos de stock bajo y carga masiva (si tenés acceso).",
+          href: `${MANUAL_INVENTARIO}#manual-minimos-excel`,
+          icon: FileSpreadsheet,
+          accent: "amber",
+        },
+      ],
+    },
+  },
   {
     match: (p) => p.startsWith("/requisiciones"),
     context: {
@@ -53,23 +115,39 @@ export const HELP_REGISTRY: {
         {
           id: "interna",
           title: "Interna",
-          summary: "Materiales y gastos del departamento.",
+          summary: "Materiales del departamento y quién aprueba.",
           href: `${MANUAL_REQUISICIONES}#manual-interna`,
           icon: Layers3,
           accent: "sky",
         },
         {
           id: "externa",
-          title: "Externa",
-          summary: "Gastos de un servicio (OSI), trámite de Administración.",
+          title: "Curso / servicio",
+          summary: "Pedido ligado a una OSI; las preguntas al crear.",
           href: `${MANUAL_REQUISICIONES}#manual-externa`,
           icon: Inbox,
           accent: "emerald",
         },
         {
+          id: "inventario-req",
+          title: "Reponer inventario",
+          summary: "Stock al armar el pedido y enlace al manual de almacén.",
+          href: `${MANUAL_REQUISICIONES}#manual-inventario-req`,
+          icon: Package,
+          accent: "amber",
+        },
+        {
+          id: "analisis-costos",
+          title: "Análisis de costos",
+          summary: "Estado del costo, cuatro gradas, justificar y aprobar.",
+          href: `${MANUAL_REQUISICIONES}#manual-analisis-costos`,
+          icon: CircleDollarSign,
+          accent: "amber",
+        },
+        {
           id: "costo-operador",
           title: "Estado del costo",
-          summary: "Qué significa el estado que ves en tu requisición.",
+          summary: "Lo que pedís frente a la jornada de la OSI.",
           href: `${MANUAL_REQUISICIONES}#manual-costo-operador`,
           icon: HelpCircle,
           accent: "amber",
@@ -77,7 +155,7 @@ export const HELP_REGISTRY: {
         {
           id: "costo-niveles",
           title: "Los cuatro estados",
-          summary: "Pendiente, en proceso, listo y cerrado — en orden.",
+          summary: "Base, Moderado, Riesgoso y sujeta a aprobación.",
           href: `${MANUAL_REQUISICIONES}#manual-costo-niveles`,
           icon: ListChecks,
           accent: "sky",
@@ -85,15 +163,15 @@ export const HELP_REGISTRY: {
         {
           id: "costo-cuando",
           title: "Cuándo justificar",
-          summary: "Cuándo debes explicar o adjuntar el costo.",
+          summary: "Cuándo explicar y cuándo se espera un sello.",
           href: `${MANUAL_REQUISICIONES}#manual-costo-cuando`,
           icon: CircleDollarSign,
           accent: "amber",
         },
         {
           id: "costo-finanzas",
-          title: "Lectura completa",
-          summary: "Vista detallada del costo (si tienes acceso).",
+          title: "Análisis OSI + ECC",
+          summary: "Techos del pool y lectura conjunta (si tenés acceso).",
           href: `${MANUAL_REQUISICIONES}#manual-costo-finanzas`,
           icon: FileSpreadsheet,
           accent: "rose",
@@ -101,7 +179,7 @@ export const HELP_REGISTRY: {
         {
           id: "mapa-interna",
           title: "Quién aprueba",
-          summary: "Coordinador y líder de cada departamento.",
+          summary: "Coordinador y líder (dentro de requisición interna).",
           href: `${MANUAL_REQUISICIONES}#manual-mapa-interna`,
           icon: Users,
           accent: "violet",
@@ -307,6 +385,9 @@ export function resolveHelpContext(pathname: string): HelpContext | null {
 
 export function resolveFullManualHref(pathname: string): string {
   const normalized = pathname.split("?")[0] ?? pathname;
+  if (normalized.startsWith("/requisiciones/depositos")) {
+    return MANUAL_INVENTARIO;
+  }
   if (normalized.startsWith("/requisiciones")) {
     return MANUAL_REQUISICIONES;
   }
