@@ -39,20 +39,24 @@ export function InvExcelStepClassify({
   included,
   ejecutantes_default,
   id_unidad_default,
+  unidades_por_empaque_default = null,
   departamentos,
   unidades,
   on_ejecutantes_default,
   on_unidad_default,
+  on_unidades_por_empaque_default,
   on_patch_row,
 }: {
   rows: InvExcelRow[];
   included: Set<number>;
   ejecutantes_default: InvEjecutante[];
   id_unidad_default: number | null;
+  unidades_por_empaque_default?: number | null;
   departamentos: InvExcelDepartamento[];
   unidades: InvExcelUnidad[];
   on_ejecutantes_default: (value: InvEjecutante[]) => void;
   on_unidad_default: (value: number | null) => void;
+  on_unidades_por_empaque_default?: (value: number | null) => void;
   on_patch_row: (row: number, patch: Partial<InvExcelRow>) => void;
 }) {
   const [q_cap, set_q_cap] = useState("");
@@ -140,6 +144,26 @@ export function InvExcelStepClassify({
               value={id_unidad_default}
               on_change={on_unidad_default}
             />
+          </div>
+          <div className="space-y-2 sm:col-span-2">
+            <Label>Default · Unidades por caja/bulto (opcional)</Label>
+            <input
+              type="number"
+              min={0.001}
+              step="1"
+              className="h-10 w-full max-w-xs rounded-md border px-3 text-sm"
+              value={unidades_por_empaque_default ?? ""}
+              placeholder="Ej. 24"
+              onChange={(event) => {
+                const raw = event.target.value;
+                on_unidades_por_empaque_default?.(
+                  raw === "" ? null : Number(raw),
+                );
+              }}
+            />
+            <p className="text-xs text-gray-500">
+              Si la unidad es CAJA/bulto, indica cuántas unidades finas trae.
+            </p>
           </div>
         </div>
 

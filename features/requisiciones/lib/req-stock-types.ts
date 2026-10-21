@@ -14,6 +14,9 @@ export type ReqStockRow = {
   id_categoria?: number | null;
   categoria?: string | null;
   minimo?: number;
+  /** Unidades finas por 1 unidad de stock (caja/bulto). */
+  unidades_por_empaque?: number | null;
+  unidad_contenido?: string | null;
 };
 
 export type ReqKardexRow = {

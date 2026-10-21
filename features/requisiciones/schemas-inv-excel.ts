@@ -10,6 +10,8 @@ export const inv_excel_commit_row_schema = z.object({
   id_departamentos: z.array(z.number().int().positive()),
   id_unidad: z.number().int().positive().nullable(),
   id_item_match: z.number().int().positive().nullable(),
+  force_create: z.boolean().optional().default(false),
+  unidades_por_empaque: z.number().positive().nullable().optional(),
 });
 
 export const inv_excel_commit_schema = z.object({

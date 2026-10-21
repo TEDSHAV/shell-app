@@ -3,13 +3,14 @@
 const STEPS = [
   { n: 1, label: "Archivo" },
   { n: 2, label: "Qué cargar" },
-  { n: 3, label: "Clasificar" },
-  { n: 4, label: "Listo" },
+  { n: 3, label: "Duplicados" },
+  { n: 4, label: "Clasificar" },
+  { n: 5, label: "Listo" },
 ] as const;
 
-export function InvExcelStepper({ step }: { step: 1 | 2 | 3 | 4 }) {
+export function InvExcelStepper({ step }: { step: 1 | 2 | 3 | 4 | 5 }) {
   return (
-    <ol className="grid grid-cols-4 gap-2">
+    <ol className="grid grid-cols-5 gap-2">
       {STEPS.map((item) => {
         const active = item.n === step;
         const done = item.n < step;

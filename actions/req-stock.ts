@@ -207,14 +207,66 @@ export async function list_req_stock_all_action(): Promise<ReqStockRow[]> {
     ...as_stock_rows(depto.data),
     ...as_stock_rows(servicio.data),
   ];
-  return all.map((row) => ({
-    ...row,
-    minimo: resolve_stock_minimo({
-      id_item_costo: row.id_item_costo,
-      id_categoria: row.id_categoria ?? null,
-      rules: rules.filter((rule) => rule.deposito === row.deposito),
-    }),
-  }));
+  const item_ids = [...new Set(all.map((row) => row.id_item_costo))];
+  const empaque_by_item = new Map<
+    number,
+    { unidades_por_empaque: number | null; unidad_contenido: string | null }
+  >();
+  if (item_ids.length > 0) {
+    const { data: catalog } = await supabase
+      .from("ecc_catalogo_costos" as never)
+      .select("id,unidades_por_empaque,id_unidad_contenido")
+      .in("id", item_ids);
+    const contenido_ids = [
+      ...new Set(
+        ((catalog ?? []) as Array<{ id_unidad_contenido: number | null }>)
+          .map((row) => row.id_unidad_contenido)
+          .filter((id): id is number => id != null),
+      ),
+    ];
+    const label_by_id = new Map<number, string>();
+    if (contenido_ids.length > 0) {
+      const { data: units } = await supabase
+        .from("conf_clasificadores" as never)
+        .select("id,definicion")
+        .in("id", contenido_ids);
+      for (const row of (units ?? []) as Array<{
+        id: number;
+        definicion: string | null;
+      }>) {
+        label_by_id.set(row.id, String(row.definicion ?? "").trim());
+      }
+    }
+    for (const row of (catalog ?? []) as Array<{
+      id: number;
+      unidades_por_empaque: number | null;
+      id_unidad_contenido: number | null;
+    }>) {
+      empaque_by_item.set(row.id, {
+        unidades_por_empaque:
+          row.unidades_por_empaque == null
+            ? null
+            : Number(row.unidades_por_empaque),
+        unidad_contenido:
+          row.id_unidad_contenido == null
+            ? null
+            : (label_by_id.get(row.id_unidad_contenido) ?? null),
+      });
+    }
+  }
+  return all.map((row) => {
+    const empaque = empaque_by_item.get(row.id_item_costo);
+    return {
+      ...row,
+      unidades_por_empaque: empaque?.unidades_por_empaque ?? null,
+      unidad_contenido: empaque?.unidad_contenido ?? null,
+      minimo: resolve_stock_minimo({
+        id_item_costo: row.id_item_costo,
+        id_categoria: row.id_categoria ?? null,
+        rules: rules.filter((rule) => rule.deposito === row.deposito),
+      }),
+    };
+  });
 }
 
 export async function list_req_kardex_action(

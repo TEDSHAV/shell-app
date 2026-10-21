@@ -62,8 +62,9 @@ async function load_lookups(supabase: Awaited<ReturnType<typeof createAdminClien
   const [catalog, depts, classifiers] = await Promise.all([
     supabase
       .from("ecc_catalogo_costos" as never)
-      .select("id,nombre_item,id_unidad,esta_activo")
-      .eq("esta_activo", true)
+      .select(
+        "id,nombre_item,id_unidad,esta_activo,unidades_por_empaque,id_unidad_contenido",
+      )
       .order("nombre_item")
       .limit(5000),
     supabase
@@ -123,12 +124,20 @@ async function load_lookups(supabase: Awaited<ReturnType<typeof createAdminClien
       id: number;
       nombre_item: string;
       id_unidad: number | null;
+      esta_activo: boolean | null;
+      unidades_por_empaque?: number | null;
+      id_unidad_contenido?: number | null;
     }>
   ).map((row) => ({
     id: row.id,
     nombre_item: row.nombre_item,
     id_unidad: row.id_unidad,
     unidad_label: row.id_unidad ? unit_by_id.get(row.id_unidad) ?? null : null,
+    esta_activo: row.esta_activo !== false,
+    unidades_por_empaque:
+      row.unidades_por_empaque == null ? null : Number(row.unidades_por_empaque),
+    id_unidad_contenido:
+      row.id_unidad_contenido == null ? null : Number(row.id_unidad_contenido),
   }));
 
   const departamentos: InvExcelDepartamento[] = (
@@ -288,7 +297,7 @@ export async function commit_inv_excel(
           ? role_inventario ?? role_interno
           : role_interno;
 
-    const payload = {
+    const payload: Record<string, unknown> = {
       nombre_item: row.concepto,
       costo_unitario_base: 0,
       id_unidad,
@@ -304,8 +313,12 @@ export async function commit_inv_excel(
       esta_activo: true,
       es_fijo_base: false,
     };
+    if (row.unidades_por_empaque != null && row.unidades_por_empaque > 0) {
+      payload.unidades_por_empaque = row.unidades_por_empaque;
+    }
 
-    let item_id = row.id_item_match;
+    let item_id =
+      row.force_create || !row.id_item_match ? null : row.id_item_match;
     if (item_id) {
       const { error } = await supabase
         .from("ecc_catalogo_costos" as never)

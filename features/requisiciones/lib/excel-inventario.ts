@@ -10,6 +10,9 @@ export type InvExcelCatalogItem = {
   nombre_item: string;
   id_unidad: number | null;
   unidad_label: string | null;
+  esta_activo: boolean;
+  unidades_por_empaque?: number | null;
+  id_unidad_contenido?: number | null;
 };
 
 export type InvExcelRow = {
@@ -28,6 +31,9 @@ export type InvExcelRow = {
   id_unidad: number | null;
   id_item_match: number | null;
   match_nombre: string | null;
+  /** Si true, commit crea ítem nuevo aunque haya match. */
+  force_create: boolean;
+  unidades_por_empaque: number | null;
   warning: string | null;
   error: string | null;
 };
@@ -126,6 +132,8 @@ export function classify_inv_excel_rows(matrix: unknown[][]): InvExcelRow[] {
         id_unidad: null,
         id_item_match: null,
         match_nombre: null,
+        force_create: false,
+        unidades_por_empaque: null,
         warning: null,
         error: "El Excel está vacío.",
       },
@@ -169,6 +177,8 @@ export function classify_inv_excel_rows(matrix: unknown[][]): InvExcelRow[] {
         id_unidad: null,
         id_item_match: null,
         match_nombre: null,
+        force_create: false,
+        unidades_por_empaque: null,
         warning: null,
         error: "Falta la columna CONCEPTO.",
       },
@@ -241,6 +251,8 @@ export function classify_inv_excel_rows(matrix: unknown[][]): InvExcelRow[] {
       id_unidad: null,
       id_item_match: null,
       match_nombre: null,
+      force_create: false,
+      unidades_por_empaque: null,
       warning,
       error,
     });
@@ -263,23 +275,37 @@ export function match_inv_catalog(
   }
 
   return rows.map((row) => {
-    if (row.error || !row.concepto) return row;
-    const hits = by_fold.get(fold(row.concepto)) ?? [];
+    if (row.error || !row.concepto || row.force_create) return row;
+    const hits = [...(by_fold.get(fold(row.concepto)) ?? [])].sort(
+      (a, b) => Number(b.esta_activo) - Number(a.esta_activo) || a.id - b.id,
+    );
     if (hits.length === 1) {
+      const hit = hits[0];
       return {
         ...row,
-        id_item_match: hits[0].id,
-        match_nombre: hits[0].nombre_item,
-        id_unidad: row.id_unidad ?? hits[0].id_unidad,
-        warning: row.warning,
+        id_item_match: hit.id,
+        match_nombre: hit.nombre_item,
+        id_unidad: row.id_unidad ?? hit.id_unidad,
+        unidades_por_empaque:
+          row.unidades_por_empaque ?? hit.unidades_por_empaque ?? null,
+        warning: hit.esta_activo
+          ? row.warning
+          : [row.warning, "Match inactivo: se reactivará al vincular"]
+              .filter(Boolean)
+              .join(" · "),
       };
     }
     if (hits.length > 1) {
+      const active = hits.filter((item) => item.esta_activo);
+      const preferred = active[0] ?? hits[0];
       return {
         ...row,
         id_item_match: null,
-        match_nombre: null,
-        warning: [row.warning, `Varios matches en catálogo (${hits.length})`]
+        match_nombre: preferred.nombre_item,
+        warning: [
+          row.warning,
+          `Varios matches en catálogo (${hits.length}): decidir en Duplicados`,
+        ]
           .filter(Boolean)
           .join(" · "),
       };
@@ -359,8 +385,33 @@ export type InvUnidadKind = "stock" | "servicio";
 
 export function kind_unidad_inventario(label: string): InvUnidadKind {
   const key = fold(label);
-  if (key === "unidad" || key === "und" || key === "u") return "stock";
+  if (
+    key === "unidad" ||
+    key === "und" ||
+    key === "u" ||
+    key === "botella" ||
+    key === "caja" ||
+    key === "bulto" ||
+    key === "paquete" ||
+    key === "pack"
+  ) {
+    return "stock";
+  }
   return "servicio";
+}
+
+/** Empaque (caja/bulto) vs unidad fina de contenido. */
+export function is_unidad_empaque(label: string | null | undefined): boolean {
+  const key = fold(label ?? "");
+  return (
+    key === "caja" ||
+    key === "bulto" ||
+    key === "paquete" ||
+    key === "pack" ||
+    key.includes("caja") ||
+    key.includes("bulto") ||
+    key.includes("paquete")
+  );
 }
 
 export function pick_unidad_default_id(

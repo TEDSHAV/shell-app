@@ -36,6 +36,8 @@ type PanelPos = {
 export function ReqDepositosConsumo({
   deposito,
   unidad,
+  unidad_contenido = null,
+  unidades_por_empaque = null,
   osis,
   busy,
   onInterno,
@@ -44,6 +46,8 @@ export function ReqDepositosConsumo({
 }: {
   deposito: ReqDeposito;
   unidad: string | null;
+  unidad_contenido?: string | null;
+  unidades_por_empaque?: number | null;
   osis: ReqOsiRepartoRow[];
   busy: boolean;
   onInterno: (cantidad: number) => Promise<void>;
@@ -54,7 +58,14 @@ export function ReqDepositosConsumo({
   const root_ref = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [qty, setQty] = useState(1);
+  const [salida_modo, setSalidaModo] = useState<"empaque" | "contenido">(
+    "empaque",
+  );
   const [danado, setDanado] = useState(false);
+  const has_escalera =
+    unidades_por_empaque != null &&
+    Number(unidades_por_empaque) > 0 &&
+    Boolean(unidad_contenido || unidad);
   const [picked, setPicked] = useState<number[]>(() => osis.map((row) => row.id_osi));
   const [cursor, setCursor] = useState(() => new Date());
   const [pos, setPos] = useState<PanelPos>({
@@ -124,18 +135,25 @@ export function ReqDepositosConsumo({
     };
   }, [open, panel_id]);
 
+  const qty_stock = (() => {
+    if (!has_escalera || salida_modo === "empaque") return qty;
+    const factor = Number(unidades_por_empaque);
+    if (!Number.isFinite(factor) || factor <= 0) return qty;
+    return Math.round((qty / factor) * 1000) / 1000;
+  })();
+
   const submit = async () => {
     if (danado) {
-      await onDanado(qty);
+      await onDanado(qty_stock);
       setOpen(false);
       return;
     }
     if (is_depto) {
-      await onInterno(qty);
+      await onInterno(qty_stock);
       setOpen(false);
       return;
     }
-    await onSalida(qty, picked);
+    await onSalida(qty_stock, picked);
     setOpen(false);
   };
 
@@ -229,6 +247,32 @@ export function ReqDepositosConsumo({
                   </ul>
                 </>
               ) : null}
+              {has_escalera ? (
+                <div className="flex gap-1 rounded-lg bg-slate-100 p-0.5 text-[11px] font-medium">
+                  <button
+                    type="button"
+                    className={`flex-1 rounded-md px-2 py-1 ${
+                      salida_modo === "empaque"
+                        ? "bg-white shadow-sm"
+                        : "text-slate-500"
+                    }`}
+                    onClick={() => setSalidaModo("empaque")}
+                  >
+                    {unidad || "Empaque"}
+                  </button>
+                  <button
+                    type="button"
+                    className={`flex-1 rounded-md px-2 py-1 ${
+                      salida_modo === "contenido"
+                        ? "bg-white shadow-sm"
+                        : "text-slate-500"
+                    }`}
+                    onClick={() => setSalidaModo("contenido")}
+                  >
+                    {unidad_contenido || "Unidad"}
+                  </button>
+                </div>
+              ) : null}
               <div className="flex items-center gap-2">
                 <NumberInput
                   value={qty}
@@ -237,8 +281,20 @@ export function ReqDepositosConsumo({
                   className="h-8 w-24 text-xs"
                   onValueChange={setQty}
                 />
-                <span className="text-xs text-slate-500">{unidad || ""}</span>
+                <span className="text-xs text-slate-500">
+                  {has_escalera && salida_modo === "contenido"
+                    ? unidad_contenido || "und"
+                    : unidad || ""}
+                </span>
               </div>
+              {has_escalera && salida_modo === "contenido" ? (
+                <p className="text-[11px] text-slate-500">
+                  ≈ {qty_stock} {unidad || "empaque"}
+                  {unidades_por_empaque
+                    ? ` (${unidades_por_empaque} ${unidad_contenido || "und"}/caja)`
+                    : ""}
+                </p>
+              ) : null}
               <label className="flex items-center gap-2 text-xs">
                 <Checkbox
                   checked={danado}

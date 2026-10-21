@@ -150,6 +150,8 @@ export function ReqDepositosInspector({
             <ReqDepositosConsumo
               deposito={deposito}
               unidad={row.unidad}
+              unidad_contenido={row.unidad_contenido}
+              unidades_por_empaque={row.unidades_por_empaque}
               osis={osis}
               busy={busy}
               onInterno={onInterno}

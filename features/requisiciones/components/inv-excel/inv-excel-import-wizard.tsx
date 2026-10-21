@@ -13,19 +13,30 @@ import {
 import {
   pick_unidad_default_id,
   type InvEjecutante,
+  type InvExcelCatalogItem,
   type InvExcelRow,
 } from "../../lib/excel-inventario";
+import {
+  build_inv_excel_conflicts,
+  type InvExcelDupConflict,
+} from "../../lib/inv-excel-similar";
 import { InvExcelStepper } from "./inv-excel-stepper";
 import { InvExcelStepFile } from "./inv-excel-step-file";
 import { InvExcelStepSelect } from "./inv-excel-step-select";
+import {
+  apply_dup_decisions_to_rows,
+  InvExcelStepDuplicates,
+} from "./inv-excel-step-duplicates";
 import { InvExcelStepClassify } from "./inv-excel-step-classify";
 import { InvExcelStepDone } from "./inv-excel-step-done";
 
 export function InvExcelImportWizard() {
-  const [step, set_step] = useState<1 | 2 | 3 | 4>(1);
+  const [step, set_step] = useState<1 | 2 | 3 | 4 | 5>(1);
   const [file, set_file] = useState<File | null>(null);
   const [rows, set_rows] = useState<InvExcelRow[]>([]);
   const [included, set_included] = useState<Set<number>>(new Set());
+  const [catalog, set_catalog] = useState<InvExcelCatalogItem[]>([]);
+  const [conflicts, set_conflicts] = useState<InvExcelDupConflict[]>([]);
   const [departamentos, set_departamentos] = useState<InvExcelDepartamento[]>(
     [],
   );
@@ -36,6 +47,8 @@ export function InvExcelImportWizard() {
   const [id_unidad_default, set_id_unidad_default] = useState<number | null>(
     null,
   );
+  const [unidades_por_empaque_default, set_unidades_por_empaque_default] =
+    useState<number | null>(null);
   const [error, set_error] = useState<string | null>(null);
   const [busy, set_busy] = useState(false);
   const [result, set_result] = useState<{
@@ -67,22 +80,52 @@ export function InvExcelImportWizard() {
       return;
     }
     set_rows(preview.rows);
+    set_catalog(preview.catalog);
     set_departamentos(preview.departamentos);
     set_unidades(preview.unidades);
     set_id_unidad_default(pick_unidad_default_id(preview.unidades));
     set_included(
       new Set(preview.rows.filter((row) => !row.error).map((row) => row.row)),
     );
+    set_conflicts([]);
     set_step(2);
   }
 
-  function go_classify() {
+  function go_duplicates() {
     if (selected.length === 0) {
       set_error("Marca al menos una fila válida.");
       return;
     }
     set_error(null);
+    const next = build_inv_excel_conflicts({
+      rows,
+      included,
+      catalog,
+    });
+    set_conflicts(next);
     set_step(3);
+  }
+
+  function go_classify() {
+    const pending = conflicts.filter((c) => !c.decision);
+    if (pending.length > 0) {
+      set_error(
+        `Decidí qué hacer en ${pending.length} conflicto(s) (ej. fila ${pending[0].row}).`,
+      );
+      return;
+    }
+    const applied = apply_dup_decisions_to_rows(rows, conflicts, included);
+    set_rows(applied.rows);
+    set_included(applied.included);
+    if (
+      applied.rows.filter((row) => applied.included.has(row.row) && !row.error)
+        .length === 0
+    ) {
+      set_error("No quedan filas para cargar tras descartar duplicados.");
+      return;
+    }
+    set_error(null);
+    set_step(4);
   }
 
   async function on_commit() {
@@ -90,14 +133,15 @@ export function InvExcelImportWizard() {
       set_error("Marca al menos Cap o ST en el departamento ejecutante del lote.");
       return;
     }
-    const missing = selected.filter((row) => !row.obedece);
+    const batch = rows.filter((row) => included.has(row.row) && !row.error);
+    const missing = batch.filter((row) => !row.obedece);
     if (missing.length > 0) {
       set_error(
         `Completa OBEDECE en ${missing.length} fila(s) (ej. fila ${missing[0].row}).`,
       );
       return;
     }
-    const needs_ejec = selected.filter(
+    const needs_ejec = batch.filter(
       (row) =>
         (row.obedece === "si" || row.obedece === "ambos") &&
         row.ejecutantes.length === 0 &&
@@ -114,7 +158,7 @@ export function InvExcelImportWizard() {
     const saved = await commit_inv_excel({
       id_unidad_default,
       ejecutantes_default,
-      rows: selected.map((row) => ({
+      rows: batch.map((row) => ({
         row: row.row,
         concepto: row.concepto,
         modo_compra: row.modo_compra,
@@ -123,7 +167,10 @@ export function InvExcelImportWizard() {
         ejecutantes: row.ejecutantes,
         id_departamentos: row.id_departamentos,
         id_unidad: row.id_unidad,
-        id_item_match: row.id_item_match,
+        id_item_match: row.force_create ? null : row.id_item_match,
+        force_create: row.force_create,
+        unidades_por_empaque:
+          row.unidades_por_empaque ?? unidades_por_empaque_default,
       })),
     });
     set_busy(false);
@@ -132,7 +179,7 @@ export function InvExcelImportWizard() {
       return;
     }
     set_result(saved);
-    set_step(4);
+    set_step(5);
   }
 
   return (
@@ -149,7 +196,7 @@ export function InvExcelImportWizard() {
           Cargar Excel de inventario
         </h1>
         <p className="mt-1 text-sm text-gray-400">
-          Valores del lote, huecos y particulares por departamento.
+          Valores del lote, duplicados, huecos y particulares por departamento.
         </p>
       </div>
 
@@ -197,15 +244,30 @@ export function InvExcelImportWizard() {
             />
           ) : null}
           {step === 3 ? (
+            <InvExcelStepDuplicates
+              conflicts={conflicts}
+              catalog={catalog}
+              on_change={(row, patch) => {
+                set_conflicts((prev) =>
+                  prev.map((item) =>
+                    item.row === row ? { ...item, ...patch } : item,
+                  ),
+                );
+              }}
+            />
+          ) : null}
+          {step === 4 ? (
             <InvExcelStepClassify
               rows={rows}
               included={included}
               ejecutantes_default={ejecutantes_default}
               id_unidad_default={id_unidad_default}
+              unidades_por_empaque_default={unidades_por_empaque_default}
               departamentos={departamentos}
               unidades={unidades}
               on_ejecutantes_default={set_ejecutantes_default}
               on_unidad_default={set_id_unidad_default}
+              on_unidades_por_empaque_default={set_unidades_por_empaque_default}
               on_patch_row={(row, patch) => {
                 set_rows((prev) =>
                   prev.map((item) =>
@@ -215,22 +277,22 @@ export function InvExcelImportWizard() {
               }}
             />
           ) : null}
-          {step === 4 && result ? (
-            <InvExcelStepDone {...result} />
-          ) : null}
+          {step === 5 && result ? <InvExcelStepDone {...result} /> : null}
 
           {error ? (
             <p className="mt-4 text-sm text-red-600">{error}</p>
           ) : null}
 
-          {step < 4 ? (
+          {step < 5 ? (
             <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-4">
               <Button
                 type="button"
                 variant="ghost"
                 disabled={busy || step === 1}
                 onClick={() =>
-                  set_step((prev) => (prev > 1 ? ((prev - 1) as 1 | 2 | 3) : prev))
+                  set_step((prev) =>
+                    prev > 1 ? ((prev - 1) as 1 | 2 | 3 | 4) : prev,
+                  )
                 }
               >
                 Atrás
@@ -246,11 +308,16 @@ export function InvExcelImportWizard() {
                   </Button>
                 ) : null}
                 {step === 2 ? (
-                  <Button type="button" disabled={busy} onClick={go_classify}>
+                  <Button type="button" disabled={busy} onClick={go_duplicates}>
                     Continuar
                   </Button>
                 ) : null}
                 {step === 3 ? (
+                  <Button type="button" disabled={busy} onClick={go_classify}>
+                    Continuar
+                  </Button>
+                ) : null}
+                {step === 4 ? (
                   <Button
                     type="button"
                     disabled={busy}
