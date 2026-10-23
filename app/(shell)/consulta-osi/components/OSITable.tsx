@@ -11,7 +11,8 @@ import SessionExecutionModal, {
   type SessionExecutionPayload,
 } from "./SessionExecutionModal";
 import OSINotasModal from "./OSINotasModal";
-import { Eye, FileText, Loader2, ChevronDown, ChevronRight, MessageSquare, CheckCircle2, EyeOff, Eye as EyeShow, Paperclip, Pencil, StickyNote } from "lucide-react";
+import { Eye, FileText, Loader2, ChevronDown, ChevronRight, MessageSquare, CheckCircle2, EyeOff, Eye as EyeShow, Paperclip, Pencil, StickyNote, Star } from "lucide-react";
+import { GenerateSurveyModal } from "@/features/satisfaccion-clientes/components/GenerateSurveyModal";
 
 interface OSITableProps {
   osis: OSIListItem[];
@@ -74,6 +75,7 @@ export default function OSITable({
   const [allFinalBanner, setAllFinalBanner] = useState<Record<number, boolean>>({});
   const [hideLoadingId, setHideLoadingId] = useState<number | null>(null);
   const [attachmentLoadingId, setAttachmentLoadingId] = useState<number | null>(null);
+  const [surveyModalOsi, setSurveyModalOsi] = useState<OSIListItem | null>(null);
   const [executionModalSessions, setExecutionModalSessions] = useState<OSISession[]>([]);
   const [executionModalOsi, setExecutionModalOsi] = useState<OSIListItem | null>(null);
   const [executionModalAlsoUpdateOsi, setExecutionModalAlsoUpdateOsi] =
@@ -657,6 +659,16 @@ export default function OSITable({
                   >
                     <MessageSquare className="h-3.5 w-3.5" />
                   </button>
+                  <button
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setSurveyModalOsi(osi);
+                    }}
+                    className="inline-flex items-center justify-center rounded-md border border-gray-200 p-1.5 text-amber-600 hover:bg-amber-50 transition-colors"
+                    title="Encuesta de Satisfacción del Cliente"
+                  >
+                    <Star className="h-3.5 w-3.5" />
+                  </button>
                   {canHideForClient && osi.id_osi && onToggleHidden && (
                     <button
                       onClick={(event) => {
@@ -919,6 +931,24 @@ export default function OSITable({
             prev && prev.id_osi === osiId ? { ...prev, notas: updatedNotas } : prev,
           );
         }}
+      />
+      <GenerateSurveyModal
+        isOpen={Boolean(surveyModalOsi)}
+        onClose={() => setSurveyModalOsi(null)}
+        initialOsi={
+          surveyModalOsi
+            ? {
+                id_osi: surveyModalOsi.id_osi,
+                nro_osi: surveyModalOsi.nro_osi,
+                nombre_empresa: surveyModalOsi.nombre_empresa,
+                servicio: surveyModalOsi.servicio,
+                tipo_servicio: surveyModalOsi.tipo_servicio,
+                ejecutivo_negocios: surveyModalOsi.ejecutivo_negocios,
+                ciudad_ejecucion: surveyModalOsi.ciudad_ejecucion,
+                fecha_servicio: surveyModalOsi.fecha_inicio_real,
+              }
+            : undefined
+        }
       />
     </div>
   );

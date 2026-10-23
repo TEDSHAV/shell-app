@@ -43,6 +43,7 @@ import {
   FileStack,
   LayoutGrid,
   Settings,
+  Star,
 } from "lucide-react";
 import { build_app_config } from "@/lib/app-theme";
 import { AppConfig, AppGroupConfig, NavGroup } from "@/types";
@@ -188,6 +189,7 @@ export const UTILIDADES_HEADER_APP_IDS = [
   "inventario",
   "directorio",
   "cedula",
+  "satisfaccion-clientes",
   "administracion",
 ] as const;
 
@@ -1037,6 +1039,19 @@ export const apps: AppConfig[] = [
     hiddenFromDashboard: true,
     groupId: "utilidades",
     dashboardOrder: 9,
+    navLinks: [],
+  }),
+  build_app_config({
+    id: "satisfaccion-clientes",
+    name: "Satisfacción de Clientes",
+    description: "Encuestas de satisfacción post-servicio e indicadores de calidad",
+    basePath: "/satisfaccion-clientes",
+    icon: Star,
+    brandColor: "#059669",
+    embedMode: "native",
+    hiddenFromDashboard: false,
+    groupId: "utilidades",
+    dashboardOrder: 10,
     navLinks: [],
   }),
   // Placeholders: módulos visibles en dashboard para completar el mapa de procesos
