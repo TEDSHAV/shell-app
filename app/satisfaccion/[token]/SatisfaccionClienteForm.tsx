@@ -13,11 +13,16 @@ import {
   Star,
   Check,
 } from "lucide-react";
-import type { EncuestaCliente, SubmitRespuestaInput } from "@/actions/satisfaccion-clientes";
+import type {
+  EncuestaCliente,
+  SubmitRespuestaInput,
+  PlantillaSatisfaccion,
+} from "@/actions/satisfaccion-clientes";
 import { submitRespuestaCliente } from "@/actions/satisfaccion-clientes";
 
 interface Props {
   encuesta: EncuestaCliente;
+  plantilla?: PlantillaSatisfaccion;
 }
 
 const Q1_OPTIONS = [
@@ -36,7 +41,7 @@ const Q2_OPTIONS = [
   { value: 1, label: "Muy mala experiencia", desc: "Falta de respuesta o trato insatisfactorio" },
 ];
 
-export function SatisfaccionClienteForm({ encuesta }: Props) {
+export function SatisfaccionClienteForm({ encuesta, plantilla }: Props) {
   const [calidad, setCalidad] = useState<number | null>(null);
   const [atencion, setAtencion] = useState<number | null>(null);
   const [fidelidad, setFidelidad] = useState<number | null>(null);
@@ -47,6 +52,18 @@ export function SatisfaccionClienteForm({ encuesta }: Props) {
   const [respondenteCargo, setRespondenteCargo] = useState<string>(
     encuesta.cliente_contacto_cargo || "",
   );
+
+  const getQ1OptionLabel = (value: number, defaultLabel: string) => {
+    if (!plantilla?.pregunta_1_opciones) return defaultLabel;
+    const key = `opt${value}` as keyof typeof plantilla.pregunta_1_opciones;
+    return plantilla.pregunta_1_opciones[key] || defaultLabel;
+  };
+
+  const getQ2OptionLabel = (value: number, defaultLabel: string) => {
+    if (!plantilla?.pregunta_2_opciones) return defaultLabel;
+    const key = `opt${value}` as keyof typeof plantilla.pregunta_2_opciones;
+    return plantilla.pregunta_2_opciones[key] || defaultLabel;
+  };
 
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -125,10 +142,16 @@ export function SatisfaccionClienteForm({ encuesta }: Props) {
 
         <div className="relative z-10 mt-6">
           <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
-            Encuesta de Satisfacción del Cliente
+            {plantilla?.titulo_encuesta || "Encuesta de Satisfacción del Cliente"}
           </h1>
           <p className="mt-2 text-sm leading-relaxed text-sky-100">
-            Estimado cliente de <strong className="text-white underline decoration-sky-300 underline-offset-2">{encuesta.nombre_empresa}</strong>, le agradecemos responder estas 3 breves preguntas sobre el servicio recibido.
+            {plantilla?.subtitulo_encuesta ? (
+              plantilla.subtitulo_encuesta.replace("{empresa}", encuesta.nombre_empresa)
+            ) : (
+              <>
+                Estimado cliente de <strong className="text-white underline decoration-sky-300 underline-offset-2">{encuesta.nombre_empresa}</strong>, le agradecemos responder estas 3 breves preguntas sobre el servicio recibido.
+              </>
+            )}
           </p>
 
           <div className="mt-4 flex flex-wrap gap-2 text-xs">
@@ -171,11 +194,11 @@ export function SatisfaccionClienteForm({ encuesta }: Props) {
                 1
               </span>
               <h2 className="text-base font-bold text-slate-900">
-                Calidad del Producto o Servicio (Cumplimiento de Requisitos)
+                {plantilla?.pregunta_1_titulo || "Calidad del Producto o Servicio (Cumplimiento de Requisitos)"}
               </h2>
             </div>
             <p className="mt-1.5 text-xs text-slate-600 font-medium">
-              ¿En qué medida el servicio recibido cumplió con las especificaciones y características acordadas?
+              {plantilla?.pregunta_1_texto || "¿En qué medida el servicio recibido cumplió con las especificaciones y características acordadas?"}
             </p>
           </div>
 
@@ -205,7 +228,7 @@ export function SatisfaccionClienteForm({ encuesta }: Props) {
                     </span>
                     <div>
                       <div className="text-xs font-bold text-slate-800 sm:text-sm">
-                        {opt.label}
+                        {getQ1OptionLabel(opt.value, opt.label)}
                       </div>
                       <div className="text-[11px] text-slate-500">
                         {opt.desc}
@@ -238,11 +261,11 @@ export function SatisfaccionClienteForm({ encuesta }: Props) {
                 2
               </span>
               <h2 className="text-base font-bold text-slate-900">
-                Atención y Soporte al Cliente
+                {plantilla?.pregunta_2_titulo || "Atención y Soporte al Cliente"}
               </h2>
             </div>
             <p className="mt-1.5 text-xs text-slate-600 font-medium">
-              ¿Cómo evalúa la disposición, amabilidad y capacidad de respuesta de nuestro equipo/ejecutivo ante sus solicitudes o dudas?
+              {plantilla?.pregunta_2_texto || "¿Cómo evalúa la disposición, amabilidad y capacidad de respuesta de nuestro equipo/ejecutivo ante sus solicitudes o dudas?"}
             </p>
           </div>
 
@@ -272,7 +295,7 @@ export function SatisfaccionClienteForm({ encuesta }: Props) {
                     </span>
                     <div>
                       <div className="text-xs font-bold text-slate-800 sm:text-sm">
-                        {opt.label}
+                        {getQ2OptionLabel(opt.value, opt.label)}
                       </div>
                       <div className="text-[11px] text-slate-500">
                         {opt.desc}
@@ -305,11 +328,11 @@ export function SatisfaccionClienteForm({ encuesta }: Props) {
                 3
               </span>
               <h2 className="text-base font-bold text-slate-900">
-                Fidelidad
+                {plantilla?.pregunta_3_titulo || "Fidelidad"}
               </h2>
             </div>
             <p className="mt-1.5 text-xs text-slate-700 font-medium">
-              Considerando su experiencia global con nosotros, ¿Volverías a comprar nuestros servicios?
+              {plantilla?.pregunta_3_texto || "Considerando su experiencia global con nosotros, ¿Volverías a comprar nuestros servicios?"}
             </p>
             <p className="mt-0.5 text-[11px] text-slate-500 italic">
               (Seleccione un número del 0 al 10, donde 0 es &quot;Nada probable&quot; y 10 es &quot;Altamente probable&quot;)

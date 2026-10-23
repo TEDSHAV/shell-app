@@ -15,6 +15,8 @@ import {
   MessageCircle,
   Eye,
   SlidersHorizontal,
+  Sliders,
+  Trash2,
   TrendingUp,
   Award,
   Users,
@@ -28,9 +30,14 @@ import type {
   SatisfaccionFiltros,
   EncuestaCliente,
 } from "@/actions/satisfaccion-clientes";
-import { getSatisfaccionDashboard } from "@/actions/satisfaccion-clientes";
+import {
+  getSatisfaccionDashboard,
+  deleteEncuestaCliente,
+} from "@/actions/satisfaccion-clientes";
 import { GenerateSurveyModal } from "./GenerateSurveyModal";
 import { SurveyDetailsModal } from "./SurveyDetailsModal";
+import { ShareWhatsAppModal } from "./ShareWhatsAppModal";
+import { TemplateSettingsModal } from "./TemplateSettingsModal";
 import { downloadSatisfaccionPdf } from "../lib/download-satisfaccion-pdf";
 
 interface Props {
@@ -70,8 +77,32 @@ export function SatisfaccionClientesClient({
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
+  const [whatsappModalEncuesta, setWhatsappModalEncuesta] = useState<EncuestaConRespuesta | null>(null);
   const [viewDetailsEncuesta, setViewDetailsEncuesta] = useState<EncuestaConRespuesta | null>(null);
   const [copiedId, setCopiedId] = useState<number | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  const handleDelete = async (encuesta: EncuestaConRespuesta) => {
+    const confirmMsg = `¿Está seguro de eliminar la encuesta para "${encuesta.nombre_empresa}"?\n\nEsta acción es irreversible y eliminará también las respuestas si las hubiese.`;
+    if (!window.confirm(confirmMsg)) return;
+
+    setDeletingId(encuesta.id);
+    try {
+      const res = await deleteEncuestaCliente(encuesta.id);
+      if (res.ok) {
+        setEncuestas((prev) => prev.filter((e) => e.id !== encuesta.id));
+        handleRefresh();
+      } else {
+        alert(res.error || "Error al eliminar la encuesta.");
+      }
+    } catch (err: any) {
+      console.error("Error deleting survey:", err);
+      alert("Ocurrió un error inesperado al eliminar.");
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const applyFilters = (newFiltros: SatisfaccionFiltros) => {
     setFiltros(newFiltros);
@@ -172,11 +203,21 @@ export function SatisfaccionClientesClient({
 
           <button
             type="button"
+            onClick={() => setIsTemplateModalOpen(true)}
+            className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition-colors"
+            title="Configuración de plantilla y preguntas"
+          >
+            <Sliders className="h-3.5 w-3.5 text-sky-600" />
+            Configuración de Plantilla
+          </button>
+
+          <button
+            type="button"
             onClick={handleDownloadPdf}
             disabled={isGeneratingPdf || encuestas.length === 0}
             className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition-colors disabled:opacity-50"
           >
-            <Download className="h-3.5 w-3.5 text-sky-600" />
+            <Download className="h-3.5 w-3.5 text-slate-600" />
             {isGeneratingPdf ? "Generando PDF..." : "Exportar Reporte PDF"}
           </button>
 
@@ -509,19 +550,29 @@ export function SatisfaccionClientesClient({
                               )}
                             </button>
 
-                            {/* WhatsApp Share */}
-                            <a
-                              href={getWhatsAppShareUrl(item)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition-colors"
-                              title="Compartir por WhatsApp"
+                            {/* WhatsApp Share Button */}
+                            <button
+                              type="button"
+                              onClick={() => setWhatsappModalEncuesta(item)}
+                              className="flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition-colors shadow-xs"
+                              title="Vista previa y enviar por WhatsApp"
                             >
                               <MessageCircle className="h-3.5 w-3.5 text-emerald-600" />
                               WhatsApp
-                            </a>
+                            </button>
                           </>
                         )}
+
+                        {/* Delete Button (Trial Period) */}
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(item)}
+                          disabled={deletingId === item.id}
+                          className="flex items-center justify-center rounded-lg border border-slate-200 bg-white p-1 text-slate-400 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-600 transition-colors shadow-xs disabled:opacity-50"
+                          title="Eliminar encuesta (periodo de prueba)"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -554,26 +605,19 @@ export function SatisfaccionClientesClient({
         encuesta={viewDetailsEncuesta}
         onClose={() => setViewDetailsEncuesta(null)}
       />
+
+      {/* WhatsApp Share Modal with preview and edit */}
+      <ShareWhatsAppModal
+        isOpen={!!whatsappModalEncuesta}
+        onClose={() => setWhatsappModalEncuesta(null)}
+        encuesta={whatsappModalEncuesta}
+      />
+
+      {/* Template Settings Modal */}
+      <TemplateSettingsModal
+        isOpen={isTemplateModalOpen}
+        onClose={() => setIsTemplateModalOpen(false)}
+      />
     </div>
   );
-}
-
-function getWhatsAppShareUrl(encuesta: EncuestaConRespuesta): string {
-  const origin = typeof window !== "undefined" ? window.location.origin : "";
-  const surveyUrl = `${origin}/satisfaccion/${encuesta.token}`;
-
-  const greeting = encuesta.cliente_contacto_nombre
-    ? `Estimado(a) ${encuesta.cliente_contacto_nombre}`
-    : `Estimado cliente de ${encuesta.nombre_empresa}`;
-
-  const message = `${greeting}, en SHA de Venezuela valoramos su opinión sobre nuestro servicio de ${encuesta.servicio}. Le agradecemos tomarse 2 minutos para responder nuestra breve encuesta de satisfacción:\n\n${surveyUrl}\n\n¡Muchas gracias por su preferencia!`;
-
-  const phone = encuesta.cliente_contacto_telefono
-    ? encuesta.cliente_contacto_telefono.replace(/[^\d]/g, "")
-    : "";
-
-  if (phone) {
-    return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
-  }
-  return `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
 }

@@ -99,6 +99,59 @@ export interface SubmitRespuestaInput {
   respondente_cargo?: string | null;
 }
 
+export interface PlantillaSatisfaccion {
+  titulo_encuesta: string;
+  subtitulo_encuesta: string;
+  pregunta_1_titulo: string;
+  pregunta_1_texto: string;
+  pregunta_1_opciones: {
+    opt5: string;
+    opt4: string;
+    opt3: string;
+    opt2: string;
+    opt1: string;
+  };
+  pregunta_2_titulo: string;
+  pregunta_2_texto: string;
+  pregunta_2_opciones: {
+    opt5: string;
+    opt4: string;
+    opt3: string;
+    opt2: string;
+    opt1: string;
+  };
+  pregunta_3_titulo: string;
+  pregunta_3_texto: string;
+  mensaje_whatsapp_plantilla: string;
+}
+
+export const DEFAULT_PLANTILLA_SATISFACCION: PlantillaSatisfaccion = {
+  titulo_encuesta: "Encuesta de Satisfacción del Cliente",
+  subtitulo_encuesta: "Estimado cliente de {empresa}, le agradecemos responder estas 3 breves preguntas sobre el servicio recibido.",
+  pregunta_1_titulo: "Calidad del Producto o Servicio (Cumplimiento de Requisitos)",
+  pregunta_1_texto: "¿En qué medida el servicio recibido cumplió con las especificaciones y características acordadas?",
+  pregunta_1_opciones: {
+    opt5: "Excedió mis expectativas",
+    opt4: "Cumplió totalmente",
+    opt3: "Cumplió parcialmente",
+    opt2: "Regular / Falta mejorar",
+    opt1: "No cumplió con lo acordado",
+  },
+  pregunta_2_titulo: "Atención y Soporte al Cliente",
+  pregunta_2_texto: "¿Cómo evalúa la disposición, amabilidad y capacidad de respuesta de nuestro equipo/ejecutivo ante sus solicitudes o dudas?",
+  pregunta_2_opciones: {
+    opt5: "Excelente atención",
+    opt4: "Buena atención",
+    opt3: "Aceptable",
+    opt2: "Deficiente",
+    opt1: "Muy mala experiencia",
+  },
+  pregunta_3_titulo: "Fidelidad (Recompra de Servicios)",
+  pregunta_3_texto: "Considerando su experiencia global con nosotros, ¿Volverías a comprar nuestros servicios? (0: Nada probable, 10: Altamente probable)",
+  mensaje_whatsapp_plantilla: "Estimado(a) {contacto},\n\nEn SHA de Venezuela valoramos su opinión sobre nuestro servicio de {servicio}.\n\nLe agradeceríamos tomarse 2 minutos para responder nuestra breve encuesta de satisfacción:\n{enlace}\n\n¡Muchas gracias por su preferencia y confianza!",
+};
+
+
 /**
  * Access control for Satisfacción de Clientes:
  * Negocios, Calidad, TED, and Superadmin can access.
@@ -359,6 +412,7 @@ function calculateKpis(encuestas: EncuestaConRespuesta[]): SatisfaccionKpis {
 export async function getEncuestaByToken(token: string): Promise<{
   ok: boolean;
   encuesta?: EncuestaCliente;
+  plantilla?: PlantillaSatisfaccion;
   error?: string;
   alreadyResponded?: boolean;
 }> {
@@ -392,9 +446,12 @@ export async function getEncuestaByToken(token: string): Promise<{
     };
   }
 
+  const plantilla = await getPlantillaSatisfaccion();
+
   return {
     ok: true,
     encuesta: data as EncuestaCliente,
+    plantilla,
   };
 }
 
@@ -532,6 +589,121 @@ export async function generateEncuestaCliente(
     return { ok: false, error: err.message || "Error inesperado al generar la encuesta." };
   }
 }
+
+/**
+ * Format a phone number for WhatsApp URL (defaults to Venezuela +58 international format).
+ */
+export function formatWhatsAppPhone(rawPhone: string): string {
+  if (!rawPhone) return "";
+  const digits = rawPhone.replace(/\D/g, "");
+  if (!digits) return "";
+
+  // Already has Venezuela country code 58
+  if (digits.startsWith("58") && digits.length >= 11) {
+    return digits;
+  }
+  // Standard Venezuelan local numbers starting with 0 (e.g. 04141234567, 0424, 0412, 0212)
+  if (digits.startsWith("0")) {
+    return `58${digits.substring(1)}`;
+  }
+  // 10 digits starting with 4 (e.g. 4141234567)
+  if (digits.startsWith("4") && digits.length === 10) {
+    return `58${digits}`;
+  }
+  return digits;
+}
+
+/**
+ * Delete a survey during trial/testing period.
+ */
+export async function deleteEncuestaCliente(
+  id: number,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const allowed = await canAccessSatisfaccionClientes();
+    if (!allowed) {
+      return { ok: false, error: "No tienes permiso para eliminar encuestas." };
+    }
+
+    const admin = await createAdminClient();
+    const { error } = await admin
+      .from("encuestas_satisfaccion_clientes")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      console.error("Error deleting encuesta:", error);
+      return { ok: false, error: error.message };
+    }
+
+    return { ok: true };
+  } catch (err: any) {
+    console.error("Exception in deleteEncuestaCliente:", err);
+    return { ok: false, error: err.message || "Error al eliminar la encuesta." };
+  }
+}
+
+/**
+ * Retrieve the current survey template configuration (or defaults).
+ */
+export async function getPlantillaSatisfaccion(): Promise<PlantillaSatisfaccion> {
+  try {
+    const admin = await createAdminClient();
+    const { data, error } = await admin
+      .from("plantillas_satisfaccion_clientes")
+      .select("config")
+      .eq("slug", "default")
+      .maybeSingle();
+
+    if (error || !data?.config) {
+      return DEFAULT_PLANTILLA_SATISFACCION;
+    }
+    return { ...DEFAULT_PLANTILLA_SATISFACCION, ...data.config };
+  } catch {
+    return DEFAULT_PLANTILLA_SATISFACCION;
+  }
+}
+
+/**
+ * Save custom survey template configuration.
+ */
+export async function savePlantillaSatisfaccion(
+  config: PlantillaSatisfaccion,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const allowed = await canAccessSatisfaccionClientes();
+    if (!allowed) {
+      return { ok: false, error: "No tienes permiso para modificar la plantilla de encuestas." };
+    }
+
+    const supabase = await createClient();
+    const admin = await createAdminClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    const { error } = await admin
+      .from("plantillas_satisfaccion_clientes")
+      .upsert(
+        {
+          slug: "default",
+          config,
+          updated_by: user?.id || null,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "slug" },
+      );
+
+    if (error) {
+      console.error("Error saving plantilla satisfaccion:", error);
+      return { ok: false, error: error.message };
+    }
+
+    return { ok: true };
+  } catch (err: any) {
+    console.error("Exception saving plantilla:", err);
+    return { ok: false, error: err.message || "Error al guardar la plantilla." };
+  }
+}
+
 
 export interface OsiSearchResult {
   id_osi: number;

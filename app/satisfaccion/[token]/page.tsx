@@ -22,7 +22,10 @@ export default async function SatisfaccionPublicPage({
     <div className="min-h-screen bg-gradient-to-b from-slate-100 via-slate-50 to-slate-100 px-4 py-8 sm:py-12 sm:px-6 lg:px-8 flex flex-col justify-between">
       <main className="w-full">
         {result.ok && result.encuesta ? (
-          <SatisfaccionClienteForm encuesta={result.encuesta} />
+          <SatisfaccionClienteForm
+            encuesta={result.encuesta}
+            plantilla={result.plantilla}
+          />
         ) : result.alreadyResponded ? (
           <div className="mx-auto max-w-lg rounded-2xl border border-emerald-200 bg-white p-8 text-center shadow-lg sm:p-10">
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">

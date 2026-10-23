@@ -29,6 +29,7 @@ import {
   type OsiSearchResult,
   type EmpresaSearchResult,
 } from "@/actions/satisfaccion-clientes";
+import { ShareWhatsAppModal } from "./ShareWhatsAppModal";
 
 interface Props {
   isOpen: boolean;
@@ -91,6 +92,7 @@ export function GenerateSurveyModal({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [generatedEncuesta, setGeneratedEncuesta] = useState<EncuestaCliente | null>(null);
   const [copied, setCopied] = useState(false);
+  const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
 
   // Load initial OSI if provided
   useEffect(() => {
@@ -429,15 +431,14 @@ export function GenerateSurveyModal({
 
               {/* Quick Actions */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                <a
-                  href={getWhatsAppShareUrl()}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  type="button"
+                  onClick={() => setIsWhatsAppModalOpen(true)}
                   className="flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-emerald-500 transition-colors"
                 >
                   <MessageCircle className="h-4 w-4" />
                   Compartir por WhatsApp
-                </a>
+                </button>
 
                 <a
                   href={surveyUrl}
@@ -840,6 +841,23 @@ export function GenerateSurveyModal({
           )}
         </div>
       </div>
+
+      <ShareWhatsAppModal
+        isOpen={isWhatsAppModalOpen}
+        onClose={() => setIsWhatsAppModalOpen(false)}
+        encuesta={
+          generatedEncuesta
+            ? {
+                token: generatedEncuesta.token,
+                nombre_empresa: generatedEncuesta.nombre_empresa,
+                servicio: generatedEncuesta.servicio,
+                nro_osi: generatedEncuesta.nro_osi,
+                cliente_contacto_nombre: contactoNombre,
+                cliente_contacto_telefono: contactoTelefono,
+              }
+            : null
+        }
+      />
     </div>
   );
 }
