@@ -13,7 +13,8 @@ export function ShellProvider({
   sidebar, 
   userEmail,
   userRolesByApp,
-  globalRole
+  globalRole,
+  userDept,
 }: ShellProviderProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -33,6 +34,7 @@ export function ShellProvider({
           isMobileMenuOpen={isMobileMenuOpen}
           userRolesByApp={userRolesByApp}
           globalRole={globalRole}
+          userDept={userDept}
         />
         <div className="flex flex-1 min-h-0">
           <Sidebar>{sidebar}</Sidebar>

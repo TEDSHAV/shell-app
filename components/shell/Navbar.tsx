@@ -16,6 +16,7 @@ export const Navbar = ({
   isMobileMenuOpen,
   userRolesByApp,
   globalRole,
+  userDept,
 }: NavbarProps) => {
   return (
     <header className="h-14 border-b border-slate-200 bg-white flex items-center px-4 gap-3 sticky top-0 z-[60] shadow-sm">
@@ -50,6 +51,7 @@ export const Navbar = ({
         <AppNavigation 
           userRolesByApp={userRolesByApp} 
           globalRole={globalRole} 
+          userDept={userDept}
         />
         <HelpCenterTrigger />
         <NotificationsBell />

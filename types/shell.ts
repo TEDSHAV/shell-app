@@ -5,6 +5,7 @@ export interface NavbarProps {
   isMobileMenuOpen: boolean;
   userRolesByApp?: Record<string, string>;
   globalRole?: string;
+  userDept?: string | null;
 }
 
 export interface ShellProviderProps {
@@ -13,6 +14,7 @@ export interface ShellProviderProps {
   userEmail?: string;
   userRolesByApp?: Record<string, string>;
   globalRole?: string;
+  userDept?: string | null;
 }
 
 export interface AppFrameProps {

@@ -9,7 +9,7 @@ import {
   opens_in_new_tab,
 } from "@/lib/app-theme";
 import { cn } from "@/lib/utils";
-import { getUserRolesByApp, getUserRole } from "@/actions/apps";
+import { getUserRolesByApp, getUserRole, getUsuarioDepartamento } from "@/actions/apps";
 import { can_access_shell_app } from "@/lib/shell-app-access";
 import { canAccessTedApp, isTedMember } from "@/actions/ted";
 
@@ -20,15 +20,16 @@ function flattenNavLinks(navLinks: (NavLink | NavGroup)[]): NavLink[] {
 }
 
 export default async function DashboardPage() {
-  const [userRolesByApp, globalRole, tedMember, canTedApp] = await Promise.all([
+  const [userRolesByApp, globalRole, tedMember, canTedApp, userDept] = await Promise.all([
     getUserRolesByApp(),
     getUserRole(),
     isTedMember(),
     canAccessTedApp(),
+    getUsuarioDepartamento(),
   ]);
 
   const canAccessApp = (app: AppConfig) =>
-    can_access_shell_app(app, userRolesByApp, globalRole);
+    can_access_shell_app(app, userRolesByApp, globalRole, userDept);
 
   const allowedApps = apps.filter(
     (app) => !app.hiddenFromDashboard && canAccessApp(app),

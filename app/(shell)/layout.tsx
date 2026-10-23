@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ShellProvider } from "@/components/shell/ShellProvider";
 import { hasEnvVars } from "@/lib/utils";
-import { getClaims, getUserRolesByApp, getUserRoleFromRoles, getUsuarioRecord } from "@/actions/apps";
+import { getClaims, getUserRolesByApp, getUserRoleFromRoles, getUsuarioRecord, getUsuarioDepartamento } from "@/actions/apps";
 
 export default async function ShellLayout({
   children,
@@ -16,6 +16,7 @@ export default async function ShellLayout({
   let userEmail: string | undefined;
   let userRolesByApp: Record<string, string> = {};
   let globalRole: string | undefined;
+  let userDept: string | null = null;
 
   if (hasEnvVars) {
     const { data, error } = await getClaims();
@@ -35,6 +36,8 @@ export default async function ShellLayout({
       await supabase.auth.signOut().catch(() => {});
       redirect("/auth/login");
     }
+
+    userDept = await getUsuarioDepartamento();
 
     // Check claims for user_role first (avoids DB call when present)
     const claimsRole = (data.claims.user_role as string) ??
@@ -57,6 +60,7 @@ export default async function ShellLayout({
       sidebar={sidebar}
       userRolesByApp={userRolesByApp}
       globalRole={globalRole}
+      userDept={userDept}
     >
       {children}
     </ShellProvider>

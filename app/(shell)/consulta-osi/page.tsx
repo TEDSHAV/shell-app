@@ -8,6 +8,7 @@ import {
   getOSIList,
   getOSIListFilterOptions,
 } from "@/actions/osi";
+import { canAccessSatisfaccionClientes } from "@/actions/satisfaccion-clientes";
 
 export const metadata = {
   title: "Consulta de OSIs | PRISMA",
@@ -27,6 +28,7 @@ export default async function ConsultaOSIPage({
     canChangeStatus,
     canHideForClient,
     canToggleAttachment,
+    canAccessSatisfaccion,
     initialData,
     filterOptions,
   ] = await Promise.all([
@@ -34,6 +36,7 @@ export default async function ConsultaOSIPage({
     canChangeOSIStatus(),
     canHideOSIFromClient(),
     canToggleOSIAttachment(),
+    canAccessSatisfaccionClientes(),
     getOSIList(initialFilters, 1, 20),
     getOSIListFilterOptions(),
   ]);
@@ -47,6 +50,7 @@ export default async function ConsultaOSIPage({
       canChangeStatus={canChangeStatus}
       canHideForClient={canHideForClient}
       canToggleAttachment={canToggleAttachment}
+      canAccessSatisfaccion={canAccessSatisfaccion}
       isDev={process.env.NODE_ENV !== "production"}
       initialNroOsi={initialNroOsi}
       initialOsis={initialData.osis}

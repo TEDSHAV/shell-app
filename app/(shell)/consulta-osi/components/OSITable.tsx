@@ -32,6 +32,7 @@ interface OSITableProps {
   onToggleHidden?: (osi: OSIListItem, hidden: boolean) => Promise<{ success: boolean; error?: string }>;
   canToggleAttachment?: boolean;
   onToggleAttachment?: (osi: OSIListItem) => Promise<{ success: boolean; error?: string }>;
+  canAccessSatisfaccion?: boolean;
   onNotasUpdated?: (osiId: number, updatedNotas: OsiNota[]) => void;
 }
 
@@ -64,6 +65,7 @@ export default function OSITable({
   onToggleHidden,
   canToggleAttachment,
   onToggleAttachment,
+  canAccessSatisfaccion = false,
   onNotasUpdated,
 }: OSITableProps) {
   const [notasModalOSI, setNotasModalOSI] = useState<OSIListItem | null>(null);
@@ -659,16 +661,18 @@ export default function OSITable({
                   >
                     <MessageSquare className="h-3.5 w-3.5" />
                   </button>
-                  <button
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      setSurveyModalOsi(osi);
-                    }}
-                    className="inline-flex items-center justify-center rounded-md border border-gray-200 p-1.5 text-amber-600 hover:bg-amber-50 transition-colors"
-                    title="Encuesta de Satisfacción del Cliente"
-                  >
-                    <Star className="h-3.5 w-3.5" />
-                  </button>
+                  {canAccessSatisfaccion && (
+                    <button
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setSurveyModalOsi(osi);
+                      }}
+                      className="inline-flex items-center justify-center rounded-md border border-gray-200 p-1.5 text-amber-600 hover:bg-amber-50 transition-colors"
+                      title="Encuesta de Satisfacción del Cliente"
+                    >
+                      <Star className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                   {canHideForClient && osi.id_osi && onToggleHidden && (
                     <button
                       onClick={(event) => {
