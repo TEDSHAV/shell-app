@@ -120,7 +120,7 @@ export function SurveyDetailsModal({ encuesta, onClose }: Props) {
                   </span>
                 </div>
                 <p className="text-xs font-semibold text-emerald-800">
-                  {r.calidad_servicio} – {Q1_TEXT[r.calidad_servicio] || "N/A"}
+                  {Q1_TEXT[r.calidad_servicio] || "N/A"}
                 </p>
               </div>
 
@@ -136,7 +136,7 @@ export function SurveyDetailsModal({ encuesta, onClose }: Props) {
                   </span>
                 </div>
                 <p className="text-xs font-semibold text-emerald-800">
-                  {r.atencion_soporte} – {Q2_TEXT[r.atencion_soporte] || "N/A"}
+                  {Q2_TEXT[r.atencion_soporte] || "N/A"}
                 </p>
               </div>
 

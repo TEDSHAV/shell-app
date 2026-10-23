@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import Image from "next/image";
+import logo from "@/app/logo.png";
 import {
   CheckCircle2,
   AlertCircle,
@@ -107,12 +108,12 @@ export function SatisfaccionClienteForm({ encuesta }: Props) {
       {/* Header Banner */}
       <div className="relative overflow-hidden bg-gradient-to-br from-[#0c3f69] via-[#0f4b7c] to-[#0284c7] px-6 py-8 text-white sm:px-10">
         <div className="relative z-10 flex items-center justify-between gap-4">
-          <div className="relative h-11 w-28 brightness-0 invert">
+          <div className="flex items-center">
             <Image
-              src="/logo.png"
+              src={logo}
               alt="SHA de Venezuela"
-              fill
-              className="object-contain"
+              height={40}
+              className="h-10 w-auto object-contain rounded-xl bg-white px-3 py-1 shadow-xs"
               priority
             />
           </div>
@@ -204,7 +205,7 @@ export function SatisfaccionClienteForm({ encuesta }: Props) {
                     </span>
                     <div>
                       <div className="text-xs font-bold text-slate-800 sm:text-sm">
-                        {opt.value} – {opt.label}
+                        {opt.label}
                       </div>
                       <div className="text-[11px] text-slate-500">
                         {opt.desc}
@@ -271,7 +272,7 @@ export function SatisfaccionClienteForm({ encuesta }: Props) {
                     </span>
                     <div>
                       <div className="text-xs font-bold text-slate-800 sm:text-sm">
-                        {opt.value} – {opt.label}
+                        {opt.label}
                       </div>
                       <div className="text-[11px] text-slate-500">
                         {opt.desc}
