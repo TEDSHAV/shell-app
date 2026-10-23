@@ -1,6 +1,8 @@
 -- 20261023140000_create_encuestas_satisfaccion_clientes.sql
 -- Satisfacción de Clientes post-servicio (Calidad, Atención y Soporte, Fidelidad/NPS)
 -- Permite a Negocios generar enlaces para clientes y a Calidad/Negocios/TED consultar indicadores.
+-- El flujo público y de gestión se procesa mediante Server Actions (service_role),
+-- protegiendo las tablas contra acceso anónimo directo en PostgREST (principio de menor privilegio).
 
 CREATE TABLE IF NOT EXISTS public.encuestas_satisfaccion_clientes (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -13,7 +15,7 @@ CREATE TABLE IF NOT EXISTS public.encuestas_satisfaccion_clientes (
   tipo_servicio TEXT,
   ejecutivo_negocios TEXT,
   id_ciudad INTEGER REFERENCES public.cat_ciudades(id) ON DELETE SET NULL,
-  id_estado INTEGER REFERENCES public.cat_estados(id) ON DELETE SET NULL,
+  id_estado INTEGER REFERENCES public.cat_estados_venezuela(id) ON DELETE SET NULL,
   fecha_servicio DATE,
   cliente_contacto_nombre TEXT,
   cliente_contacto_email TEXT,
@@ -23,13 +25,11 @@ CREATE TABLE IF NOT EXISTS public.encuestas_satisfaccion_clientes (
     CHECK (estado IN ('pendiente', 'respondida', 'expirada', 'cancelada')),
   created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  sent_at TIMESTAMPTZ DEFAULT now(),
+  sent_at TIMESTAMPTZ,
   responded_at TIMESTAMPTZ
 );
 
-CREATE INDEX IF NOT EXISTS idx_encuestas_sat_cli_token
-  ON public.encuestas_satisfaccion_clientes (token);
-
+-- Note: token UUID UNIQUE creates a unique index in PostgreSQL automatically.
 CREATE INDEX IF NOT EXISTS idx_encuestas_sat_cli_osi
   ON public.encuestas_satisfaccion_clientes (id_osi);
 
@@ -70,33 +70,57 @@ CREATE INDEX IF NOT EXISTS idx_respuestas_sat_cli_submitted
 ALTER TABLE public.encuestas_satisfaccion_clientes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.respuestas_satisfaccion_clientes ENABLE ROW LEVEL SECURITY;
 
--- Policies for encuestas_satisfaccion_clientes:
--- Authenticated users (Negocios, Calidad, TED) can read all
-CREATE POLICY "encuestas_satisfaccion_clientes_read_auth"
-  ON public.encuestas_satisfaccion_clientes FOR SELECT
-  TO authenticated USING (true);
+-- Revoke all direct permissions from anon (least privilege)
+-- Public survey answering is validated and submitted atomically via server actions (service_role).
+REVOKE ALL ON public.encuestas_satisfaccion_clientes FROM anon;
+REVOKE ALL ON public.respuestas_satisfaccion_clientes FROM anon;
 
--- Authenticated users can insert/update
-CREATE POLICY "encuestas_satisfaccion_clientes_write_auth"
-  ON public.encuestas_satisfaccion_clientes FOR ALL
-  TO authenticated USING (true) WITH CHECK (true);
+-- Helper to check if authenticated user belongs to allowed staff (Negocios, Calidad, TED, Admin)
+CREATE OR REPLACE FUNCTION public.can_manage_satisfaccion_clientes()
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.usuarios u
+    LEFT JOIN public.departamentos d ON d.id = u.departamento
+    WHERE u.id_auth = auth.uid()
+      AND (
+        u.cargo ILIKE '%admin%'
+        OR d.nombre ILIKE '%negocios%'
+        OR d.nombre ILIKE '%gestion%'
+        OR d.nombre ILIKE '%calidad%'
+        OR d.nombre ILIKE '%ted%'
+        OR d.nombre ILIKE '%administracion%'
+      )
+  );
+$$;
 
--- Anonymous users can read survey basic info by token for answering
-CREATE POLICY "encuestas_satisfaccion_clientes_read_anon"
-  ON public.encuestas_satisfaccion_clientes FOR SELECT
-  TO anon USING (estado = 'pendiente');
+-- RLS policies for encuestas_satisfaccion_clientes
+CREATE POLICY "encuestas_sat_cli_select_staff"
+  ON public.encuestas_satisfaccion_clientes
+  FOR SELECT
+  TO authenticated
+  USING (public.can_manage_satisfaccion_clientes());
 
--- Policies for respuestas_satisfaccion_clientes:
--- Authenticated users can read responses
-CREATE POLICY "respuestas_satisfaccion_clientes_read_auth"
-  ON public.respuestas_satisfaccion_clientes FOR SELECT
-  TO authenticated USING (true);
+CREATE POLICY "encuestas_sat_cli_insert_staff"
+  ON public.encuestas_satisfaccion_clientes
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (public.can_manage_satisfaccion_clientes());
 
--- Anonymous and authenticated can insert responses
-CREATE POLICY "respuestas_satisfaccion_clientes_insert_anon"
-  ON public.respuestas_satisfaccion_clientes FOR INSERT
-  TO anon WITH CHECK (true);
+CREATE POLICY "encuestas_sat_cli_update_staff"
+  ON public.encuestas_satisfaccion_clientes
+  FOR UPDATE
+  TO authenticated
+  USING (public.can_manage_satisfaccion_clientes())
+  WITH CHECK (public.can_manage_satisfaccion_clientes());
 
-CREATE POLICY "respuestas_satisfaccion_clientes_insert_auth"
-  ON public.respuestas_satisfaccion_clientes FOR INSERT
-  TO authenticated WITH CHECK (true);
+-- RLS policy for respuestas_satisfaccion_clientes (Staff read-only via PostgREST; insert is server-side only)
+CREATE POLICY "respuestas_sat_cli_select_staff"
+  ON public.respuestas_satisfaccion_clientes
+  FOR SELECT
+  TO authenticated
+  USING (public.can_manage_satisfaccion_clientes());
