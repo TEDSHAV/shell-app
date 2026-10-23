@@ -16,9 +16,9 @@ import {
 import type {
   EncuestaCliente,
   SubmitRespuestaInput,
-  PlantillaSatisfaccion,
 } from "@/actions/satisfaccion-clientes";
 import { submitRespuestaCliente } from "@/actions/satisfaccion-clientes";
+import type { PlantillaSatisfaccion } from "@/features/satisfaccion-clientes/lib/plantilla-defaults";
 
 interface Props {
   encuesta: EncuestaCliente;

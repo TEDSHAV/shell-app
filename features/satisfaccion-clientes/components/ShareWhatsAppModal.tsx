@@ -12,7 +12,8 @@ import {
   Sparkles,
   AlertCircle,
 } from "lucide-react";
-import { formatWhatsAppPhone, getPlantillaSatisfaccion } from "@/actions/satisfaccion-clientes";
+import { getPlantillaSatisfaccion } from "@/actions/satisfaccion-clientes";
+import { formatWhatsAppPhone } from "../lib/plantilla-defaults";
 
 interface Props {
   isOpen: boolean;

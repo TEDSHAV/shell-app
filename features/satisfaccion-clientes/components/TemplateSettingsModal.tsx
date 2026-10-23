@@ -16,9 +16,11 @@ import {
 import {
   getPlantillaSatisfaccion,
   savePlantillaSatisfaccion,
+} from "@/actions/satisfaccion-clientes";
+import {
   DEFAULT_PLANTILLA_SATISFACCION,
   type PlantillaSatisfaccion,
-} from "@/actions/satisfaccion-clientes";
+} from "../lib/plantilla-defaults";
 
 interface Props {
   isOpen: boolean;
