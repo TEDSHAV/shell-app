@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   X,
   Search,
@@ -9,19 +9,25 @@ import {
   ExternalLink,
   MessageCircle,
   ClipboardCheck,
-  FileCheck,
-  FileText,
-  Loader2,
   Building2,
   User,
   Phone,
-  Calendar,
+  Mail,
+  Briefcase,
+  Loader2,
+  Sparkles,
+  ChevronDown,
+  RotateCcw,
 } from "lucide-react";
 import {
   searchOsisForEncuesta,
+  getOsiDetailsForEncuesta,
+  searchEmpresasForEncuesta,
   generateEncuestaCliente,
   type EncuestaCliente,
   type GenerateEncuestaInput,
+  type OsiSearchResult,
+  type EmpresaSearchResult,
 } from "@/actions/satisfaccion-clientes";
 
 interface Props {
@@ -49,106 +55,222 @@ export function GenerateSurveyModal({
 }: Props) {
   const [mode, setMode] = useState<"osi" | "manual">("osi");
 
-  const [searchTerm, setSearchTerm] = useState("");
-  const [searching, setSearching] = useState(false);
-  const [searchResults, setSearchResults] = useState<any[]>([]);
+  // Combobox state for OSI search
+  const [osiQuery, setOsiQuery] = useState("");
+  const [osiResults, setOsiResults] = useState<OsiSearchResult[]>([]);
+  const [searchingOsi, setSearchingOsi] = useState(false);
+  const [showOsiDropdown, setShowOsiDropdown] = useState(false);
+  const osiComboboxRef = useRef<HTMLDivElement>(null);
 
-  // Selected OSI data
-  const [selectedOsi, setSelectedOsi] = useState<any | null>(initialOsi || null);
+  // Combobox state for Manual Empresa search
+  const [empresaQuery, setEmpresaQuery] = useState("");
+  const [empresaResults, setEmpresaResults] = useState<EmpresaSearchResult[]>([]);
+  const [searchingEmpresa, setSearchingEmpresa] = useState(false);
+  const [showEmpresaDropdown, setShowEmpresaDropdown] = useState(false);
+  const empresaComboboxRef = useRef<HTMLDivElement>(null);
 
-  // Manual fields
-  const [manualEmpresa, setManualEmpresa] = useState("");
-  const [manualServicio, setManualServicio] = useState("");
-  const [manualTipo, setManualTipo] = useState("Capacitación");
-  const [manualEjecutivo, setManualEjecutivo] = useState("");
-  const [manualOsi, setManualOsi] = useState("");
+  // Selected OSI and extracted data
+  const [selectedOsi, setSelectedOsi] = useState<OsiSearchResult | null>(null);
+
+  // Editable fields (pre-filled from OSI / Empresa, but user can freely modify)
+  const [empresaNombre, setEmpresaNombre] = useState("");
+  const [servicioNombre, setServicioNombre] = useState("");
+  const [tipoServicio, setTipoServicio] = useState("Capacitación");
+  const [ejecutivoNegocios, setEjecutivoNegocios] = useState("");
+  const [nroOsiInput, setNroOsiInput] = useState("");
 
   // Contact details
   const [contactoNombre, setContactoNombre] = useState("");
+  const [contactoCargo, setContactoCargo] = useState("");
   const [contactoTelefono, setContactoTelefono] = useState("");
   const [contactoEmail, setContactoEmail] = useState("");
-  const [contactoCargo, setContactoCargo] = useState("");
+  const [contactSource, setContactSource] = useState<string | null>(null);
 
+  // Workflow state
   const [generating, setGenerating] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [generatedEncuesta, setGeneratedEncuesta] = useState<EncuestaCliente | null>(null);
   const [copied, setCopied] = useState(false);
 
+  // Load initial OSI if provided
   useEffect(() => {
-    if (initialOsi) {
-      setSelectedOsi(initialOsi);
+    if (initialOsi && initialOsi.id_osi) {
       setMode("osi");
+      // Fetch rich details & contact info
+      getOsiDetailsForEncuesta(initialOsi.id_osi).then((details) => {
+        if (details) {
+          applyOsiSelection(details);
+        } else {
+          // Fallback to initial props
+          setSelectedOsi({
+            id_osi: initialOsi.id_osi!,
+            nro_osi: initialOsi.nro_osi || "S/N",
+            nombre_empresa: initialOsi.nombre_empresa || "",
+            servicio: initialOsi.servicio || "",
+            tipo_servicio: initialOsi.tipo_servicio || "Capacitación",
+            ejecutivo_negocios: initialOsi.ejecutivo_negocios || null,
+            id_ciudad: initialOsi.id_ciudad || null,
+            id_estado: null,
+            fecha_inicio_real: initialOsi.fecha_servicio || null,
+          });
+          setEmpresaNombre(initialOsi.nombre_empresa || "");
+          setServicioNombre(initialOsi.servicio || "");
+          setTipoServicio(initialOsi.tipo_servicio || "Capacitación");
+          setEjecutivoNegocios(initialOsi.ejecutivo_negocios || "");
+          setNroOsiInput(initialOsi.nro_osi || "S/N");
+        }
+      });
     }
   }, [initialOsi]);
 
-  if (!isOpen) return null;
+  // Click outside listener to close dropdowns
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (osiComboboxRef.current && !osiComboboxRef.current.contains(event.target as Node)) {
+        setShowOsiDropdown(false);
+      }
+      if (empresaComboboxRef.current && !empresaComboboxRef.current.contains(event.target as Node)) {
+        setShowEmpresaDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
-  const handleSearch = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!searchTerm.trim()) return;
-    setSearching(true);
-    setErrorMsg(null);
-    try {
-      const results = await searchOsisForEncuesta(searchTerm);
-      setSearchResults(results);
-    } catch {
-      setErrorMsg("Error al buscar órdenes de servicio.");
-    } finally {
-      setSearching(false);
+  // Debounced search for OSI Combobox
+  useEffect(() => {
+    if (mode !== "osi" || !osiQuery.trim() || osiQuery.trim().length < 2) {
+      setOsiResults([]);
+      setShowOsiDropdown(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setSearchingOsi(true);
+      try {
+        const results = await searchOsisForEncuesta(osiQuery);
+        setOsiResults(results);
+        setShowOsiDropdown(true);
+      } catch (err) {
+        console.error("Error searching OSIs:", err);
+      } finally {
+        setSearchingOsi(false);
+      }
+    }, 200);
+
+    return () => clearTimeout(timer);
+  }, [osiQuery, mode]);
+
+  // Debounced search for Empresa Combobox in manual mode
+  useEffect(() => {
+    if (mode !== "manual" || !empresaQuery.trim() || empresaQuery.trim().length < 2) {
+      setEmpresaResults([]);
+      setShowEmpresaDropdown(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setSearchingEmpresa(true);
+      try {
+        const results = await searchEmpresasForEncuesta(empresaQuery);
+        setEmpresaResults(results);
+        setShowEmpresaDropdown(true);
+      } catch (err) {
+        console.error("Error searching Empresas:", err);
+      } finally {
+        setSearchingEmpresa(false);
+      }
+    }, 200);
+
+    return () => clearTimeout(timer);
+  }, [empresaQuery, mode]);
+
+  const applyOsiSelection = (osi: OsiSearchResult) => {
+    setSelectedOsi(osi);
+    setOsiQuery("");
+    setShowOsiDropdown(false);
+
+    // Auto-fill editable fields
+    setEmpresaNombre(osi.nombre_empresa);
+    setServicioNombre(osi.servicio);
+    setTipoServicio(osi.tipo_servicio || "Capacitación");
+    setEjecutivoNegocios(osi.ejecutivo_negocios || "");
+    setNroOsiInput(osi.nro_osi);
+
+    // Auto-fill contact details pulled from OSI
+    if (osi.persona_contacto) setContactoNombre(osi.persona_contacto);
+    if (osi.contacto_cargo) setContactoCargo(osi.contacto_cargo);
+    if (osi.contacto_telefono) setContactoTelefono(osi.contacto_telefono);
+    if (osi.contacto_email) setContactoEmail(osi.contacto_email);
+
+    if (osi.persona_contacto || osi.contacto_telefono || osi.contacto_email) {
+      setContactSource(`OSI #${osi.nro_osi}`);
+    } else {
+      setContactSource(null);
     }
   };
 
-  const handleSelectOsi = (osi: any) => {
-    setSelectedOsi(osi);
-    setSearchResults([]);
-    setSearchTerm("");
+  const applyEmpresaSelection = (empresa: EmpresaSearchResult) => {
+    setEmpresaNombre(empresa.nombre_empresa);
+    setEmpresaQuery(empresa.nombre_empresa);
+    setShowEmpresaDropdown(false);
+
+    if (empresa.contacto_nombre) setContactoNombre(empresa.contacto_nombre);
+    if (empresa.contacto_cargo) setContactoCargo(empresa.contacto_cargo);
+    if (empresa.contacto_telefono) setContactoTelefono(empresa.contacto_telefono);
+    if (empresa.contacto_email) setContactoEmail(empresa.contacto_email);
+
+    if (empresa.contacto_nombre || empresa.contacto_telefono || empresa.contacto_email) {
+      setContactSource(`Ficha de ${empresa.nombre_empresa}`);
+    }
   };
+
+  const resetSelection = () => {
+    setSelectedOsi(null);
+    setOsiQuery("");
+    setEmpresaNombre("");
+    setServicioNombre("");
+    setEjecutivoNegocios("");
+    setNroOsiInput("");
+    setContactoNombre("");
+    setContactoCargo("");
+    setContactoTelefono("");
+    setContactoEmail("");
+    setContactSource(null);
+  };
+
+  if (!isOpen) return null;
 
   const handleGenerate = async () => {
     setErrorMsg(null);
 
-    let payload: GenerateEncuestaInput;
-
-    if (mode === "osi") {
-      if (!selectedOsi) {
-        setErrorMsg("Por favor busque y seleccione una OSI para continuar.");
-        return;
-      }
-      payload = {
-        id_osi: selectedOsi.id_osi || null,
-        nro_osi: selectedOsi.nro_osi || "S/N",
-        id_empresa: selectedOsi.id_empresa || null,
-        nombre_empresa: selectedOsi.nombre_empresa || "",
-        servicio: selectedOsi.servicio || "",
-        tipo_servicio: selectedOsi.tipo_servicio || null,
-        ejecutivo_negocios: selectedOsi.ejecutivo_negocios || null,
-        id_ciudad: selectedOsi.id_ciudad || null,
-        fecha_servicio: selectedOsi.fecha_inicio_real || selectedOsi.fecha_servicio || null,
-        cliente_contacto_nombre: contactoNombre.trim() || null,
-        cliente_contacto_telefono: contactoTelefono.trim() || null,
-        cliente_contacto_email: contactoEmail.trim() || null,
-        cliente_contacto_cargo: contactoCargo.trim() || null,
-      };
-    } else {
-      if (!manualEmpresa.trim() || !manualServicio.trim()) {
-        setErrorMsg("El nombre de la empresa y el servicio son obligatorios.");
-        return;
-      }
-      payload = {
-        nro_osi: manualOsi.trim() || "S/N",
-        nombre_empresa: manualEmpresa.trim(),
-        servicio: manualServicio.trim(),
-        tipo_servicio: manualTipo.trim() || null,
-        ejecutivo_negocios: manualEjecutivo.trim() || null,
-        cliente_contacto_nombre: contactoNombre.trim() || null,
-        cliente_contacto_telefono: contactoTelefono.trim() || null,
-        cliente_contacto_email: contactoEmail.trim() || null,
-        cliente_contacto_cargo: contactoCargo.trim() || null,
-      };
+    if (!empresaNombre.trim()) {
+      setErrorMsg("El nombre de la empresa es obligatorio.");
+      return;
+    }
+    if (!servicioNombre.trim()) {
+      setErrorMsg("El nombre del servicio es obligatorio.");
+      return;
     }
 
-    setGenerating(true);
+    const payload: GenerateEncuestaInput = {
+      id_osi: selectedOsi?.id_osi || null,
+      nro_osi: selectedOsi?.nro_osi || nroOsiInput.trim() || "S/N",
+      id_empresa: selectedOsi?.id_empresa || null,
+      nombre_empresa: empresaNombre.trim(),
+      servicio: servicioNombre.trim(),
+      tipo_servicio: tipoServicio.trim() || null,
+      ejecutivo_negocios: ejecutivoNegocios.trim() || null,
+      id_ciudad: selectedOsi?.id_ciudad || null,
+      id_estado: selectedOsi?.id_estado || null,
+      fecha_servicio: selectedOsi?.fecha_inicio_real || null,
+      cliente_contacto_nombre: contactoNombre.trim() || null,
+      cliente_contacto_telefono: contactoTelefono.trim() || null,
+      cliente_contacto_email: contactoEmail.trim() || null,
+      cliente_contacto_cargo: contactoCargo.trim() || null,
+    };
 
+    setGenerating(true);
     const res = await generateEncuestaCliente(payload);
     setGenerating(false);
 
@@ -192,7 +314,7 @@ export function GenerateSurveyModal({
         className="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Pinned Header (Clean style without aggressive dark blue) */}
+        {/* Pinned Header */}
         <div className="shrink-0 flex items-center justify-between border-b border-slate-200 bg-slate-50/90 px-6 py-4">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 shadow-xs">
@@ -205,7 +327,7 @@ export function GenerateSurveyModal({
               <p className="mt-1 text-xs text-slate-500">
                 {generatedEncuesta
                   ? "Comparta el enlace con su cliente vía WhatsApp o copie la URL"
-                  : "Cree un enlace para compartir con el cliente post-servicio"}
+                  : "Busque una OSI o escriba una empresa para sugerencias automáticas"}
               </p>
             </div>
           </div>
@@ -219,7 +341,7 @@ export function GenerateSurveyModal({
           </button>
         </div>
 
-        {/* Scrollable Body Container (Always fits and scrolls smoothly) */}
+        {/* Scrollable Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
           {errorMsg && (
             <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800 flex items-center gap-2">
@@ -240,13 +362,13 @@ export function GenerateSurveyModal({
                       Encuesta generada exitosamente
                     </h4>
                     <p className="mt-0.5 text-xs text-emerald-800">
-                      El cliente de <strong>{generatedEncuesta.nombre_empresa}</strong> podrá evaluarla directamente desde su teléfono o computador sin necesidad de iniciar sesión.
+                      El cliente de <strong>{generatedEncuesta.nombre_empresa}</strong> podrá responderla de inmediato sin iniciar sesión.
                     </p>
                   </div>
                 </div>
               </div>
 
-              {/* Data pill */}
+              {/* Data Pill */}
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5 text-xs space-y-1 text-slate-700">
                 <div>
                   <span className="font-semibold text-slate-900">Cliente / Empresa:</span> {generatedEncuesta.nombre_empresa}
@@ -261,7 +383,12 @@ export function GenerateSurveyModal({
                 )}
                 {contactoNombre && (
                   <div>
-                    <span className="font-semibold text-slate-900">Contacto:</span> {contactoNombre} {contactoCargo && `(${contactoCargo})`}
+                    <span className="font-semibold text-slate-900">Contacto asignado:</span> {contactoNombre} {contactoCargo && `(${contactoCargo})`}
+                  </div>
+                )}
+                {contactoTelefono && (
+                  <div>
+                    <span className="font-semibold text-slate-900">Teléfono:</span> {contactoTelefono}
                   </div>
                 )}
               </div>
@@ -324,24 +451,30 @@ export function GenerateSurveyModal({
               </div>
             </div>
           ) : (
-            /* CREATION VIEW */
+            /* CREATION VIEW WITH COMBOBOX */
             <div className="space-y-4">
               {/* Mode Switcher */}
               <div className="flex rounded-xl bg-slate-100 p-1 text-xs font-semibold">
                 <button
                   type="button"
-                  onClick={() => setMode("osi")}
+                  onClick={() => {
+                    setMode("osi");
+                    setErrorMsg(null);
+                  }}
                   className={`flex-1 py-2 rounded-lg transition-all ${
                     mode === "osi"
                       ? "bg-white text-slate-900 shadow-xs font-bold"
                       : "text-slate-500 hover:text-slate-800"
                   }`}
                 >
-                  Desde una OSI (Recomendado)
+                  Desde una OSI (Combobox con Autocompletado)
                 </button>
                 <button
                   type="button"
-                  onClick={() => setMode("manual")}
+                  onClick={() => {
+                    setMode("manual");
+                    setErrorMsg(null);
+                  }}
                   className={`flex-1 py-2 rounded-lg transition-all ${
                     mode === "manual"
                       ? "bg-white text-slate-900 shadow-xs font-bold"
@@ -352,194 +485,322 @@ export function GenerateSurveyModal({
                 </button>
               </div>
 
-              {/* Mode: OSI Selection */}
+              {/* MODE 1: OSI COMBOBOX */}
               {mode === "osi" && (
-                <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                    Orden de Servicio (OSI)
-                  </label>
+                <div className="space-y-3">
+                  {!selectedOsi ? (
+                    <div ref={osiComboboxRef} className="relative space-y-1.5">
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center justify-between">
+                        <span>Buscar Orden de Servicio (OSI) o Empresa</span>
+                        <span className="text-[11px] font-normal normal-case text-slate-400">
+                          Escriba Nro de OSI, Cliente o Servicio
+                        </span>
+                      </label>
 
-                  {selectedOsi ? (
-                    <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50/60 p-3.5">
-                      <div className="space-y-1">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                        <input
+                          type="text"
+                          value={osiQuery}
+                          onChange={(e) => setOsiQuery(e.target.value)}
+                          onFocus={() => {
+                            if (osiResults.length > 0) setShowOsiDropdown(true);
+                          }}
+                          placeholder="Comience a escribir... (Ej. 3512, Polar, Primeros Auxilios)"
+                          className="w-full rounded-xl border border-slate-300 pl-9 pr-9 py-2 text-xs text-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 shadow-xs"
+                        />
+                        {searchingOsi ? (
+                          <Loader2 className="absolute right-3 top-2.5 h-4 w-4 animate-spin text-emerald-600" />
+                        ) : (
+                          <ChevronDown className="absolute right-3 top-2.5 h-4 w-4 text-slate-400 pointer-events-none" />
+                        )}
+                      </div>
+
+                      {/* OSI Suggestions Dropdown */}
+                      {showOsiDropdown && (
+                        <div className="absolute left-0 right-0 z-50 mt-1 max-h-64 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-xl divide-y divide-slate-100">
+                          {osiResults.length > 0 ? (
+                            osiResults.map((item) => (
+                              <button
+                                key={item.id_osi}
+                                type="button"
+                                onClick={() => applyOsiSelection(item)}
+                                className="w-full p-3 text-left hover:bg-emerald-50/60 transition-colors flex items-start justify-between gap-3 text-xs group"
+                              >
+                                <div className="space-y-1 min-w-0 flex-1">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="rounded bg-slate-900 group-hover:bg-emerald-700 px-2 py-0.5 text-[11px] font-bold text-white transition-colors">
+                                      {item.nro_osi}
+                                    </span>
+                                    <span className="font-bold text-slate-900 truncate">
+                                      {item.nombre_empresa}
+                                    </span>
+                                    {item.tipo_servicio && (
+                                      <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded font-medium">
+                                        {item.tipo_servicio}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-[11px] text-slate-600 line-clamp-1">
+                                    {item.servicio}
+                                  </p>
+                                  {(item.persona_contacto || item.contacto_telefono) && (
+                                    <p className="text-[11px] text-emerald-700 flex items-center gap-2 font-medium">
+                                      {item.persona_contacto && (
+                                        <span className="flex items-center gap-1">
+                                          <User className="h-3 w-3" /> {item.persona_contacto}
+                                          {item.contacto_cargo && ` (${item.contacto_cargo})`}
+                                        </span>
+                                      )}
+                                      {item.contacto_telefono && (
+                                        <span className="flex items-center gap-1 text-slate-500">
+                                          <Phone className="h-3 w-3" /> {item.contacto_telefono}
+                                        </span>
+                                      )}
+                                    </p>
+                                  )}
+                                </div>
+                                <span className="shrink-0 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-1">
+                                  Vincular
+                                </span>
+                              </button>
+                            ))
+                          ) : (
+                            <div className="p-4 text-center text-xs text-slate-500">
+                              No se encontraron órdenes de servicio con ese término.
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    /* Selected OSI Header Badge with Reset */
+                    <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50/70 p-3.5">
+                      <div className="space-y-0.5">
                         <div className="flex items-center gap-2">
                           <span className="rounded bg-emerald-700 px-2 py-0.5 text-[11px] font-bold text-white">
                             {selectedOsi.nro_osi}
                           </span>
-                          <span className="text-xs font-bold text-slate-900">
-                            {selectedOsi.nombre_empresa}
+                          <span className="text-xs font-bold text-emerald-950">
+                            OSI Vinculada Exitosamente
                           </span>
                         </div>
-                        <p className="text-xs text-slate-600 line-clamp-1">{selectedOsi.servicio}</p>
-                        {selectedOsi.ejecutivo_negocios && (
-                          <p className="text-[11px] text-slate-400">
-                            Ejecutivo: {selectedOsi.ejecutivo_negocios}
-                          </p>
-                        )}
+                        <p className="text-xs text-emerald-800">
+                          Datos extraídos automáticamente. Puede revisar o editar los campos abajo según necesite.
+                        </p>
                       </div>
                       <button
                         type="button"
-                        onClick={() => setSelectedOsi(null)}
-                        className="rounded-lg px-2.5 py-1 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 border border-emerald-200 bg-white"
+                        onClick={resetSelection}
+                        className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold text-emerald-900 hover:bg-emerald-100 border border-emerald-300 bg-white shadow-2xs transition-colors"
                       >
-                        Cambiar
+                        <RotateCcw className="h-3 w-3" />
+                        Cambiar OSI
                       </button>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <form onSubmit={handleSearch} className="flex gap-2">
-                        <div className="relative flex-1">
-                          <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                          <input
-                            type="text"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            placeholder="Escriba el Nro de OSI o Nombre de Empresa..."
-                            className="w-full rounded-xl border border-slate-200 pl-9 pr-3 py-2 text-xs text-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                          />
-                        </div>
-                        <button
-                          type="submit"
-                          disabled={searching || !searchTerm.trim()}
-                          className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white hover:bg-slate-800 disabled:opacity-50 transition-colors"
-                        >
-                          {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : "Buscar"}
-                        </button>
-                      </form>
-
-                      {searchResults.length > 0 && (
-                        <div className="max-h-56 overflow-y-auto rounded-xl border border-slate-200 divide-y divide-slate-100 bg-white shadow-xs">
-                          {searchResults.map((item) => (
-                            <button
-                              key={item.id_osi}
-                              type="button"
-                              onClick={() => handleSelectOsi(item)}
-                              className="w-full p-3 text-left hover:bg-slate-50 transition-colors flex items-center justify-between text-xs"
-                            >
-                              <div>
-                                <div className="flex items-center gap-2">
-                                  <span className="font-bold text-slate-900">{item.nro_osi}</span>
-                                  <span className="font-semibold text-slate-800">{item.nombre_empresa}</span>
-                                </div>
-                                <p className="text-[11px] text-slate-500 truncate max-w-sm mt-0.5">{item.servicio}</p>
-                              </div>
-                              <span className="text-[11px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                                Seleccionar
-                              </span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
                     </div>
                   )}
                 </div>
               )}
 
-              {/* Mode: Manual Creation */}
+              {/* MODE 2: MANUAL WITH EMPRESA COMBOBOX */}
               {mode === "manual" && (
-                <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/50 p-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-xs font-semibold text-slate-700">
-                        Nombre de la Empresa <span className="text-rose-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={manualEmpresa}
-                        onChange={(e) => setManualEmpresa(e.target.value)}
-                        placeholder="Ej. Empresas Polar, C.A."
-                        className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-emerald-500 focus:outline-none"
-                      />
-                    </div>
+                <div ref={empresaComboboxRef} className="relative space-y-1.5">
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center justify-between">
+                    <span>Nombre de la Empresa / Cliente <span className="text-rose-500">*</span></span>
+                    <span className="text-[11px] font-normal normal-case text-slate-400">
+                      Sugerencias de clientes registrados al escribir
+                    </span>
+                  </label>
 
-                    <div>
-                      <label className="text-xs font-semibold text-slate-700">
-                        Servicio Realizado <span className="text-rose-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={manualServicio}
-                        onChange={(e) => setManualServicio(e.target.value)}
-                        placeholder="Ej. Curso de Primeros Auxilios"
-                        className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-emerald-500 focus:outline-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-xs text-slate-600">Tipo de Servicio</label>
-                      <select
-                        value={manualTipo}
-                        onChange={(e) => setManualTipo(e.target.value)}
-                        className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-emerald-500 focus:outline-none"
-                      >
-                        <option value="Capacitación">Capacitación</option>
-                        <option value="Servicios Técnicos">Servicios Técnicos</option>
-                        <option value="Consultoría / Auditoría">Consultoría / Auditoría</option>
-                        <option value="Otro">Otro</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="text-xs text-slate-600">Nro de Referencia / OSI</label>
-                      <input
-                        type="text"
-                        value={manualOsi}
-                        onChange={(e) => setManualOsi(e.target.value)}
-                        placeholder="Ej. OSI-1234 (opcional)"
-                        className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-emerald-500 focus:outline-none"
-                      />
-                    </div>
+                  <div className="relative">
+                    <Building2 className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                    <input
+                      type="text"
+                      value={empresaNombre}
+                      onChange={(e) => {
+                        setEmpresaNombre(e.target.value);
+                        setEmpresaQuery(e.target.value);
+                      }}
+                      onFocus={() => {
+                        if (empresaResults.length > 0) setShowEmpresaDropdown(true);
+                      }}
+                      placeholder="Ej. Cervecería Polar, Alimentos Heinz, Cargill..."
+                      className="w-full rounded-xl border border-slate-300 pl-9 pr-9 py-2 text-xs text-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 shadow-xs"
+                    />
+                    {searchingEmpresa ? (
+                      <Loader2 className="absolute right-3 top-2.5 h-4 w-4 animate-spin text-emerald-600" />
+                    ) : (
+                      <ChevronDown className="absolute right-3 top-2.5 h-4 w-4 text-slate-400 pointer-events-none" />
+                    )}
                   </div>
+
+                  {/* Empresa suggestions dropdown */}
+                  {showEmpresaDropdown && empresaResults.length > 0 && (
+                    <div className="absolute left-0 right-0 z-50 mt-1 max-h-48 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-xl divide-y divide-slate-100">
+                      {empresaResults.map((emp) => (
+                        <button
+                          key={emp.id_empresa}
+                          type="button"
+                          onClick={() => applyEmpresaSelection(emp)}
+                          className="w-full p-2.5 text-left hover:bg-emerald-50/60 transition-colors flex items-center justify-between text-xs"
+                        >
+                          <div>
+                            <span className="font-bold text-slate-900">{emp.nombre_empresa}</span>
+                            {emp.contacto_nombre && (
+                              <p className="text-[11px] text-slate-500 mt-0.5">
+                                Contacto sugerido: {emp.contacto_nombre} {emp.contacto_cargo && `(${emp.contacto_cargo})`}
+                              </p>
+                            )}
+                          </div>
+                          <span className="text-[11px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                            Seleccionar
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
-              {/* Contact Information (Optional) */}
-              <div className="space-y-3 pt-1">
-                <label className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                  Datos del Contacto del Cliente (Opcional)
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {/* EDITABLE SERVICE DETAILS (Works for both OSI and Manual) */}
+              <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                    Datos del Servicio Realizado
+                  </h4>
+                  {selectedOsi && (
+                    <span className="text-[11px] text-slate-400">Editable si desea ajustar</span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {mode === "osi" && (
+                    <div>
+                      <label className="text-xs font-medium text-slate-700">
+                        Empresa / Cliente <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={empresaNombre}
+                        onChange={(e) => setEmpresaNombre(e.target.value)}
+                        placeholder="Nombre de la empresa"
+                        className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-emerald-500 focus:outline-none"
+                      />
+                    </div>
+                  )}
+
+                  <div className={mode === "manual" ? "sm:col-span-2" : ""}>
+                    <label className="text-xs font-medium text-slate-700">
+                      Servicio Realizado <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={servicioNombre}
+                      onChange={(e) => setServicioNombre(e.target.value)}
+                      placeholder="Ej. Curso de Primeros Auxilios / Inspección de Andamios"
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-emerald-500 focus:outline-none"
+                    />
+                  </div>
+
                   <div>
-                    <label className="text-[11px] text-slate-500">Nombre del contacto</label>
+                    <label className="text-xs font-medium text-slate-700">Tipo de Servicio</label>
+                    <select
+                      value={tipoServicio}
+                      onChange={(e) => setTipoServicio(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-emerald-500 focus:outline-none"
+                    >
+                      <option value="Capacitación">Capacitación</option>
+                      <option value="Servicios Técnicos">Servicios Técnicos</option>
+                      <option value="Consultoría / Auditoría">Consultoría / Auditoría</option>
+                      <option value="Otro">Otro</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-medium text-slate-700">
+                      Ejecutivo de Negocios
+                    </label>
+                    <input
+                      type="text"
+                      value={ejecutivoNegocios}
+                      onChange={(e) => setEjecutivoNegocios(e.target.value)}
+                      placeholder="Ej. Alexander Morales (opcional)"
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-emerald-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* EDITABLE CONTACT DETAILS */}
+              <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-2xs">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <User className="h-4 w-4 text-emerald-600" />
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                      Datos del Contacto del Cliente
+                    </h4>
+                  </div>
+                  {contactSource ? (
+                    <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 flex items-center gap-1">
+                      <Sparkles className="h-3 w-3 text-emerald-600" /> Precargado de {contactSource}
+                    </span>
+                  ) : (
+                    <span className="text-[11px] text-slate-400">
+                      Opcional pero recomendado para WhatsApp
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] font-medium text-slate-600 flex items-center gap-1">
+                      <User className="h-3 w-3 text-slate-400" /> Nombre del contacto
+                    </label>
                     <input
                       type="text"
                       value={contactoNombre}
                       onChange={(e) => setContactoNombre(e.target.value)}
                       placeholder="Ej. Ing. Carlos Pérez"
-                      className="mt-0.5 w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-800 focus:border-emerald-500 focus:outline-none"
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50/50 px-3 py-1.5 text-xs text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none"
                     />
                   </div>
 
                   <div>
-                    <label className="text-[11px] text-slate-500">Cargo / Departamento</label>
+                    <label className="text-[11px] font-medium text-slate-600 flex items-center gap-1">
+                      <Briefcase className="h-3 w-3 text-slate-400" /> Cargo / Departamento
+                    </label>
                     <input
                       type="text"
                       value={contactoCargo}
                       onChange={(e) => setContactoCargo(e.target.value)}
                       placeholder="Ej. Gerente de RRHH / SHA"
-                      className="mt-0.5 w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-800 focus:border-emerald-500 focus:outline-none"
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50/50 px-3 py-1.5 text-xs text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none"
                     />
                   </div>
 
                   <div>
-                    <label className="text-[11px] text-slate-500">Teléfono / WhatsApp</label>
+                    <label className="text-[11px] font-medium text-slate-600 flex items-center gap-1">
+                      <Phone className="h-3 w-3 text-slate-400" /> Teléfono / WhatsApp
+                    </label>
                     <input
                       type="text"
                       value={contactoTelefono}
                       onChange={(e) => setContactoTelefono(e.target.value)}
                       placeholder="Ej. 04141234567"
-                      className="mt-0.5 w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-800 focus:border-emerald-500 focus:outline-none"
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50/50 px-3 py-1.5 text-xs text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none"
                     />
                   </div>
 
                   <div>
-                    <label className="text-[11px] text-slate-500">Correo electrónico</label>
+                    <label className="text-[11px] font-medium text-slate-600 flex items-center gap-1">
+                      <Mail className="h-3 w-3 text-slate-400" /> Correo electrónico
+                    </label>
                     <input
                       type="email"
                       value={contactoEmail}
                       onChange={(e) => setContactoEmail(e.target.value)}
                       placeholder="Ej. cperez@empresa.com"
-                      className="mt-0.5 w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-800 focus:border-emerald-500 focus:outline-none"
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50/50 px-3 py-1.5 text-xs text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none"
                     />
                   </div>
                 </div>
@@ -548,7 +809,7 @@ export function GenerateSurveyModal({
           )}
         </div>
 
-        {/* Pinned Footer (Always visible at the bottom) */}
+        {/* Pinned Footer */}
         <div className="shrink-0 flex items-center justify-end gap-3 border-t border-slate-200 bg-slate-50/80 px-6 py-4">
           <button
             type="button"
@@ -561,7 +822,7 @@ export function GenerateSurveyModal({
             <button
               type="button"
               onClick={handleGenerate}
-              disabled={generating || (mode === "osi" && !selectedOsi)}
+              disabled={generating || !empresaNombre.trim() || !servicioNombre.trim()}
               className="flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2 text-xs font-bold text-white shadow-sm hover:bg-emerald-500 disabled:opacity-50 transition-colors"
             >
               {generating ? (

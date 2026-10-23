@@ -533,39 +533,58 @@ export async function generateEncuestaCliente(
   }
 }
 
+export interface OsiSearchResult {
+  id_osi: number;
+  nro_osi: string;
+  id_empresa?: number | null;
+  nombre_empresa: string;
+  servicio: string;
+  tipo_servicio: string | null;
+  ejecutivo_negocios: string | null;
+  id_ciudad: number | null;
+  id_estado: number | null;
+  fecha_inicio_real: string | null;
+  persona_contacto?: string | null;
+  contacto_telefono?: string | null;
+  contacto_email?: string | null;
+  contacto_cargo?: string | null;
+}
+
+export interface EmpresaSearchResult {
+  id_empresa: number;
+  nombre_empresa: string;
+  contacto_nombre?: string | null;
+  contacto_telefono?: string | null;
+  contacto_email?: string | null;
+  contacto_cargo?: string | null;
+}
+
 /**
- * Search OSIs in v_osi_lista to populate the survey generation modal.
+ * Search OSIs in v_osi_formato_completo with contact details for the survey combobox.
  */
-export async function searchOsisForEncuesta(term: string): Promise<
-  Array<{
-    id_osi: number;
-    nro_osi: string;
-    nombre_empresa: string;
-    servicio: string;
-    tipo_servicio: string | null;
-    ejecutivo_negocios: string | null;
-    id_ciudad: number | null;
-    id_estado: number | null;
-    fecha_inicio_real: string | null;
-  }>
-> {
+export async function searchOsisForEncuesta(term: string): Promise<OsiSearchResult[]> {
   if (!term || term.trim().length < 2) return [];
 
   const admin = await createAdminClient();
   const q = term.trim();
 
   const { data, error } = await admin
-    .from("v_osi_lista")
+    .from("v_osi_formato_completo")
     .select(`
       id_osi,
       nro_osi,
+      id_empresa,
       nombre_empresa,
       servicio,
       tipo_servicio,
       ejecutivo_negocios,
       id_ciudad_direccion_ejecucion_efectiva,
       id_estado_direccion_ejecucion_efectiva,
-      fecha_inicio_real
+      fecha_inicio_real,
+      persona_contacto,
+      contacto_telefono,
+      contacto_email,
+      id_trato
     `)
     .or(`nro_osi.ilike.%${q}%,nombre_empresa.ilike.%${q}%,servicio.ilike.%${q}%`)
     .not("nro_osi", "like", "PEN-%")
@@ -577,9 +596,28 @@ export async function searchOsisForEncuesta(term: string): Promise<
     return [];
   }
 
+  // Fetch cargo from contactos for each trato
+  const tratoIds = data.map((d: any) => d.id_trato).filter(Boolean);
+  const cargoByTratoId = new Map<number, string>();
+  if (tratoIds.length > 0) {
+    try {
+      const { data: tratosData } = await admin
+        .from("tratos")
+        .select("id, id_contacto, contactos(cargo)")
+        .in("id", tratoIds);
+      for (const t of tratosData || []) {
+        const cargo = (t.contactos as any)?.cargo;
+        if (cargo) cargoByTratoId.set(t.id, cargo);
+      }
+    } catch (e) {
+      console.warn("Could not fetch contact cargo from tratos:", e);
+    }
+  }
+
   return data.map((d: any) => ({
     id_osi: d.id_osi,
     nro_osi: d.nro_osi,
+    id_empresa: d.id_empresa,
     nombre_empresa: d.nombre_empresa,
     servicio: d.servicio,
     tipo_servicio: d.tipo_servicio,
@@ -587,5 +625,135 @@ export async function searchOsisForEncuesta(term: string): Promise<
     id_ciudad: d.id_ciudad_direccion_ejecucion_efectiva,
     id_estado: d.id_estado_direccion_ejecucion_efectiva,
     fecha_inicio_real: d.fecha_inicio_real,
+    persona_contacto: d.persona_contacto?.trim() || null,
+    contacto_telefono: d.contacto_telefono?.trim() || null,
+    contacto_email: d.contacto_email?.trim() || null,
+    contacto_cargo: (d.id_trato ? cargoByTratoId.get(d.id_trato) : null) || null,
   }));
 }
+
+/**
+ * Fetch complete OSI details including contact person and phone for survey generation.
+ */
+export async function getOsiDetailsForEncuesta(idOsi: number): Promise<OsiSearchResult | null> {
+  if (!idOsi) return null;
+  const admin = await createAdminClient();
+
+  const { data, error } = await admin
+    .from("v_osi_formato_completo")
+    .select(`
+      id_osi,
+      nro_osi,
+      id_empresa,
+      nombre_empresa,
+      servicio,
+      tipo_servicio,
+      ejecutivo_negocios,
+      id_ciudad_direccion_ejecucion_efectiva,
+      id_estado_direccion_ejecucion_efectiva,
+      fecha_inicio_real,
+      persona_contacto,
+      contacto_telefono,
+      contacto_email,
+      id_trato
+    `)
+    .eq("id_osi", idOsi)
+    .maybeSingle();
+
+  if (error || !data) return null;
+
+  let cargo: string | null = null;
+  if (data.id_trato) {
+    try {
+      const { data: trato } = await admin
+        .from("tratos")
+        .select("id, id_contacto, contactos(cargo)")
+        .eq("id", data.id_trato)
+        .maybeSingle();
+      cargo = (trato?.contactos as any)?.cargo || null;
+    } catch {
+      // ignore
+    }
+  }
+
+  let persona = data.persona_contacto?.trim() || null;
+  let telefono = data.contacto_telefono?.trim() || null;
+  let email = data.contacto_email?.trim() || null;
+
+  // Fallback to empresa contact if trato has none
+  if (!persona && data.id_empresa) {
+    const { data: c } = await admin
+      .from("contactos")
+      .select("nombre, apellido, cargo, telefono, email")
+      .eq("id_empresa", data.id_empresa)
+      .limit(1)
+      .maybeSingle();
+    if (c) {
+      persona = `${c.nombre} ${c.apellido || ""}`.trim();
+      telefono = c.telefono || null;
+      email = c.email || null;
+      cargo = c.cargo || null;
+    }
+  }
+
+  return {
+    id_osi: data.id_osi,
+    nro_osi: data.nro_osi,
+    id_empresa: data.id_empresa,
+    nombre_empresa: data.nombre_empresa,
+    servicio: data.servicio,
+    tipo_servicio: data.tipo_servicio,
+    ejecutivo_negocios: data.ejecutivo_negocios,
+    id_ciudad: data.id_ciudad_direccion_ejecucion_efectiva,
+    id_estado: data.id_estado_direccion_ejecucion_efectiva,
+    fecha_inicio_real: data.fecha_inicio_real,
+    persona_contacto: persona,
+    contacto_telefono: telefono,
+    contacto_email: email,
+    contacto_cargo: cargo,
+  };
+}
+
+/**
+ * Search registered companies in empresas with their default contact for manual combobox.
+ */
+export async function searchEmpresasForEncuesta(term: string): Promise<EmpresaSearchResult[]> {
+  if (!term || term.trim().length < 2) return [];
+
+  const admin = await createAdminClient();
+  const q = term.trim();
+
+  const { data: emps, error } = await admin
+    .from("empresas")
+    .select("id, razon_social")
+    .ilike("razon_social", `%${q}%`)
+    .limit(8);
+
+  if (error || !emps || emps.length === 0) return [];
+
+  const empIds = emps.map((e) => e.id);
+  const { data: contacts } = await admin
+    .from("contactos")
+    .select("id_empresa, nombre, apellido, cargo, telefono, email")
+    .in("id_empresa", empIds);
+
+  const contactByEmp = new Map<number, any>();
+  for (const c of contacts || []) {
+    if (!contactByEmp.has(c.id_empresa)) {
+      contactByEmp.set(c.id_empresa, c);
+    }
+  }
+
+  return emps.map((e) => {
+    const c = contactByEmp.get(e.id);
+    return {
+      id_empresa: e.id,
+      nombre_empresa: e.razon_social,
+      contacto_nombre: c ? `${c.nombre} ${c.apellido || ""}`.trim() : null,
+      contacto_telefono: c?.telefono || null,
+      contacto_email: c?.email || null,
+      contacto_cargo: c?.cargo || null,
+    };
+  });
+}
+
