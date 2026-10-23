@@ -158,7 +158,6 @@ function RequisicionFormContent({
   const deptLower = userDept.trim().toLowerCase();
   const isCapacitacionDept = deptLower.includes("capacitacion");
   const isServiciosDept = deptLower.includes("servicios") && deptLower.includes("tecnic");
-  const isNegociosDept = deptLower.includes("negocios");
   // All users can place externas. Default mode is Interna for non-capacitacion/non-servicios
   // departments, but users can switch to Externa via the tab.
   const defaultIsGeneral = !isCapacitacionDept && !isServiciosDept;
@@ -254,8 +253,6 @@ function RequisicionFormContent({
   const isSingleOSIMode = !isGeneralMode && !isServiciosDept;
   // OSI selector is only shown for externas (not internas).
   const showOSISelector = !isGeneralMode;
-  const internaOsiTipoServicio = isCapacitacionDept ? "capacitacion" : "servicios tecnicos";
-
   const handleModeSwitch = (newMode: "general" | "capacitacion" | "servicios tecnicos" | "negocios") => {
     // Gerencia Solicitante comes from the DB (departamentos.gerencia) when available,
     // falling back to the hardcoded mapping for safety.
@@ -294,22 +291,36 @@ function RequisicionFormContent({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
-  const osiTipoServicio = isGeneralMode ? internaOsiTipoServicio : (isCapacitacion ? "capacitacion" : "servicios tecnicos");
+  // Capacitacion / ST only see their tipo_servicio. Externa in "negocios" mode
+  // (TED, Marketing, Negocios, Admin, etc.) sees all types — same breadth as
+  // Consulta OSI for those departments. Previously TED/Marketing were wrongly
+  // limited to ST because the bypass checked departamento nombre === negocios
+  // instead of the Externa mode they already land on.
+  const osiTipoFilter: "capacitacion" | "servicios tecnicos" | null =
+    mode === "capacitacion"
+      ? "capacitacion"
+      : mode === "servicios tecnicos"
+        ? "servicios tecnicos"
+        : null;
 
   const isOSIRequired = !isGeneralMode;
 
   const filteredOSIs = osis.filter((osi) => {
-    if (!isNegociosDept) {
+    if (osiTipoFilter) {
       const tipo = (osi.tipo_servicio || "").toLowerCase();
-      if (osiTipoServicio === "servicios tecnicos") {
-        if (!tipo.includes("servicios tecnicos") && !tipo.includes("servicio tecnico")) return false;
-      } else if (!tipo.includes(osiTipoServicio)) {
+      if (osiTipoFilter === "servicios tecnicos") {
+        if (!tipo.includes("servicios tecnicos") && !tipo.includes("servicio tecnico")) {
+          return false;
+        }
+      } else if (!tipo.includes(osiTipoFilter)) {
         return false;
       }
     }
     if (osi.nro_osi?.toUpperCase().startsWith("PEN")) return false;
     const q = searchTerm.toLowerCase();
-    if (q && !(osi.nro_osi?.toLowerCase().includes(q) || osi.servicio?.toLowerCase().includes(q))) return false;
+    if (q && !(osi.nro_osi?.toLowerCase().includes(q) || osi.servicio?.toLowerCase().includes(q))) {
+      return false;
+    }
     return true;
   });
 
