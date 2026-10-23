@@ -5,6 +5,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
+    "test:asistencia": "node --import ./tests/register-loader.mjs --test tests/asistencia.test.ts",
     "postinstall": "npm --prefix ./packages/osi-formato run build:css",
     "update-types": "supabase gen types typescript --project-id oboslhhemuvzvjnbqeih > src/types/supabase.ts"
   },

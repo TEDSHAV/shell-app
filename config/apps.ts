@@ -1289,6 +1289,12 @@ export const apps: AppConfig[] = [
             icon: Users,
             requiredRoles: ["ted"],
           },
+          {
+            label: "Control de asistencia",
+            path: "/asistencia",
+            icon: UserCheck,
+            requiredRoles: ["ted"],
+          },
         ],
       },
     ],

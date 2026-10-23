@@ -1,13 +1,20 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { hasEnvVars } from "../utils";
-import { getSupabaseCookieOptions } from "./cookie-options";
+import {
+  getSessionDateCookieOptions,
+  getSupabaseCookieOptions,
+} from "./cookie-options";
 import {
   DEV_DB_COOKIE,
   is_dev_db_switcher_enabled,
   parse_dev_db_target,
   resolve_supabase_env,
 } from "./dev-db";
+import {
+  getCaracasWorkdaySessionStamp,
+  PRISMA_SESSION_DATE_COOKIE,
+} from "@/lib/asistencia/time";
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -64,17 +71,44 @@ export async function updateSession(request: NextRequest) {
   // IMPORTANT: If you remove getClaims() and you use server-side rendering
   // with the Supabase client, your users may be randomly logged out.
   const { data } = await supabase.auth.getClaims();
-  const user = data?.claims;
+  let user = data?.claims;
 
-  if (
-    request.nextUrl.pathname !== "/" &&
-    !user &&
-    !request.nextUrl.pathname.startsWith("/login") &&
-    !request.nextUrl.pathname.startsWith("/auth") &&
-    !request.nextUrl.pathname.startsWith("/prisma-publico") &&
-    !request.nextUrl.pathname.startsWith("/informe-publico") &&
-    !request.nextUrl.pathname.startsWith("/satisfaccion")
-  ) {
+  const isPublicOrApiRoute =
+    request.nextUrl.pathname === "/" ||
+    request.nextUrl.pathname.startsWith("/api/") ||
+    request.nextUrl.pathname.startsWith("/login") ||
+    request.nextUrl.pathname.startsWith("/auth") ||
+    request.nextUrl.pathname.startsWith("/prisma-publico") ||
+    request.nextUrl.pathname.startsWith("/informe-publico") ||
+    request.nextUrl.pathname.startsWith("/satisfaccion");
+
+  // Enforce daily login in America/Caracas timezone (with 06:00 AM morning boundary):
+  // If the user has an active session from a previous day OR from before 06:00 AM today,
+  // sign them out once 06:00 AM arrives so they authenticate fresh during office hours.
+  if (user && !isPublicOrApiRoute) {
+    const expectedStamp = getCaracasWorkdaySessionStamp();
+    const sessionDate = request.cookies.get(PRISMA_SESSION_DATE_COOKIE)?.value;
+    if (sessionDate !== expectedStamp) {
+      await supabase.auth.signOut().catch(() => {});
+      user = undefined;
+      const url = request.nextUrl.clone();
+      const next_path = `${request.nextUrl.pathname}${request.nextUrl.search}`;
+      url.pathname = "/auth/login";
+      url.search = "";
+      url.searchParams.set("next", next_path);
+      const redirectResponse = NextResponse.redirect(url);
+      supabaseResponse.cookies.getAll().forEach((c) => {
+        redirectResponse.cookies.set(c);
+      });
+      redirectResponse.cookies.set(PRISMA_SESSION_DATE_COOKIE, "", {
+        ...getSessionDateCookieOptions(),
+        maxAge: 0,
+      });
+      return redirectResponse;
+    }
+  }
+
+  if (!user && !isPublicOrApiRoute) {
     // no user, potentially respond by redirecting the user to the login page
     const url = request.nextUrl.clone();
     const next_path = `${request.nextUrl.pathname}${request.nextUrl.search}`;

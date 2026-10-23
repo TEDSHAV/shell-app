@@ -1,3 +1,5 @@
+import type { AttendanceBadgeStatus } from "@/lib/asistencia/record";
+
 // Shell component interfaces
 export interface NavbarProps {
   userEmail?: string;
@@ -6,6 +8,7 @@ export interface NavbarProps {
   userRolesByApp?: Record<string, string>;
   globalRole?: string;
   userDept?: string | null;
+  attendanceBadge?: AttendanceBadgeStatus | null;
 }
 
 export interface ShellProviderProps {
@@ -15,6 +18,7 @@ export interface ShellProviderProps {
   userRolesByApp?: Record<string, string>;
   globalRole?: string;
   userDept?: string | null;
+  attendanceBadge?: AttendanceBadgeStatus | null;
 }
 
 export interface AppFrameProps {

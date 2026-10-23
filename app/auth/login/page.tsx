@@ -10,6 +10,10 @@ import {
   is_dev_db_switcher_enabled,
   parse_dev_db_target,
 } from "@/lib/supabase/dev-db";
+import {
+  getCaracasWorkdaySessionStamp,
+  PRISMA_SESSION_DATE_COOKIE,
+} from "@/lib/asistencia/time";
 
 export default async function Page({
   searchParams,
@@ -18,13 +22,16 @@ export default async function Page({
 }) {
   const params = await searchParams;
   const next = safe_internal_next_path(params.next);
+  const cookieStore = await cookies();
+  const sessionDate = cookieStore.get(PRISMA_SESSION_DATE_COOKIE)?.value;
+  const expectedStamp = getCaracasWorkdaySessionStamp();
+
   const supabase = await createClient();
   const { data } = await supabase.auth.getClaims();
-  if (data?.claims && next) {
+  if (data?.claims && next && sessionDate === expectedStamp) {
     redirect(next);
   }
 
-  const cookieStore = await cookies();
   const dev_target = is_dev_db_switcher_enabled()
     ? parse_dev_db_target(cookieStore.get(DEV_DB_COOKIE)?.value)
     : null;

@@ -1,4 +1,4 @@
-import { Menu, X } from "lucide-react";
+import { CheckCircle2, Clock, Menu, X } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import logo from "@/app/logo.png";
@@ -17,6 +17,7 @@ export const Navbar = ({
   userRolesByApp,
   globalRole,
   userDept,
+  attendanceBadge,
 }: NavbarProps) => {
   return (
     <header className="h-14 border-b border-slate-200 bg-white flex items-center px-4 gap-3 sticky top-0 z-[60] shadow-sm">
@@ -47,6 +48,27 @@ export const Navbar = ({
       <AppBreadcrumb />
 
       <div className="ml-auto flex items-center gap-2">
+        {attendanceBadge && (
+          <div
+            title={
+              attendanceBadge.a_tiempo
+                ? `Asistencia registrada hoy a las ${attendanceBadge.hora_formateada} (antes del corte ${attendanceBadge.hora_corte_formateada})`
+                : `Acceso registrado hoy a las ${attendanceBadge.hora_formateada} (después del corte ${attendanceBadge.hora_corte_formateada})`
+            }
+            className={
+              attendanceBadge.a_tiempo
+                ? "hidden sm:inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700"
+                : "hidden sm:inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700"
+            }
+          >
+            {attendanceBadge.a_tiempo ? (
+              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+            ) : (
+              <Clock className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+            )}
+            <span>Asistencia {attendanceBadge.hora_formateada}</span>
+          </div>
+        )}
         <DevDbBadge />
         <AppNavigation 
           userRolesByApp={userRolesByApp} 
