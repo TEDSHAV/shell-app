@@ -1,5 +1,5 @@
 import { email_escape } from "../email/layout";
-import { shell_public_url } from "../email/send";
+import { shell_public_url } from "../email/urls";
 import {
   formatCutoffLabel,
   formatDdMmYyyy,

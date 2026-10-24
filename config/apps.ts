@@ -1049,7 +1049,7 @@ export const apps: AppConfig[] = [
     icon: Star,
     brandColor: "#059669",
     embedMode: "native",
-    hiddenFromDashboard: false,
+    hiddenFromDashboard: true,
     groupId: "utilidades",
     dashboardOrder: 10,
     navLinks: [],
