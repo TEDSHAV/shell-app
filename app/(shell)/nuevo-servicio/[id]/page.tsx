@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
@@ -9,6 +9,7 @@ import {
 import {
   isCapacitacionDept,
   isServiciosTecnicosDept,
+  isNegociosDept,
 } from "@/lib/requisiciones-gerencia";
 import DisenoServicioWizard from "./components/DisenoServicioWizard";
 
@@ -43,27 +44,30 @@ export default async function DisenoServicioWizardPage({
     notFound();
   }
 
-  // Guard: only Capacitación and Servicios Técnicos users may manage these
-  // services, and only those matching the service's executing department.
-  // The service's executing department comes from
-  // catalogo_servicios.id_departamento_ejecutante (3 = Capacitación,
-  // 4 = Servicios Técnicos). Anyone else (or a direct URL to a service outside
-  // the user's scope) is blocked.
-  const userDeptName = (userData?.departamentos as any)?.nombre ?? null;
+  if (!userData) {
+    redirect("/auth/login");
+  }
+
+  const userDeptName = userData.departamento_nombre ?? null;
   const isCapUser = isCapacitacionDept(userDeptName);
   const isStUser = isServiciosTecnicosDept(userDeptName);
+  const isNegUser = isNegociosDept(userDeptName);
+  const isAdmin = (userData as any)?.rol === "admin" || (userData as any)?.rol === "superadmin" || (userData as any)?.id_departamento === 6; // TED
 
-  if (!userData || (!isCapUser && !isStUser)) {
-    notFound();
-  }
+  // Determine executing department of this solicitud
+  const isCapService =
+    solicitud.id_departamento_ejecutante === 3 ||
+    (solicitud.bloque_recursos_requisitos as any)?.tipo_naturaleza_servicio === "cap";
 
-  const ejecutanteId = solicitud.id_departamento_ejecutante;
-  const scopeMatches = isCapUser
-    ? ejecutanteId === 3
-    : ejecutanteId === 4;
-  if (!scopeMatches) {
-    notFound();
-  }
+  // Check if current user can edit:
+  // - Admin or TED: can edit any
+  // - Capacitacion user: can edit cap services
+  // - Servicios Tecnicos user: can edit ST services
+  // - Negocios or other solicitantes: read-only access (can review progress and add notes)
+  const canEdit =
+    isAdmin ||
+    (isCapUser && isCapService) ||
+    (isStUser && !isCapService);
 
   return (
     <div className="p-4 sm:p-8">
@@ -78,12 +82,16 @@ export default async function DisenoServicioWizardPage({
             {solicitud.nombre_sugerido}
           </h1>
           <p className="text-sm text-gray-600">
-            Nuevos Servicios · {solicitud.estatus_nombre || "Pendiente"}
+            Nuevos Servicios · {solicitud.tipo_servicio} · {solicitud.estatus_nombre || "Pendiente"}
           </p>
         </div>
       </div>
 
-      <DisenoServicioWizard solicitud={solicitud} userData={userData} />
+      <DisenoServicioWizard
+        solicitud={solicitud}
+        userData={userData}
+        initialReadOnly={!canEdit}
+      />
     </div>
   );
 }

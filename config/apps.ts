@@ -261,6 +261,13 @@ export const apps: AppConfig[] = [
             requiredPermissions: ["directorio:access"],
           },
           {
+            label: "Nuevos Servicios",
+            path: "/nuevo-servicio",
+            href: "/nuevo-servicio",
+            icon: ClipboardList,
+            requiredPermissions: ["directorio:access"],
+          },
+          {
             label: "Usuarios",
             path: "/directorio/usuarios",
             icon: Users,
@@ -766,6 +773,13 @@ export const apps: AppConfig[] = [
         collapsible: "always",
         links: [
           {
+            label: "Diseño de Servicios",
+            path: "/nuevo-servicio",
+            href: "/nuevo-servicio?dept=cap",
+            icon: ClipboardList,
+            requiredPermissions: ["scapacitacion:all:access"],
+          },
+          {
             label: "Seguimiento de Servicios",
             path: "/dashboard/capacitacion/seguimiento-servicios",
             icon: Calendar,
@@ -967,7 +981,8 @@ export const apps: AppConfig[] = [
       { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
       {
         label: "Diseño y Desarrollo de Servicios",
-        path: "/dashboard/nuevos-servicios",
+        path: "/nuevo-servicio",
+        href: "/nuevo-servicio?dept=st",
         icon: ClipboardList,
       },
       { label: "Control de Calibración", path: "/dashboard/control-calibracion", icon: Gauge },

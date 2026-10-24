@@ -91,7 +91,7 @@ export default withSentryConfig(nextConfig, {
   project: sentry_project,
   authToken: has_valid_sentry_token ? sentry_auth_token : undefined,
   widenClientFileUpload: true,
-  tunnelRoute: "/monitoring",
+  tunnelRoute: process.env.NODE_ENV === "production" ? "/monitoring" : undefined,
   silent: !process.env.CI,
   sourcemaps: {
     disable: !should_upload_sourcemaps,

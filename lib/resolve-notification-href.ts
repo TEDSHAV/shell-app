@@ -54,11 +54,12 @@ export function resolve_notification_href(
     return notification.link_path;
   }
 
-  // Tareas, tickets y requisiciones viven en Shell (rutas nativas, sin basePath de app).
+  // Tareas, tickets, requisiciones y nuevo-servicio viven en Shell (rutas nativas, sin basePath de app).
   if (
     notification.link_path.startsWith("/tareas") ||
     notification.link_path.startsWith("/tickets") ||
-    notification.link_path.startsWith("/requisiciones")
+    notification.link_path.startsWith("/requisiciones") ||
+    notification.link_path.startsWith("/nuevo-servicio")
   ) {
     return notification.link_path;
   }
