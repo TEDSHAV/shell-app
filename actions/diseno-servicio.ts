@@ -138,15 +138,17 @@ export async function getDisenoServicioList(): Promise<DisenoServicioListItem[]>
     const { data: osis } = await supabase
       .from("v_osi_formato_completo")
       .select("id_osi, nro_osi, id_servicio")
-      .in("id_servicio", servicioIds);
+      .in("id_servicio", servicioIds)
+      .not("nro_osi", "ilike", "%PEN-%");
 
     if (osis) {
       for (const o of osis) {
         if (o.id_servicio == null) continue;
+        const nro = (o.nro_osi || "").trim();
+        if (!nro || nro.toUpperCase().includes("PEN-")) continue;
         const list = osiMap.get(o.id_servicio) || [];
-        const label = o.nro_osi ? String(o.nro_osi) : `#${o.id_osi}`;
-        if (!list.includes(label)) {
-          list.push(label);
+        if (!list.includes(nro)) {
+          list.push(nro);
         }
         osiMap.set(o.id_servicio, list);
       }
