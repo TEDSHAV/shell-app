@@ -1,8 +1,10 @@
 import { createAdminClient } from "@/lib/supabase/server";
 import {
   DEFAULT_CUTOFF_TIME,
+  DEFAULT_SECOND_CUTOFF_TIME,
   formatCaracasTime12h,
   getCaracasDateString,
+  getCorteForCaracasTime,
   isAfterMorningReset,
   isOnOrBeforeCutoff,
   normalizeCutoffTime,
@@ -10,6 +12,7 @@ import {
 
 export type AttendanceBadgeStatus = {
   fecha: string;
+  corte: 1 | 2;
   hora_registro: string;
   hora_formateada: string;
   a_tiempo: boolean;
@@ -17,26 +20,31 @@ export type AttendanceBadgeStatus = {
 };
 
 /**
- * Records the user's attendance for today in America/Caracas if not already recorded.
- * Preserves the earliest check-in time of the day (idempotent via unique constraint).
- * Logins before 06:00 AM (e.g., 3:00 AM) are NOT automatically recorded as office attendance.
+ * Records the user's attendance for today and the current operational shift (corte 1 or 2)
+ * in America/Caracas if not already recorded.
+ * Preserves the earliest check-in time of the respective shift (idempotent via unique constraint).
+ * Logins before 08:00 AM (e.g., 3:00 AM) are NOT automatically recorded as office attendance.
  */
 export async function recordDailyAttendanceForUsuario(
   usuarioId: number,
   metodo: "login" | "sesion" | "manual" = "login",
   now: Date = new Date(),
+  targetCorte?: 1 | 2,
 ): Promise<{
   recorded: boolean;
   fecha: string;
+  corte: 1 | 2;
   hora_registro: string | null;
 }> {
   const fecha = getCaracasDateString(now);
+  const corte: 1 | 2 = targetCorte ?? getCorteForCaracasTime(now);
 
-  // Do not auto-record office attendance for pre-8:00 AM logins (e.g. 3:00 AM).
-  if (metodo !== "manual" && !isAfterMorningReset(now)) {
+  // Do not auto-record office attendance for pre-8:00 AM logins (e.g. 3:00 AM) in morning shift.
+  if (metodo !== "manual" && corte === 1 && !isAfterMorningReset(now)) {
     return {
       recorded: false,
       fecha,
+      corte: 1,
       hora_registro: null,
     };
   }
@@ -44,18 +52,20 @@ export async function recordDailyAttendanceForUsuario(
   try {
     const admin = await createAdminClient();
 
-    // Check existing first so we return the original first-login timestamp
+    // Check existing first so we return the original first-login timestamp for this corte
     const { data: existing } = await admin
       .from("asistencia_diaria")
       .select("hora_registro")
       .eq("usuario_id", usuarioId)
       .eq("fecha", fecha)
+      .eq("corte", corte)
       .maybeSingle();
 
     if (existing?.hora_registro) {
       return {
         recorded: false,
         fecha,
+        corte,
         hora_registro: String(existing.hora_registro),
       };
     }
@@ -67,10 +77,11 @@ export async function recordDailyAttendanceForUsuario(
         {
           usuario_id: usuarioId,
           fecha,
+          corte,
           hora_registro: isoNow,
           metodo,
         },
-        { onConflict: "usuario_id,fecha", ignoreDuplicates: true },
+        { onConflict: "usuario_id,fecha,corte", ignoreDuplicates: true },
       )
       .select("hora_registro")
       .maybeSingle();
@@ -78,13 +89,14 @@ export async function recordDailyAttendanceForUsuario(
     if (error) {
       // Gracefully handle if migration hasn't been applied yet
       console.warn("[asistencia] No se pudo registrar asistencia diaria:", error.message);
-      return { recorded: false, fecha, hora_registro: isoNow };
+      return { recorded: false, fecha, corte, hora_registro: isoNow };
     }
 
     if (inserted?.hora_registro) {
       return {
         recorded: true,
         fecha,
+        corte,
         hora_registro: String(inserted.hora_registro),
       };
     }
@@ -95,42 +107,48 @@ export async function recordDailyAttendanceForUsuario(
       .select("hora_registro")
       .eq("usuario_id", usuarioId)
       .eq("fecha", fecha)
+      .eq("corte", corte)
       .maybeSingle();
 
     return {
       recorded: false,
       fecha,
+      corte,
       hora_registro: refetched?.hora_registro ? String(refetched.hora_registro) : isoNow,
     };
   } catch (err) {
     console.warn("[asistencia] Error inesperado al registrar asistencia:", err);
-    return { recorded: false, fecha, hora_registro: now.toISOString() };
+    return { recorded: false, fecha, corte, hora_registro: now.toISOString() };
   }
 }
 
 /**
- * Ensures today's attendance row exists for the active user and returns badge display info.
+ * Ensures today's attendance row exists for the active user and returns badge display info
+ * for the current operational shift (corte 1 or corte 2).
  */
 export async function ensureAndGetTodayAttendanceBadge(
   usuarioId: number,
 ): Promise<AttendanceBadgeStatus | null> {
   try {
     const now = new Date();
-    const result = await recordDailyAttendanceForUsuario(usuarioId, "sesion", now);
+    const corte = getCorteForCaracasTime(now);
+    const result = await recordDailyAttendanceForUsuario(usuarioId, "sesion", now, corte);
     if (!result.hora_registro) {
       return null;
     }
     const hora_registro = result.hora_registro;
 
-    let cutoff = DEFAULT_CUTOFF_TIME;
+    let cutoff = corte === 2 ? DEFAULT_SECOND_CUTOFF_TIME : DEFAULT_CUTOFF_TIME;
     try {
       const admin = await createAdminClient();
       const { data: cfg } = await admin
         .from("asistencia_config")
-        .select("hora_corte")
+        .select("hora_corte, hora_corte_2")
         .eq("id", 1)
         .maybeSingle();
-      if (cfg?.hora_corte) {
+      if (corte === 2 && cfg?.hora_corte_2) {
+        cutoff = normalizeCutoffTime(String(cfg.hora_corte_2));
+      } else if (corte === 1 && cfg?.hora_corte) {
         cutoff = normalizeCutoffTime(String(cfg.hora_corte));
       }
     } catch {
@@ -146,6 +164,7 @@ export async function ensureAndGetTodayAttendanceBadge(
 
     return {
       fecha: result.fecha,
+      corte,
       hora_registro,
       hora_formateada: formatCaracasTime12h(hora_registro),
       a_tiempo,

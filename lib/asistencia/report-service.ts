@@ -9,6 +9,7 @@ import {
 } from "./email-template";
 import {
   DEFAULT_CUTOFF_TIME,
+  DEFAULT_MIDDAY_RESET_TIME,
   DEFAULT_SECOND_CUTOFF_TIME,
   formatCaracasTime12h,
   getCaracasDateString,
@@ -24,6 +25,7 @@ export type AsistenciaConfigRow = {
   hora_corte: string;
   activo_corte_2: boolean;
   hora_corte_2: string;
+  hora_reset_mediodia: string;
   timezone: string;
   omitir_feriados: boolean;
   usuarios_excluidos: number[];
@@ -102,6 +104,11 @@ export async function getAsistenciaConfig(
       data?.activo_corte_2 !== undefined ? Boolean(data.activo_corte_2) : true,
     hora_corte_2: normalizeCutoffTime(
       data?.hora_corte_2 ? String(data.hora_corte_2) : DEFAULT_SECOND_CUTOFF_TIME,
+    ),
+    hora_reset_mediodia: normalizeCutoffTime(
+      data?.hora_reset_mediodia
+        ? String(data.hora_reset_mediodia)
+        : DEFAULT_MIDDAY_RESET_TIME,
     ),
     timezone: String(data?.timezone || "America/Caracas"),
     omitir_feriados:
@@ -202,7 +209,8 @@ export async function buildAsistenciaSnapshot(
     supabase
       .from("asistencia_diaria")
       .select("usuario_id, hora_registro, metodo")
-      .eq("fecha", fecha),
+      .eq("fecha", fecha)
+      .eq("corte", corte),
     supabase
       .from("cat_feriados_venezuela")
       .select("fecha, nombre")

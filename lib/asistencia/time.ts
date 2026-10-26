@@ -2,6 +2,7 @@ export const ASISTENCIA_TIMEZONE = "America/Caracas";
 export const DEFAULT_CUTOFF_TIME = "08:30:00";
 export const DEFAULT_SECOND_CUTOFF_TIME = "14:00:00";
 export const MORNING_RESET_TIME = "08:00:00";
+export const DEFAULT_MIDDAY_RESET_TIME = "12:30:00";
 export const PRISMA_SESSION_DATE_COOKIE = "prisma_session_date";
 
 /**
@@ -23,19 +24,40 @@ export function getCaracasDateString(date: Date = new Date()): string {
 
 /**
  * Returns the "operational workday stamp" for session expiration in America/Caracas.
- * The workday starts at 08:00:00 AM Caracas time:
- * - Between 00:00:00 and 07:59:59 AM, a session receives `"YYYY-MM-DD:madrugada"`.
- * - At 08:00:00 AM onwards, the required stamp becomes `"YYYY-MM-DD"`.
- * This ensures anyone who logged in before 8:00 AM is logged out once 8:00 AM arrives
- * and must log in fresh during office hours to be counted as present.
+ * The workday is divided into operational shifts:
+ * - Between 00:00:00 and 07:59:59 AM: `"YYYY-MM-DD:madrugada"`
+ * - Between 08:00:00 and 12:29:59 PM (morning shift): `"YYYY-MM-DD:manana"`
+ * - From 12:30:00 PM onwards (afternoon shift): `"YYYY-MM-DD:tarde"`
+ * This ensures anyone logged in before 8:00 AM must authenticate at arrival (Corte 1),
+ * and anyone who left for lunch must authenticate when returning (Corte 2).
  */
-export function getCaracasWorkdaySessionStamp(date: Date = new Date()): string {
+export function getCaracasWorkdaySessionStamp(
+  date: Date = new Date(),
+  middayResetTime: string = DEFAULT_MIDDAY_RESET_TIME,
+): string {
   const dateStr = getCaracasDateString(date);
   const timeStr = getCaracasTimeString(date);
+  const normMidday = normalizeCutoffTime(middayResetTime);
   if (timeStr < MORNING_RESET_TIME) {
     return `${dateStr}:madrugada`;
   }
-  return dateStr;
+  if (timeStr < normMidday) {
+    return `${dateStr}:manana`;
+  }
+  return `${dateStr}:tarde`;
+}
+
+/**
+ * Determines whether a given time in Caracas belongs to Corte 1 (morning) or Corte 2 (afternoon).
+ * Returns 1 if before the midday reset time (default 12:30:00), 2 otherwise.
+ */
+export function getCorteForCaracasTime(
+  date: Date = new Date(),
+  middayResetTime: string = DEFAULT_MIDDAY_RESET_TIME,
+): 1 | 2 {
+  const timeStr = getCaracasTimeString(date);
+  const normMidday = normalizeCutoffTime(middayResetTime);
+  return timeStr < normMidday ? 1 : 2;
 }
 
 /**

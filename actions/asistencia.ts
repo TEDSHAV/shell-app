@@ -113,6 +113,7 @@ export async function updateAsistenciaConfigAction(input: {
   hora_corte: string;
   activo_corte_2: boolean;
   hora_corte_2: string;
+  hora_reset_mediodia?: string;
   omitir_feriados: boolean;
   usuarios_excluidos: number[];
   departamentos_excluidos: number[];
@@ -122,6 +123,7 @@ export async function updateAsistenciaConfigAction(input: {
     const admin = await createAdminClient();
     const hora_corte = normalizeCutoffTime(input.hora_corte);
     const hora_corte_2 = normalizeCutoffTime(input.hora_corte_2);
+    const hora_reset_mediodia = normalizeCutoffTime(input.hora_reset_mediodia || "12:30:00");
 
     const { error } = await admin.from("asistencia_config").upsert(
       {
@@ -130,6 +132,7 @@ export async function updateAsistenciaConfigAction(input: {
         hora_corte,
         activo_corte_2: Boolean(input.activo_corte_2),
         hora_corte_2,
+        hora_reset_mediodia,
         timezone: "America/Caracas",
         omitir_feriados: Boolean(input.omitir_feriados),
         usuarios_excluidos: (input.usuarios_excluidos ?? []).filter(
@@ -254,23 +257,29 @@ export async function sendManualAsistenciaReportAction(input: {
 export async function markManualAttendanceAction(input: {
   usuario_id: number;
   fecha: string;
+  corte?: 1 | 2;
   presente: boolean;
 }): Promise<{ ok: boolean; error?: string }> {
   try {
     await assertTedAccess();
     const admin = await createAdminClient();
+    const corte: 1 | 2 = input.corte === 2 ? 2 : 1;
 
     if (input.presente) {
-      // Sethora_registro at 08:00:00 America/Caracas (12:00:00 UTC) so they count as on-time for that date
-      const defaultOnTimeIso = `${input.fecha}T12:00:00.000Z`;
+      // Set hora_registro at 08:00:00 (12:00:00 UTC) for corte 1, or 13:00:00 (17:00:00 UTC) for corte 2
+      const defaultOnTimeIso =
+        corte === 2
+          ? `${input.fecha}T17:00:00.000Z`
+          : `${input.fecha}T12:00:00.000Z`;
       const { error } = await admin.from("asistencia_diaria").upsert(
         {
           usuario_id: input.usuario_id,
           fecha: input.fecha,
+          corte,
           hora_registro: defaultOnTimeIso,
           metodo: "manual",
         },
-        { onConflict: "usuario_id,fecha" },
+        { onConflict: "usuario_id,fecha,corte" },
       );
       if (error) return { ok: false, error: error.message };
     } else {
@@ -278,7 +287,8 @@ export async function markManualAttendanceAction(input: {
         .from("asistencia_diaria")
         .delete()
         .eq("usuario_id", input.usuario_id)
-        .eq("fecha", input.fecha);
+        .eq("fecha", input.fecha)
+        .eq("corte", corte);
       if (error) return { ok: false, error: error.message };
     }
 

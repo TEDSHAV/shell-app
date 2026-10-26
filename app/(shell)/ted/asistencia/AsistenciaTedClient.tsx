@@ -88,6 +88,9 @@ export function AsistenciaTedClient({
   const [horaCorte, setHoraCorte] = useState(config.hora_corte.slice(0, 5));
   const [activoCorte2, setActivoCorte2] = useState(config.activo_corte_2);
   const [horaCorte2, setHoraCorte2] = useState(config.hora_corte_2.slice(0, 5));
+  const [horaResetMediodia, setHoraResetMediodia] = useState(
+    (config.hora_reset_mediodia || "12:30:00").slice(0, 5),
+  );
   const [omitirFeriados, setOmitirFeriados] = useState(config.omitir_feriados);
   const [excludedUsers, setExcludedUsers] = useState<number[]>(
     config.usuarios_excluidos,
@@ -137,6 +140,7 @@ export function AsistenciaTedClient({
       const res = await markManualAttendanceAction({
         usuario_id: usuarioId,
         fecha: activeSnapshot.fecha,
+        corte: selectedCorte,
         presente,
       });
       if (!res.ok) {
@@ -158,6 +162,7 @@ export function AsistenciaTedClient({
         hora_corte: `${horaCorte}:00`,
         activo_corte_2: activoCorte2,
         hora_corte_2: `${horaCorte2}:00`,
+        hora_reset_mediodia: `${horaResetMediodia}:00`,
         omitir_feriados: omitirFeriados,
         usuarios_excluidos: excludedUsers,
         departamentos_excluidos: excludedDepts,
@@ -369,7 +374,9 @@ export function AsistenciaTedClient({
                   Estado de conexión antes de las {activeCutoffLabel}
                 </h2>
                 <p className="text-xs text-slate-500">
-                  Las sesiones de días anteriores se cierran automáticamente al cambiar de día (America/Caracas) para garantizar que cada usuario inicie sesión al llegar.
+                  {selectedCorte === 1
+                    ? "Las sesiones anteriores o antes de las 8:00 AM se cierran para exigir inicio de sesión al llegar en la mañana."
+                    : "Las sesiones de la mañana se cierran a las 12:30 PM para exigir nuevo inicio de sesión al volver del almuerzo y verificar asistencia vespertina."}
                 </p>
               </div>
 
@@ -641,6 +648,30 @@ export function AsistenciaTedClient({
                     type="time"
                     value={horaCorte2}
                     onChange={(e) => setHoraCorte2(e.target.value)}
+                    className="h-8 w-28 rounded-lg text-xs bg-white"
+                  />
+                </div>
+              </div>
+
+              {/* Cierre de Sesión por Almuerzo (Mediodía) */}
+              <div className="rounded-xl border border-amber-200 bg-amber-50/40 p-4 space-y-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-amber-600" />
+                    Cierre de Sesión al Mediodía (Almuerzo — 12:30 PM)
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Cierra automáticamente las sesiones de la mañana al llegar esta hora para que el sistema exija un nuevo inicio de sesión al volver del almuerzo y verifique la asistencia de la tarde.
+                  </p>
+                </div>
+                <div className="flex items-center justify-between gap-4 pt-2 border-t border-amber-100">
+                  <span className="text-xs font-medium text-slate-700">
+                    Hora de cierre de sesión de almuerzo:
+                  </span>
+                  <Input
+                    type="time"
+                    value={horaResetMediodia}
+                    onChange={(e) => setHoraResetMediodia(e.target.value)}
                     className="h-8 w-28 rounded-lg text-xs bg-white"
                   />
                 </div>

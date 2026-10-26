@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  DEFAULT_MIDDAY_RESET_TIME,
   DEFAULT_SECOND_CUTOFF_TIME,
   formatCaracasTime12h,
   formatCutoffLabel,
@@ -8,6 +9,7 @@ import {
   getCaracasDateString,
   getCaracasTimeString,
   getCaracasWorkdaySessionStamp,
+  getCorteForCaracasTime,
   isAfterMorningReset,
   isOnOrBeforeCutoff,
   isWeekdayCaracas,
@@ -93,7 +95,7 @@ describe("lib/asistencia/time (America/Caracas UTC-4)", () => {
     assert.equal(isWeekdayCaracas("2026-10-26"), true);
   });
 
-  it("handles pre-8:00 AM logins with an 08:00 AM morning boundary so pre-8AM sessions expire at 8AM", () => {
+  it("manages workday session stamps with 08:00 AM arrival and 12:30 PM lunch boundaries", () => {
     // 03:00:00 AM Caracas (07:00:00 UTC) -> gets ':madrugada' stamp and is NOT after morning reset
     const threeAmCaracas = new Date("2026-10-23T07:00:00.000Z");
     assert.equal(
@@ -101,6 +103,7 @@ describe("lib/asistencia/time (America/Caracas UTC-4)", () => {
       "2026-10-23:madrugada",
     );
     assert.equal(isAfterMorningReset(threeAmCaracas), false);
+    assert.equal(getCorteForCaracasTime(threeAmCaracas), 1);
 
     // 07:59:59 AM Caracas (11:59:59 UTC) -> still ':madrugada'
     const sevenFiftyNineCaracas = new Date("2026-10-23T11:59:59.000Z");
@@ -109,11 +112,34 @@ describe("lib/asistencia/time (America/Caracas UTC-4)", () => {
       "2026-10-23:madrugada",
     );
     assert.equal(isAfterMorningReset(sevenFiftyNineCaracas), false);
+    assert.equal(getCorteForCaracasTime(sevenFiftyNineCaracas), 1);
 
-    // 08:00:00 AM Caracas (12:00:00 UTC) -> workday stamp switches to '2026-10-23', expiring pre-8:00 AM sessions
+    // 08:00:00 AM Caracas (12:00:00 UTC) -> switches to ':manana', expiring pre-8:00 AM sessions
     const eightAmCaracas = new Date("2026-10-23T12:00:00.000Z");
-    assert.equal(getCaracasWorkdaySessionStamp(eightAmCaracas), "2026-10-23");
+    assert.equal(getCaracasWorkdaySessionStamp(eightAmCaracas), "2026-10-23:manana");
     assert.equal(isAfterMorningReset(eightAmCaracas), true);
+    assert.equal(getCorteForCaracasTime(eightAmCaracas), 1);
+
+    // 12:29:59 PM Caracas (16:29:59 UTC) -> still ':manana'
+    const twelveTwentyNineCaracas = new Date("2026-10-23T16:29:59.000Z");
+    assert.equal(
+      getCaracasWorkdaySessionStamp(twelveTwentyNineCaracas),
+      "2026-10-23:manana",
+    );
+    assert.equal(getCorteForCaracasTime(twelveTwentyNineCaracas), 1);
+
+    // 12:30:00 PM Caracas (16:30:00 UTC) -> switches to ':tarde', expiring morning sessions for lunch
+    const twelveThirtyCaracas = new Date("2026-10-23T16:30:00.000Z");
+    assert.equal(
+      getCaracasWorkdaySessionStamp(twelveThirtyCaracas),
+      "2026-10-23:tarde",
+    );
+    assert.equal(getCorteForCaracasTime(twelveThirtyCaracas), 2);
+
+    // 02:00:00 PM Caracas (18:00:00 UTC) -> afternoon shift ':tarde'
+    const twoPmCaracas = new Date("2026-10-23T18:00:00.000Z");
+    assert.equal(getCaracasWorkdaySessionStamp(twoPmCaracas), "2026-10-23:tarde");
+    assert.equal(getCorteForCaracasTime(twoPmCaracas), 2);
   });
 });
 
@@ -268,11 +294,13 @@ function createMockSupabase(opts: {
 }) {
   return {
     from(table: string) {
+      const filters: Record<string, any> = {};
       const builder: any = {
         select() {
           return builder;
         },
-        eq() {
+        eq(col: string, val: any) {
+          filters[col] = val;
           return builder;
         },
         not() {
@@ -319,7 +347,13 @@ function createMockSupabase(opts: {
             return resolve({ data: opts.puestos ?? [], error: null });
           }
           if (table === "asistencia_diaria") {
-            return resolve({ data: opts.asistencia ?? [], error: null });
+            let data = opts.asistencia ?? [];
+            if (filters.corte !== undefined) {
+              data = data.filter(
+                (row) => row.corte === undefined || row.corte === filters.corte,
+              );
+            }
+            return resolve({ data, error: null });
           }
           if (table === "asistencia_destinatarios") {
             return resolve({ data: opts.destinatarios ?? [], error: null });
@@ -493,25 +527,28 @@ describe("lib/asistencia/report-service", () => {
         },
       ],
       asistencia: [
-        // Ana logged in at 07:50 AM Caracas (11:50 UTC) -> Presente in corte 2
+        // Ana logged in at 07:50 AM Caracas in the morning (corte = 1), but left at lunch and never checked in for corte 2
         {
           usuario_id: 1,
           hora_registro: "2026-10-23T11:50:00.000Z",
           metodo: "login",
+          corte: 1,
         },
-        // Pedro logged in at 08:45 AM Caracas (12:45 UTC) -> was tardío in morning, but PRESENTE in corte 2 (before 14:00:00)
+        // Pedro returned from lunch and logged in at 01:15 PM Caracas (17:15 UTC) with corte = 2 (before 14:00:00) -> PRESENTE
         {
           usuario_id: 2,
-          hora_registro: "2026-10-23T12:45:00.000Z",
+          hora_registro: "2026-10-23T17:15:00.000Z",
           metodo: "login",
+          corte: 2,
         },
-        // Carlos logged in at 02:15 PM Caracas (18:15 UTC) -> TARDIO in corte 2 (after 14:00:00)
+        // Carlos logged in late for the afternoon shift at 02:15 PM Caracas (18:15 UTC) with corte = 2 -> TARDIO
         {
           usuario_id: 3,
           hora_registro: "2026-10-23T18:15:00.000Z",
           metodo: "login",
+          corte: 2,
         },
-        // Lucía did not log in -> Ausente
+        // Lucía did not log in for either corte -> Ausente
       ],
       feriado: null,
     });
@@ -521,23 +558,32 @@ describe("lib/asistencia/report-service", () => {
     assert.equal(snapshot.corte, 2);
     assert.equal(snapshot.hora_corte, "14:00:00");
     assert.equal(snapshot.total_esperados, 4);
-    assert.equal(snapshot.total_presentes, 2); // Ana and Pedro
-    assert.equal(snapshot.total_tardios, 1); // Carlos
-    assert.equal(snapshot.total_ausentes, 2); // Carlos + Lucía are absent at the 14:00 cutoff
-    assert.equal(snapshot.porcentaje_asistencia, 50);
+    assert.equal(snapshot.total_presentes, 1); // Only Pedro returned and logged in on time for Corte 2
+    assert.equal(snapshot.total_tardios, 1); // Carlos logged in after 14:00:00
+    assert.equal(snapshot.total_ausentes, 3); // Ana (left at lunch), Carlos (tardy at cutoff), and Lucía are absent at the 14:00 cutoff
+    assert.equal(snapshot.porcentaje_asistencia, 25);
 
     const adminDept = snapshot.departamentos.find(
       (d) => d.departamento_nombre === "Administración",
     )!;
     assert.ok(adminDept);
-    assert.equal(adminDept.presentes, 2);
-    assert.equal(adminDept.ausentes, 2);
+    assert.equal(adminDept.presentes, 1);
+    assert.equal(adminDept.ausentes, 3);
     assert.equal(adminDept.tardios, 1);
 
+    // Ana logged in morning only -> must be AUSENTE in Corte 2
+    const ana = adminDept.usuarios.find((u) => u.usuario_id === 1)!;
+    assert.equal(ana.estado, "ausente");
+    assert.equal(ana.presente_en_corte, false);
+    assert.equal(ana.hora_registro, null);
+
+    // Pedro logged in after lunch before 14:00 -> PRESENTE in Corte 2
     const pedro = adminDept.usuarios.find((u) => u.usuario_id === 2)!;
     assert.equal(pedro.estado, "presente");
     assert.equal(pedro.presente_en_corte, true);
+    assert.equal(pedro.hora_formateada, "01:15 PM");
 
+    // Carlos logged in after 14:00 -> TARDIO in Corte 2
     const carlos = adminDept.usuarios.find((u) => u.usuario_id === 3)!;
     assert.equal(carlos.estado, "tardio");
     assert.equal(carlos.presente_en_corte, false);
