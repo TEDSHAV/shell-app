@@ -39,7 +39,7 @@ export default async function TedAsistenciaPage({
               Control de Asistencia Diaria
             </h1>
             <p className="mt-0.5 text-sm text-muted-foreground">
-              Verificación matutina de usuarios conectados por departamento y envío automático de reporte a las 8:30 AM.
+              Monitoreo de conexiones y asistencia por departamento con reportes automáticos programados (mañana y tarde).
             </p>
           </div>
         </div>
@@ -47,6 +47,7 @@ export default async function TedAsistenciaPage({
 
       <AsistenciaTedClient
         snapshot={data.snapshot}
+        snapshotCorte2={data.snapshotCorte2}
         config={data.config}
         destinatarios={data.destinatarios}
         logs={data.logs}

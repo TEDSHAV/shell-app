@@ -46,6 +46,7 @@ import {
 
 type Props = {
   snapshot: AsistenciaSnapshot;
+  snapshotCorte2: AsistenciaSnapshot;
   config: AsistenciaConfigRow;
   destinatarios: AsistenciaDestinatario[];
   logs: AsistenciaReporteLogRow[];
@@ -63,6 +64,7 @@ type ActiveTab = "registro" | "configuracion" | "historial";
 
 export function AsistenciaTedClient({
   snapshot,
+  snapshotCorte2,
   config,
   destinatarios,
   logs,
@@ -71,6 +73,7 @@ export function AsistenciaTedClient({
 }: Props) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<ActiveTab>("registro");
+  const [selectedCorte, setSelectedCorte] = useState<1 | 2>(1);
   const [selectedDate, setSelectedDate] = useState(snapshot.fecha);
   const [testEmail, setTestEmail] = useState("");
   const [showEmailPreview, setShowEmailPreview] = useState(false);
@@ -83,6 +86,8 @@ export function AsistenciaTedClient({
   // Config state
   const [activo, setActivo] = useState(config.activo);
   const [horaCorte, setHoraCorte] = useState(config.hora_corte.slice(0, 5));
+  const [activoCorte2, setActivoCorte2] = useState(config.activo_corte_2);
+  const [horaCorte2, setHoraCorte2] = useState(config.hora_corte_2.slice(0, 5));
   const [omitirFeriados, setOmitirFeriados] = useState(config.omitir_feriados);
   const [excludedUsers, setExcludedUsers] = useState<number[]>(
     config.usuarios_excluidos,
@@ -96,6 +101,11 @@ export function AsistenciaTedClient({
   const [newEmail, setNewEmail] = useState("");
   const [newNombre, setNewNombre] = useState("");
 
+  const activeSnapshot = selectedCorte === 1 ? snapshot : snapshotCorte2;
+  const activeCutoffLabel = formatCutoffLabel(activeSnapshot.hora_corte);
+  const corte1Label = formatCutoffLabel(config.hora_corte);
+  const corte2Label = formatCutoffLabel(config.hora_corte_2);
+
   function handleDateChange(nextDate: string) {
     setSelectedDate(nextDate);
     if (nextDate) {
@@ -107,7 +117,8 @@ export function AsistenciaTedClient({
     startTransition(async () => {
       setFeedback(null);
       const res = await sendManualAsistenciaReportAction({
-        fecha: snapshot.fecha,
+        fecha: activeSnapshot.fecha,
+        corte: selectedCorte,
         testEmail: onlyTestEmail ? testEmail : undefined,
       });
       setFeedback({
@@ -125,7 +136,7 @@ export function AsistenciaTedClient({
       setFeedback(null);
       const res = await markManualAttendanceAction({
         usuario_id: usuarioId,
-        fecha: snapshot.fecha,
+        fecha: activeSnapshot.fecha,
         presente,
       });
       if (!res.ok) {
@@ -145,6 +156,8 @@ export function AsistenciaTedClient({
       const res = await updateAsistenciaConfigAction({
         activo,
         hora_corte: `${horaCorte}:00`,
+        activo_corte_2: activoCorte2,
+        hora_corte_2: `${horaCorte2}:00`,
         omitir_feriados: omitirFeriados,
         usuarios_excluidos: excludedUsers,
         departamentos_excluidos: excludedDepts,
@@ -297,22 +310,63 @@ export function AsistenciaTedClient({
       {/* TAB 1: REGISTRO DEL DÍA */}
       {activeTab === "registro" && (
         <div className="space-y-6">
+          {/* Corte Selector Pills */}
+          <div className="flex flex-wrap items-center gap-2 p-1.5 bg-slate-100 rounded-xl w-fit">
+            <button
+              type="button"
+              onClick={() => setSelectedCorte(1)}
+              className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
+                selectedCorte === 1
+                  ? "bg-white text-indigo-700 shadow-sm"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <Clock className="h-3.5 w-3.5 text-indigo-600" />
+              Primer Corte ({corte1Label})
+              {activo ? (
+                <span className="h-2 w-2 rounded-full bg-emerald-500" title="Envío automático activo" />
+              ) : (
+                <span className="h-2 w-2 rounded-full bg-slate-400" title="Envío automático inactivo" />
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedCorte(2)}
+              className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
+                selectedCorte === 2
+                  ? "bg-white text-indigo-700 shadow-sm"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <Clock className="h-3.5 w-3.5 text-indigo-600" />
+              Segundo Corte ({corte2Label})
+              {activoCorte2 ? (
+                <span className="h-2 w-2 rounded-full bg-emerald-500" title="Envío automático activo" />
+              ) : (
+                <span className="h-2 w-2 rounded-full bg-slate-400" title="Envío automático inactivo" />
+              )}
+            </button>
+          </div>
+
           {/* Summary Banner */}
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
               <div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-bold uppercase tracking-wider text-indigo-600">
-                    {formatSpanishLongDate(snapshot.fecha)}
+                    {formatSpanishLongDate(activeSnapshot.fecha)}
                   </span>
-                  {snapshot.es_feriado && (
+                  <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-700 border border-indigo-100">
+                    {selectedCorte === 1 ? "Primer Corte (Mañana)" : "Segundo Corte (Tarde)"}
+                  </span>
+                  {activeSnapshot.es_feriado && (
                     <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
-                      Feriado: {snapshot.nombre_feriado}
+                      Feriado: {activeSnapshot.nombre_feriado}
                     </span>
                   )}
                 </div>
                 <h2 className="mt-1 text-lg font-semibold text-slate-900">
-                  Estado de conexión antes de las {cutoffLabel}
+                  Estado de conexión antes de las {activeCutoffLabel}
                 </h2>
                 <p className="text-xs text-slate-500">
                   Las sesiones de días anteriores se cierran automáticamente al cambiar de día (America/Caracas) para garantizar que cada usuario inicie sesión al llegar.
@@ -335,7 +389,7 @@ export function AsistenciaTedClient({
                     className="h-9 rounded-lg bg-indigo-600 text-xs font-semibold text-white hover:bg-indigo-700"
                   >
                     <Send className="mr-1.5 h-3.5 w-3.5" />
-                    Enviar prueba
+                    Enviar prueba (Corte {selectedCorte})
                   </Button>
                 ) : null}
                 <Button
@@ -345,7 +399,7 @@ export function AsistenciaTedClient({
                   className="h-9 rounded-lg border-slate-300 text-xs font-semibold"
                 >
                   <Eye className="mr-1.5 h-3.5 w-3.5" />
-                  Vista previa del correo
+                  Vista previa (Corte {selectedCorte})
                 </Button>
                 <Button
                   type="button"
@@ -368,24 +422,24 @@ export function AsistenciaTedClient({
                   <Users className="h-4 w-4 text-slate-400" />
                 </div>
                 <p className="mt-2 text-2xl font-bold text-slate-900">
-                  {snapshot.total_esperados}
+                  {activeSnapshot.total_esperados}
                 </p>
-                {snapshot.total_excluidos > 0 && (
+                {activeSnapshot.total_excluidos > 0 && (
                   <p className="mt-0.5 text-[11px] text-slate-400">
-                    +{snapshot.total_excluidos} excluidos del reporte
+                    +{activeSnapshot.total_excluidos} excluidos del reporte
                   </p>
                 )}
               </div>
 
               <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4">
                 <div className="flex items-center justify-between text-xs font-semibold uppercase text-emerald-700">
-                  <span>Presentes (&le; {cutoffLabel})</span>
+                  <span>Presentes (&le; {activeCutoffLabel})</span>
                   <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                 </div>
                 <p className="mt-2 text-2xl font-bold text-emerald-700">
-                  {snapshot.total_presentes}{" "}
+                  {activeSnapshot.total_presentes}{" "}
                   <span className="text-sm font-semibold">
-                    ({snapshot.porcentaje_asistencia}%)
+                    ({activeSnapshot.porcentaje_asistencia}%)
                   </span>
                 </p>
               </div>
@@ -396,10 +450,10 @@ export function AsistenciaTedClient({
                   <Clock className="h-4 w-4 text-amber-600" />
                 </div>
                 <p className="mt-2 text-2xl font-bold text-amber-700">
-                  {snapshot.total_tardios}
+                  {activeSnapshot.total_tardios}
                 </p>
                 <p className="mt-0.5 text-[11px] text-amber-600">
-                  Después de las {cutoffLabel}
+                  Después de las {activeCutoffLabel}
                 </p>
               </div>
 
@@ -409,7 +463,7 @@ export function AsistenciaTedClient({
                   <XCircle className="h-4 w-4 text-red-600" />
                 </div>
                 <p className="mt-2 text-2xl font-bold text-red-700">
-                  {snapshot.total_ausentes}
+                  {activeSnapshot.total_ausentes}
                 </p>
               </div>
             </div>
@@ -417,7 +471,7 @@ export function AsistenciaTedClient({
 
           {/* Department tables */}
           <div className="space-y-4">
-            {snapshot.departamentos.map((dept) => (
+            {activeSnapshot.departamentos.map((dept) => (
               <div
                 key={`${dept.departamento_id ?? "none"}-${dept.departamento_nombre}`}
                 className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
@@ -491,7 +545,7 @@ export function AsistenciaTedClient({
                               : "Marcar presente manualmente"
                           }
                         >
-                          {u.presente_en_corte ? "Quitar" : "Marcar presente"}
+                          {u.presente_en_corte ? "Quitar marca" : "Marcar presente"}
                         </button>
                       </div>
                     </div>
@@ -510,46 +564,86 @@ export function AsistenciaTedClient({
           <div className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <div>
               <h2 className="text-base font-semibold text-slate-900">
-                Parámetros del reporte diario
+                Parámetros de reportes automáticos
               </h2>
               <p className="mt-1 text-xs text-slate-500">
-                El sistema verifica de lunes a viernes a la hora de corte configurada (zona horaria America/Caracas) y envía el resumen por correo.
+                El sistema verifica de lunes a viernes en los horarios de corte configurados (zona horaria America/Caracas) y envía el resumen por correo.
               </p>
             </div>
 
             <div className="space-y-4">
-              <label className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 p-3.5 cursor-pointer">
-                <div>
-                  <p className="text-sm font-medium text-slate-900">
-                    Envío automático activado (Lun–Vie)
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    Envía automáticamente el correo cada mañana al cumplirse la hora de corte.
-                  </p>
+              {/* Primer Corte (Mañana) */}
+              <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-indigo-600" />
+                      Primer Envío Programado (Mañana)
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Reporte matutino de conexiones al inicio de la jornada laboral.
+                    </p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={activo}
+                      onChange={(e) => setActivo(e.target.checked)}
+                      className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span className="ml-2 text-xs font-semibold text-slate-700">
+                      {activo ? "Activo" : "Inactivo"}
+                    </span>
+                  </label>
                 </div>
-                <input
-                  type="checkbox"
-                  checked={activo}
-                  onChange={(e) => setActivo(e.target.checked)}
-                  className="h-4 w-4 rounded border-slate-300 text-indigo-600"
-                />
-              </label>
+                <div className="flex items-center justify-between gap-4 pt-2 border-t border-slate-200">
+                  <span className="text-xs font-medium text-slate-700">
+                    Hora de corte (Corte 1):
+                  </span>
+                  <Input
+                    type="time"
+                    value={horaCorte}
+                    onChange={(e) => setHoraCorte(e.target.value)}
+                    className="h-8 w-28 rounded-lg text-xs bg-white"
+                  />
+                </div>
+              </div>
 
-              <div className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 p-3.5">
-                <div>
-                  <p className="text-sm font-medium text-slate-900">
-                    Hora límite de asistencia (Corte)
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    Usuarios que inicien sesión hasta esta hora aparecen con check verde (&#10003;).
-                  </p>
+              {/* Segundo Corte (Tarde - 2:00 PM) */}
+              <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-indigo-600" />
+                      Segundo Envío Programado (Tarde — 2:00 PM)
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Segundo reporte vespertino para monitorear incorporaciones del día.
+                    </p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={activoCorte2}
+                      onChange={(e) => setActivoCorte2(e.target.checked)}
+                      className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span className="ml-2 text-xs font-semibold text-slate-700">
+                      {activoCorte2 ? "Activo" : "Inactivo"}
+                    </span>
+                  </label>
                 </div>
-                <Input
-                  type="time"
-                  value={horaCorte}
-                  onChange={(e) => setHoraCorte(e.target.value)}
-                  className="h-9 w-32 rounded-lg text-sm"
-                />
+                <div className="flex items-center justify-between gap-4 pt-2 border-t border-indigo-100">
+                  <span className="text-xs font-medium text-slate-700">
+                    Hora de corte (Corte 2):
+                  </span>
+                  <Input
+                    type="time"
+                    value={horaCorte2}
+                    onChange={(e) => setHoraCorte2(e.target.value)}
+                    className="h-8 w-28 rounded-lg text-xs bg-white"
+                  />
+                </div>
               </div>
 
               <label className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 p-3.5 cursor-pointer">
@@ -657,10 +751,10 @@ export function AsistenciaTedClient({
           <div className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm h-fit">
             <div>
               <h2 className="text-base font-semibold text-slate-900">
-                Destinatarios del reporte (8:30 AM)
+                Destinatarios del reporte
               </h2>
               <p className="mt-1 text-xs text-slate-500">
-                Correos electrónicos que reciben el listado diario de asistencia de lunes a viernes.
+                Correos electrónicos que reciben los reportes diarios de asistencia (Corte 1 y Corte 2) de lunes a viernes.
               </p>
             </div>
 
@@ -746,9 +840,18 @@ export function AsistenciaTedClient({
                   className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-5 py-3.5 text-sm"
                 >
                   <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span className="font-semibold text-slate-900">
                         {formatDdMmYyyy(log.fecha)}
+                      </span>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[11px] font-semibold border ${
+                          log.corte === 2
+                            ? "bg-purple-50 text-purple-700 border-purple-200"
+                            : "bg-sky-50 text-sky-700 border-sky-200"
+                        }`}
+                      >
+                        {log.corte === 2 ? `Corte 2 (${corte2Label})` : `Corte 1 (${corte1Label})`}
                       </span>
                       <span
                         className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
@@ -757,7 +860,7 @@ export function AsistenciaTedClient({
                             : "bg-slate-100 text-slate-700"
                         }`}
                       >
-                        {log.tipo === "scheduled" ? "Automático 8:30 AM" : "Manual"}
+                        {log.tipo === "scheduled" ? "Automático" : "Manual"}
                       </span>
                       <span
                         className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
@@ -795,14 +898,14 @@ export function AsistenciaTedClient({
 
       {/* EMAIL PREVIEW MODAL */}
       {showEmailPreview && (() => {
-        const previewEmail = buildAsistenciaReportEmail(snapshot);
+        const previewEmail = buildAsistenciaReportEmail(activeSnapshot);
         return (
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
             <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
               <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-3.5">
                 <div className="min-w-0">
                   <p className="text-xs font-bold uppercase tracking-wider text-indigo-600">
-                    Vista previa del correo
+                    Vista previa del correo &middot; {selectedCorte === 1 ? "Primer Corte" : "Segundo Corte"}
                   </p>
                   <p className="truncate text-sm font-semibold text-slate-900">
                     Asunto: {previewEmail.subject}

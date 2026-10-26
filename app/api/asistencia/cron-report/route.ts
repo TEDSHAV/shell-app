@@ -28,26 +28,40 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  let body: { fecha?: string; forceManual?: boolean } = {};
+  let body: { fecha?: string; forceManual?: boolean; corte?: 1 | 2 } = {};
   try {
     body = await req.json();
   } catch {
     // Empty body is valid
   }
 
-  const fecha = body.fecha?.trim() || getCaracasDateString();
-  const tipo = body.forceManual ? "manual" : "scheduled";
+  const queryCorte = req.nextUrl.searchParams.get("corte");
+  const corte: 1 | 2 =
+    body.corte === 2 || queryCorte === "2"
+      ? 2
+      : 1;
+
+  const fecha =
+    body.fecha?.trim() ||
+    req.nextUrl.searchParams.get("fecha")?.trim() ||
+    getCaracasDateString();
+  const tipo =
+    body.forceManual || req.nextUrl.searchParams.get("forceManual") === "true"
+      ? "manual"
+      : "scheduled";
 
   try {
     const result = await sendDailyAsistenciaReport({
       fecha,
       tipo,
+      corte,
     });
     return NextResponse.json({
       ok: result.ok,
       status: result.status,
       message: result.message,
       fecha,
+      corte,
       summary: result.snapshot
         ? {
             total_esperados: result.snapshot.total_esperados,

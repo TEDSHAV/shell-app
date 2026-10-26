@@ -1,5 +1,6 @@
 export const ASISTENCIA_TIMEZONE = "America/Caracas";
 export const DEFAULT_CUTOFF_TIME = "08:30:00";
+export const DEFAULT_SECOND_CUTOFF_TIME = "14:00:00";
 export const MORNING_RESET_TIME = "08:00:00";
 export const PRISMA_SESSION_DATE_COOKIE = "prisma_session_date";
 

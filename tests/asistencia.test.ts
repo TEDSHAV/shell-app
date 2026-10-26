@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  DEFAULT_SECOND_CUTOFF_TIME,
   formatCaracasTime12h,
   formatCutoffLabel,
   formatDdMmYyyy,
@@ -51,6 +52,25 @@ describe("lib/asistencia/time (America/Caracas UTC-4)", () => {
       isOnOrBeforeCutoff("2026-10-23T12:30:01.000Z", "08:30:00"),
       false,
     );
+  });
+
+  it("evaluates second cutoff time boundary (14:00:00 / 02:00 PM Caracas) accurately", () => {
+    // 01:59:59 PM Caracas (17:59:59 UTC) -> on time
+    assert.equal(
+      isOnOrBeforeCutoff("2026-10-23T17:59:59.000Z", DEFAULT_SECOND_CUTOFF_TIME),
+      true,
+    );
+    // 02:00:00 PM Caracas (18:00:00 UTC) -> on time (inclusive)
+    assert.equal(
+      isOnOrBeforeCutoff("2026-10-23T18:00:00.000Z", DEFAULT_SECOND_CUTOFF_TIME),
+      true,
+    );
+    // 02:00:01 PM Caracas (18:00:01 UTC) -> late
+    assert.equal(
+      isOnOrBeforeCutoff("2026-10-23T18:00:01.000Z", DEFAULT_SECOND_CUTOFF_TIME),
+      false,
+    );
+    assert.equal(formatCutoffLabel(DEFAULT_SECOND_CUTOFF_TIME), "02:00 PM");
   });
 
   it("normalizes cutoff time strings and formats 12h labels", () => {
@@ -185,6 +205,54 @@ describe("lib/asistencia/email-template", () => {
     assert.ok(email.html.includes("08:48 AM (tardío)"));
     assert.ok(email.text.includes("[✓ PRESENTE] María Pérez"));
     assert.ok(email.text.includes("[✕ SIN REGISTRO] Carlos Gómez"));
+  });
+
+  it("renders Segundo Corte (Tarde) badges and headers when corte === 2", () => {
+    const mockSnapshotCorte2: AsistenciaSnapshot = {
+      fecha: "2026-10-26",
+      hora_corte: "14:00:00",
+      corte: 2,
+      es_feriado: false,
+      nombre_feriado: null,
+      total_esperados: 1,
+      total_presentes: 1,
+      total_tardios: 0,
+      total_ausentes: 0,
+      total_excluidos: 0,
+      porcentaje_asistencia: 100,
+      excluidos: [],
+      departamentos: [
+        {
+          departamento_id: 6,
+          departamento_nombre: "TED",
+          total: 1,
+          presentes: 1,
+          ausentes: 0,
+          tardios: 0,
+          usuarios: [
+            {
+              usuario_id: 20,
+              nombre_apellido: "Andrés Silva",
+              email_corporativo: "asilva@shadevenezuela.com.ve",
+              cargo: "Desarrollador",
+              departamento_id: 6,
+              departamento_nombre: "TED",
+              hora_registro: "2026-10-26T17:30:00.000Z",
+              hora_formateada: "01:30 PM",
+              metodo: "login",
+              estado: "presente",
+              presente_en_corte: true,
+            },
+          ],
+        },
+      ],
+    };
+
+    const email = buildAsistenciaReportEmail(mockSnapshotCorte2);
+    assert.ok(email.subject.includes("Segundo Corte (Tarde)"));
+    assert.ok(email.subject.includes("02:00 PM"));
+    assert.ok(email.html.includes("Segundo Corte (Tarde)"));
+    assert.ok(email.text.includes("SEGUNDO CORTE (TARDE)"));
   });
 });
 
@@ -370,6 +438,110 @@ describe("lib/asistencia/report-service", () => {
     assert.equal(pedro.estado, "tardio");
     assert.equal(pedro.presente_en_corte, false);
     assert.equal(pedro.hora_formateada, "08:45 AM");
+  });
+
+  it("calculates Corte 2 (14:00:00) snapshot correctly crediting morning tardies as present and afternoon late arrivals as tardy", async () => {
+    const mockDb = createMockSupabase({
+      config: {
+        id: 1,
+        activo: true,
+        hora_corte: "08:30:00",
+        activo_corte_2: true,
+        hora_corte_2: "14:00:00",
+        timezone: "America/Caracas",
+        omitir_feriados: true,
+        usuarios_excluidos: [],
+        departamentos_excluidos: [],
+      },
+      departamentos: [{ id: 1, nombre: "Administración" }],
+      usuarios: [
+        {
+          id: 1,
+          nombre_apellido: "Ana López",
+          email_corporativo: "alopez@shadevenezuela.com.ve",
+          cargo: "Analista",
+          departamento: 1,
+          esta_activo: true,
+          id_auth: "uuid-1",
+        },
+        {
+          id: 2,
+          nombre_apellido: "Pedro Martínez",
+          email_corporativo: "pmartinez@shadevenezuela.com.ve",
+          cargo: "Contador",
+          departamento: 1,
+          esta_activo: true,
+          id_auth: "uuid-2",
+        },
+        {
+          id: 3,
+          nombre_apellido: "Carlos Tarde",
+          email_corporativo: "ctarde@shadevenezuela.com.ve",
+          cargo: "Asistente",
+          departamento: 1,
+          esta_activo: true,
+          id_auth: "uuid-3",
+        },
+        {
+          id: 4,
+          nombre_apellido: "Lucía Ausente",
+          email_corporativo: "lausente@shadevenezuela.com.ve",
+          cargo: "Coordinadora",
+          departamento: 1,
+          esta_activo: true,
+          id_auth: "uuid-4",
+        },
+      ],
+      asistencia: [
+        // Ana logged in at 07:50 AM Caracas (11:50 UTC) -> Presente in corte 2
+        {
+          usuario_id: 1,
+          hora_registro: "2026-10-23T11:50:00.000Z",
+          metodo: "login",
+        },
+        // Pedro logged in at 08:45 AM Caracas (12:45 UTC) -> was tardío in morning, but PRESENTE in corte 2 (before 14:00:00)
+        {
+          usuario_id: 2,
+          hora_registro: "2026-10-23T12:45:00.000Z",
+          metodo: "login",
+        },
+        // Carlos logged in at 02:15 PM Caracas (18:15 UTC) -> TARDIO in corte 2 (after 14:00:00)
+        {
+          usuario_id: 3,
+          hora_registro: "2026-10-23T18:15:00.000Z",
+          metodo: "login",
+        },
+        // Lucía did not log in -> Ausente
+      ],
+      feriado: null,
+    });
+
+    const snapshot = await buildAsistenciaSnapshot("2026-10-23", mockDb, 2);
+
+    assert.equal(snapshot.corte, 2);
+    assert.equal(snapshot.hora_corte, "14:00:00");
+    assert.equal(snapshot.total_esperados, 4);
+    assert.equal(snapshot.total_presentes, 2); // Ana and Pedro
+    assert.equal(snapshot.total_tardios, 1); // Carlos
+    assert.equal(snapshot.total_ausentes, 2); // Carlos + Lucía are absent at the 14:00 cutoff
+    assert.equal(snapshot.porcentaje_asistencia, 50);
+
+    const adminDept = snapshot.departamentos.find(
+      (d) => d.departamento_nombre === "Administración",
+    )!;
+    assert.ok(adminDept);
+    assert.equal(adminDept.presentes, 2);
+    assert.equal(adminDept.ausentes, 2);
+    assert.equal(adminDept.tardios, 1);
+
+    const pedro = adminDept.usuarios.find((u) => u.usuario_id === 2)!;
+    assert.equal(pedro.estado, "presente");
+    assert.equal(pedro.presente_en_corte, true);
+
+    const carlos = adminDept.usuarios.find((u) => u.usuario_id === 3)!;
+    assert.equal(carlos.estado, "tardio");
+    assert.equal(carlos.presente_en_corte, false);
+    assert.equal(carlos.hora_formateada, "02:15 PM");
   });
 });
 

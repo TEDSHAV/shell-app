@@ -35,6 +35,7 @@ export type AsistenciaDepartmentGroup = {
 export type AsistenciaSnapshot = {
   fecha: string;
   hora_corte: string;
+  corte?: 1 | 2;
   es_feriado: boolean;
   nombre_feriado: string | null;
   total_esperados: number;
@@ -48,7 +49,7 @@ export type AsistenciaSnapshot = {
 };
 
 /**
- * Generates both the plain-text and enterprise HTML email for the daily 8:30 AM attendance report.
+ * Generates both the plain-text and enterprise HTML email for the daily attendance report (morning or afternoon).
  */
 export function buildAsistenciaReportEmail(snapshot: AsistenciaSnapshot): {
   subject: string;
@@ -58,12 +59,15 @@ export function buildAsistenciaReportEmail(snapshot: AsistenciaSnapshot): {
   const fechaCorta = formatDdMmYyyy(snapshot.fecha);
   const fechaLarga = formatSpanishLongDate(snapshot.fecha);
   const corteLabel = formatCutoffLabel(snapshot.hora_corte);
-  const subject = `Control de Asistencia PRISMA — ${fechaCorta} (Corte ${corteLabel})`;
+  const corteNumber = snapshot.corte === 2 ? 2 : 1;
+  const corteTurno =
+    corteNumber === 2 ? "Segundo Corte (Tarde)" : "Primer Corte (Mañana)";
+  const subject = `Control de Asistencia PRISMA — ${fechaCorta} (${corteTurno} - ${corteLabel})`;
 
   const textLines: string[] = [
     `CONTROL DE ASISTENCIA DIARIA — PRISMA`,
+    `${corteTurno.toUpperCase()} — HORA DE CORTE: ${corteLabel}`,
     `Fecha: ${fechaLarga}`,
-    `Hora de corte: ${corteLabel} (Hora de Venezuela)`,
     ``,
     `RESUMEN GENERAL`,
     `- Total esperado: ${snapshot.total_esperados}`,
@@ -172,13 +176,13 @@ export function buildAsistenciaReportEmail(snapshot: AsistenciaSnapshot): {
           <tr>
             <td style="background: linear-gradient(135deg, #0c3f69 0%, #0284c7 100%); padding: 28px 32px; text-align: left;">
               <span style="display: inline-block; background-color: rgba(255, 255, 255, 0.18); color: #ffffff; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; padding: 4px 10px; border-radius: 9999px; margin-bottom: 10px;">
-                PRISMA &middot; Control de Asistencia
+                PRISMA &middot; ${email_escape(corteTurno)}
               </span>
               <h1 style="margin: 0; color: #ffffff; font-size: 22px; font-weight: 700; line-height: 1.3;">
                 Reporte Diario de Asistencia por Departamento
               </h1>
               <p style="margin: 6px 0 0 0; color: rgba(255, 255, 255, 0.9); font-size: 13px;">
-                ${email_escape(fechaLarga)} &middot; Corte ${email_escape(corteLabel)}
+                ${email_escape(fechaLarga)} &middot; ${email_escape(corteTurno)} (Corte ${email_escape(corteLabel)})
               </p>
             </td>
           </tr>

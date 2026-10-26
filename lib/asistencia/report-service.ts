@@ -9,6 +9,7 @@ import {
 } from "./email-template";
 import {
   DEFAULT_CUTOFF_TIME,
+  DEFAULT_SECOND_CUTOFF_TIME,
   formatCaracasTime12h,
   getCaracasDateString,
   getCaracasTimeString,
@@ -21,6 +22,8 @@ export type AsistenciaConfigRow = {
   id: number;
   activo: boolean;
   hora_corte: string;
+  activo_corte_2: boolean;
+  hora_corte_2: string;
   timezone: string;
   omitir_feriados: boolean;
   usuarios_excluidos: number[];
@@ -39,6 +42,7 @@ export type AsistenciaReporteLogRow = {
   id: number;
   fecha: string;
   tipo: "scheduled" | "manual";
+  corte: 1 | 2;
   total_esperados: number;
   total_presentes: number;
   total_tardios: number;
@@ -94,6 +98,11 @@ export async function getAsistenciaConfig(
     hora_corte: normalizeCutoffTime(
       data?.hora_corte ? String(data.hora_corte) : DEFAULT_CUTOFF_TIME,
     ),
+    activo_corte_2:
+      data?.activo_corte_2 !== undefined ? Boolean(data.activo_corte_2) : true,
+    hora_corte_2: normalizeCutoffTime(
+      data?.hora_corte_2 ? String(data.hora_corte_2) : DEFAULT_SECOND_CUTOFF_TIME,
+    ),
     timezone: String(data?.timezone || "America/Caracas"),
     omitir_feriados:
       data?.omitir_feriados !== undefined ? Boolean(data.omitir_feriados) : true,
@@ -147,6 +156,7 @@ export async function listAsistenciaReportLogs(
     id: Number(row.id ?? 0),
     fecha: String(row.fecha ?? ""),
     tipo: row.tipo === "manual" ? "manual" : "scheduled",
+    corte: Number(row.corte ?? 1) === 2 ? 2 : 1,
     total_esperados: Number(row.total_esperados ?? 0),
     total_presentes: Number(row.total_presentes ?? 0),
     total_tardios: Number(row.total_tardios ?? 0),
@@ -164,6 +174,8 @@ export async function listAsistenciaReportLogs(
 export async function buildAsistenciaSnapshot(
   fecha: string = getCaracasDateString(),
   supabase = createServiceRoleClient(),
+  corte: 1 | 2 = 1,
+  overrideCutoff?: string,
 ): Promise<AsistenciaSnapshot> {
   const [
     config,
@@ -229,6 +241,12 @@ export async function buildAsistenciaSnapshot(
   const excludedUsersSet = new Set(config.usuarios_excluidos);
   const excludedDeptsSet = new Set(config.departamentos_excluidos);
 
+  const cutoffTime = overrideCutoff
+    ? normalizeCutoffTime(overrideCutoff)
+    : corte === 2
+      ? config.hora_corte_2
+      : config.hora_corte;
+
   const includedRows: AsistenciaUserRow[] = [];
   const excludedRows: AsistenciaUserRow[] = [];
 
@@ -261,10 +279,10 @@ export async function buildAsistenciaSnapshot(
     if (isExcluded) {
       estado = "excluido";
       presente_en_corte = Boolean(
-        hora_registro && isOnOrBeforeCutoff(hora_registro, config.hora_corte),
+        hora_registro && isOnOrBeforeCutoff(hora_registro, cutoffTime),
       );
     } else if (hora_registro) {
-      if (isOnOrBeforeCutoff(hora_registro, config.hora_corte)) {
+      if (isOnOrBeforeCutoff(hora_registro, cutoffTime)) {
         estado = "presente";
         presente_en_corte = true;
       } else {
@@ -344,7 +362,8 @@ export async function buildAsistenciaSnapshot(
 
   return {
     fecha,
-    hora_corte: config.hora_corte,
+    hora_corte: cutoffTime,
+    corte,
     es_feriado: Boolean(feriadoData?.fecha),
     nombre_feriado: feriadoData?.nombre ? String(feriadoData.nombre) : null,
     total_esperados,
@@ -359,13 +378,14 @@ export async function buildAsistenciaSnapshot(
 }
 
 /**
- * Dispatches the attendance email report for a given date.
- * - For `tipo === "scheduled"`, enforces weekday/holiday checks and database idempotency so only 1 scheduled email is ever sent per date.
+ * Dispatches the attendance email report for a given date and corte (1 = morning, 2 = afternoon).
+ * - For `tipo === "scheduled"`, enforces weekday/holiday checks and database idempotency so only 1 scheduled email is ever sent per date and corte.
  * - For `tipo === "manual"`, sends immediately (either to `overrideRecipients` or configured active recipients).
  */
 export async function sendDailyAsistenciaReport(opts: {
   fecha?: string;
   tipo: "scheduled" | "manual";
+  corte?: 1 | 2;
   overrideRecipients?: string[];
   sentByAuthId?: string | null;
 }): Promise<{
@@ -377,13 +397,15 @@ export async function sendDailyAsistenciaReport(opts: {
   const supabase = createServiceRoleClient();
   const fecha = opts.fecha || getCaracasDateString();
   const config = await getAsistenciaConfig(supabase);
+  const corte: 1 | 2 = opts.corte === 2 ? 2 : 1;
 
   if (opts.tipo === "scheduled") {
-    if (!config.activo) {
+    const isCorteActive = corte === 2 ? config.activo_corte_2 : config.activo;
+    if (!isCorteActive) {
       return {
         ok: false,
         status: "skipped",
-        message: "El envío automático de asistencia está desactivado.",
+        message: `El envío automático para el corte ${corte} está desactivado.`,
       };
     }
 
@@ -395,12 +417,13 @@ export async function sendDailyAsistenciaReport(opts: {
       };
     }
 
-    // Check if already sent or in progress today
+    // Check if already sent or in progress today for this specific corte
     const { data: existingLog } = await supabase
       .from("asistencia_reportes_log")
       .select("id, status")
       .eq("fecha", fecha)
       .eq("tipo", "scheduled")
+      .eq("corte", corte)
       .in("status", ["sending", "sent", "skipped_holiday"])
       .maybeSingle();
 
@@ -408,12 +431,12 @@ export async function sendDailyAsistenciaReport(opts: {
       return {
         ok: true,
         status: "skipped",
-        message: `El reporte programado para ${fecha} ya fue procesado (${existingLog.status}).`,
+        message: `El reporte programado (corte ${corte}) para ${fecha} ya fue procesado (${existingLog.status}).`,
       };
     }
   }
 
-  const snapshot = await buildAsistenciaSnapshot(fecha, supabase);
+  const snapshot = await buildAsistenciaSnapshot(fecha, supabase, corte);
 
   if (
     opts.tipo === "scheduled" &&
@@ -423,6 +446,7 @@ export async function sendDailyAsistenciaReport(opts: {
     await supabase.from("asistencia_reportes_log").insert({
       fecha,
       tipo: "scheduled",
+      corte,
       total_esperados: snapshot.total_esperados,
       total_presentes: snapshot.total_presentes,
       total_tardios: snapshot.total_tardios,
@@ -476,6 +500,7 @@ export async function sendDailyAsistenciaReport(opts: {
     .insert({
       fecha,
       tipo: opts.tipo,
+      corte,
       total_esperados: snapshot.total_esperados,
       total_presentes: snapshot.total_presentes,
       total_tardios: snapshot.total_tardios,
@@ -492,7 +517,7 @@ export async function sendDailyAsistenciaReport(opts: {
       return {
         ok: true,
         status: "skipped",
-        message: "El reporte programado ya está siendo enviado por otra instancia.",
+        message: `El reporte programado (corte ${corte}) ya está siendo enviado por otra instancia.`,
       };
     }
   } else if (insertedLog?.id) {
@@ -547,7 +572,8 @@ export async function sendDailyAsistenciaReport(opts: {
 }
 
 /**
- * Evaluates whether the scheduled daily report should be dispatched right now.
+ * Evaluates whether any scheduled daily report should be dispatched right now.
+ * Supports Corte 1 (morning, default 08:30 AM) and Corte 2 (afternoon, default 14:00:00 / 02:00 PM).
  * Called every 60 seconds by the in-process scheduler in instrumentation.ts.
  */
 export async function checkAndRunScheduledAsistenciaReport(
@@ -558,22 +584,34 @@ export async function checkAndRunScheduledAsistenciaReport(
 
     const supabase = createServiceRoleClient();
     const config = await getAsistenciaConfig(supabase);
-    if (!config.activo) return;
-
     const currentCaracasTime = getCaracasTimeString(now);
-    const cutoff = normalizeCutoffTime(config.hora_corte);
+    const todayCaracas = getCaracasDateString(now);
 
-    // Only trigger at or after the cutoff time (e.g. >= 08:30:00) and before 11:00:00 AM
-    // so we don't unexpectedly fire in the afternoon if the feature is newly enabled.
-    if (currentCaracasTime < cutoff || currentCaracasTime > "11:00:00") {
-      return;
+    // 1. Primer Corte (Mañana - default 08:30 AM)
+    if (config.activo) {
+      const cutoff1 = normalizeCutoffTime(config.hora_corte);
+      // Window: at or after cutoff1 and before 12:00:00 (midday)
+      if (currentCaracasTime >= cutoff1 && currentCaracasTime <= "12:00:00") {
+        await sendDailyAsistenciaReport({
+          fecha: todayCaracas,
+          tipo: "scheduled",
+          corte: 1,
+        });
+      }
     }
 
-    const todayCaracas = getCaracasDateString(now);
-    await sendDailyAsistenciaReport({
-      fecha: todayCaracas,
-      tipo: "scheduled",
-    });
+    // 2. Segundo Corte (Tarde - default 14:00:00 / 02:00 PM)
+    if (config.activo_corte_2) {
+      const cutoff2 = normalizeCutoffTime(config.hora_corte_2);
+      // Window: at or after cutoff2 and before 18:00:00 (end of workday)
+      if (currentCaracasTime >= cutoff2 && currentCaracasTime <= "18:00:00") {
+        await sendDailyAsistenciaReport({
+          fecha: todayCaracas,
+          tipo: "scheduled",
+          corte: 2,
+        });
+      }
+    }
   } catch (err) {
     console.warn("[asistencia-scheduler] Error en verificación programada:", err);
   }

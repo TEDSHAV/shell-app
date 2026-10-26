@@ -35,6 +35,7 @@ async function assertTedAccess(): Promise<{ authId: string | null }> {
 
 export async function getAsistenciaDashboardData(fecha?: string): Promise<{
   snapshot: AsistenciaSnapshot;
+  snapshotCorte2: AsistenciaSnapshot;
   config: AsistenciaConfigRow;
   destinatarios: AsistenciaDestinatario[];
   logs: AsistenciaReporteLogRow[];
@@ -51,9 +52,10 @@ export async function getAsistenciaDashboardData(fecha?: string): Promise<{
   const admin = await createAdminClient();
   const targetDate = fecha?.trim() || getCaracasDateString();
 
-  const [snapshot, config, destinatarios, logs, usuariosRes, deptsRes] =
+  const [snapshot, snapshotCorte2, config, destinatarios, logs, usuariosRes, deptsRes] =
     await Promise.all([
-      buildAsistenciaSnapshot(targetDate, admin),
+      buildAsistenciaSnapshot(targetDate, admin, 1),
+      buildAsistenciaSnapshot(targetDate, admin, 2),
       getAsistenciaConfig(admin),
       listAsistenciaDestinatarios(admin),
       listAsistenciaReportLogs(25, admin),
@@ -97,6 +99,7 @@ export async function getAsistenciaDashboardData(fecha?: string): Promise<{
 
   return {
     snapshot,
+    snapshotCorte2,
     config,
     destinatarios,
     logs,
@@ -108,6 +111,8 @@ export async function getAsistenciaDashboardData(fecha?: string): Promise<{
 export async function updateAsistenciaConfigAction(input: {
   activo: boolean;
   hora_corte: string;
+  activo_corte_2: boolean;
+  hora_corte_2: string;
   omitir_feriados: boolean;
   usuarios_excluidos: number[];
   departamentos_excluidos: number[];
@@ -116,12 +121,15 @@ export async function updateAsistenciaConfigAction(input: {
     const { authId } = await assertTedAccess();
     const admin = await createAdminClient();
     const hora_corte = normalizeCutoffTime(input.hora_corte);
+    const hora_corte_2 = normalizeCutoffTime(input.hora_corte_2);
 
     const { error } = await admin.from("asistencia_config").upsert(
       {
         id: 1,
         activo: Boolean(input.activo),
         hora_corte,
+        activo_corte_2: Boolean(input.activo_corte_2),
+        hora_corte_2,
         timezone: "America/Caracas",
         omitir_feriados: Boolean(input.omitir_feriados),
         usuarios_excluidos: (input.usuarios_excluidos ?? []).filter(
@@ -212,6 +220,7 @@ export async function removeAsistenciaDestinatarioAction(
 
 export async function sendManualAsistenciaReportAction(input: {
   fecha: string;
+  corte?: 1 | 2;
   testEmail?: string;
 }): Promise<{ ok: boolean; message: string }> {
   try {
@@ -227,6 +236,7 @@ export async function sendManualAsistenciaReportAction(input: {
     const res = await sendDailyAsistenciaReport({
       fecha: input.fecha || getCaracasDateString(),
       tipo: "manual",
+      corte: input.corte === 2 ? 2 : 1,
       overrideRecipients: override,
       sentByAuthId: authId,
     });
