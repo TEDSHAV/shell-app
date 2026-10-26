@@ -52,13 +52,13 @@ export const Navbar = ({
           <div
             title={
               attendanceBadge.a_tiempo
-                ? `Asistencia registrada hoy a las ${attendanceBadge.hora_formateada} (antes del corte ${attendanceBadge.hora_corte_formateada})`
-                : `Acceso registrado hoy a las ${attendanceBadge.hora_formateada} (después del corte ${attendanceBadge.hora_corte_formateada})`
+                ? "Asistencia registrada hoy"
+                : "Acceso registrado hoy"
             }
             className={
               attendanceBadge.a_tiempo
-                ? "hidden sm:inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700"
-                : "hidden sm:inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700"
+                ? "hidden sm:inline-flex items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 h-7 w-7"
+                : "hidden sm:inline-flex items-center justify-center rounded-full border border-amber-200 bg-amber-50 h-7 w-7"
             }
           >
             {attendanceBadge.a_tiempo ? (
@@ -66,7 +66,6 @@ export const Navbar = ({
             ) : (
               <Clock className="h-3.5 w-3.5 text-amber-600 shrink-0" />
             )}
-            <span>Asistencia {attendanceBadge.hora_formateada}</span>
           </div>
         )}
         <DevDbBadge />
