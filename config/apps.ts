@@ -1280,11 +1280,6 @@ export const apps: AppConfig[] = [
             requiredRoles: ["ted"],
             requiredPermissions: ["gestion-usuarios-prisma:access-all"],
           },
-          {
-            label: "Accesos y roles",
-            path: "/usuarios/accesos",
-            icon: Shield,
-          },
         ],
       },
       {
