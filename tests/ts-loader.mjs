@@ -11,6 +11,10 @@ export async function resolve(specifier, context, nextResolve) {
     if (existsSync(tsCandidate)) {
       return nextResolve(pathToFileURL(tsCandidate).href, context);
     }
+    const indexCandidate = pathResolve(projectRoot, relPath, "index.ts");
+    if (existsSync(indexCandidate)) {
+      return nextResolve(pathToFileURL(indexCandidate).href, context);
+    }
   }
   if (
     (specifier.startsWith("./") || specifier.startsWith("../")) &&

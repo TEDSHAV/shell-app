@@ -44,6 +44,7 @@ import {
   LayoutGrid,
   Settings,
   Star,
+  QrCode,
 } from "lucide-react";
 import { build_app_config } from "@/lib/app-theme";
 import { AppConfig, AppGroupConfig, NavGroup } from "@/types";
@@ -189,6 +190,7 @@ export const UTILIDADES_HEADER_APP_IDS = [
   "inventario",
   "directorio",
   "cedula",
+  "visitantes",
   "satisfaccion-clientes",
   "administracion",
 ] as const;
@@ -1055,6 +1057,31 @@ export const apps: AppConfig[] = [
     groupId: "utilidades",
     dashboardOrder: 9,
     navLinks: [],
+  }),
+  build_app_config({
+    id: "visitantes",
+    name: "Control de Visitantes",
+    description: "Registro de visitantes por código QR, asignación de responsables y control de acceso",
+    basePath: "/visitantes",
+    icon: QrCode,
+    brandColor: "#0D9488",
+    embedMode: "native",
+    hiddenFromDashboard: true,
+    groupId: "utilidades",
+    dashboardOrder: 9.5,
+    navLinks: [
+      {
+        label: "Lista de Visitantes",
+        path: "/",
+        icon: Users,
+      },
+      {
+        label: "Formulario Público QR",
+        path: "/registro-visitante",
+        href: "/registro-visitante",
+        icon: QrCode,
+      },
+    ],
   }),
   build_app_config({
     id: "satisfaccion-clientes",

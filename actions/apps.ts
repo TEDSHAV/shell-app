@@ -210,6 +210,36 @@ export const getUsuarioDepartamento = cache(async (): Promise<string | null> => 
   }
 });
 
+function isTransientNetworkError(error: unknown): boolean {
+  const message =
+    typeof error === "object" && error !== null && "message" in error
+      ? String((error as { message?: unknown }).message)
+      : error instanceof Error
+        ? error.message
+        : String(error);
+  return /fetch failed|ECONN|ETIMEDOUT|UND_ERR|ConnectTimeout|timed?\s*out|network/i.test(
+    message,
+  );
+}
+
+// These loaders intentionally try several strategies in sequence; a transient
+// network failure on an early attempt is expected and shouldn't surface as a
+// console error (it spooks the dev overlay / mobile console). Only genuine
+// failures remain errors.
+function logFallbackIssue(tag: string, error: unknown) {
+  if (isTransientNetworkError(error)) {
+    console.warn(`${tag} transient network issue; trying fallback`);
+    return;
+  }
+  const detail =
+    typeof error === "object" && error !== null && "message" in error
+      ? (error as { message?: unknown }).message ||
+        (error as { code?: unknown }).code ||
+        error
+      : error;
+  console.error(tag, detail);
+}
+
 async function load_roles_by_usuario_id(
   usuario_id: number,
 ): Promise<Record<string, string>> {
@@ -235,13 +265,10 @@ async function load_roles_by_usuario_id(
       return map_rows(data as Array<{ app_slug: string; role_slug: string }>);
     }
     if (error) {
-      console.error(
-        "[getUserRolesByApp] user RPC:",
-        error.message || error.code || error,
-      );
+      logFallbackIssue("[getUserRolesByApp] user RPC:", error);
     }
   } catch (error) {
-    console.error("[getUserRolesByApp] user RPC unexpected:", error);
+    logFallbackIssue("[getUserRolesByApp] user RPC unexpected:", error);
   }
 
   const admin = await createAdminClient();
@@ -255,13 +282,10 @@ async function load_roles_by_usuario_id(
       return map_rows(data as Array<{ app_slug: string; role_slug: string }>);
     }
     if (error) {
-      console.error(
-        "[getUserRolesByApp] admin RPC:",
-        error.message || error.code || error,
-      );
+      logFallbackIssue("[getUserRolesByApp] admin RPC:", error);
     }
   } catch (error) {
-    console.error("[getUserRolesByApp] admin RPC unexpected:", error);
+    logFallbackIssue("[getUserRolesByApp] admin RPC unexpected:", error);
   }
 
   // 3) Join directo authprisma
@@ -273,10 +297,7 @@ async function load_roles_by_usuario_id(
       .eq("usuario_id", usuario_id);
 
     if (error) {
-      console.error(
-        "[getUserRolesByApp] admin select:",
-        error.message || error.code || error,
-      );
+      logFallbackIssue("[getUserRolesByApp] admin select:", error);
       return {};
     }
 
@@ -293,7 +314,7 @@ async function load_roles_by_usuario_id(
     }
     return result;
   } catch (error) {
-    console.error("[getUserRolesByApp] admin select unexpected:", error);
+    logFallbackIssue("[getUserRolesByApp] admin select unexpected:", error);
     return {};
   }
 }
@@ -328,7 +349,7 @@ async function load_permissions_by_usuario_id(
       );
     }
   } catch (error) {
-    console.error("[getUserPermissionsByApp] user RPC unexpected:", error);
+    logFallbackIssue("[getUserPermissionsByApp] user RPC unexpected:", error);
   }
 
   try {
@@ -342,13 +363,10 @@ async function load_permissions_by_usuario_id(
       );
     }
     if (error) {
-      console.error(
-        "[getUserPermissionsByApp] admin RPC:",
-        error.message || error.code || error,
-      );
+      logFallbackIssue("[getUserPermissionsByApp] admin RPC:", error);
     }
   } catch (error) {
-    console.error("[getUserPermissionsByApp] admin RPC unexpected:", error);
+    logFallbackIssue("[getUserPermissionsByApp] admin RPC unexpected:", error);
   }
 
   return {};

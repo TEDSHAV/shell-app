@@ -76,6 +76,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   departamento: "Departamento",
   admin: "Gestión",
   "verificar-cedula": "Verificar Cédula",
+  visitantes: "Control de Visitantes",
 };
 
 function isNavGroup(item: NavLink | NavGroup): item is NavGroup {

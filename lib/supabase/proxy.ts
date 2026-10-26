@@ -20,6 +20,11 @@ export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
   });
+
+  if (request.nextUrl.pathname.startsWith("/registro-visitante")) {
+    return supabaseResponse;
+  }
+
   const target = is_dev_db_switcher_enabled()
     ? parse_dev_db_target(request.cookies.get(DEV_DB_COOKIE)?.value)
     : parse_dev_db_target(undefined);
@@ -80,11 +85,12 @@ export async function updateSession(request: NextRequest) {
     request.nextUrl.pathname.startsWith("/auth") ||
     request.nextUrl.pathname.startsWith("/prisma-publico") ||
     request.nextUrl.pathname.startsWith("/informe-publico") ||
-    request.nextUrl.pathname.startsWith("/satisfaccion");
+    request.nextUrl.pathname.startsWith("/satisfaccion") ||
+    request.nextUrl.pathname.startsWith("/registro-visitante");
 
-  // Enforce daily login in America/Caracas timezone (with 06:00 AM morning boundary):
-  // If the user has an active session from a previous day OR from before 06:00 AM today,
-  // sign them out once 06:00 AM arrives so they authenticate fresh during office hours.
+  // Enforce shift logins in America/Caracas timezone (08:00 AM morning & 12:30 PM lunch boundaries):
+  // If the user's session is from a previous day, pre-08:00 AM, or morning shift once 12:30 PM arrives,
+  // sign them out so they authenticate fresh upon arrival and upon returning from lunch.
   if (user && !isPublicOrApiRoute) {
     const expectedStamp = getCaracasWorkdaySessionStamp();
     const sessionDate = request.cookies.get(PRISMA_SESSION_DATE_COOKIE)?.value;
