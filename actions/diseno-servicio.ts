@@ -124,6 +124,35 @@ export async function getDisenoServicioList(): Promise<DisenoServicioListItem[]>
     }
   }
 
+  // Batch-fetch linked OSIs by id_servicio_relacionado
+  const servicioIds = Array.from(
+    new Set(
+      (data || [])
+        .map((row: any) => row.id_servicio_relacionado as number | null)
+        .filter((id: number | null): id is number => id !== null && id !== undefined),
+    ),
+  );
+
+  const osiMap = new Map<number, string[]>();
+  if (servicioIds.length > 0) {
+    const { data: osis } = await supabase
+      .from("v_osi_formato_completo")
+      .select("id_osi, nro_osi, id_servicio")
+      .in("id_servicio", servicioIds);
+
+    if (osis) {
+      for (const o of osis) {
+        if (o.id_servicio == null) continue;
+        const list = osiMap.get(o.id_servicio) || [];
+        const label = o.nro_osi ? String(o.nro_osi) : `#${o.id_osi}`;
+        if (!list.includes(label)) {
+          list.push(label);
+        }
+        osiMap.set(o.id_servicio, list);
+      }
+    }
+  }
+
   return (data || []).map((row: any) => {
     const rawNaturaleza = (row.bloque_recursos_requisitos as any)?.tipo_naturaleza_servicio;
     const catDept = (row.catalogo_servicios as any)?.id_departamento_ejecutante;
@@ -142,6 +171,10 @@ export async function getDisenoServicioList(): Promise<DisenoServicioListItem[]>
         ? "Capacitación (CAP)"
         : "Servicio Técnico (ST)";
 
+    const linkedOsis = row.id_servicio_relacionado
+      ? osiMap.get(row.id_servicio_relacionado) || []
+      : [];
+
     return {
       id: row.id,
       nombre_sugerido: row.nombre_sugerido,
@@ -156,6 +189,8 @@ export async function getDisenoServicioList(): Promise<DisenoServicioListItem[]>
         departamentoMap.get((row.usuarios as any)?.departamento) || "",
       fecha_solicitud: row.fecha_solicitud,
       notas_count: notesCountMap.get(row.id) || 0,
+      osi_count: linkedOsis.length,
+      osi_numeros: linkedOsis,
     };
   });
 }

@@ -19,6 +19,7 @@ interface DisenoServicioFilters {
   solicitante: string;
   departamento: string;
   estatus: string;
+  osiLink: "" | "with_osi" | "without_osi";
   dateFrom: string;
   dateTo: string;
 }
@@ -28,6 +29,7 @@ const EMPTY_FILTERS: DisenoServicioFilters = {
   solicitante: "",
   departamento: "",
   estatus: "",
+  osiLink: "",
   dateFrom: "",
   dateTo: "",
 };
@@ -117,9 +119,18 @@ export default function DisenoServicioListClient({
         const matchesNombre = r.nombre_sugerido?.toLowerCase().includes(q);
         const matchesTipo = r.tipo_servicio?.toLowerCase().includes(q);
         const matchesId = r.id.toString().includes(q);
-        if (!matchesNombre && !matchesTipo && !matchesId) {
+        const matchesOsi = r.osi_numeros?.some((n) => n.toLowerCase().includes(q));
+        if (!matchesNombre && !matchesTipo && !matchesId && !matchesOsi) {
           return false;
         }
+      }
+
+      // OSI link filter
+      if (filters.osiLink === "with_osi" && (r.osi_count || 0) === 0) {
+        return false;
+      }
+      if (filters.osiLink === "without_osi" && (r.osi_count || 0) > 0) {
+        return false;
       }
 
       // Solicitante
@@ -306,17 +317,17 @@ export default function DisenoServicioListClient({
         </div>
 
         <div className="p-3">
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
             {/* Quick search always visible */}
             <div className="relative md:col-span-2 lg:col-span-2">
               <label className="block text-[11px] font-medium text-gray-600 mb-0.5">
-                Buscar por nombre, ID o descripción
+                Buscar por nombre, ID u OSI
               </label>
               <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Ej: Espacios Confinados, #12..."
+                  placeholder="Ej: Espacios Confinados, #12, OSI 3502..."
                   value={filters.search}
                   onChange={(e) => handleFilterChange("search", e.target.value)}
                   className="w-full pl-8 pr-3 py-1.5 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
@@ -339,6 +350,21 @@ export default function DisenoServicioListClient({
                     {status.nombre}
                   </option>
                 ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-medium text-gray-600 mb-0.5">
+                Vínculo OSI
+              </label>
+              <select
+                value={filters.osiLink}
+                onChange={(e) => handleFilterChange("osiLink", e.target.value)}
+                className="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
+              >
+                <option value="">Todas las solicitudes</option>
+                <option value="with_osi">Con OSI vinculada</option>
+                <option value="without_osi">Sin OSI vinculada</option>
               </select>
             </div>
 

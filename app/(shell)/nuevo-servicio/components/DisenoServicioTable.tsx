@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import type { DisenoServicioListItem } from "@/types/diseno-servicio";
 import { Badge } from "@/components/ui/badge";
-import { MessageSquare, GraduationCap, Wrench, ChevronRight } from "lucide-react";
+import { MessageSquare, GraduationCap, Wrench, ChevronRight, FileCheck2 } from "lucide-react";
 
 interface DisenoServicioTableProps {
   records: DisenoServicioListItem[];
@@ -74,13 +74,27 @@ export default function DisenoServicioTable({
                 className="hover:bg-slate-50/90 cursor-pointer transition-colors group"
               >
                 <td className="px-4 py-3 text-gray-900 font-medium max-w-xs sm:max-w-md">
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-1.5">
                     <span className="font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors">
                       {record.nombre_sugerido}
                     </span>
                     <span className="text-[11px] text-gray-400 font-mono">
                       #{record.id}
                     </span>
+                    {(record.osi_count || 0) > 0 && (
+                      <Badge
+                        variant="outline"
+                        title={`OSI(s) vinculada(s): ${(record.osi_numeros || []).join(", ")}`}
+                        className="bg-teal-50/80 text-teal-700 border-teal-200 group-hover:bg-white group-hover:border-teal-300 group-hover:text-teal-800 inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0 transition-colors"
+                      >
+                        <FileCheck2 className="w-2.5 h-2.5 text-teal-600 shrink-0" />
+                        <span>
+                          {record.osi_count === 1 && record.osi_numeros?.[0]
+                            ? `OSI ${record.osi_numeros[0]}`
+                            : `${record.osi_count} OSIs`}
+                        </span>
+                      </Badge>
+                    )}
                   </div>
                 </td>
 

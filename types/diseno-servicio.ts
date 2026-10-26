@@ -205,6 +205,8 @@ export interface DisenoServicioListItem {
   solicitante_departamento: string;
   fecha_solicitud: string | null;
   notas_count?: number;
+  osi_count?: number;
+  osi_numeros?: string[];
 }
 
 // Checklist definitions per service type
