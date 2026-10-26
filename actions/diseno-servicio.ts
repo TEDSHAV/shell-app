@@ -135,11 +135,18 @@ export async function getDisenoServicioList(): Promise<DisenoServicioListItem[]>
 
   const osiMap = new Map<number, string[]>();
   if (servicioIds.length > 0) {
-    const { data: osis } = await supabase
-      .from("v_osi_formato_completo")
-      .select("id_osi, nro_osi, id_servicio")
-      .in("id_servicio", servicioIds)
-      .not("nro_osi", "ilike", "%PEN-%");
+    const [{ data: osis }, { data: consolidatedEccs }] = await Promise.all([
+      supabase
+        .from("v_osi_formato_completo")
+        .select("id_osi, nro_osi, id_servicio")
+        .in("id_servicio", servicioIds)
+        .not("nro_osi", "ilike", "%PEN-%"),
+      supabase
+        .from("ecc_encabezado")
+        .select("id_servicio, id_ecc_consolidada")
+        .in("id_servicio", servicioIds)
+        .not("id_ecc_consolidada", "is", null),
+    ]);
 
     if (osis) {
       for (const o of osis) {
@@ -151,6 +158,52 @@ export async function getDisenoServicioList(): Promise<DisenoServicioListItem[]>
           list.push(nro);
         }
         osiMap.set(o.id_servicio, list);
+      }
+    }
+
+    // Also link OSIs emitted under a parent consolidated ECC (id_ecc_consolidada)
+    if (consolidatedEccs && consolidatedEccs.length > 0) {
+      const parentEccIds = Array.from(
+        new Set(
+          consolidatedEccs
+            .map((e: any) => e.id_ecc_consolidada as number | null)
+            .filter((id: number | null): id is number => id !== null && id !== undefined),
+        ),
+      );
+
+      if (parentEccIds.length > 0) {
+        const { data: parentOsis } = await supabase
+          .from("v_osi_formato_completo")
+          .select("id_osi, nro_osi, id_ecc_actual")
+          .in("id_ecc_actual", parentEccIds)
+          .not("nro_osi", "ilike", "%PEN-%");
+
+        if (parentOsis && parentOsis.length > 0) {
+          const eccToOsis = new Map<number, string[]>();
+          for (const po of parentOsis) {
+            if (po.id_ecc_actual == null) continue;
+            const nro = (po.nro_osi || "").trim();
+            if (!nro || nro.toUpperCase().includes("PEN-")) continue;
+            const list = eccToOsis.get(po.id_ecc_actual) || [];
+            if (!list.includes(nro)) {
+              list.push(nro);
+            }
+            eccToOsis.set(po.id_ecc_actual, list);
+          }
+
+          for (const ce of consolidatedEccs) {
+            if (ce.id_servicio == null || ce.id_ecc_consolidada == null) continue;
+            const parentNros = eccToOsis.get(ce.id_ecc_consolidada) || [];
+            if (parentNros.length === 0) continue;
+            const list = osiMap.get(ce.id_servicio) || [];
+            for (const nro of parentNros) {
+              if (!list.includes(nro)) {
+                list.push(nro);
+              }
+            }
+            osiMap.set(ce.id_servicio, list);
+          }
+        }
       }
     }
   }
