@@ -1,0 +1,240 @@
+{
+  "generated_at": "2026-10-27T19:31:35.336Z",
+  "apps": [
+    {
+      "app_slug": "negocios",
+      "label": null,
+      "container": false,
+      "repo": "TEDSHAV/SGestion",
+      "package_version": "1.19.0",
+      "tags": [
+        {
+          "tag": "v1.19.0",
+          "version": "1.19.0",
+          "fecha": "2026-09-07"
+        },
+        {
+          "tag": "v1.18.1",
+          "version": "1.18.1",
+          "fecha": "2026-09-05"
+        },
+        {
+          "tag": "v1.18.0",
+          "version": "1.18.0",
+          "fecha": "2026-09-05"
+        },
+        {
+          "tag": "v1.5.0",
+          "version": "1.5.0",
+          "fecha": "2026-09-04"
+        }
+      ]
+    },
+    {
+      "app_slug": "reportes",
+      "label": null,
+      "container": false,
+      "repo": "TEDSHAV/SGestion",
+      "package_version": "1.1.1",
+      "tags": [
+        {
+          "tag": "reportes-v1.1.1",
+          "version": "1.1.1",
+          "fecha": "2026-09-07"
+        },
+        {
+          "tag": "reportes-v1.1.0",
+          "version": "1.1.0",
+          "fecha": "2026-09-04"
+        }
+      ]
+    },
+    {
+      "app_slug": "marketing",
+      "label": null,
+      "container": false,
+      "repo": "TEDSHAV/SGestion",
+      "package_version": "1.1.1",
+      "tags": [
+        {
+          "tag": "marketing-v1.1.1",
+          "version": "1.1.1",
+          "fecha": "2026-09-07"
+        },
+        {
+          "tag": "marketing-v1.1.0",
+          "version": "1.1.0",
+          "fecha": "2026-09-04"
+        }
+      ]
+    },
+    {
+      "app_slug": "tareas",
+      "label": null,
+      "container": false,
+      "repo": "TEDSHAV/SGestion",
+      "package_version": "1.0.0",
+      "tags": [
+        {
+          "tag": "tareas-v1.0.0",
+          "version": "1.0.0",
+          "fecha": "2026-09-04"
+        }
+      ]
+    },
+    {
+      "app_slug": "comentarios",
+      "label": null,
+      "container": false,
+      "repo": "TEDSHAV/SGestion",
+      "package_version": "1.0.0",
+      "tags": [
+        {
+          "tag": "comentarios-v1.0.0",
+          "version": "1.0.0",
+          "fecha": "2026-09-04"
+        }
+      ]
+    },
+    {
+      "app_slug": "capacitacion",
+      "label": null,
+      "container": false,
+      "repo": "TEDSHAV/capacitacion",
+      "package_version": "1.14.0",
+      "tags": [
+        {
+          "tag": "v1.14.0",
+          "version": "1.14.0",
+          "fecha": "2026-09-28"
+        },
+        {
+          "tag": "v1.13.0",
+          "version": "1.13.0",
+          "fecha": "2026-09-08"
+        },
+        {
+          "tag": "v1.12.0",
+          "version": "1.12.0",
+          "fecha": "2026-08-27"
+        },
+        {
+          "tag": "v1.11.2",
+          "version": "1.11.2",
+          "fecha": "2026-08-26"
+        },
+        {
+          "tag": "v1.11.1",
+          "version": "1.11.1",
+          "fecha": "2026-08-26"
+        },
+        {
+          "tag": "v1.11.0",
+          "version": "1.11.0",
+          "fecha": "2026-08-26"
+        },
+        {
+          "tag": "v1.10.0",
+          "version": "1.10.0",
+          "fecha": "2026-08-20"
+        },
+        {
+          "tag": "v1.9.0",
+          "version": "1.9.0",
+          "fecha": "2026-08-20"
+        },
+        {
+          "tag": "v1.8.0",
+          "version": "1.8.0",
+          "fecha": "2026-08-19"
+        },
+        {
+          "tag": "v1.7.3",
+          "version": "1.7.3",
+          "fecha": "2026-08-18"
+        },
+        {
+          "tag": "v1.7.2",
+          "version": "1.7.2",
+          "fecha": "2026-08-18"
+        },
+        {
+          "tag": "v1.7.1",
+          "version": "1.7.1",
+          "fecha": "2026-08-18"
+        },
+        {
+          "tag": "v1.7.0",
+          "version": "1.7.0",
+          "fecha": "2026-08-18"
+        },
+        {
+          "tag": "v1.6.0",
+          "version": "1.6.0",
+          "fecha": "2026-08-17"
+        },
+        {
+          "tag": "v1.5.0",
+          "version": "1.5.0",
+          "fecha": "2026-08-11"
+        }
+      ]
+    },
+    {
+      "app_slug": "administracion",
+      "label": null,
+      "container": false,
+      "repo": "TEDSHAV/administration",
+      "package_version": "0.1.0",
+      "tags": []
+    },
+    {
+      "app_slug": "servicios-tecnicos",
+      "label": null,
+      "container": false,
+      "repo": "TEDSHAV/servicios-tecnicos",
+      "package_version": "0.1.0",
+      "tags": []
+    },
+    {
+      "app_slug": "calidad",
+      "label": null,
+      "container": false,
+      "repo": "TEDSHAV/calidad-hub",
+      "package_version": "1.0.0",
+      "tags": []
+    },
+    {
+      "app_slug": "recursos-humanos",
+      "label": null,
+      "container": false,
+      "repo": "TEDSHAV/nextjs-rh-module",
+      "package_version": "1.0.0",
+      "tags": []
+    },
+    {
+      "app_slug": "inventario",
+      "label": null,
+      "container": false,
+      "repo": "TEDSHAV/inventario",
+      "package_version": null,
+      "tags": []
+    },
+    {
+      "app_slug": "drive",
+      "label": null,
+      "container": false,
+      "repo": "TEDSHAV/filebrowser",
+      "package_version": "0.1.0",
+      "tags": []
+    },
+    {
+      "app_slug": "general",
+      "label": "Prisma (Shell)",
+      "container": true,
+      "repo": "TEDSHAV/shell-app",
+      "package_version": "1.0.0",
+      "tags": []
+    }
+  ]
+}
