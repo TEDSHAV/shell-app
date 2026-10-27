@@ -936,24 +936,26 @@ export default function OSITable({
           );
         }}
       />
-      <GenerateSurveyModal
-        isOpen={Boolean(surveyModalOsi)}
-        onClose={() => setSurveyModalOsi(null)}
-        initialOsi={
-          surveyModalOsi
-            ? {
-                id_osi: surveyModalOsi.id_osi,
-                nro_osi: surveyModalOsi.nro_osi,
-                nombre_empresa: surveyModalOsi.nombre_empresa,
-                servicio: surveyModalOsi.servicio,
-                tipo_servicio: surveyModalOsi.tipo_servicio,
-                ejecutivo_negocios: surveyModalOsi.ejecutivo_negocios,
-                ciudad_ejecucion: surveyModalOsi.ciudad_ejecucion,
-                fecha_servicio: surveyModalOsi.fecha_inicio_real,
-              }
-            : undefined
-        }
-      />
+      {Boolean(surveyModalOsi) && (
+        <GenerateSurveyModal
+          isOpen={true}
+          onClose={() => setSurveyModalOsi(null)}
+          initialOsi={
+            surveyModalOsi
+              ? {
+                  id_osi: surveyModalOsi.id_osi,
+                  nro_osi: surveyModalOsi.nro_osi,
+                  nombre_empresa: surveyModalOsi.nombre_empresa,
+                  servicio: surveyModalOsi.servicio,
+                  tipo_servicio: surveyModalOsi.tipo_servicio,
+                  ejecutivo_negocios: surveyModalOsi.ejecutivo_negocios,
+                  ciudad_ejecucion: surveyModalOsi.ciudad_ejecucion,
+                  fecha_servicio: surveyModalOsi.fecha_inicio_real,
+                }
+              : undefined
+          }
+        />
+      )}
     </div>
   );
 }

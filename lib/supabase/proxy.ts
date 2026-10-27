@@ -85,7 +85,8 @@ export async function updateSession(request: NextRequest) {
     request.nextUrl.pathname.startsWith("/auth") ||
     request.nextUrl.pathname.startsWith("/prisma-publico") ||
     request.nextUrl.pathname.startsWith("/informe-publico") ||
-    request.nextUrl.pathname.startsWith("/satisfaccion") ||
+    request.nextUrl.pathname.startsWith("/satisfaccion/") ||
+    request.nextUrl.pathname === "/satisfaccion" ||
     request.nextUrl.pathname.startsWith("/registro-visitante");
 
   // Enforce shift logins in America/Caracas timezone (08:00 AM morning & 12:30 PM lunch boundaries):

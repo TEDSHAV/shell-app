@@ -29,11 +29,11 @@ export default async function SatisfaccionClientesPage() {
     const admin = await createAdminClient();
     const { data: usuario } = await admin
       .from("usuarios")
-      .select("nombre")
+      .select("nombre_apellido")
       .eq("id", usuarioRecord.id)
       .maybeSingle();
-    if (usuario?.nombre) {
-      userNombre = usuario.nombre;
+    if (usuario?.nombre_apellido) {
+      userNombre = usuario.nombre_apellido;
     }
   }
 

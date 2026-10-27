@@ -145,12 +145,6 @@ export function GenerateSurveyModal({
     onClose();
   };
 
-  // Reset form when modal closes
-  useEffect(() => {
-    if (!isOpen) {
-      resetFormState();
-    }
-  }, [isOpen]);
 
   // Handle ESC key to close modal (if WhatsApp submodal is not open)
   useEffect(() => {
