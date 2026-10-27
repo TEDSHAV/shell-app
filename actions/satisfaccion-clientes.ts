@@ -102,6 +102,7 @@ export interface SubmitRespuestaInput {
 import {
   type PlantillaSatisfaccion,
   DEFAULT_PLANTILLA_SATISFACCION,
+  normalizePhoneNumber,
 } from "@/features/satisfaccion-clientes/lib/plantilla-defaults";
 
 
@@ -523,7 +524,9 @@ export async function generateEncuestaCliente(
         fecha_servicio: payload.fecha_servicio || null,
         cliente_contacto_nombre: payload.cliente_contacto_nombre?.trim() || null,
         cliente_contacto_email: payload.cliente_contacto_email?.trim() || null,
-        cliente_contacto_telefono: payload.cliente_contacto_telefono?.trim() || null,
+        cliente_contacto_telefono: payload.cliente_contacto_telefono
+          ? normalizePhoneNumber(payload.cliente_contacto_telefono)
+          : null,
         cliente_contacto_cargo: payload.cliente_contacto_cargo?.trim() || null,
         estado: "pendiente",
         created_by: user?.id || null,
@@ -859,5 +862,75 @@ export async function searchEmpresasForEncuesta(term: string): Promise<EmpresaSe
       contacto_cargo: c?.cargo || null,
     };
   });
+}
+
+/**
+ * Retrieve active business executives from Negocios department for survey attribution,
+ * including Liliana Montero (Líder de Negocios).
+ */
+export async function getEjecutivosNegocios(): Promise<string[]> {
+  try {
+    const admin = await createAdminClient();
+
+    // Fetch Negocios department id
+    const { data: dept } = await admin
+      .from("departamentos")
+      .select("id")
+      .ilike("nombre", "%negocio%")
+      .maybeSingle();
+
+    const deptId = dept?.id ?? 2;
+
+    const { data: users, error } = await admin
+      .from("usuarios")
+      .select("id, nombre_apellido, cargo, departamento")
+      .eq("esta_activo", true)
+      .eq("departamento", deptId)
+      .order("nombre_apellido");
+
+    if (error || !users || users.length === 0) {
+      return [
+        "Liliana Montero",
+        "Katerine Serrano",
+        "Yuliana Rosas",
+        "Aliannys Rodriguez",
+      ];
+    }
+
+    const list: string[] = users
+      .filter((u: any) => {
+        const cargo = (u.cargo || "").toLowerCase();
+        const nombre = (u.nombre_apellido || "").toLowerCase();
+        // Exclude analysts such as Ricardo Bastidas
+        if (cargo.includes("analista") || nombre.includes("ricardo")) {
+          return false;
+        }
+        return true;
+      })
+      .map((u: any) => u.nombre_apellido?.trim())
+      .filter((n: string): n is string => Boolean(n));
+
+    // Ensure Liliana Montero is in the list
+    if (!list.some((n) => n.toLowerCase().includes("liliana montero"))) {
+      list.unshift("Liliana Montero");
+    }
+
+    // Sort with Liliana Montero first, then alphabetical
+    list.sort((a, b) => {
+      if (a.toLowerCase().includes("liliana montero")) return -1;
+      if (b.toLowerCase().includes("liliana montero")) return 1;
+      return a.localeCompare(b, "es");
+    });
+
+    return list;
+  } catch (err) {
+    console.error("Error fetching ejecutivos negocios:", err);
+    return [
+      "Liliana Montero",
+      "Katerine Serrano",
+      "Yuliana Rosas",
+      "Aliannys Rodriguez",
+    ];
+  }
 }
 

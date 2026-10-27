@@ -48,7 +48,7 @@ export const DEFAULT_PLANTILLA_SATISFACCION: PlantillaSatisfaccion = {
     opt2: "Deficiente",
     opt1: "Muy mala experiencia",
   },
-  pregunta_3_titulo: "Fidelidad (Recompra de Servicios)",
+  pregunta_3_titulo: "Fidelidad",
   pregunta_3_texto:
     "Considerando su experiencia global con nosotros, ¿Volverías a comprar nuestros servicios? (0: Nada probable, 10: Altamente probable)",
   mensaje_whatsapp_plantilla:
@@ -77,3 +77,40 @@ export function formatWhatsAppPhone(rawPhone: string): string {
   }
   return digits;
 }
+
+/**
+ * Clean and normalize phone numbers to a consistent record format.
+ * Strips all hyphens, dots, parentheses, and spaces.
+ * Venezuelan mobile numbers standardize to clean 11 digits (e.g. 04141234567).
+ * International numbers retain +<digits>.
+ */
+export function normalizePhoneNumber(rawPhone: string): string {
+  if (!rawPhone) return "";
+  const trimmed = rawPhone.trim();
+  const hasPlus = trimmed.startsWith("+");
+  const digits = trimmed.replace(/\D/g, "");
+  if (!digits) return "";
+
+  // Venezuelan international format: 58414... or 58212... (12 digits)
+  if (digits.startsWith("58") && digits.length === 12 && (digits[2] === "4" || digits[2] === "2")) {
+    return `0${digits.slice(2)}`;
+  }
+
+  // Venezuelan 10 digits missing leading zero: 4141234567, 424..., 412..., 212...
+  if (digits.length === 10 && (digits.startsWith("4") || digits.startsWith("2"))) {
+    return `0${digits}`;
+  }
+
+  // Standard Venezuelan 11 digits: 04141234567, 0424..., 0412..., 0416..., 0426..., 0212...
+  if (digits.length === 11 && digits.startsWith("0")) {
+    return digits;
+  }
+
+  // International with leading plus
+  if (hasPlus) {
+    return `+${digits}`;
+  }
+
+  return digits;
+}
+

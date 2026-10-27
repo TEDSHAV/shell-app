@@ -219,7 +219,7 @@ export function SatisfaccionReportePdfDocument({
           <View>
             <Text style={styles.brandTitle}>SHA DE VENEZUELA, C.A.</Text>
             <Text style={styles.brandSubtitle}>
-              Informe de Satisfacción del Cliente (Calidad, Atención y Fidelidad / NPS)
+              Informe de Satisfacción del Cliente (Calidad, Atención y Fidelidad)
             </Text>
             <Text style={{ fontSize: 7, color: "#64748b", marginTop: 2 }}>
               Sistema Integrado de Gestión • Control de Calidad y Relación con Clientes
@@ -262,7 +262,7 @@ export function SatisfaccionReportePdfDocument({
           </View>
 
           <View style={styles.kpiCardNps}>
-            <Text style={styles.kpiLabel}>Fidelidad (NPS)</Text>
+            <Text style={styles.kpiLabel}>Fidelidad</Text>
             <Text style={[styles.kpiValue, { color: "#0369a1" }]}>
               {kpis.nps_score > 0 ? `+${kpis.nps_score}` : kpis.nps_score}
             </Text>

@@ -18,18 +18,28 @@ import {
   Sparkles,
   ChevronDown,
   RotateCcw,
+  Plus,
 } from "lucide-react";
 import {
   searchOsisForEncuesta,
   getOsiDetailsForEncuesta,
   searchEmpresasForEncuesta,
   generateEncuestaCliente,
+  getEjecutivosNegocios,
   type EncuestaCliente,
   type GenerateEncuestaInput,
   type OsiSearchResult,
   type EmpresaSearchResult,
 } from "@/actions/satisfaccion-clientes";
+import { normalizePhoneNumber, formatWhatsAppPhone } from "../lib/plantilla-defaults";
 import { ShareWhatsAppModal } from "./ShareWhatsAppModal";
+
+const DEFAULT_EJECUTIVOS = [
+  "Liliana Montero",
+  "Katerine Serrano",
+  "Yuliana Rosas",
+  "Aliannys Rodriguez",
+];
 
 interface Props {
   isOpen: boolean;
@@ -78,6 +88,7 @@ export function GenerateSurveyModal({
   const [servicioNombre, setServicioNombre] = useState("");
   const [tipoServicio, setTipoServicio] = useState("Capacitación");
   const [ejecutivoNegocios, setEjecutivoNegocios] = useState("");
+  const [ejecutivosOptions, setEjecutivosOptions] = useState<string[]>(DEFAULT_EJECUTIVOS);
   const [nroOsiInput, setNroOsiInput] = useState("");
 
   // Contact details
@@ -87,6 +98,16 @@ export function GenerateSurveyModal({
   const [contactoEmail, setContactoEmail] = useState("");
   const [contactSource, setContactSource] = useState<string | null>(null);
 
+  useEffect(() => {
+    getEjecutivosNegocios()
+      .then((list) => {
+        if (list && list.length > 0) {
+          setEjecutivosOptions(list);
+        }
+      })
+      .catch((err) => console.error("Error loading ejecutivos:", err));
+  }, []);
+
   // Workflow state
   const [generating, setGenerating] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -94,9 +115,58 @@ export function GenerateSurveyModal({
   const [copied, setCopied] = useState(false);
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
 
+  const resetFormState = () => {
+    setGeneratedEncuesta(null);
+    setErrorMsg(null);
+    setCopied(false);
+    setIsWhatsAppModalOpen(false);
+    setSelectedOsi(null);
+    setOsiQuery("");
+    setOsiResults([]);
+    setShowOsiDropdown(false);
+    setEmpresaQuery("");
+    setEmpresaResults([]);
+    setShowEmpresaDropdown(false);
+    setEmpresaNombre("");
+    setServicioNombre("");
+    setTipoServicio("Capacitación");
+    setEjecutivoNegocios("");
+    setNroOsiInput("");
+    setContactoNombre("");
+    setContactoCargo("");
+    setContactoTelefono("");
+    setContactoEmail("");
+    setContactSource(null);
+    setMode("osi");
+  };
+
+  const handleClose = () => {
+    resetFormState();
+    onClose();
+  };
+
+  // Reset form when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      resetFormState();
+    }
+  }, [isOpen]);
+
+  // Handle ESC key to close modal (if WhatsApp submodal is not open)
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !isWhatsAppModalOpen) {
+        handleClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, isWhatsAppModalOpen]);
+
   // Load initial OSI if provided
   useEffect(() => {
-    if (initialOsi && initialOsi.id_osi) {
+    if (isOpen && initialOsi && initialOsi.id_osi) {
       setMode("osi");
       // Fetch rich details & contact info
       getOsiDetailsForEncuesta(initialOsi.id_osi).then((details) => {
@@ -123,7 +193,7 @@ export function GenerateSurveyModal({
         }
       });
     }
-  }, [initialOsi]);
+  }, [isOpen, initialOsi]);
 
   // Click outside listener to close dropdowns
   useEffect(() => {
@@ -202,7 +272,7 @@ export function GenerateSurveyModal({
     // Auto-fill contact details pulled from OSI
     if (osi.persona_contacto) setContactoNombre(osi.persona_contacto);
     if (osi.contacto_cargo) setContactoCargo(osi.contacto_cargo);
-    if (osi.contacto_telefono) setContactoTelefono(osi.contacto_telefono);
+    if (osi.contacto_telefono) setContactoTelefono(normalizePhoneNumber(osi.contacto_telefono));
     if (osi.contacto_email) setContactoEmail(osi.contacto_email);
 
     if (osi.persona_contacto || osi.contacto_telefono || osi.contacto_email) {
@@ -219,7 +289,7 @@ export function GenerateSurveyModal({
 
     if (empresa.contacto_nombre) setContactoNombre(empresa.contacto_nombre);
     if (empresa.contacto_cargo) setContactoCargo(empresa.contacto_cargo);
-    if (empresa.contacto_telefono) setContactoTelefono(empresa.contacto_telefono);
+    if (empresa.contacto_telefono) setContactoTelefono(normalizePhoneNumber(empresa.contacto_telefono));
     if (empresa.contacto_email) setContactoEmail(empresa.contacto_email);
 
     if (empresa.contacto_nombre || empresa.contacto_telefono || empresa.contacto_email) {
@@ -267,7 +337,7 @@ export function GenerateSurveyModal({
       id_estado: selectedOsi?.id_estado || null,
       fecha_servicio: selectedOsi?.fecha_inicio_real || null,
       cliente_contacto_nombre: contactoNombre.trim() || null,
-      cliente_contacto_telefono: contactoTelefono.trim() || null,
+      cliente_contacto_telefono: contactoTelefono ? normalizePhoneNumber(contactoTelefono) : null,
       cliente_contacto_email: contactoEmail.trim() || null,
       cliente_contacto_cargo: contactoCargo.trim() || null,
     };
@@ -300,9 +370,9 @@ export function GenerateSurveyModal({
     const nameGreeting = contactoNombre ? `Estimado(a) ${contactoNombre}` : `Estimado cliente de ${generatedEncuesta.nombre_empresa}`;
     const text = `${nameGreeting}, en SHA de Venezuela valoramos su opinión sobre nuestro servicio de ${generatedEncuesta.servicio}. Le agradecemos tomarse 2 minutos para responder nuestra breve encuesta de satisfacción:\n\n${surveyUrl}\n\n¡Muchas gracias por su preferencia!`;
 
-    const cleanPhone = contactoTelefono.replace(/[^\d]/g, "");
+    const cleanPhone = formatWhatsAppPhone(contactoTelefono);
     if (cleanPhone) {
-      return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`;
+      return `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(text)}`;
     }
     return `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
   };
@@ -310,7 +380,7 @@ export function GenerateSurveyModal({
   return (
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 sm:p-6 backdrop-blur-xs animate-in fade-in duration-150"
-      onClick={onClose}
+      onClick={handleClose}
     >
       <div
         className="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden"
@@ -335,7 +405,7 @@ export function GenerateSurveyModal({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200/60 hover:text-slate-600 transition-colors"
             title="Cerrar"
           >
@@ -468,7 +538,7 @@ export function GenerateSurveyModal({
                       : "text-slate-500 hover:text-slate-800"
                   }`}
                 >
-                  Desde una OSI (Combobox con Autocompletado)
+                  Desde una OSI
                 </button>
                 <button
                   type="button"
@@ -712,7 +782,6 @@ export function GenerateSurveyModal({
                     >
                       <option value="Capacitación">Capacitación</option>
                       <option value="Servicios Técnicos">Servicios Técnicos</option>
-                      <option value="Consultoría / Auditoría">Consultoría / Auditoría</option>
                       <option value="Otro">Otro</option>
                     </select>
                   </div>
@@ -721,13 +790,21 @@ export function GenerateSurveyModal({
                     <label className="text-xs font-medium text-slate-700">
                       Ejecutivo de Negocios
                     </label>
-                    <input
-                      type="text"
+                    <select
                       value={ejecutivoNegocios}
                       onChange={(e) => setEjecutivoNegocios(e.target.value)}
-                      placeholder="Ej. Alexander Morales (opcional)"
                       className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-emerald-500 focus:outline-none"
-                    />
+                    >
+                      <option value="">Seleccionar Ejecutivo...</option>
+                      {ejecutivoNegocios && !ejecutivosOptions.includes(ejecutivoNegocios) && (
+                        <option value={ejecutivoNegocios}>{ejecutivoNegocios}</option>
+                      )}
+                      {ejecutivosOptions.map((ejec) => (
+                        <option key={ejec} value={ejec}>
+                          {ejec}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
               </div>
@@ -780,15 +857,23 @@ export function GenerateSurveyModal({
                   </div>
 
                   <div>
-                    <label className="text-[11px] font-medium text-slate-600 flex items-center gap-1">
-                      <Phone className="h-3 w-3 text-slate-400" /> Teléfono / WhatsApp
+                    <label className="text-[11px] font-medium text-slate-600 flex items-center justify-between">
+                      <span className="flex items-center gap-1">
+                        <Phone className="h-3 w-3 text-slate-400" /> Teléfono / WhatsApp
+                      </span>
+                      {contactoTelefono && (
+                        <span className="text-[10px] text-emerald-700 font-mono font-medium">
+                          {contactoTelefono}
+                        </span>
+                      )}
                     </label>
                     <input
                       type="text"
                       value={contactoTelefono}
-                      onChange={(e) => setContactoTelefono(e.target.value)}
+                      onChange={(e) => setContactoTelefono(e.target.value.replace(/[^\d+]/g, ""))}
+                      onBlur={() => setContactoTelefono(normalizePhoneNumber(contactoTelefono))}
                       placeholder="Ej. 04141234567"
-                      className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50/50 px-3 py-1.5 text-xs text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none"
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50/50 px-3 py-1.5 text-xs text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none font-mono"
                     />
                   </div>
 
@@ -811,33 +896,57 @@ export function GenerateSurveyModal({
         </div>
 
         {/* Pinned Footer */}
-        <div className="shrink-0 flex items-center justify-end gap-3 border-t border-slate-200 bg-slate-50/80 px-6 py-4">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
-          >
-            {generatedEncuesta ? "Cerrar" : "Cancelar"}
-          </button>
-          {!generatedEncuesta && (
-            <button
-              type="button"
-              onClick={handleGenerate}
-              disabled={generating || !empresaNombre.trim() || !servicioNombre.trim()}
-              className="flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2 text-xs font-bold text-white shadow-sm hover:bg-emerald-500 disabled:opacity-50 transition-colors"
-            >
-              {generating ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Generando enlace...
-                </>
-              ) : (
-                <>
-                  <ClipboardCheck className="h-4 w-4" />
-                  Generar Enlace
-                </>
-              )}
-            </button>
+        <div
+          className={`shrink-0 flex items-center border-t border-slate-200 bg-slate-50/80 px-6 py-4 ${
+            generatedEncuesta ? "justify-between" : "justify-end gap-3"
+          }`}
+        >
+          {generatedEncuesta ? (
+            <>
+              <button
+                type="button"
+                onClick={resetFormState}
+                className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs"
+              >
+                <Plus className="h-3.5 w-3.5 text-emerald-600" />
+                Crear otra encuesta
+              </button>
+              <button
+                type="button"
+                onClick={handleClose}
+                className="rounded-xl bg-slate-900 px-5 py-2 text-xs font-bold text-white hover:bg-slate-800 transition-colors shadow-xs"
+              >
+                Cerrar
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={handleClose}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleGenerate}
+                disabled={generating || !empresaNombre.trim() || !servicioNombre.trim()}
+                className="flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2 text-xs font-bold text-white shadow-sm hover:bg-emerald-500 disabled:opacity-50 transition-colors"
+              >
+                {generating ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Generando enlace...
+                  </>
+                ) : (
+                  <>
+                    <ClipboardCheck className="h-4 w-4" />
+                    Generar Enlace
+                  </>
+                )}
+              </button>
+            </>
           )}
         </div>
       </div>

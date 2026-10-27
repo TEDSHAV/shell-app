@@ -13,7 +13,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { getPlantillaSatisfaccion } from "@/actions/satisfaccion-clientes";
-import { formatWhatsAppPhone } from "../lib/plantilla-defaults";
+import { formatWhatsAppPhone, normalizePhoneNumber } from "../lib/plantilla-defaults";
 
 interface Props {
   isOpen: boolean;
@@ -143,7 +143,8 @@ export function ShareWhatsAppModal({ isOpen, onClose, encuesta }: Props) {
             <input
               type="text"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(e) => setPhone(e.target.value.replace(/[^\d+]/g, ""))}
+              onBlur={() => setPhone(normalizePhoneNumber(phone))}
               placeholder="Ej. 04141234567 o 584141234567"
               className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs font-mono text-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 shadow-xs"
             />

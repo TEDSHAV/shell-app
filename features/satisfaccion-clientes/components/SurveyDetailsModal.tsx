@@ -145,7 +145,7 @@ export function SurveyDetailsModal({ encuesta, onClose }: Props) {
                 <div className="flex items-center justify-between">
                   <div>
                     <span className="text-xs font-bold uppercase tracking-wider text-sky-950">
-                      3. Fidelidad (Volvería a comprar)
+                      3. Fidelidad
                     </span>
                     <p className="text-xs text-slate-500 mt-0.5">
                       Considerando su experiencia global con nosotros

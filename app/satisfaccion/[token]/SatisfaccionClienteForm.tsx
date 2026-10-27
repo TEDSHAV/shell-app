@@ -319,7 +319,7 @@ export function SatisfaccionClienteForm({ encuesta, plantilla }: Props) {
         </div>
 
         {/* ========================================================= */}
-        {/* QUESTION 3: Fidelidad (NPS 0 al 10) */}
+        {/* QUESTION 3: Fidelidad (Escala 0 al 10) */}
         {/* ========================================================= */}
         <div className="space-y-4 rounded-2xl border border-sky-200/80 bg-gradient-to-b from-sky-50/50 via-white to-sky-50/30 p-5 sm:p-6 shadow-sm">
           <div>
@@ -328,7 +328,9 @@ export function SatisfaccionClienteForm({ encuesta, plantilla }: Props) {
                 3
               </span>
               <h2 className="text-base font-bold text-slate-900">
-                {plantilla?.pregunta_3_titulo || "Fidelidad"}
+                {plantilla?.pregunta_3_titulo
+                  ?.replace(/\s*\([^)]*recompra[^)]*\)/i, "")
+                  .trim() || "Fidelidad"}
               </h2>
             </div>
             <p className="mt-1.5 text-xs text-slate-700 font-medium">

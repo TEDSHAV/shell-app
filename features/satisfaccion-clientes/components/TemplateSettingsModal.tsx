@@ -157,7 +157,7 @@ export function TemplateSettingsModal({ isOpen, onClose, onSaved }: Props) {
                 : "border-transparent text-slate-600 hover:text-slate-900"
             }`}
           >
-            P3: Fidelidad (NPS)
+            P3: Fidelidad
           </button>
           <button
             type="button"
@@ -349,7 +349,7 @@ export function TemplateSettingsModal({ isOpen, onClose, onSaved }: Props) {
                 </div>
               )}
 
-              {/* TAB 4: Question 3 (Fidelidad NPS) */}
+              {/* TAB 4: Question 3 (Fidelidad) */}
               {activeTab === "q3" && (
                 <div className="space-y-4">
                   <div>
@@ -375,7 +375,7 @@ export function TemplateSettingsModal({ isOpen, onClose, onSaved }: Props) {
                       className="mt-1 w-full rounded-xl border border-slate-300 p-2 text-xs text-slate-800 focus:border-sky-500 focus:outline-none resize-none"
                     />
                     <p className="mt-1 text-[11px] text-slate-500">
-                      La escala estándar de Fidelidad NPS va de 0 (Nada probable) a 10 (Altamente probable).
+                      La escala estándar de Fidelidad va de 0 (Nada probable) a 10 (Altamente probable).
                     </p>
                   </div>
                 </div>
