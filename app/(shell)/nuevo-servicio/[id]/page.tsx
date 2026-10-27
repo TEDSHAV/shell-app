@@ -7,10 +7,9 @@ import {
   getCurrentUserForDiseno,
 } from "@/actions/diseno-servicio";
 import {
-  isCapacitacionDept,
-  isServiciosTecnicosDept,
-  isNegociosDept,
-} from "@/lib/requisiciones-gerencia";
+  canUserEditDiseno,
+  canUserEditFinishedDiseno,
+} from "@/lib/diseno-servicio-auth";
 import DisenoServicioWizard from "./components/DisenoServicioWizard";
 
 export const dynamic = "force-dynamic";
@@ -48,26 +47,11 @@ export default async function DisenoServicioWizardPage({
     redirect("/auth/login");
   }
 
-  const userDeptName = userData.departamento_nombre ?? null;
-  const isCapUser = isCapacitacionDept(userDeptName);
-  const isStUser = isServiciosTecnicosDept(userDeptName);
-  const isNegUser = isNegociosDept(userDeptName);
-  const isAdmin = (userData as any)?.rol === "admin" || (userData as any)?.rol === "superadmin" || (userData as any)?.id_departamento === 6; // TED
-
-  // Determine executing department of this solicitud
-  const isCapService =
-    solicitud.id_departamento_ejecutante === 3 ||
-    (solicitud.bloque_recursos_requisitos as any)?.tipo_naturaleza_servicio === "cap";
-
-  // Check if current user can edit:
-  // - Admin or TED: can edit any
-  // - Capacitacion user: can edit cap services
-  // - Servicios Tecnicos user: can edit ST services
-  // - Negocios or other solicitantes: read-only access (can review progress and add notes)
-  const canEdit =
-    isAdmin ||
-    (isCapUser && isCapService) ||
-    (isStUser && !isCapService);
+  // canUserEditDiseno enforces:
+  // - If completed: strictly coordinator or leader of the executing department, or TED / Admin
+  // - If in progress: executing department staff, coordinator, leader, or TED / Admin
+  const canEdit = canUserEditDiseno(userData, solicitud);
+  const canEditFinished = canUserEditFinishedDiseno(userData, solicitud);
 
   return (
     <div className="p-4 sm:p-8">
@@ -91,6 +75,7 @@ export default async function DisenoServicioWizardPage({
         solicitud={solicitud}
         userData={userData}
         initialReadOnly={!canEdit}
+        canEditFinished={canEditFinished}
       />
     </div>
   );

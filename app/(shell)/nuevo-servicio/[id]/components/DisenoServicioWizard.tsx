@@ -78,17 +78,23 @@ export default function DisenoServicioWizard({
   solicitud,
   userData,
   initialReadOnly = false,
+  canEditFinished = false,
 }: {
   solicitud: DisenoServicioFullData;
   userData: any;
   initialReadOnly?: boolean;
+  canEditFinished?: boolean;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isCompleted = solicitud.id_estatus === 38;
 
   const [isReadOnly, setIsReadOnly] = useState<boolean>(() => {
-    return initialReadOnly || searchParams.get("mode") === "readonly" || isCompleted;
+    if (searchParams.get("mode") === "readonly") return true;
+    if (initialReadOnly) return true;
+    // Completed designs are read-only UNLESS the user has coordinator, leader, TED, or admin privileges
+    if (isCompleted && !canEditFinished) return true;
+    return false;
   });
 
   const [currentStep, setCurrentStep] = useState(0);
@@ -369,7 +375,7 @@ export default function DisenoServicioWizard({
             className="text-xs bg-white text-gray-700 border-gray-300 hover:bg-gray-50 flex items-center gap-1.5 h-8"
           >
             <MessageSquare className="h-3.5 w-3.5 text-indigo-600" />
-            Notas / Bitácora
+            Notas
             {notesCount > 0 && (
               <span className="ml-1 px-1.5 py-0.2 bg-indigo-100 text-indigo-800 rounded-full text-[10px] font-bold">
                 {notesCount}
@@ -781,6 +787,7 @@ export default function DisenoServicioWizard({
                 </Label>
                 <CostTable
                   items={bloquePlanificacion.estructura_costos || []}
+                  readOnly={isReadOnly}
                   onChange={(items) => {
                     const total = items.reduce((acc, curr) => acc + (curr.total || 0), 0);
                     setBloquePlanificacion({
@@ -1130,14 +1137,16 @@ export default function DisenoServicioWizard({
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2">
-                      <Button
-                        type="button"
-                        onClick={() => setIsFichaModalOpen(true)}
-                        className="h-8 text-xs bg-purple-700 hover:bg-purple-800 text-white rounded-lg px-3 shadow-xs inline-flex items-center gap-1.5 font-semibold transition-colors"
-                      >
-                        <Sparkles className="h-3.5 w-3.5 text-amber-300" />
-                        {bloqueSalidas.ficha_tecnica ? "Editar Ficha Técnica" : "Configurar Ficha Técnica"}
-                      </Button>
+                      {!isReadOnly && (
+                        <Button
+                          type="button"
+                          onClick={() => setIsFichaModalOpen(true)}
+                          className="h-8 text-xs bg-purple-700 hover:bg-purple-800 text-white rounded-lg px-3 shadow-xs inline-flex items-center gap-1.5 font-semibold transition-colors"
+                        >
+                          <Sparkles className="h-3.5 w-3.5 text-amber-300" />
+                          {bloqueSalidas.ficha_tecnica ? "Editar Ficha Técnica" : "Configurar Ficha Técnica"}
+                        </Button>
+                      )}
                     </div>
                   </div>
 
@@ -1237,14 +1246,16 @@ export default function DisenoServicioWizard({
                         <BookOpen className="h-3.5 w-3.5 text-slate-600" />
                         Guía de Elaboración
                       </Button>
-                      <Button
-                        type="button"
-                        onClick={() => setIsOfertaModalOpen(true)}
-                        className="h-8 text-xs bg-slate-900 hover:bg-slate-800 text-white rounded-lg px-3 shadow-xs inline-flex items-center gap-1.5 font-semibold transition-colors"
-                      >
-                        <Sparkles className="h-3.5 w-3.5 text-amber-300" />
-                        {bloqueSalidas.oferta_tecnica ? "Editar Oferta Técnica" : "Configurar Oferta Técnica"}
-                      </Button>
+                      {!isReadOnly && (
+                        <Button
+                          type="button"
+                          onClick={() => setIsOfertaModalOpen(true)}
+                          className="h-8 text-xs bg-slate-900 hover:bg-slate-800 text-white rounded-lg px-3 shadow-xs inline-flex items-center gap-1.5 font-semibold transition-colors"
+                        >
+                          <Sparkles className="h-3.5 w-3.5 text-amber-300" />
+                          {bloqueSalidas.oferta_tecnica ? "Editar Oferta Técnica" : "Configurar Oferta Técnica"}
+                        </Button>
+                      )}
                     </div>
                   </div>
 
@@ -1443,7 +1454,7 @@ export default function DisenoServicioWizard({
                 </Button>
               )}
 
-              {currentStep === 5 && !isCompleted && (
+              {currentStep === 5 && !isCompleted && !isReadOnly && (
                 <>
                   <Button
                     variant="outline"
@@ -1463,6 +1474,17 @@ export default function DisenoServicioWizard({
                     Finalizar Solicitud
                   </Button>
                 </>
+              )}
+
+              {currentStep === 5 && isCompleted && !isReadOnly && (
+                <Button
+                  onClick={() => handleSave(5, false)}
+                  disabled={isSaving}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white flex gap-1.5 text-xs h-9 font-semibold"
+                >
+                  <Save className="h-4 w-4" />
+                  {isSaving ? "Guardando cambios..." : "Guardar Cambios"}
+                </Button>
               )}
             </>
           )}

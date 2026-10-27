@@ -189,7 +189,7 @@ export default function DisenoNotasModal({
         }
       })
       .catch(() => {
-        if (isMounted) setError("Error al cargar la bitácora de notas");
+        if (isMounted) setError("Error al cargar las notas");
       })
       .finally(() => {
         if (isMounted) setLoading(false);
@@ -338,7 +338,7 @@ export default function DisenoNotasModal({
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="font-bold text-gray-900 text-base">
-                  Bitácora y Notas del Servicio
+                  Notas del Servicio
                 </h3>
                 <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
                   {notas.length} {notas.length === 1 ? "nota" : "notas"}

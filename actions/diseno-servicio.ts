@@ -8,6 +8,9 @@ import {
   isServiciosTecnicosDept,
   isNegociosDept,
 } from "@/lib/requisiciones-gerencia";
+import { getUserRolesByApp, getUserRole } from "@/actions/apps";
+import { isTedMember } from "@/actions/ted";
+import { canUserEditDiseno } from "@/lib/diseno-servicio-auth";
 import type {
   BloqueRecursosRequisitos,
   BloqueHigieneSeguridadAmbiente,
@@ -28,7 +31,7 @@ const ESTATUS_COMPLETADO = 38;
 const DEPT_CAPACITACION = 3;
 const DEPT_SERVICIOS_TECNICOS = 4;
 
-// Get current logged in user details
+// Get current logged in user details with comprehensive role & permissions breakdown
 export async function getCurrentUserForDiseno() {
   const supabase = await createClient();
   const {
@@ -37,13 +40,14 @@ export async function getCurrentUserForDiseno() {
 
   if (!user) return null;
 
-  const { data, error } = await supabase
+  const admin = await createAdminClient();
+  const { data, error } = await admin
     .from("usuarios")
-    .select("*, departamentos!usuarios_departamento_fkey(nombre)")
+    .select("*, departamentos!usuarios_departamento_fkey(nombre, coordinador)")
     .eq("id_auth", user.id)
     .single();
 
-  if (error) {
+  if (error || !data) {
     console.error("Error fetching user details:", error);
     return null;
   }
@@ -53,12 +57,106 @@ export async function getCurrentUserForDiseno() {
   const isSt = isServiciosTecnicosDept(deptName);
   const isNeg = isNegociosDept(deptName);
 
+  // App roles from authprisma
+  const rolesByApp = await getUserRolesByApp();
+
+  // TED member check
+  let ted = false;
+  try {
+    ted = await isTedMember();
+  } catch (err) {
+    console.warn("Error checking isTedMember:", err);
+  }
+
+  const isTed =
+    ted ||
+    data.departamento === 6 ||
+    deptName?.trim().toUpperCase() === "TED" ||
+    Boolean(rolesByApp.ted);
+
+  // Global role & Admin check
+  let globalRole = "";
+  try {
+    globalRole = (await getUserRole()).toLowerCase();
+  } catch {}
+
+  const isAdmin =
+    (data as any)?.rol === "admin" ||
+    (data as any)?.rol === "superadmin" ||
+    globalRole === "admin" ||
+    globalRole === "superadmin" ||
+    isTed;
+
+  // Cargo string check
+  const cargoNormalized = (data.cargo || "").toLowerCase();
+  const isCargoCoordinador =
+    cargoNormalized.includes("coordinador") || cargoNormalized.includes("coordinadora");
+  const isCargoLider =
+    cargoNormalized.includes("lider") || cargoNormalized.includes("líder");
+
+  // Organigram checks
+  const [{ data: coordDepts }, { data: ledGerencias }] = await Promise.all([
+    admin.from("departamentos").select("id, nombre").eq("coordinador", data.id),
+    admin.from("gerencias").select("id, nombre").eq("lider", data.id),
+  ]);
+
+  const coordinatedDeptNames = (coordDepts || []).map((d: any) => d.nombre || "");
+  const ledGerenciaNames = (ledGerencias || []).map((g: any) => g.nombre || "");
+
+  const isOrganigramCoordinador = coordinatedDeptNames.length > 0;
+  const isOrganigramLider = ledGerenciaNames.length > 0;
+
+  // Capacitación specific leader or coordinator
+  const isCapCoordinador =
+    rolesByApp.scapacitacion === "coordinador" ||
+    coordinatedDeptNames.some((d: string) => isCapacitacionDept(d)) ||
+    (isCap && isCargoCoordinador);
+
+  const isCapLider =
+    rolesByApp.scapacitacion === "lider" ||
+    ledGerenciaNames.some((g: string) => g.toLowerCase().includes("capacitacion") && !isSt) ||
+    (isCap && isCargoLider);
+
+  // ST specific leader or coordinator
+  const isStCoordinador =
+    rolesByApp.st === "coordinador" ||
+    coordinatedDeptNames.some((d: string) => isServiciosTecnicosDept(d)) ||
+    (isSt && isCargoCoordinador);
+
+  const isStLider =
+    rolesByApp.st === "lider" ||
+    ledGerenciaNames.some(
+      (g: string) => (isServiciosTecnicosDept(g) || g.trim().toLowerCase() === "servicios") && !isCap
+    ) ||
+    (isSt && isCargoLider);
+
+  // General coordinator or leader (any app, organigram, or cargo)
+  const isCoordinador =
+    isCargoCoordinador ||
+    isOrganigramCoordinador ||
+    Object.values(rolesByApp).some((r) => r.toLowerCase().includes("coordinador"));
+
+  const isLider =
+    isCargoLider ||
+    isOrganigramLider ||
+    globalRole === "lider" ||
+    Object.values(rolesByApp).some((r) => r.toLowerCase().includes("lider"));
+
   return {
     ...data,
     departamento_nombre: deptName,
+    rolesByApp,
     isCapacitacion: isCap,
     isServiciosTecnicos: isSt,
     isNegocios: isNeg,
+    isTed,
+    isAdmin,
+    isCoordinador,
+    isLider,
+    isCapCoordinador,
+    isCapLider,
+    isStCoordinador,
+    isStLider,
   };
 }
 
@@ -498,220 +596,34 @@ export async function deleteDisenoNota(notaId: number, solicitudId: number) {
   return { success: true };
 }
 
-// Update suggested title
-export async function updateNombreSugerido(id: number, nombreSugerido: string) {
-  const trimmed = nombreSugerido.trim();
-  if (!trimmed) {
-    throw new Error("El título sugerido no puede estar vacío.");
-  }
-
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from("solicitudes_diseno_servicio")
-    .update({ nombre_sugerido: trimmed })
-    .eq("id", id);
-
-  if (error) {
-    console.error(`Error updating nombre_sugerido for solicitud #${id}:`, error);
-    throw error;
-  }
-
-  revalidatePath(`/nuevo-servicio/${id}`);
-  revalidatePath("/nuevo-servicio");
-  return { success: true, nombre_sugerido: trimmed };
-}
-
-// Helper: Ensure request transitions to "en_proceso"
-async function ensureEnProceso(supabase: any, id: number) {
-  const { data } = await supabase
-    .from("solicitudes_diseno_servicio")
-    .select("id_estatus")
-    .eq("id", id)
-    .single();
-
-  if (data?.id_estatus === ESTATUS_PENDIENTE) {
-    await supabase
-      .from("solicitudes_diseno_servicio")
-      .update({ id_estatus: ESTATUS_EN_PROCESO })
-      .eq("id", id);
-  }
-}
-
-// Partial save: Bloque Recursos y Requisitos
-export async function saveBloqueRecursos(id: number, data: BloqueRecursosRequisitos) {
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from("solicitudes_diseno_servicio")
-    .update({ bloque_recursos_requisitos: data })
-    .eq("id", id);
-
-  if (error) throw error;
-  await ensureEnProceso(supabase, id);
-  revalidatePath("/nuevo-servicio");
-  revalidatePath(`/nuevo-servicio/${id}`);
-  return { success: true };
-}
-
-// Partial save: Bloque Higiene, Seguridad y Ambiente
-export async function saveBloqueHigiene(id: number, data: BloqueHigieneSeguridadAmbiente) {
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from("solicitudes_diseno_servicio")
-    .update({ bloque_higiene_seguridad_ambiente: data })
-    .eq("id", id);
-
-  if (error) throw error;
-  await ensureEnProceso(supabase, id);
-  revalidatePath("/nuevo-servicio");
-  revalidatePath(`/nuevo-servicio/${id}`);
-  return { success: true };
-}
-
-// Partial save: Bloque Factibilidad y Planificación
-export async function saveBloquePlanificacion(id: number, data: BloquePlanificacionFactibilidad) {
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from("solicitudes_diseno_servicio")
-    .update({ bloque_planificacion_factibilidad: data })
-    .eq("id", id);
-
-  if (error) throw error;
-  await ensureEnProceso(supabase, id);
-  revalidatePath("/nuevo-servicio");
-  revalidatePath(`/nuevo-servicio/${id}`);
-  return { success: true };
-}
-
-// Partial save: Bloque Controles del Diseño
-export async function saveBloqueControles(id: number, data: BloqueControlesDiseno) {
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from("solicitudes_diseno_servicio")
-    .update({ bloque_controles_diseno: data })
-    .eq("id", id);
-
-  if (error) throw error;
-  await ensureEnProceso(supabase, id);
-  revalidatePath("/nuevo-servicio");
-  revalidatePath(`/nuevo-servicio/${id}`);
-  return { success: true };
-}
-
-// Partial save: Bloque Salidas del Diseño
-export async function saveBloqueSalidas(id: number, data: BloqueSalidasDiseno) {
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from("solicitudes_diseno_servicio")
-    .update({ bloque_salidas_diseno: data })
-    .eq("id", id);
-
-  if (error) throw error;
-  await ensureEnProceso(supabase, id);
-  revalidatePath("/nuevo-servicio");
-  revalidatePath(`/nuevo-servicio/${id}`);
-  return { success: true };
-}
-
-// Save Oferta Técnica directly into bloque_salidas_diseno
-export async function saveOfertaTecnicaAction(
-  solicitudId: number,
-  ofertaData: OfertaTecnicaData,
-) {
-  const supabase = await createClient();
-
-  const { data: sol, error: fetchErr } = await supabase
-    .from("solicitudes_diseno_servicio")
-    .select("bloque_salidas_diseno")
-    .eq("id", solicitudId)
-    .single();
-
-  if (fetchErr) throw fetchErr;
-
-  const currentSalidas: BloqueSalidasDiseno = (sol?.bloque_salidas_diseno || {
-    checklist: [],
-    checklist_cap: [],
-    declaracion_cumplimiento: null,
-    observaciones: "",
-  }) as BloqueSalidasDiseno;
-
-  const updatedSalidas: BloqueSalidasDiseno = {
-    ...currentSalidas,
-    oferta_tecnica: ofertaData,
-  };
-
-  const { error: updateErr } = await supabase
-    .from("solicitudes_diseno_servicio")
-    .update({ bloque_salidas_diseno: updatedSalidas })
-    .eq("id", solicitudId);
-
-  if (updateErr) throw updateErr;
-
-  await ensureEnProceso(supabase, solicitudId);
-  revalidatePath("/nuevo-servicio");
-  revalidatePath(`/nuevo-servicio/${solicitudId}`);
-  return { success: true };
-}
-
-// Save Ficha Técnica directly into bloque_salidas_diseno
-export async function saveFichaTecnicaAction(
-  solicitudId: number,
-  fichaData: FichaTecnicaData,
-) {
-  const supabase = await createClient();
-
-  const { data: sol, error: fetchErr } = await supabase
-    .from("solicitudes_diseno_servicio")
-    .select("bloque_salidas_diseno")
-    .eq("id", solicitudId)
-    .single();
-
-  if (fetchErr) throw fetchErr;
-
-  const currentSalidas: BloqueSalidasDiseno = (sol?.bloque_salidas_diseno || {
-    checklist: [],
-    checklist_cap: [],
-    declaracion_cumplimiento: null,
-    observaciones: "",
-  }) as BloqueSalidasDiseno;
-
-  const updatedSalidas: BloqueSalidasDiseno = {
-    ...currentSalidas,
-    ficha_tecnica: fichaData,
-  };
-
-  const { error: updateErr } = await supabase
-    .from("solicitudes_diseno_servicio")
-    .update({ bloque_salidas_diseno: updatedSalidas })
-    .eq("id", solicitudId);
-
-  if (updateErr) throw updateErr;
-
-  await ensureEnProceso(supabase, solicitudId);
-  revalidatePath("/nuevo-servicio");
-  revalidatePath(`/nuevo-servicio/${solicitudId}`);
-  return { success: true };
-}
-
-// Finalize solicitud: marks completed + SYNC TO catalogo_servicios
-export async function finalizarSolicitud(id: number) {
-  const supabase = await createClient();
+// Helper: Validate that current user is authorized to edit this solicitud
+async function assertCanEditSolicitud(solicitudId: number) {
   const admin = await createAdminClient();
+  const { data: sol, error } = await admin
+    .from("solicitudes_diseno_servicio")
+    .select("id, id_estatus, id_departamento_ejecutante, bloque_recursos_requisitos, tipo_servicio, id_servicio_relacionado, nombre_sugerido, objetivo_proposito, bloque_salidas_diseno")
+    .eq("id", solicitudId)
+    .single();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  let userId: number | null = null;
-  if (user) {
-    const { data: userData } = await supabase
-      .from("usuarios")
-      .select("id")
-      .eq("id_auth", user.id)
-      .single();
-    userId = userData?.id || null;
+  if (error || !sol) {
+    throw new Error(`No se encontró la solicitud de diseño #${solicitudId}`);
   }
 
-  // 1. Fetch current full solicitud to get output blocks
+  const currentUser = await getCurrentUserForDiseno();
+  if (!currentUser || !canUserEditDiseno(currentUser, sol)) {
+    throw new Error(
+      sol.id_estatus === ESTATUS_COMPLETADO
+        ? "No tienes permisos para editar un diseño de servicio ya finalizado. Solo el coordinador o líder del departamento ejecutor y usuarios TED/Admin pueden realizar modificaciones."
+        : "No tienes permisos para editar este diseño de servicio."
+    );
+  }
+
+  return { sol, currentUser, admin };
+}
+
+// Synchronize outputs of a solicitud to catalogo_servicios and plantillas
+export async function syncDisenoToCatalogo(id: number): Promise<{ linkedServicioId: number | null }> {
+  const admin = await createAdminClient();
   const { data: solicitud, error: fetchErr } = await admin
     .from("solicitudes_diseno_servicio")
     .select("*")
@@ -723,13 +635,12 @@ export async function finalizarSolicitud(id: number) {
   }
 
   const rawNaturaleza = (solicitud.bloque_recursos_requisitos as any)?.tipo_naturaleza_servicio;
-  const isCap = rawNaturaleza === "cap";
+  const isCap = rawNaturaleza === "cap" || solicitud.id_departamento_ejecutante === DEPT_CAPACITACION;
   const salidas = (solicitud.bloque_salidas_diseno || {}) as BloqueSalidasDiseno;
   const recursos = (solicitud.bloque_recursos_requisitos || {}) as BloqueRecursosRequisitos;
 
   let linkedServicioId = solicitud.id_servicio_relacionado;
 
-  // 2. AUTOMATIC CATALOG SYNC
   try {
     if (isCap) {
       // Capacitación: Course catalog
@@ -863,21 +774,263 @@ export async function finalizarSolicitud(id: number) {
           is_active: true,
         }, { onConflict: "id_solicitud_origen" });
       } catch {
-        // Non-blocking if table or conflict constraint isn't set
+        // Non-blocking
       }
     }
+
+    if (linkedServicioId && linkedServicioId !== solicitud.id_servicio_relacionado) {
+      await admin
+        .from("solicitudes_diseno_servicio")
+        .update({ id_servicio_relacionado: linkedServicioId })
+        .eq("id", id);
+    }
   } catch (syncErr) {
-    console.error("Error syncing to catalogo_servicios during finalize:", syncErr);
+    console.error("Error syncing to catalogo_servicios:", syncErr);
   }
 
-  // 3. Mark solicitud completed
+  return { linkedServicioId };
+}
+
+// Update suggested title
+export async function updateNombreSugerido(id: number, nombreSugerido: string) {
+  const trimmed = nombreSugerido.trim();
+  if (!trimmed) {
+    throw new Error("El título sugerido no puede estar vacío.");
+  }
+
+  const { sol, admin } = await assertCanEditSolicitud(id);
+
+  const { error } = await admin
+    .from("solicitudes_diseno_servicio")
+    .update({ nombre_sugerido: trimmed })
+    .eq("id", id);
+
+  if (error) {
+    console.error(`Error updating nombre_sugerido for solicitud #${id}:`, error);
+    throw error;
+  }
+
+  if (sol.id_estatus === ESTATUS_COMPLETADO) {
+    await syncDisenoToCatalogo(id);
+  }
+
+  revalidatePath(`/nuevo-servicio/${id}`);
+  revalidatePath("/nuevo-servicio");
+  return { success: true, nombre_sugerido: trimmed };
+}
+
+// Helper: Ensure request transitions to "en_proceso"
+async function ensureEnProceso(client: any, id: number) {
+  const { data } = await client
+    .from("solicitudes_diseno_servicio")
+    .select("id_estatus")
+    .eq("id", id)
+    .single();
+
+  if (data?.id_estatus === ESTATUS_PENDIENTE) {
+    await client
+      .from("solicitudes_diseno_servicio")
+      .update({ id_estatus: ESTATUS_EN_PROCESO })
+      .eq("id", id);
+  }
+}
+
+// Partial save: Bloque Recursos y Requisitos
+export async function saveBloqueRecursos(id: number, data: BloqueRecursosRequisitos) {
+  const { sol, admin } = await assertCanEditSolicitud(id);
+
+  const { error } = await admin
+    .from("solicitudes_diseno_servicio")
+    .update({ bloque_recursos_requisitos: data })
+    .eq("id", id);
+
+  if (error) throw error;
+  await ensureEnProceso(admin, id);
+
+  if (sol.id_estatus === ESTATUS_COMPLETADO) {
+    await syncDisenoToCatalogo(id);
+  }
+
+  revalidatePath("/nuevo-servicio");
+  revalidatePath(`/nuevo-servicio/${id}`);
+  return { success: true };
+}
+
+// Partial save: Bloque Higiene, Seguridad y Ambiente
+export async function saveBloqueHigiene(id: number, data: BloqueHigieneSeguridadAmbiente) {
+  const { sol, admin } = await assertCanEditSolicitud(id);
+
+  const { error } = await admin
+    .from("solicitudes_diseno_servicio")
+    .update({ bloque_higiene_seguridad_ambiente: data })
+    .eq("id", id);
+
+  if (error) throw error;
+  await ensureEnProceso(admin, id);
+
+  if (sol.id_estatus === ESTATUS_COMPLETADO) {
+    await syncDisenoToCatalogo(id);
+  }
+
+  revalidatePath("/nuevo-servicio");
+  revalidatePath(`/nuevo-servicio/${id}`);
+  return { success: true };
+}
+
+// Partial save: Bloque Factibilidad y Planificación
+export async function saveBloquePlanificacion(id: number, data: BloquePlanificacionFactibilidad) {
+  const { sol, admin } = await assertCanEditSolicitud(id);
+
+  const { error } = await admin
+    .from("solicitudes_diseno_servicio")
+    .update({ bloque_planificacion_factibilidad: data })
+    .eq("id", id);
+
+  if (error) throw error;
+  await ensureEnProceso(admin, id);
+
+  if (sol.id_estatus === ESTATUS_COMPLETADO) {
+    await syncDisenoToCatalogo(id);
+  }
+
+  revalidatePath("/nuevo-servicio");
+  revalidatePath(`/nuevo-servicio/${id}`);
+  return { success: true };
+}
+
+// Partial save: Bloque Controles del Diseño
+export async function saveBloqueControles(id: number, data: BloqueControlesDiseno) {
+  const { sol, admin } = await assertCanEditSolicitud(id);
+
+  const { error } = await admin
+    .from("solicitudes_diseno_servicio")
+    .update({ bloque_controles_diseno: data })
+    .eq("id", id);
+
+  if (error) throw error;
+  await ensureEnProceso(admin, id);
+
+  if (sol.id_estatus === ESTATUS_COMPLETADO) {
+    await syncDisenoToCatalogo(id);
+  }
+
+  revalidatePath("/nuevo-servicio");
+  revalidatePath(`/nuevo-servicio/${id}`);
+  return { success: true };
+}
+
+// Partial save: Bloque Salidas del Diseño
+export async function saveBloqueSalidas(id: number, data: BloqueSalidasDiseno) {
+  const { sol, admin } = await assertCanEditSolicitud(id);
+
+  const { error } = await admin
+    .from("solicitudes_diseno_servicio")
+    .update({ bloque_salidas_diseno: data })
+    .eq("id", id);
+
+  if (error) throw error;
+  await ensureEnProceso(admin, id);
+
+  if (sol.id_estatus === ESTATUS_COMPLETADO) {
+    await syncDisenoToCatalogo(id);
+  }
+
+  revalidatePath("/nuevo-servicio");
+  revalidatePath(`/nuevo-servicio/${id}`);
+  return { success: true };
+}
+
+// Save Oferta Técnica directly into bloque_salidas_diseno
+export async function saveOfertaTecnicaAction(
+  solicitudId: number,
+  ofertaData: OfertaTecnicaData,
+) {
+  const { sol, admin } = await assertCanEditSolicitud(solicitudId);
+
+  const currentSalidas: BloqueSalidasDiseno = (sol.bloque_salidas_diseno || {
+    checklist: [],
+    checklist_cap: [],
+    declaracion_cumplimiento: null,
+    observaciones: "",
+  }) as BloqueSalidasDiseno;
+
+  const updatedSalidas: BloqueSalidasDiseno = {
+    ...currentSalidas,
+    oferta_tecnica: ofertaData,
+  };
+
+  const { error: updateErr } = await admin
+    .from("solicitudes_diseno_servicio")
+    .update({ bloque_salidas_diseno: updatedSalidas })
+    .eq("id", solicitudId);
+
+  if (updateErr) throw updateErr;
+
+  await ensureEnProceso(admin, solicitudId);
+
+  if (sol.id_estatus === ESTATUS_COMPLETADO) {
+    await syncDisenoToCatalogo(solicitudId);
+  }
+
+  revalidatePath("/nuevo-servicio");
+  revalidatePath(`/nuevo-servicio/${solicitudId}`);
+  return { success: true };
+}
+
+// Save Ficha Técnica directly into bloque_salidas_diseno
+export async function saveFichaTecnicaAction(
+  solicitudId: number,
+  fichaData: FichaTecnicaData,
+) {
+  const { sol, admin } = await assertCanEditSolicitud(solicitudId);
+
+  const currentSalidas: BloqueSalidasDiseno = (sol.bloque_salidas_diseno || {
+    checklist: [],
+    checklist_cap: [],
+    declaracion_cumplimiento: null,
+    observaciones: "",
+  }) as BloqueSalidasDiseno;
+
+  const updatedSalidas: BloqueSalidasDiseno = {
+    ...currentSalidas,
+    ficha_tecnica: fichaData,
+  };
+
+  const { error: updateErr } = await admin
+    .from("solicitudes_diseno_servicio")
+    .update({ bloque_salidas_diseno: updatedSalidas })
+    .eq("id", solicitudId);
+
+  if (updateErr) throw updateErr;
+
+  await ensureEnProceso(admin, solicitudId);
+
+  if (sol.id_estatus === ESTATUS_COMPLETADO) {
+    await syncDisenoToCatalogo(solicitudId);
+  }
+
+  revalidatePath("/nuevo-servicio");
+  revalidatePath(`/nuevo-servicio/${solicitudId}`);
+  return { success: true };
+}
+
+// Finalize solicitud: marks completed + SYNC TO catalogo_servicios
+export async function finalizarSolicitud(id: number) {
+  const { sol, currentUser, admin } = await assertCanEditSolicitud(id);
+
+  const userId = currentUser.id || null;
+
+  // 1. Automatic catalog sync
+  const { linkedServicioId } = await syncDisenoToCatalogo(id);
+
+  // 2. Mark solicitud completed
   const { error } = await admin
     .from("solicitudes_diseno_servicio")
     .update({
       id_estatus: ESTATUS_COMPLETADO,
       fecha_aprobacion: new Date().toISOString(),
       id_usuario_aprobador: userId,
-      id_servicio_relacionado: linkedServicioId || solicitud.id_servicio_relacionado,
+      id_servicio_relacionado: linkedServicioId || sol.id_servicio_relacionado,
     })
     .eq("id", id);
 
