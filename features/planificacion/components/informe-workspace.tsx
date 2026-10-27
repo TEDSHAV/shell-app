@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { PlanMonthPicker } from "./plan-month-picker";
 import { OrigenBadge } from "./origen-badge";
+import { ObjetivoVersionBadge } from "./objetivo-version-badge";
 import { PlanAssigneeStack } from "./plan-assignee-chip";
 import { InformeAnalisisFormView } from "./informe-analisis-form";
 import { InformeTareaViewDialog } from "./informe-tarea-view-dialog";
@@ -345,8 +346,9 @@ export function InformeWorkspace({
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
-                  <h3 className="font-semibold text-slate-900">
+                  <h3 className="flex flex-wrap items-center gap-2 font-semibold text-slate-900">
                     {objetivo.titulo}
+                    <ObjetivoVersionBadge objetivo={objetivo} />
                   </h3>
                   <p className="mt-0.5 text-xs text-slate-400">
                     {format_month_label(objetivo.fecha_inicio.slice(0, 7))}

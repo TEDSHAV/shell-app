@@ -1,4 +1,5 @@
 import type { TareaCheckItem } from "./tarea-checklist";
+import type { PlanVersionRef } from "./versiones";
 
 export type PlanSalud =
   | "Planificado"
@@ -59,6 +60,7 @@ export type PlanObjetivo = {
   estado: PlanObjetivoEstado;
   tarea_count: number;
   avance: number;
+  version?: PlanVersionRef | null;
 };
 
 export type PlanTarea = {

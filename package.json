@@ -1,4 +1,6 @@
 {
+  "name": "shell-app",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -7,6 +9,7 @@
     "lint": "eslint .",
     "test:asistencia": "node --import ./tests/register-loader.mjs --test tests/asistencia.test.ts",
     "test:visitantes": "node --import ./tests/register-loader.mjs --test tests/visitantes.test.ts",
+    "versiones:sync": "node scripts/sync-versiones-git.mjs",
     "postinstall": "npm --prefix ./packages/osi-formato run build:css",
     "update-types": "supabase gen types typescript --project-id oboslhhemuvzvjnbqeih > src/types/supabase.ts"
   },

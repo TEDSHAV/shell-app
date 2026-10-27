@@ -45,6 +45,7 @@ import {
   Settings,
   Star,
   QrCode,
+  Tags,
 } from "lucide-react";
 import { build_app_config } from "@/lib/app-theme";
 import { AppConfig, AppGroupConfig, NavGroup } from "@/types";
@@ -1253,6 +1254,13 @@ export const apps: AppConfig[] = [
             requiredRoles: ["ted"],
             requiredPermissions: ["planificacion-ted:access-all"],
           },
+          {
+            label: "Versiones",
+            path: "/planificacion/versiones",
+            icon: Tags,
+            requiredRoles: ["ted"],
+            requiredPermissions: ["planificacion-ted:access-all"],
+          },
         ],
       },
       {
@@ -1284,6 +1292,12 @@ export const apps: AppConfig[] = [
             label: "Informe",
             path: "/planificacion/informe",
             icon: BarChart2,
+            requiredPermissions: ["objetivos-ted:access-all"],
+          },
+          {
+            label: "Versiones",
+            path: "/planificacion/objetivos/versiones",
+            icon: Tags,
             requiredPermissions: ["objetivos-ted:access-all"],
           },
         ],
