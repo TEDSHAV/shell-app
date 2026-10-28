@@ -4,6 +4,7 @@ import {
   DEFAULT_SECOND_CUTOFF_TIME,
   formatCaracasTime12h,
   getCaracasDateString,
+  getCaracasTimeString,
   getCorteForCaracasTime,
   isAfterMorningReset,
   isOnOrBeforeCutoff,
@@ -19,17 +20,21 @@ export type AttendanceBadgeStatus = {
   hora_corte_formateada: string;
 };
 
+export const EARLIEST_SCRIPT_ARRIVAL_TIME = "07:00:00";
+
 /**
  * Records the user's attendance for today and the current operational shift (corte 1 or 2)
  * in America/Caracas if not already recorded.
  * Preserves the earliest check-in time of the respective shift (idempotent via unique constraint).
- * Logins before 08:00 AM (e.g., 3:00 AM) are NOT automatically recorded as office attendance.
+ * Logins before 08:00 AM (e.g., 3:00 AM) are NOT automatically recorded as office attendance,
+ * unless bypassMorningReset is true (e.g., physical workstation arrival via script from 07:00 AM onwards).
  */
 export async function recordDailyAttendanceForUsuario(
   usuarioId: number,
   metodo: "login" | "sesion" | "manual" = "login",
   now: Date = new Date(),
   targetCorte?: 1 | 2,
+  bypassMorningReset: boolean = false,
 ): Promise<{
   recorded: boolean;
   fecha: string;
@@ -39,14 +44,26 @@ export async function recordDailyAttendanceForUsuario(
   const fecha = getCaracasDateString(now);
   const corte: 1 | 2 = targetCorte ?? getCorteForCaracasTime(now);
 
-  // Do not auto-record office attendance for pre-8:00 AM logins (e.g. 3:00 AM) in morning shift.
-  if (metodo !== "manual" && corte === 1 && !isAfterMorningReset(now)) {
-    return {
-      recorded: false,
-      fecha,
-      corte: 1,
-      hora_registro: null,
-    };
+  // Do not auto-record office attendance for pre-8:00 AM logins (e.g. 3:00 AM) in morning shift,
+  // unless bypassMorningReset is granted (e.g. workstation script check-in from 07:00 AM onwards).
+  if (metodo !== "manual" && corte === 1) {
+    if (bypassMorningReset) {
+      if (getCaracasTimeString(now) < EARLIEST_SCRIPT_ARRIVAL_TIME) {
+        return {
+          recorded: false,
+          fecha,
+          corte: 1,
+          hora_registro: null,
+        };
+      }
+    } else if (!isAfterMorningReset(now)) {
+      return {
+        recorded: false,
+        fecha,
+        corte: 1,
+        hora_registro: null,
+      };
+    }
   }
 
   try {
@@ -132,15 +149,24 @@ export async function ensureAndGetTodayAttendanceBadge(
   try {
     const now = new Date();
     const corte = getCorteForCaracasTime(now);
-    const result = await recordDailyAttendanceForUsuario(usuarioId, "sesion", now, corte);
-    if (!result.hora_registro) {
+    const fecha = getCaracasDateString(now);
+    const admin = await createAdminClient();
+
+    const { data: existing } = await admin
+      .from("asistencia_diaria")
+      .select("hora_registro")
+      .eq("usuario_id", usuarioId)
+      .eq("fecha", fecha)
+      .eq("corte", corte)
+      .maybeSingle();
+
+    if (!existing?.hora_registro) {
       return null;
     }
-    const hora_registro = result.hora_registro;
+    const hora_registro = String(existing.hora_registro);
 
     let cutoff = corte === 2 ? DEFAULT_SECOND_CUTOFF_TIME : DEFAULT_CUTOFF_TIME;
     try {
-      const admin = await createAdminClient();
       const { data: cfg } = await admin
         .from("asistencia_config")
         .select("hora_corte, hora_corte_2")
@@ -163,7 +189,7 @@ export async function ensureAndGetTodayAttendanceBadge(
     const hora_corte_formateada = `${String(h12).padStart(2, "0")}:${mStr} ${suffix}`;
 
     return {
-      fecha: result.fecha,
+      fecha,
       corte,
       hora_registro,
       hora_formateada: formatCaracasTime12h(hora_registro),

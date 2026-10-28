@@ -1,29 +1,13 @@
 "use server";
 
 import { createClient, createAdminClient } from "@/lib/supabase/server";
-import { getSessionDateCookieOptions } from "@/lib/supabase/cookie-options";
 import { sign_out_best_effort } from "@/lib/auth/safe-sign-out";
 import { safe_internal_next_path } from "@/lib/auth/safe-next-path";
-import {
-  getCaracasWorkdaySessionStamp,
-  PRISMA_SESSION_DATE_COOKIE,
-} from "@/lib/asistencia/time";
-import { recordDailyAttendanceForUsuario } from "@/lib/asistencia/record";
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 export async function signOutAction() {
   const supabase = await createClient();
   await sign_out_best_effort(supabase);
-  try {
-    const cookieStore = await cookies();
-    cookieStore.set(PRISMA_SESSION_DATE_COOKIE, "", {
-      ...getSessionDateCookieOptions(),
-      maxAge: 0,
-    });
-  } catch {
-    // Ignore cookie removal errors
-  }
   redirect("/auth/login");
 }
 
@@ -68,24 +52,6 @@ export async function signInAction(state: { error: string } | null, formData: Fo
   if (usuario?.esta_activo === false) {
     await supabase.auth.signOut().catch(() => {});
     return { error: "Tu cuenta está inactiva. Contacta al administrador." };
-  }
-
-  // Stamp daily session date cookie (America/Caracas, with 06:00 AM workday boundary)
-  // and record daily attendance if >= 06:00 AM.
-  const sessionStamp = getCaracasWorkdaySessionStamp();
-  try {
-    const cookieStore = await cookies();
-    cookieStore.set(
-      PRISMA_SESSION_DATE_COOKIE,
-      sessionStamp,
-      getSessionDateCookieOptions(),
-    );
-  } catch {
-    // Ignore if cookie cannot be set
-  }
-
-  if (usuario?.id) {
-    await recordDailyAttendanceForUsuario(Number(usuario.id), "login");
   }
 
   const next = safe_internal_next_path(String(formData.get("next") ?? ""));

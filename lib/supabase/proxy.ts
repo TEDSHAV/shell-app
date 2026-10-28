@@ -1,20 +1,13 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { hasEnvVars } from "../utils";
-import {
-  getSessionDateCookieOptions,
-  getSupabaseCookieOptions,
-} from "./cookie-options";
+import { getSupabaseCookieOptions } from "./cookie-options";
 import {
   DEV_DB_COOKIE,
   is_dev_db_switcher_enabled,
   parse_dev_db_target,
   resolve_supabase_env,
 } from "./dev-db";
-import {
-  getCaracasWorkdaySessionStamp,
-  PRISMA_SESSION_DATE_COOKIE,
-} from "@/lib/asistencia/time";
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -89,31 +82,6 @@ export async function updateSession(request: NextRequest) {
     request.nextUrl.pathname === "/satisfaccion" ||
     request.nextUrl.pathname.startsWith("/registro-visitante");
 
-  // Enforce shift logins in America/Caracas timezone (08:00 AM morning & 12:30 PM lunch boundaries):
-  // If the user's session is from a previous day, pre-08:00 AM, or morning shift once 12:30 PM arrives,
-  // sign them out so they authenticate fresh upon arrival and upon returning from lunch.
-  if (user && !isPublicOrApiRoute) {
-    const expectedStamp = getCaracasWorkdaySessionStamp();
-    const sessionDate = request.cookies.get(PRISMA_SESSION_DATE_COOKIE)?.value;
-    if (sessionDate !== expectedStamp) {
-      await supabase.auth.signOut().catch(() => {});
-      user = undefined;
-      const url = request.nextUrl.clone();
-      const next_path = `${request.nextUrl.pathname}${request.nextUrl.search}`;
-      url.pathname = "/auth/login";
-      url.search = "";
-      url.searchParams.set("next", next_path);
-      const redirectResponse = NextResponse.redirect(url);
-      supabaseResponse.cookies.getAll().forEach((c) => {
-        redirectResponse.cookies.set(c);
-      });
-      redirectResponse.cookies.set(PRISMA_SESSION_DATE_COOKIE, "", {
-        ...getSessionDateCookieOptions(),
-        maxAge: 0,
-      });
-      return redirectResponse;
-    }
-  }
 
   if (!user && !isPublicOrApiRoute) {
     // no user, potentially respond by redirecting the user to the login page

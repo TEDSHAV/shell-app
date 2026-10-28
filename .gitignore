@@ -25,6 +25,7 @@
 .DS_Store
 *.pem
 *.bak
+scripts/asistencia/
 
 # debug
 npm-debug.log*
