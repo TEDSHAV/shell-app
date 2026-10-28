@@ -28,6 +28,7 @@ import type {
   OSISessionsFinalCheck,
   SessionExecutionPayload,
   OsiNota,
+  OsiGuiaEnvio,
 } from "@/types/osi";
 import { OSI_STATUS_EJECUTADO_ID } from "@/types/osi";
 
@@ -261,7 +262,7 @@ export async function getOSIList(
 
     const adminClientPromise = pageOsiIds.length > 0 ? createAdminClient() : null;
 
-    const [statuses, cityResult, visibleOsiIds, sesionesProgramadasResult, attachmentResult, notasResult] = await Promise.all([
+    const [statuses, cityResult, visibleOsiIds, sesionesProgramadasResult, attachmentResult, notasResult, guiasResult] = await Promise.all([
       getOSIStatuses(await peek_dev_db_target()),
       uniqueCityIds.length > 0
         ? supabase
@@ -320,6 +321,17 @@ export async function getOSIList(
             };
           })
         : Promise.resolve({ data: [] }),
+      adminClientPromise
+        ? adminClientPromise.then(async (admin) => {
+            const { data: stepRows } = await admin
+              .from("capacitacion_proceso_steps")
+              .select("osi_id, nro_sesion, notes, step_metadata, completed_at")
+              .in("osi_id", pageOsiIds)
+              .eq("step_key", "sobre_enviado_zoom")
+              .eq("completed", true);
+            return { data: stepRows || [] };
+          })
+        : Promise.resolve({ data: [] }),
     ]);
 
     const statusMap = new Map(statuses.map((s) => [s.id, s]));
@@ -350,9 +362,27 @@ export async function getOSIList(
       notasByOsi.set(n.osiId, existing);
     }
 
+    // Map tracking / guia info by osi_id
+    const guiasByOsi = new Map<number, OsiGuiaEnvio[]>();
+    for (const row of ((guiasResult as any)?.data || [])) {
+      const meta = (row.step_metadata as Record<string, unknown>) || {};
+      const guia = ((meta.guia as string) || (row.notes as string) || "").trim();
+      if (!guia) continue;
+      const osiId = row.osi_id as number;
+      const list = guiasByOsi.get(osiId) || [];
+      list.push({
+        nro_sesion: row.nro_sesion as number,
+        guia,
+        fecha: (row.completed_at as string) || null,
+      });
+      guiasByOsi.set(osiId, list);
+    }
+
     const enrichedOSIs: OSIListItem[] = (data || []).map((osi: any) => {
       const status = osi.id_estatus ? statusMap.get(osi.id_estatus) : null;
       const attachment = osi.id_osi ? attachmentByOsi.get(osi.id_osi) : undefined;
+      const osiGuias = osi.id_osi ? guiasByOsi.get(osi.id_osi) ?? [] : [];
+      const nroGuiaZoom = osiGuias.length > 0 ? osiGuias.map((g) => g.guia).join(", ") : null;
       return {
         id_osi: osi.id_osi,
         nro_osi: osi.nro_osi,
@@ -376,6 +406,8 @@ export async function getOSIList(
         attachment_received_at: attachment?.at ?? null,
         attachment_received_by: attachment?.by ?? null,
         notas: osi.id_osi ? notasByOsi.get(osi.id_osi) ?? [] : [],
+        nro_guia_zoom: nroGuiaZoom,
+        guias_envio: osiGuias,
       };
     });
 

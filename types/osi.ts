@@ -49,6 +49,15 @@ export interface OSIListItem {
   attachment_received_by?: string | null;
   // Notes and observations from capacitacion_osi_notas
   notas?: OsiNota[];
+  // Tracking / Envio info from capacitacion_proceso_steps (sobre_enviado_zoom)
+  nro_guia_zoom?: string | null;
+  guias_envio?: OsiGuiaEnvio[];
+}
+
+export interface OsiGuiaEnvio {
+  nro_sesion: number;
+  guia: string;
+  fecha?: string | null;
 }
 
 export interface OSIListResult {
