@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-27T19:31:35.336Z",
+  "generated_at": "2026-10-28T18:10:38.431Z",
   "apps": [
     {
       "app_slug": "negocios",
@@ -11,22 +11,38 @@
         {
           "tag": "v1.19.0",
           "version": "1.19.0",
-          "fecha": "2026-09-07"
+          "fecha": "2026-09-07",
+          "descripcion": [
+            "dashboard: function of download to pdf in marketing's indicator",
+            "dashboard: function of downlowad to pdf budge's indicator",
+            "Corrección · dashboard: indicador presupuesto en porcentage mode functional"
+          ]
         },
         {
           "tag": "v1.18.1",
           "version": "1.18.1",
-          "fecha": "2026-09-05"
+          "fecha": "2026-09-05",
+          "descripcion": [
+            "Corrección · facturacion: merge origin/dev into main",
+            "Corrección · ocr: 2",
+            "Corrección · ocr: 3"
+          ]
         },
         {
           "tag": "v1.18.0",
           "version": "1.18.0",
-          "fecha": "2026-09-05"
+          "fecha": "2026-09-05",
+          "descripcion": [
+            "Baseline recalibrada a 1.18.0. Sustituye el tag local `v1.5.0`."
+          ]
         },
         {
           "tag": "v1.5.0",
           "version": "1.5.0",
-          "fecha": "2026-09-04"
+          "fecha": "2026-09-04",
+          "descripcion": [
+            "Baseline previa (recalibrada). MVP operativo más hub, reportes, tareas y facturación."
+          ]
         }
       ]
     },
@@ -40,12 +56,16 @@
         {
           "tag": "reportes-v1.1.1",
           "version": "1.1.1",
-          "fecha": "2026-09-07"
+          "fecha": "2026-09-07",
+          "descripcion": []
         },
         {
           "tag": "reportes-v1.1.0",
           "version": "1.1.0",
-          "fecha": "2026-09-04"
+          "fecha": "2026-09-04",
+          "descripcion": [
+            "Baseline: consolidado, cierres e inspector KPI."
+          ]
         }
       ]
     },
@@ -59,12 +79,16 @@
         {
           "tag": "marketing-v1.1.1",
           "version": "1.1.1",
-          "fecha": "2026-09-07"
+          "fecha": "2026-09-07",
+          "descripcion": []
         },
         {
           "tag": "marketing-v1.1.0",
           "version": "1.1.0",
-          "fecha": "2026-09-04"
+          "fecha": "2026-09-04",
+          "descripcion": [
+            "Baseline: 1.0 leads (MVP) + 0.1 dashboard de marketing."
+          ]
         }
       ]
     },
@@ -78,7 +102,10 @@
         {
           "tag": "tareas-v1.0.0",
           "version": "1.0.0",
-          "fecha": "2026-09-04"
+          "fecha": "2026-09-04",
+          "descripcion": [
+            "Baseline: tablero en uso y lotes semanales."
+          ]
         }
       ]
     },
@@ -92,7 +119,10 @@
         {
           "tag": "comentarios-v1.0.0",
           "version": "1.0.0",
-          "fecha": "2026-09-04"
+          "fecha": "2026-09-04",
+          "descripcion": [
+            "Baseline: notas y comentarios en uso."
+          ]
         }
       ]
     },
@@ -106,77 +136,224 @@
         {
           "tag": "v1.14.0",
           "version": "1.14.0",
-          "fecha": "2026-09-28"
+          "fecha": "2026-09-28",
+          "descripcion": [
+            "add dev-only orphan batch visibility management for client portal",
+            "add dismissible sample-data banner to reportes module",
+            "add Entrevista de Facilitadores module and candidate interview management",
+            "add facilitador email feature and fix multi-session selector in gestion-osi modals",
+            "add facilitador pool with cards, smart topic matcher, and profile drawer",
+            "add Lotes Huérfanos link to Certificados card on dashboard home (dev-only)",
+            "add no-expiration option for download links via public redirect route",
+            "add password visibility toggle to cliente and facilitador portal login forms",
+            "add per-topic skill levels (niveles_habilidad) to facilitadores",
+            "B2-backed email attachments with configurable link expiry (hybrid: attach small + link large)",
+            "catalogo: add mostrar_en_catalogo column and facilitator course filtering",
+            "citizen-service: integrate shared cat_cedulas_cache with fallback",
+            "direct-to-B2 presigned browser uploads with real-time per-file progress bars",
+            "email attachments, registro de correos, enable Lotes Huerfanos for admin in production",
+            "facilitador: enhance portal UX, materials versioning, tour and certificate reactivation"
+          ]
         },
         {
           "tag": "v1.13.0",
           "version": "1.13.0",
-          "fecha": "2026-09-08"
+          "fecha": "2026-09-08",
+          "descripcion": [
+            "add charts, standard header/footer, and text wrapping to evaluacion de facilitadores PDF",
+            "add per-facilitador course history modal in gestion-de-facilitadores",
+            "anular certificados individuales con motivo de anulación",
+            "Evaluación de Facilitadores (RG-CAP-004) — form, registry, PDF generation",
+            "merge en_proceso + ejecutado into single auto-step, fire-and-forget sync",
+            "move survey mode to dedicated settings table",
+            "multi-select session picker for requisicion externa + auto-mark requisicion_enviada_admin step",
+            "rebuild indicadores page around gestión mensual + carry-over panel, fix CarryPanel blue background",
+            "Resultado de la Actividad download, searchable company filter, lighter gestion-osi query",
+            "show success toast on certificate anulación",
+            "two-tier horas por facilitador (requisición → OSI fallback), reportes requisición-as-truth, indicadores page rebuild",
+            "union processed requisiciones into facilitador history with source badge",
+            "Corrección · correct contrast on survey mode selector buttons",
+            "Corrección · correct date offset in OSI date columns parsed as UTC midnight"
+          ]
         },
         {
           "tag": "v1.12.0",
           "version": "1.12.0",
-          "fecha": "2026-08-27"
+          "fecha": "2026-08-27",
+          "descripcion": [
+            "match PDF layout to Excel sample — stacked label/value format, side-by-side ST+CAP checklists in Bloque IV",
+            "Corrección · move Bloque III description to its own column, force page break before Bloque III",
+            "Corrección · prevent header/footer overlap in PDF, stack Aplica/No Aplica vertically in Bloque IV"
+          ]
         },
         {
           "tag": "v1.11.2",
           "version": "1.11.2",
-          "fecha": "2026-08-26"
+          "fecha": "2026-08-26",
+          "descripcion": [
+            "Corrección · PDF header meta box shows código/fecha/revisión/página, fix footer width cutoff, reduce header padding, fix Bloque III row overlap"
+          ]
         },
         {
           "tag": "v1.11.1",
           "version": "1.11.1",
-          "fecha": "2026-08-26"
+          "fecha": "2026-08-26",
+          "descripcion": [
+            "Corrección · stop auto-advance from re-marking ejecutado after manual unmark"
+          ]
         },
         {
           "tag": "v1.11.0",
           "version": "1.11.0",
-          "fecha": "2026-08-26"
+          "fecha": "2026-08-26",
+          "descripcion": [
+            "add Asignaciones y Credenciales management module",
+            "add Nuevos Servicios (RG-NEG-003) module with PDF generation, fix null-safety in PDF document, refine PDF layout to match Excel sample",
+            "launch PWA at the page where the user installed it",
+            "move Assign OSI and Create Credentials actions to Asignaciones y Credenciales module",
+            "notify capacitacion users when facilitadores upload to portal",
+            "reduce seguimiento-servicios pagination to 5, make en_proceso unmarkable with shell sync",
+            "replicate requisiciones module in-app for snappy navigation",
+            "sync capacitacion ejecutado step to shell OSI status",
+            "Corrección · duplicate React key in breadcrumbs when on home page",
+            "Corrección · make PWA sidebar sticky on desktop so nav stays visible while scrolling",
+            "Corrección · navbar logo proportions and favicon/PWA icon references",
+            "Corrección · number inputs in requisiciones eat decimals and can't be cleared",
+            "Corrección · remove misleading Configuración sidebar link (feriados reachable from Indicadores)",
+            "Corrección · stop global button rule from painting unchecked checkboxes/radios blue, soften cached-data banner when online",
+            "Corrección · stop offline banner from overlapping downloads button and toasts, add Consulta de OSIs external sidebar link"
+          ]
         },
         {
           "tag": "v1.10.0",
           "version": "1.10.0",
-          "fecha": "2026-08-20"
+          "fecha": "2026-08-20",
+          "descripcion": [
+            "v1.10.0 — PWA standalone mode, offline fixes, UX improvements",
+            "Highlights:",
+            "- Hide PWA chrome when embedded in PRISMA shell iframe (no more double navbar)",
+            "- Fix offline navigation: split document vs RSC payload caching",
+            "- Speed up dashboard nav: getSession() instead of getUser()",
+            "- Wire dashboard logout button",
+            "- Strict context isolation in offline page, favorites, recent pages",
+            "- Remove broken portal nav items (pages that don't exist)",
+            "- Replace text logo with image, enlarge on mobile",
+            "- Restyle admin login to card layout",
+            "- Center footers, remove verificar certificado link from login footer",
+            "- Remove badge polling, add run-once guard to navigation init"
+          ]
         },
         {
           "tag": "v1.9.0",
           "version": "1.9.0",
-          "fecha": "2026-08-20"
+          "fecha": "2026-08-20",
+          "descripcion": [
+            "Release v1.9.0: PWA Navigation System with Offline-First Enhancements",
+            "Features:",
+            "- Comprehensive PWA navigation with strict portal/dashboard isolation",
+            "- Collapsible navigation drawer (mobile/desktop)",
+            "- Context-aware top navigation bar",
+            "- Auto-generated breadcrumbs",
+            "- Global search functionality",
+            "- Favorites/bookmarks system",
+            "- Recent pages quick access",
+            "- Keyboard shortcuts (Alt+N for menu, Ctrl+K for search)",
+            "- Toast notifications for sync events",
+            "- Real-time badge counts infrastructure",
+            "- Offline navigation caching",
+            "- Full offline-first support with auto-sync",
+            "Breaking Changes: None"
+          ]
         },
         {
           "tag": "v1.8.0",
           "version": "1.8.0",
-          "fecha": "2026-08-19"
+          "fecha": "2026-08-19",
+          "descripcion": [
+            "save and restore certificate form drafts per OSI via localStorage",
+            "Corrección · count distinct participants in cliente portal metrics"
+          ]
         },
         {
           "tag": "v1.7.3",
           "version": "1.7.3",
-          "fecha": "2026-08-18"
+          "fecha": "2026-08-18",
+          "descripcion": [
+            "Corrección · pass server action directly to LogoutButton"
+          ]
         },
         {
           "tag": "v1.7.2",
           "version": "1.7.2",
-          "fecha": "2026-08-18"
+          "fecha": "2026-08-18",
+          "descripcion": [
+            "Corrección · remove sliding cookie refresh from session getters"
+          ]
         },
         {
           "tag": "v1.7.1",
           "version": "1.7.1",
-          "fecha": "2026-08-18"
+          "fecha": "2026-08-18",
+          "descripcion": [
+            "Corrección · session persistence — cookie secure flag, auto-redirect, sliding refresh, offline access"
+          ]
         },
         {
           "tag": "v1.7.0",
           "version": "1.7.0",
-          "fecha": "2026-08-18"
+          "fecha": "2026-08-18",
+          "descripcion": [
+            "cache participant lists offline for better UX",
+            "cliente portal offline document downloads (Phase 2)",
+            "custom PWA install prompt for mobile and desktop",
+            "facilitador portal offline writes with sync queue (Phase 4)",
+            "indicadores drill-down, programada state, sede resolution, cert search fix",
+            "prefetch participant lists + fix button heights and offline pill contrast",
+            "PWA installable shell with offline support (Phase 1)",
+            "store certificate/carnet templates in Supabase storage instead of ephemeral disk",
+            "Corrección · cliente dashboard mobile responsive layout",
+            "Corrección · historical facilitador-de-sesion attribution in indicadores",
+            "Corrección · persist sessions across navigation and improve offline downloads UI",
+            "Corrección · PWA install prompt works over HTTPS for mobile testing",
+            "Corrección · replace purple with SHA brand blue (#0c3f69) 38e13d2, references #C30DFF",
+            "Corrección · robust offline navigation and persistent sessions"
+          ]
         },
         {
           "tag": "v1.6.0",
           "version": "1.6.0",
-          "fecha": "2026-08-17"
+          "fecha": "2026-08-17",
+          "descripcion": [
+            "add automated survey tabulation PDF report (Resultado de la Actividad)",
+            "add Ficha Tecnica de Facilitador with PDF generation and photo upload",
+            "add ficha tecnica generation for courses",
+            "add indicadores cards for 72h kpi",
+            "improve layout for resultado de la actividad pdf",
+            "redesign capacitacion dashboard to 2-row layout with horizontal bar",
+            "redesign facilitator form with card-based sections and compact spacing",
+            "rewrite indicadores SLA to business days with feriados support",
+            "surface app version in embedded dashboard and portals",
+            "Corrección · ficha tecnica pdf layout tweaks - black fonts, compact spacing, header/footer alignment, remove title underline",
+            "Corrección · improve encuesta modal UX and make gestion-osi mobile friendly",
+            "Corrección · increase VersionBadge visibility for iframe context",
+            "Corrección · ocr facilitador portal",
+            "Corrección · preserve leading spaces on first list item in stripHtml",
+            "Corrección · preserve list indentation in ficha tecnica PDF, add spacing to rich text editor labels"
+          ]
         },
         {
           "tag": "v1.5.0",
           "version": "1.5.0",
-          "fecha": "2026-08-11"
+          "fecha": "2026-08-11",
+          "descripcion": [
+            "add build-time version tracking and release tooling",
+            "add subtitle (subtitulo) field to course creation and auto-populate in certificate generation",
+            "make scores editable in gestion de certificados view",
+            "Corrección · add @floating-ui/dom to lock file",
+            "Corrección · install @img/sharp-linux-x64 in Docker for cross-platform build",
+            "Corrección · make certificate PDF endpoint public for QR verification",
+            "Corrección · use npm install instead of npm ci for cross-platform sharp binary"
+          ]
         }
       ]
     },

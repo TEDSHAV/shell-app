@@ -31,6 +31,23 @@ export function VersionBadge({
   );
 }
 
+function VersionDescripcion({ node }: { node: PlanVersionNode }) {
+  if (node.descripcion.length === 0) {
+    return node.estado === "planificada" ? (
+      <p className="pb-1.5 text-xs italic text-slate-400">
+        La descripción se llena con los objetivos que se vayan cumpliendo.
+      </p>
+    ) : null;
+  }
+  return (
+    <ul className="mb-2 list-disc space-y-0.5 pl-4 text-xs text-slate-600">
+      {node.descripcion.map((line, i) => (
+        <li key={i}>{line}</li>
+      ))}
+    </ul>
+  );
+}
+
 function VersionNodeView({ node }: { node: PlanVersionNode }) {
   const meta = [
     node.estado === "liberada" ? "Liberada" : "Planificada",
@@ -45,6 +62,7 @@ function VersionNodeView({ node }: { node: PlanVersionNode }) {
         <span className="text-xs text-slate-400">{meta.join(" · ")}</span>
       </div>
       {node.notas ? <p className="pb-1 text-xs text-slate-500">{node.notas}</p> : null}
+      <VersionDescripcion node={node} />
       {node.objetivos.length > 0 ? (
         <ul className="mb-2 space-y-1 rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-2">
           {node.objetivos.map((objetivo) => (
@@ -53,8 +71,8 @@ function VersionNodeView({ node }: { node: PlanVersionNode }) {
               <span className={ESTADO_OBJETIVO[objetivo.estado] ?? "text-slate-600"}>
                 {objetivo.titulo}
               </span>
-              <span className="ml-auto shrink-0 text-xs text-slate-400">
-                {format_month_label(objetivo.mes)}
+              <span className="ml-auto shrink-0 text-xs tabular-nums text-slate-400">
+                {objetivo.avance}% · {format_month_label(objetivo.mes)}
               </span>
             </li>
           ))}
