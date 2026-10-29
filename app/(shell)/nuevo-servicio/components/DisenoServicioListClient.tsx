@@ -21,6 +21,10 @@ import {
   type DisenoServicioFilters,
   type DeptTab,
 } from "@/lib/diseno-servicio-filters";
+import {
+  toggleDisenoServicioHidden,
+  restoreAllHiddenDisenoServicio,
+} from "@/actions/diseno-servicio";
 import DisenoServicioTable from "./DisenoServicioTable";
 import DisenoNotasModal from "./DisenoNotasModal";
 
@@ -47,41 +51,51 @@ export default function DisenoServicioListClient({
   const [records, setRecords] = useState<DisenoServicioListItem[]>(initialRecords);
   const [filters, setFilters] = useState<DisenoServicioFilters>(EMPTY_FILTERS);
   const [expanded, setExpanded] = useState(false);
-  const [hiddenIds, setHiddenIds] = useState<number[]>([]);
+  const [showHiddenInDev, setShowHiddenInDev] = useState(false);
+  const [isUpdatingId, setIsUpdatingId] = useState<number | null>(null);
 
-  // Load dev-only hidden records from localStorage
+  // Sync state if initialRecords changes from server
   useEffect(() => {
-    if (isDev) {
-      try {
-        const saved = localStorage.getItem("diseno_servicio_dev_hidden_ids");
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed)) setHiddenIds(parsed);
-        }
-      } catch {}
-    }
-  }, [isDev]);
+    setRecords(initialRecords);
+  }, [initialRecords]);
 
-  const handleHideRecord = useCallback(
-    (id: number) => {
+  const handleToggleHide = useCallback(
+    async (id: number, currentHidden: boolean) => {
       if (!isDev) return;
-      setHiddenIds((prev) => {
-        const next = prev.includes(id) ? prev : [...prev, id];
-        try {
-          localStorage.setItem("diseno_servicio_dev_hidden_ids", JSON.stringify(next));
-        } catch {}
-        return next;
-      });
+      const target = !currentHidden;
+      setIsUpdatingId(id);
+
+      // Optimistic state update
+      setRecords((prev) =>
+        prev.map((r) => (r.id === id ? { ...r, is_hidden: target } : r)),
+      );
+
+      const res = await toggleDisenoServicioHidden(id, target);
+      setIsUpdatingId(null);
+      if (!res.success) {
+        // Rollback
+        setRecords((prev) =>
+          prev.map((r) => (r.id === id ? { ...r, is_hidden: currentHidden } : r)),
+        );
+        alert(res.error || "No se pudo actualizar el estado en Supabase.");
+      }
     },
     [isDev],
   );
 
-  const handleRestoreHidden = useCallback(() => {
-    setHiddenIds([]);
-    try {
-      localStorage.removeItem("diseno_servicio_dev_hidden_ids");
-    } catch {}
-  }, []);
+  const handleRestoreAllHidden = useCallback(async () => {
+    if (!isDev) return;
+    if (!window.confirm("¿Deseas restaurar todos los registros ocultos en producción?")) return;
+
+    const previous = records;
+    setRecords((prev) => prev.map((r) => ({ ...r, is_hidden: false })));
+
+    const res = await restoreAllHiddenDisenoServicio();
+    if (!res.success) {
+      setRecords(previous);
+      alert(res.error || "No se pudo restaurar los registros en Supabase.");
+    }
+  }, [isDev, records]);
 
   // Active department tab ("todos" | "cap" | "st")
   const normalizedInitialDept: DeptTab =
@@ -91,12 +105,16 @@ export default function DisenoServicioListClient({
   // Active record for DisenoNotasModal
   const [activeNotaRecord, setActiveNotaRecord] = useState<DisenoServicioListItem | null>(null);
 
-  // Active records: excludes temporarily hidden records in dev so metrics and counts reflect only active records
+  // Active records: always excludes records that are is_hidden
+  // so metrics and counts reflect only active records in both dev and production
   const activeRecords = useMemo(() => {
-    if (!isDev || hiddenIds.length === 0) return records;
-    const hiddenSet = new Set(hiddenIds);
-    return records.filter((r) => !hiddenSet.has(r.id));
-  }, [records, hiddenIds, isDev]);
+    return records.filter((r) => !r.is_hidden);
+  }, [records]);
+
+  // Count of hidden records
+  const hiddenCount = useMemo(() => {
+    return records.filter((r) => r.is_hidden).length;
+  }, [records]);
 
   // Derive total unfiltered counts per department (based on active records)
   const totalCounts = useMemo(() => {
@@ -133,23 +151,29 @@ export default function DisenoServicioListClient({
     [activeRecords],
   );
 
-  // Filter records matching general filters (search, solicitante, departamento, estatus, osiLink, date range)
+  // Filter active records matching general filters (search, solicitante, departamento, estatus, osiLink, date range)
   const matchingRecords = useMemo(() => {
     return activeRecords.filter((r) => matchesDisenoFilters(r, filters));
   }, [activeRecords, filters]);
 
-  // Metrics per department (requested, finished, percentage)
+  // All records matching filters (used when dev toggles "Ver ocultos")
+  const matchingAllRecords = useMemo(() => {
+    return records.filter((r) => matchesDisenoFilters(r, filters));
+  }, [records, filters]);
+
+  // Metrics per department (requested, finished, percentage) - ALWAYS on active matching records!
   const departmentMetrics = useMemo(() => {
     return computeDepartmentMetrics(matchingRecords);
   }, [matchingRecords]);
 
-  // Final records filtered by both active filters and department tab
+  // Final records filtered by active filters and department tab
   const filteredRecords = useMemo(() => {
-    if (activeDeptTab === "todos") return matchingRecords;
-    return matchingRecords.filter((r) =>
+    const base = showHiddenInDev && isDev ? matchingAllRecords : matchingRecords;
+    if (activeDeptTab === "todos") return base;
+    return base.filter((r) =>
       activeDeptTab === "cap" ? isCapacitacion(r) : isServiciosTecnicos(r),
     );
-  }, [matchingRecords, activeDeptTab]);
+  }, [matchingRecords, matchingAllRecords, activeDeptTab, showHiddenInDev, isDev]);
 
   const hasActiveFilters = Object.values(filters).some(
     (v) => v !== "" && v !== undefined,
@@ -299,17 +323,26 @@ export default function DisenoServicioListClient({
                 Limpiar
               </button>
             )}
-            {isDev && hiddenIds.length > 0 && (
-              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] bg-amber-50 border border-amber-200 text-amber-800">
-                <EyeOff className="w-3 h-3 text-amber-600" />
-                <span>{hiddenIds.length} oculto(s) en dev</span>
+            {isDev && hiddenCount > 0 && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[11px] bg-amber-50 border border-amber-300 text-amber-900 shadow-2xs">
+                <EyeOff className="w-3.5 h-3.5 text-amber-600" />
+                <span>{hiddenCount} oculto(s) en producción</span>
                 <button
                   type="button"
-                  onClick={handleRestoreHidden}
-                  className="underline font-semibold ml-0.5 hover:text-amber-950"
-                  title="Restaurar registros ocultos en dev"
+                  onClick={() => setShowHiddenInDev((prev) => !prev)}
+                  className="underline font-semibold ml-0.5 text-amber-800 hover:text-amber-950"
+                  title={showHiddenInDev ? "Ver solo activos" : "Ver registros ocultos en la tabla"}
                 >
-                  Restaurar
+                  {showHiddenInDev ? "Ocultar en tabla" : "Ver ocultos"}
+                </button>
+                <span className="text-amber-300">|</span>
+                <button
+                  type="button"
+                  onClick={handleRestoreAllHidden}
+                  className="underline font-semibold text-amber-800 hover:text-amber-950"
+                  title="Restaurar todos los registros ocultos en producción"
+                >
+                  Restaurar todos
                 </button>
               </span>
             )}
@@ -450,7 +483,8 @@ export default function DisenoServicioListClient({
       <DisenoServicioTable
         records={filteredRecords}
         onOpenNotas={(rec) => setActiveNotaRecord(rec)}
-        onHideRecord={isDev ? handleHideRecord : undefined}
+        onToggleHide={isDev ? handleToggleHide : undefined}
+        isUpdatingId={isUpdatingId}
       />
 
       {/* Notes Modal */}

@@ -353,10 +353,12 @@ describe("DisenoServicio: Subtle Metrics (Requested vs Finished & Percentage)", 
     });
   });
 
-  it("completely excludes hidden records from department metrics and counts when hidden in dev", () => {
-    // Hide record id 1 (which was the ONLY finished Capacitacion item)
-    const hiddenIds = new Set([1]);
-    const active = MOCK_RECORDS.filter((r) => !hiddenIds.has(r.id));
+  it("completely excludes hidden records from department metrics and counts when marked as is_hidden", () => {
+    // Mark record id 1 (which was the ONLY finished Capacitacion item) as is_hidden
+    const recordsWithHidden: DisenoServicioListItem[] = MOCK_RECORDS.map((r) =>
+      r.id === 1 ? { ...r, is_hidden: true } : { ...r, is_hidden: false },
+    );
+    const active = recordsWithHidden.filter((r) => !r.is_hidden);
 
     const counts = computeDepartmentCounts(active);
     assert.deepEqual(counts, {
@@ -366,21 +368,16 @@ describe("DisenoServicio: Subtle Metrics (Requested vs Finished & Percentage)", 
     });
 
     const metrics = computeDepartmentMetrics(active);
-    // Capacitacion now has 2 requested, 0 finished (0%)
     assert.deepEqual(metrics.cap, {
       solicitados: 2,
       finalizados: 0,
       porcentaje: 0,
     });
-
-    // Todos now has 4 requested, 1 finished (25%)
     assert.deepEqual(metrics.todos, {
       solicitados: 4,
       finalizados: 1,
       porcentaje: 25,
     });
-
-    // Servicios Tecnicos unaffected
     assert.deepEqual(metrics.st, {
       solicitados: 2,
       finalizados: 1,

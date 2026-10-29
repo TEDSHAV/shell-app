@@ -164,7 +164,9 @@ export async function getCurrentUserForDiseno() {
 export async function getDisenoServicioList(): Promise<DisenoServicioListItem[]> {
   const supabase = await createAdminClient();
 
-  const { data, error } = await supabase
+  // Attempt to select is_hidden; fallback gracefully if column does not exist yet in Supabase
+  let data: Array<Record<string, unknown>> | null = null;
+  const primaryResult = await supabase
     .from("solicitudes_diseno_servicio")
     .select(`
       id,
@@ -175,15 +177,43 @@ export async function getDisenoServicioList(): Promise<DisenoServicioListItem[]>
       id_solicitante,
       id_servicio_relacionado,
       bloque_recursos_requisitos,
+      is_hidden,
       conf_estatus!solicitudes_diseno_servicio_id_estatus_fkey(nombre_estado),
       usuarios!solicitudes_diseno_servicio_id_solicitante_fkey(nombre_apellido, departamento),
       catalogo_servicios!solicitudes_diseno_servicio_id_servicio_relacionado_fkey(nombre, id_departamento_ejecutante)
     `)
     .order("id", { ascending: false });
 
-  if (error) {
-    console.error("Error fetching solicitudes_diseno_servicio:", JSON.stringify(error, null, 2));
-    return [];
+  if (primaryResult.error) {
+    if (primaryResult.error.message.includes("is_hidden")) {
+      const fallbackResult = await supabase
+        .from("solicitudes_diseno_servicio")
+        .select(`
+          id,
+          nombre_sugerido,
+          tipo_solicitud,
+          id_estatus,
+          fecha_solicitud,
+          id_solicitante,
+          id_servicio_relacionado,
+          bloque_recursos_requisitos,
+          conf_estatus!solicitudes_diseno_servicio_id_estatus_fkey(nombre_estado),
+          usuarios!solicitudes_diseno_servicio_id_solicitante_fkey(nombre_apellido, departamento),
+          catalogo_servicios!solicitudes_diseno_servicio_id_servicio_relacionado_fkey(nombre, id_departamento_ejecutante)
+        `)
+        .order("id", { ascending: false });
+
+      if (fallbackResult.error) {
+        console.error("Error fetching solicitudes_diseno_servicio:", JSON.stringify(fallbackResult.error, null, 2));
+        return [];
+      }
+      data = fallbackResult.data;
+    } else {
+      console.error("Error fetching solicitudes_diseno_servicio:", JSON.stringify(primaryResult.error, null, 2));
+      return [];
+    }
+  } else {
+    data = primaryResult.data;
   }
 
   // Batch-fetch department names
@@ -344,8 +374,82 @@ export async function getDisenoServicioList(): Promise<DisenoServicioListItem[]>
       notas_count: notesCountMap.get(row.id) || 0,
       osi_count: linkedOsis.length,
       osi_numeros: linkedOsis,
+      is_hidden: Boolean((row as Record<string, unknown>).is_hidden),
     };
   });
+
+  const isDev = process.env.NODE_ENV === "development";
+  // In production, strictly omit hidden records so they are never sent to the client or counted in metrics
+  if (!isDev) {
+    return allItems.filter((item) => !item.is_hidden);
+  }
+
+  return allItems;
+}
+
+// Dev-only action: toggle is_hidden flag for a record
+export async function toggleDisenoServicioHidden(
+  id: number,
+  hidden: boolean,
+): Promise<{ success: boolean; error?: string }> {
+  // Security constraint: only callable in development server
+  if (process.env.NODE_ENV !== "development") {
+    return {
+      success: false,
+      error: "Esta acción solo está permitida desde el servidor de desarrollo.",
+    };
+  }
+
+  const supabase = await createAdminClient();
+  const { error } = await supabase
+    .from("solicitudes_diseno_servicio")
+    .update({ is_hidden: hidden })
+    .eq("id", id);
+
+  if (error) {
+    console.error("Error updating is_hidden in solicitudes_diseno_servicio:", error);
+    return {
+      success: false,
+      error: error.message.includes("is_hidden")
+        ? "La columna 'is_hidden' no existe aún en Supabase. Ejecuta la migración en el SQL Editor de Supabase."
+        : error.message,
+    };
+  }
+
+  revalidatePath("/nuevo-servicio");
+  return { success: true };
+}
+
+// Dev-only action: restore all hidden records
+export async function restoreAllHiddenDisenoServicio(): Promise<{
+  success: boolean;
+  count?: number;
+  error?: string;
+}> {
+  if (process.env.NODE_ENV !== "development") {
+    return {
+      success: false,
+      error: "Esta acción solo está permitida desde el servidor de desarrollo.",
+    };
+  }
+
+  const supabase = await createAdminClient();
+  const { error, count } = await supabase
+    .from("solicitudes_diseno_servicio")
+    .update({ is_hidden: false })
+    .eq("is_hidden", true);
+
+  if (error) {
+    return {
+      success: false,
+      error: error.message.includes("is_hidden")
+        ? "La columna 'is_hidden' no existe aún en Supabase."
+        : error.message,
+    };
+  }
+
+  revalidatePath("/nuevo-servicio");
+  return { success: true, count: count ?? 0 };
 }
 
 // Get single record by ID with all JSONB blocks

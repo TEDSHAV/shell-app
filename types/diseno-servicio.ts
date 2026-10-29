@@ -207,6 +207,7 @@ export interface DisenoServicioListItem {
   notas_count?: number;
   osi_count?: number;
   osi_numeros?: string[];
+  is_hidden?: boolean;
 }
 
 // Checklist definitions per service type
