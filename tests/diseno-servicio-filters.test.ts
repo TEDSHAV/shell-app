@@ -352,4 +352,39 @@ describe("DisenoServicio: Subtle Metrics (Requested vs Finished & Percentage)", 
       porcentaje: 0,
     });
   });
+
+  it("completely excludes hidden records from department metrics and counts when hidden in dev", () => {
+    // Hide record id 1 (which was the ONLY finished Capacitacion item)
+    const hiddenIds = new Set([1]);
+    const active = MOCK_RECORDS.filter((r) => !hiddenIds.has(r.id));
+
+    const counts = computeDepartmentCounts(active);
+    assert.deepEqual(counts, {
+      todos: 4,
+      cap: 2,
+      st: 2,
+    });
+
+    const metrics = computeDepartmentMetrics(active);
+    // Capacitacion now has 2 requested, 0 finished (0%)
+    assert.deepEqual(metrics.cap, {
+      solicitados: 2,
+      finalizados: 0,
+      porcentaje: 0,
+    });
+
+    // Todos now has 4 requested, 1 finished (25%)
+    assert.deepEqual(metrics.todos, {
+      solicitados: 4,
+      finalizados: 1,
+      porcentaje: 25,
+    });
+
+    // Servicios Tecnicos unaffected
+    assert.deepEqual(metrics.st, {
+      solicitados: 2,
+      finalizados: 1,
+      porcentaje: 50,
+    });
+  });
 });

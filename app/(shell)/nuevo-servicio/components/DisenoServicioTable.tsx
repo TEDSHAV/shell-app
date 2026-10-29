@@ -4,11 +4,12 @@ import { useRouter } from "next/navigation";
 import type { DisenoServicioListItem } from "@/types/diseno-servicio";
 import { isCapacitacion } from "@/lib/diseno-servicio-filters";
 import { Badge } from "@/components/ui/badge";
-import { MessageSquare, GraduationCap, Wrench, ChevronRight, FileCheck2 } from "lucide-react";
+import { MessageSquare, GraduationCap, Wrench, ChevronRight, FileCheck2, EyeOff } from "lucide-react";
 
 interface DisenoServicioTableProps {
   records: DisenoServicioListItem[];
   onOpenNotas: (record: DisenoServicioListItem) => void;
+  onHideRecord?: (id: number) => void;
 }
 
 const STATUS_COLORS: Record<number, string> = {
@@ -34,6 +35,7 @@ const TIPO_SOLICITUD_BADGE: Record<string, { label: string; className: string }>
 export default function DisenoServicioTable({
   records,
   onOpenNotas,
+  onHideRecord,
 }: DisenoServicioTableProps) {
   const router = useRouter();
 
@@ -184,7 +186,22 @@ export default function DisenoServicioTable({
                 </td>
 
                 <td className="px-3 py-3 text-right">
-                  <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-indigo-600 group-hover:translate-x-0.5 transition-all inline" />
+                  <div className="inline-flex items-center gap-1.5 justify-end">
+                    {onHideRecord && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onHideRecord(record.id);
+                        }}
+                        className="p-1 rounded text-gray-400 hover:text-amber-700 hover:bg-amber-100/70 transition-colors opacity-40 group-hover:opacity-100"
+                        title="Ocultar temporalmente (solo dev)"
+                      >
+                        <EyeOff className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-indigo-600 group-hover:translate-x-0.5 transition-all inline" />
+                  </div>
                 </td>
               </tr>
             );

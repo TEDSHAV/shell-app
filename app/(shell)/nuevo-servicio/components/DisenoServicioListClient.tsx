@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import {
   Search,
   X,
@@ -9,6 +9,7 @@ import {
   Layers,
   GraduationCap,
   Wrench,
+  EyeOff,
 } from "lucide-react";
 import type { DisenoServicioListItem } from "@/types/diseno-servicio";
 import {
@@ -42,9 +43,45 @@ export default function DisenoServicioListClient({
   initialRecords,
   initialDept,
 }: DisenoServicioListClientProps) {
+  const isDev = process.env.NODE_ENV === "development";
   const [records, setRecords] = useState<DisenoServicioListItem[]>(initialRecords);
   const [filters, setFilters] = useState<DisenoServicioFilters>(EMPTY_FILTERS);
   const [expanded, setExpanded] = useState(false);
+  const [hiddenIds, setHiddenIds] = useState<number[]>([]);
+
+  // Load dev-only hidden records from localStorage
+  useEffect(() => {
+    if (isDev) {
+      try {
+        const saved = localStorage.getItem("diseno_servicio_dev_hidden_ids");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) setHiddenIds(parsed);
+        }
+      } catch {}
+    }
+  }, [isDev]);
+
+  const handleHideRecord = useCallback(
+    (id: number) => {
+      if (!isDev) return;
+      setHiddenIds((prev) => {
+        const next = prev.includes(id) ? prev : [...prev, id];
+        try {
+          localStorage.setItem("diseno_servicio_dev_hidden_ids", JSON.stringify(next));
+        } catch {}
+        return next;
+      });
+    },
+    [isDev],
+  );
+
+  const handleRestoreHidden = useCallback(() => {
+    setHiddenIds([]);
+    try {
+      localStorage.removeItem("diseno_servicio_dev_hidden_ids");
+    } catch {}
+  }, []);
 
   // Active department tab ("todos" | "cap" | "st")
   const normalizedInitialDept: DeptTab =
@@ -54,45 +91,52 @@ export default function DisenoServicioListClient({
   // Active record for DisenoNotasModal
   const [activeNotaRecord, setActiveNotaRecord] = useState<DisenoServicioListItem | null>(null);
 
-  // Derive total unfiltered counts per department
-  const totalCounts = useMemo(() => {
-    return computeDepartmentCounts(records);
-  }, [records]);
+  // Active records: excludes temporarily hidden records in dev so metrics and counts reflect only active records
+  const activeRecords = useMemo(() => {
+    if (!isDev || hiddenIds.length === 0) return records;
+    const hiddenSet = new Set(hiddenIds);
+    return records.filter((r) => !hiddenSet.has(r.id));
+  }, [records, hiddenIds, isDev]);
 
-  // Derive dropdown options from records
+  // Derive total unfiltered counts per department (based on active records)
+  const totalCounts = useMemo(() => {
+    return computeDepartmentCounts(activeRecords);
+  }, [activeRecords]);
+
+  // Derive dropdown options from active records
   const solicitanteOptions = useMemo(
     () =>
       Array.from(
-        new Set(records.map((r) => r.solicitante_nombre).filter(Boolean)),
+        new Set(activeRecords.map((r) => r.solicitante_nombre).filter(Boolean)),
       ).sort((a, b) => a.localeCompare(b)),
-    [records],
+    [activeRecords],
   );
 
   const departamentoOptions = useMemo(
     () =>
       Array.from(
-        new Set(records.map((r) => r.solicitante_departamento).filter(Boolean)),
+        new Set(activeRecords.map((r) => r.solicitante_departamento).filter(Boolean)),
       ).sort((a, b) => a.localeCompare(b)),
-    [records],
+    [activeRecords],
   );
 
   const estatusOptions = useMemo(
     () =>
       Array.from(
         new Map(
-          records.map((r) => [
+          activeRecords.map((r) => [
             r.id_estatus,
             { id: r.id_estatus, nombre: r.estatus_nombre || "Desconocido" },
           ]),
         ).values(),
       ).sort((a, b) => a.id - b.id),
-    [records],
+    [activeRecords],
   );
 
   // Filter records matching general filters (search, solicitante, departamento, estatus, osiLink, date range)
   const matchingRecords = useMemo(() => {
-    return records.filter((r) => matchesDisenoFilters(r, filters));
-  }, [records, filters]);
+    return activeRecords.filter((r) => matchesDisenoFilters(r, filters));
+  }, [activeRecords, filters]);
 
   // Metrics per department (requested, finished, percentage)
   const departmentMetrics = useMemo(() => {
@@ -255,6 +299,20 @@ export default function DisenoServicioListClient({
                 Limpiar
               </button>
             )}
+            {isDev && hiddenIds.length > 0 && (
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] bg-amber-50 border border-amber-200 text-amber-800">
+                <EyeOff className="w-3 h-3 text-amber-600" />
+                <span>{hiddenIds.length} oculto(s) en dev</span>
+                <button
+                  type="button"
+                  onClick={handleRestoreHidden}
+                  className="underline font-semibold ml-0.5 hover:text-amber-950"
+                  title="Restaurar registros ocultos en dev"
+                >
+                  Restaurar
+                </button>
+              </span>
+            )}
           </div>
           <button
             onClick={() => setExpanded(!expanded)}
@@ -392,6 +450,7 @@ export default function DisenoServicioListClient({
       <DisenoServicioTable
         records={filteredRecords}
         onOpenNotas={(rec) => setActiveNotaRecord(rec)}
+        onHideRecord={isDev ? handleHideRecord : undefined}
       />
 
       {/* Notes Modal */}
