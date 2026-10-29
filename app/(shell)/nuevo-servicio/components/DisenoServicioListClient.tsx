@@ -21,10 +21,7 @@ import {
   type DisenoServicioFilters,
   type DeptTab,
 } from "@/lib/diseno-servicio-filters";
-import {
-  toggleDisenoServicioHidden,
-  restoreAllHiddenDisenoServicio,
-} from "@/actions/diseno-servicio";
+import { toggleDisenoServicioHidden } from "@/actions/diseno-servicio";
 import DisenoServicioTable from "./DisenoServicioTable";
 import DisenoNotasModal from "./DisenoNotasModal";
 
@@ -82,20 +79,6 @@ export default function DisenoServicioListClient({
     },
     [isDev],
   );
-
-  const handleRestoreAllHidden = useCallback(async () => {
-    if (!isDev) return;
-    if (!window.confirm("¿Deseas restaurar todos los registros ocultos en producción?")) return;
-
-    const previous = records;
-    setRecords((prev) => prev.map((r) => ({ ...r, is_hidden: false })));
-
-    const res = await restoreAllHiddenDisenoServicio();
-    if (!res.success) {
-      setRecords(previous);
-      alert(res.error || "No se pudo restaurar los registros en Supabase.");
-    }
-  }, [isDev, records]);
 
   // Active department tab ("todos" | "cap" | "st")
   const normalizedInitialDept: DeptTab =
@@ -324,27 +307,15 @@ export default function DisenoServicioListClient({
               </button>
             )}
             {isDev && hiddenCount > 0 && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[11px] bg-amber-50 border border-amber-300 text-amber-900 shadow-2xs">
-                <EyeOff className="w-3.5 h-3.5 text-amber-600" />
-                <span>{hiddenCount} oculto(s) en producción</span>
-                <button
-                  type="button"
-                  onClick={() => setShowHiddenInDev((prev) => !prev)}
-                  className="underline font-semibold ml-0.5 text-amber-800 hover:text-amber-950"
-                  title={showHiddenInDev ? "Ver solo activos" : "Ver registros ocultos en la tabla"}
-                >
-                  {showHiddenInDev ? "Ocultar en tabla" : "Ver ocultos"}
-                </button>
-                <span className="text-amber-300">|</span>
-                <button
-                  type="button"
-                  onClick={handleRestoreAllHidden}
-                  className="underline font-semibold text-amber-800 hover:text-amber-950"
-                  title="Restaurar todos los registros ocultos en producción"
-                >
-                  Restaurar todos
-                </button>
-              </span>
+              <button
+                type="button"
+                onClick={() => setShowHiddenInDev((prev) => !prev)}
+                className="text-xs text-gray-500 hover:text-gray-800 flex items-center gap-1 bg-gray-100 hover:bg-gray-200 px-2 py-0.5 rounded-md font-medium transition-colors"
+                title={showHiddenInDev ? "Ocultar en la tabla" : "Mostrar registros ocultos"}
+              >
+                <EyeOff className="w-3 h-3 text-gray-500" />
+                <span>{showHiddenInDev ? "Ocultar" : "Ver ocultos"}</span>
+              </button>
             )}
           </div>
           <button

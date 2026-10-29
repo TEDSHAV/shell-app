@@ -75,7 +75,7 @@ export default function DisenoServicioTable({
                 key={record.id}
                 onClick={() => router.push(`/nuevo-servicio/${record.id}`)}
                 className={`hover:bg-slate-50/90 cursor-pointer transition-colors group ${
-                  record.is_hidden ? "bg-amber-50/40" : ""
+                  record.is_hidden ? "opacity-50" : ""
                 }`}
               >
                 <td className="px-4 py-3 text-gray-900 font-medium max-w-xs sm:max-w-md">
@@ -98,16 +98,6 @@ export default function DisenoServicioTable({
                             ? `OSI ${record.osi_numeros[0]}`
                             : `${record.osi_count} OSIs`}
                         </span>
-                      </Badge>
-                    )}
-                    {record.is_hidden && (
-                      <Badge
-                        variant="outline"
-                        title="Este registro está oculto en producción"
-                        className="bg-amber-100 text-amber-900 border-amber-300 inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0"
-                      >
-                        <EyeOff className="w-2.5 h-2.5 text-amber-700 shrink-0" />
-                        <span>Oculto en Prod</span>
                       </Badge>
                     )}
                   </div>
@@ -211,14 +201,10 @@ export default function DisenoServicioTable({
                         }}
                         className={`p-1 rounded transition-colors ${
                           record.is_hidden
-                            ? "text-amber-800 bg-amber-100 hover:bg-amber-200 opacity-90"
-                            : "text-gray-400 hover:text-amber-700 hover:bg-amber-100/70 opacity-40 group-hover:opacity-100"
+                            ? "text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+                            : "text-gray-400 hover:text-gray-700 hover:bg-gray-100 opacity-40 group-hover:opacity-100"
                         } ${isUpdatingId === record.id ? "animate-pulse" : ""}`}
-                        title={
-                          record.is_hidden
-                            ? "Mostrar en producción (desocultar)"
-                            : "Ocultar en producción (solo dev)"
-                        }
+                        title={record.is_hidden ? "Mostrar registro" : "Ocultar registro"}
                       >
                         {record.is_hidden ? (
                           <Eye className="w-3.5 h-3.5" />
