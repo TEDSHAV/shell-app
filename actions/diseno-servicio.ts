@@ -336,7 +336,7 @@ export async function getDisenoServicioList(): Promise<DisenoServicioListItem[]>
     }
   }
 
-  return (data || []).map((row: any) => {
+  const allItems: DisenoServicioListItem[] = (data || []).map((row: any) => {
     const rawNaturaleza = (row.bloque_recursos_requisitos as any)?.tipo_naturaleza_servicio;
     const catDept = (row.catalogo_servicios as any)?.id_departamento_ejecutante;
 
