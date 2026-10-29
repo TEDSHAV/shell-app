@@ -17,14 +17,24 @@ export function format_osi_si_no(value: boolean): "SÍ" | "NO" {
 export function format_certificado_entrega_display(
   certificado: boolean,
   entrega: "retira_cliente" | "se_envia" | null | undefined,
+  horas?: number | null,
 ): string {
   if (!certificado) return "NO";
+  const parts = ["SÍ"];
+  const horas_n = Number(horas ?? 0);
+  if (Number.isFinite(horas_n) && horas_n > 0) {
+    const n = Math.trunc(horas_n);
+    parts.push(`${n} ${n === 1 ? "hora" : "horas"}`);
+  }
   switch (entrega) {
     case "retira_cliente":
-      return "SÍ — RETIRA EL CLIENTE";
+      parts.push("RETIRA EL CLIENTE");
+      break;
     case "se_envia":
-      return "SÍ — SE ENVÍA";
+      parts.push("SE ENVÍA");
+      break;
     default:
-      return "SÍ";
+      break;
   }
+  return parts.join(" | ");
 }

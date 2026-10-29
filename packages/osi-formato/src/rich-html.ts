@@ -12,9 +12,22 @@ function sanitize_rich_html(raw: string): string {
 
 
 const HTML_TAG_RE = /<\/?[a-z][\s\S]*>/i;
+const SOLPED_AUTO_START = "<!--solped-auto-->";
+const SOLPED_AUTO_END = "<!--/solped-auto-->";
+
+function unwrap_solped_auto_html(value: string): string {
+  let raw = value.trim();
+  const start = raw.toLowerCase().indexOf(SOLPED_AUTO_START);
+  const end = raw.toLowerCase().indexOf(SOLPED_AUTO_END);
+  if (start >= 0 && end > start) {
+    raw = `${raw.slice(start + SOLPED_AUTO_START.length, end)}${raw.slice(end + SOLPED_AUTO_END.length)}`;
+  }
+  return raw.replace(/<!--\/?solped-[^>]*-->/gi, "").trim();
+}
 
 function is_likely_html(value: string): boolean {
-  return HTML_TAG_RE.test(value.trim());
+  const raw = unwrap_solped_auto_html(value);
+  return HTML_TAG_RE.test(raw) || /data-solped-/i.test(raw);
 }
 
 function escape_html(text: string): string {
@@ -48,7 +61,7 @@ function plain_text_to_html(text: string): string {
 }
 
 function to_display_html(value: string | null | undefined): string {
-  const raw = String(value ?? "").trim();
+  const raw = unwrap_solped_auto_html(String(value ?? ""));
   if (!raw || raw === "N/A") return "";
   if (is_likely_html(raw)) return sanitize_rich_html(raw);
   if (/^\s*[-•]/m.test(raw)) return sanitize_rich_html(bullet_text_to_html(raw));
@@ -85,7 +98,7 @@ export function extract_osi_solicitud_observacion_text(
 }
 
 export function merged_content_to_display_html(value: string): string {
-  const raw = strip_legacy_osi_concat_markers(value.trim());
+  const raw = unwrap_solped_auto_html(strip_legacy_osi_concat_markers(value));
   if (!raw || raw === "N/A") return "N/A";
   const sections = raw.split(/\n\n+/).map((s) => s.trim()).filter(Boolean);
   if (sections.length === 0) return "N/A";
