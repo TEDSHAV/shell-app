@@ -11,18 +11,17 @@ import {
   Wrench,
 } from "lucide-react";
 import type { DisenoServicioListItem } from "@/types/diseno-servicio";
+import {
+  isCapacitacion,
+  isServiciosTecnicos,
+  matchesDisenoFilters,
+  computeDepartmentCounts,
+  computeDepartmentMetrics,
+  type DisenoServicioFilters,
+  type DeptTab,
+} from "@/lib/diseno-servicio-filters";
 import DisenoServicioTable from "./DisenoServicioTable";
 import DisenoNotasModal from "./DisenoNotasModal";
-
-interface DisenoServicioFilters {
-  search: string;
-  solicitante: string;
-  departamento: string;
-  estatus: string;
-  osiLink: "" | "with_osi" | "without_osi";
-  dateFrom: string;
-  dateTo: string;
-}
 
 const EMPTY_FILTERS: DisenoServicioFilters = {
   search: "",
@@ -33,8 +32,6 @@ const EMPTY_FILTERS: DisenoServicioFilters = {
   dateFrom: "",
   dateTo: "",
 };
-
-type DeptTab = "todos" | "cap" | "st";
 
 interface DisenoServicioListClientProps {
   initialRecords: DisenoServicioListItem[];
@@ -57,18 +54,9 @@ export default function DisenoServicioListClient({
   // Active record for DisenoNotasModal
   const [activeNotaRecord, setActiveNotaRecord] = useState<DisenoServicioListItem | null>(null);
 
-  // Derive counts per department
-  const counts = useMemo(() => {
-    let cap = 0;
-    let st = 0;
-    for (const r of records) {
-      if (r.tipo_naturaleza === "cap" || r.id_departamento_ejecutante === 3) {
-        cap++;
-      } else {
-        st++;
-      }
-    }
-    return { todos: records.length, cap, st };
+  // Derive total unfiltered counts per department
+  const totalCounts = useMemo(() => {
+    return computeDepartmentCounts(records);
   }, [records]);
 
   // Derive dropdown options from records
@@ -101,76 +89,23 @@ export default function DisenoServicioListClient({
     [records],
   );
 
-  // Filter records
+  // Filter records matching general filters (search, solicitante, departamento, estatus, osiLink, date range)
+  const matchingRecords = useMemo(() => {
+    return records.filter((r) => matchesDisenoFilters(r, filters));
+  }, [records, filters]);
+
+  // Metrics per department (requested, finished, percentage)
+  const departmentMetrics = useMemo(() => {
+    return computeDepartmentMetrics(matchingRecords);
+  }, [matchingRecords]);
+
+  // Final records filtered by both active filters and department tab
   const filteredRecords = useMemo(() => {
-    return records.filter((r) => {
-      // Department tab filter
-      if (activeDeptTab === "cap") {
-        const isCap = r.tipo_naturaleza === "cap" || r.id_departamento_ejecutante === 3;
-        if (!isCap) return false;
-      } else if (activeDeptTab === "st") {
-        const isSt = r.tipo_naturaleza === "st" || r.id_departamento_ejecutante === 4;
-        if (!isSt) return false;
-      }
-
-      // Text search
-      if (filters.search) {
-        const q = filters.search.toLowerCase();
-        const matchesNombre = r.nombre_sugerido?.toLowerCase().includes(q);
-        const matchesTipo = r.tipo_servicio?.toLowerCase().includes(q);
-        const matchesId = r.id.toString().includes(q);
-        const matchesOsi = r.osi_numeros?.some((n) => n.toLowerCase().includes(q));
-        if (!matchesNombre && !matchesTipo && !matchesId && !matchesOsi) {
-          return false;
-        }
-      }
-
-      // OSI link filter
-      if (filters.osiLink === "with_osi" && (r.osi_count || 0) === 0) {
-        return false;
-      }
-      if (filters.osiLink === "without_osi" && (r.osi_count || 0) > 0) {
-        return false;
-      }
-
-      // Solicitante
-      if (filters.solicitante && r.solicitante_nombre !== filters.solicitante) {
-        return false;
-      }
-
-      // Solicitante Departamento
-      if (
-        filters.departamento &&
-        r.solicitante_departamento !== filters.departamento
-      ) {
-        return false;
-      }
-
-      // Estatus
-      if (filters.estatus && r.id_estatus !== parseInt(filters.estatus)) {
-        return false;
-      }
-
-      // Dates
-      if (filters.dateFrom && r.fecha_solicitud) {
-        if (new Date(r.fecha_solicitud) < new Date(filters.dateFrom)) {
-          return false;
-        }
-      }
-      if (filters.dateTo && r.fecha_solicitud) {
-        const to = new Date(filters.dateTo);
-        to.setDate(to.getDate() + 1);
-        if (new Date(r.fecha_solicitud) >= to) {
-          return false;
-        }
-      }
-      if ((filters.dateFrom || filters.dateTo) && !r.fecha_solicitud) {
-        return false;
-      }
-
-      return true;
-    });
-  }, [records, filters, activeDeptTab]);
+    if (activeDeptTab === "todos") return matchingRecords;
+    return matchingRecords.filter((r) =>
+      activeDeptTab === "cap" ? isCapacitacion(r) : isServiciosTecnicos(r),
+    );
+  }, [matchingRecords, activeDeptTab]);
 
   const hasActiveFilters = Object.values(filters).some(
     (v) => v !== "" && v !== undefined,
@@ -210,17 +145,23 @@ export default function DisenoServicioListClient({
                 ? "bg-white text-gray-900 shadow-sm"
                 : "text-gray-600 hover:text-gray-900"
             }`}
+            title={`Todos: ${departmentMetrics.todos.finalizados} finalizados de ${departmentMetrics.todos.solicitados} solicitados (${departmentMetrics.todos.porcentaje}%)`}
           >
             <Layers className="w-3.5 h-3.5" />
             <span>Todos los Servicios</span>
             <span
-              className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium ${
                 activeDeptTab === "todos"
                   ? "bg-gray-200 text-gray-800"
                   : "bg-gray-200/60 text-gray-600"
               }`}
             >
-              {counts.todos}
+              <span>
+                {departmentMetrics.todos.finalizados}/{departmentMetrics.todos.solicitados}
+              </span>
+              <span className="text-[9px] font-semibold opacity-75">
+                ({departmentMetrics.todos.porcentaje}%)
+              </span>
             </span>
           </button>
 
@@ -232,17 +173,23 @@ export default function DisenoServicioListClient({
                 ? "bg-white text-purple-700 shadow-sm"
                 : "text-gray-600 hover:text-purple-700"
             }`}
+            title={`Capacitación: ${departmentMetrics.cap.finalizados} finalizados de ${departmentMetrics.cap.solicitados} solicitados (${departmentMetrics.cap.porcentaje}%)`}
           >
             <GraduationCap className="w-3.5 h-3.5" />
             <span>Capacitación</span>
             <span
-              className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium ${
                 activeDeptTab === "cap"
-                  ? "bg-purple-100 text-purple-800 font-bold"
+                  ? "bg-purple-100 text-purple-800"
                   : "bg-gray-200/60 text-gray-600"
               }`}
             >
-              {counts.cap}
+              <span>
+                {departmentMetrics.cap.finalizados}/{departmentMetrics.cap.solicitados}
+              </span>
+              <span className="text-[9px] font-semibold text-purple-700">
+                ({departmentMetrics.cap.porcentaje}%)
+              </span>
             </span>
           </button>
 
@@ -254,17 +201,23 @@ export default function DisenoServicioListClient({
                 ? "bg-white text-orange-700 shadow-sm"
                 : "text-gray-600 hover:text-orange-700"
             }`}
+            title={`Servicios Técnicos: ${departmentMetrics.st.finalizados} finalizados de ${departmentMetrics.st.solicitados} solicitados (${departmentMetrics.st.porcentaje}%)`}
           >
             <Wrench className="w-3.5 h-3.5" />
             <span>Servicios Técnicos</span>
             <span
-              className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium ${
                 activeDeptTab === "st"
-                  ? "bg-orange-100 text-orange-800 font-bold"
+                  ? "bg-orange-100 text-orange-800"
                   : "bg-gray-200/60 text-gray-600"
               }`}
             >
-              {counts.st}
+              <span>
+                {departmentMetrics.st.finalizados}/{departmentMetrics.st.solicitados}
+              </span>
+              <span className="text-[9px] font-semibold text-orange-700">
+                ({departmentMetrics.st.porcentaje}%)
+              </span>
             </span>
           </button>
         </div>
@@ -277,10 +230,10 @@ export default function DisenoServicioListClient({
           <span>de</span>
           <span className="font-semibold text-gray-800">
             {activeDeptTab === "todos"
-              ? counts.todos
+              ? totalCounts.todos
               : activeDeptTab === "cap"
-              ? counts.cap
-              : counts.st}
+              ? totalCounts.cap
+              : totalCounts.st}
           </span>
         </div>
       </div>

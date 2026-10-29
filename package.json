@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "test:asistencia": "node --import ./tests/register-loader.mjs --test tests/asistencia.test.ts",
     "test:visitantes": "node --import ./tests/register-loader.mjs --test tests/visitantes.test.ts",
+    "test:diseno": "node --import ./tests/register-loader.mjs --test tests/diseno-servicio-filters.test.ts",
     "versiones:sync": "node scripts/sync-versiones-git.mjs",
     "postinstall": "npm --prefix ./packages/osi-formato run build:css",
     "update-types": "supabase gen types typescript --project-id oboslhhemuvzvjnbqeih > src/types/supabase.ts"

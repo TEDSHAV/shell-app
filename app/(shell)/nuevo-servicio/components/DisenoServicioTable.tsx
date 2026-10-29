@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import type { DisenoServicioListItem } from "@/types/diseno-servicio";
+import { isCapacitacion } from "@/lib/diseno-servicio-filters";
 import { Badge } from "@/components/ui/badge";
 import { MessageSquare, GraduationCap, Wrench, ChevronRight, FileCheck2 } from "lucide-react";
 
@@ -63,9 +64,7 @@ export default function DisenoServicioTable({
         </thead>
         <tbody className="divide-y divide-gray-100">
           {records.map((record) => {
-            const isCap =
-              record.tipo_naturaleza === "cap" ||
-              record.id_departamento_ejecutante === 3;
+            const isCap = isCapacitacion(record);
 
             return (
               <tr
