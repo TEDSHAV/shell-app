@@ -1,12 +1,15 @@
 import type { TedPlanContext } from "../actions/assert-ted";
 import git_versiones from "../data/versiones-git.json";
+import versiones_historial from "../data/versiones-historial.json";
 import {
   planned_estado,
   type GitVersionesFile,
+  type VersionHistorialFile,
   type PlanVersionRef,
 } from "./versiones";
 
 export const GIT_VERSIONES = git_versiones as GitVersionesFile;
+export const VERSIONES_HISTORIAL = versiones_historial as VersionHistorialFile;
 
 type Admin = TedPlanContext["supabase"];
 

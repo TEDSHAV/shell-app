@@ -1,4 +1,4 @@
-import { GitBranch, Target } from "lucide-react";
+import { ChevronDown, GitBranch, Target } from "lucide-react";
 import { format_month_label } from "../lib/plan-month";
 import type { PlanVersionApp, PlanVersionNode } from "../lib/versiones";
 
@@ -32,19 +32,48 @@ export function VersionBadge({
 }
 
 function VersionDescripcion({ node }: { node: PlanVersionNode }) {
-  if (node.descripcion.length === 0) {
-    return node.estado === "planificada" ? (
+  if (node.estado === "planificada") {
+    return node.descripcion.length === 0 ? (
       <p className="pb-1.5 text-xs italic text-slate-400">
         La descripción se llena con los objetivos que se vayan cumpliendo.
       </p>
-    ) : null;
+    ) : (
+      <ul className="mb-2 list-disc space-y-0.5 pl-4 text-xs text-slate-600">
+        {node.descripcion.map((line, i) => (
+          <li key={i}>{line}</li>
+        ))}
+      </ul>
+    );
   }
+  const secciones =
+    node.historial?.secciones ??
+    (node.descripcion.length > 0 ? [{ titulo: "Cambios", items: node.descripcion }] : []);
+  const total = secciones.reduce((n, s) => n + s.items.length, 0);
   return (
-    <ul className="mb-2 list-disc space-y-0.5 pl-4 text-xs text-slate-600">
-      {node.descripcion.map((line, i) => (
-        <li key={i}>{line}</li>
-      ))}
-    </ul>
+    <>
+      {node.historial?.resumen ? (
+        <p className="pb-1 text-xs text-slate-600">{node.historial.resumen}</p>
+      ) : null}
+      {total > 0 ? (
+        <details className="mb-2">
+          <summary className="cursor-pointer select-none text-xs font-medium text-slate-500 hover:text-slate-700">
+            Historial · {total} {total === 1 ? "cambio" : "cambios"}
+          </summary>
+          <div className="mt-1.5 space-y-2 rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-2">
+            {secciones.map((seccion) => (
+              <div key={seccion.titulo}>
+                <p className="text-xs font-semibold text-slate-700">{seccion.titulo}</p>
+                <ul className="mt-0.5 list-disc space-y-0.5 pl-4 text-xs text-slate-600">
+                  {seccion.items.map((item, i) => (
+                    <li key={i}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </details>
+      ) : null}
+    </>
   );
 }
 
@@ -106,6 +135,28 @@ function VersionChain({ nodes }: { nodes: PlanVersionNode[] }) {
   );
 }
 
+function count_nodes(nodes: PlanVersionNode[]): number {
+  return nodes.reduce((n, node) => n + 1 + count_nodes(node.children), 0);
+}
+
+function AppCardHeader({ app }: { app: PlanVersionApp }) {
+  const total = count_nodes(app.roots);
+  return (
+    <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
+      <div className="min-w-0">
+        <h2 className="font-semibold text-slate-900">{app.app_nombre}</h2>
+        {app.repo ? <p className="text-xs text-slate-400">{app.repo}</p> : null}
+      </div>
+      <div className="flex shrink-0 items-center gap-2 text-xs text-slate-400">
+        <span>
+          {total} {total === 1 ? "versión" : "versiones"}
+        </span>
+        {app.actual ? <VersionBadge version={app.actual} estado="liberada" title="Versión actual" /> : null}
+      </div>
+    </div>
+  );
+}
+
 export function VersionesTree({
   apps,
   generated_at,
@@ -136,33 +187,34 @@ export function VersionesTree({
           Aún no hay versiones registradas.
         </p>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2">
-          {apps.map((app) => (
-            <section
-              key={app.app_slug}
-              className={
-                app.container
-                  ? "rounded-2xl border border-violet-200 bg-white p-5 shadow-sm md:col-span-2"
-                  : "rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
-              }
-            >
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <h2 className="font-semibold text-slate-900">{app.app_nombre}</h2>
-                  {app.repo ? <p className="text-xs text-slate-400">{app.repo}</p> : null}
-                </div>
-                {app.actual ? (
-                  <span className="text-xs text-slate-400">Actual v{app.actual}</span>
-                ) : null}
-              </div>
-              {app.container ? (
-                <p className="mb-2 text-xs text-slate-500">
+        <div className="space-y-3">
+          {apps.map((app) =>
+            app.container ? (
+              <section
+                key={app.app_slug}
+                className="rounded-2xl border border-violet-200 bg-white p-5 shadow-sm"
+              >
+                <AppCardHeader app={app} />
+                <p className="mb-2 mt-2 text-xs text-slate-500">
                   Versión general de Prisma: cada versión reúne los objetivos de todas las apps del mes.
                 </p>
-              ) : null}
-              <VersionChain nodes={app.roots} />
-            </section>
-          ))}
+                <VersionChain nodes={app.roots} />
+              </section>
+            ) : (
+              <details
+                key={app.app_slug}
+                className="group rounded-2xl border border-slate-200 bg-white shadow-sm"
+              >
+                <summary className="flex cursor-pointer list-none items-center gap-3 p-5 [&::-webkit-details-marker]:hidden">
+                  <ChevronDown className="h-4 w-4 shrink-0 -rotate-90 text-slate-400 transition-transform group-open:rotate-0" />
+                  <AppCardHeader app={app} />
+                </summary>
+                <div className="px-5 pb-5">
+                  <VersionChain nodes={app.roots} />
+                </div>
+              </details>
+            ),
+          )}
         </div>
       )}
     </div>

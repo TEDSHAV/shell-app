@@ -2,7 +2,7 @@
 
 import { require_objetivos_read_context } from "./assert-ted";
 import { average_avance } from "../lib/task-progress";
-import { GIT_VERSIONES, fetch_planned_versions } from "../lib/versiones-db";
+import { GIT_VERSIONES, VERSIONES_HISTORIAL, fetch_planned_versions } from "../lib/versiones-db";
 import {
   build_version_tree,
   type PlanVersionApp,
@@ -86,7 +86,7 @@ export async function load_versiones_tree(): Promise<
 
   return {
     ok: true,
-    apps: build_version_tree(GIT_VERSIONES, planned, app_names),
+    apps: build_version_tree(GIT_VERSIONES, planned, app_names, VERSIONES_HISTORIAL),
     generated_at: GIT_VERSIONES.generated_at,
     planned_error: rows === null,
   };
