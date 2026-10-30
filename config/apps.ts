@@ -988,7 +988,7 @@ export const apps: AppConfig[] = [
         href: "/nuevo-servicio?dept=st",
         icon: ClipboardList,
       },
-      { label: "Inspección Locativa", path: "/dashboard/inspeccion-locativa", icon: FileCheck },
+      { label: "Formato de Inspección", path: "/dashboard/inspeccion-locativa", icon: FileCheck },
       { label: "Control de Calibración", path: "/dashboard/control-calibracion", icon: Gauge },
       { label: "Entrada y Salida de Equipos", path: "/dashboard/entrada-salida-equipos", icon: ArrowLeftRight },
       { label: "Formulario de Novedades", path: "/dashboard/formulario-novedades", icon: FileText },
