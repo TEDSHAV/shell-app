@@ -1207,7 +1207,7 @@ export const apps: AppConfig[] = [
     id: "sst",
     dbSlug: "sst",
     name: "SST",
-    description: "Seguridad y Salud en el Trabajo · PRISMA SGI",
+    description: "Seguridad y Salud en el Trabajo · PRISMA SST",
     basePath: "/sst",
     defaultSubPath: "dashboard",
     upstreamUrl:
