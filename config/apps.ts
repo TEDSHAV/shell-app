@@ -1205,15 +1205,24 @@ export const apps: AppConfig[] = [
   }),
   build_app_config({
     id: "sst",
+    dbSlug: "sst",
     name: "SST",
-    description: "Seguridad y salud en el trabajo",
-    basePath: "#",
+    description: "Seguridad y Salud en el Trabajo · PRISMA SGI",
+    basePath: "/sst",
+    defaultSubPath: "dashboard",
+    upstreamUrl:
+      process.env.NEXT_PUBLIC_SST_URL ||
+      "https://sst.shadevenezuela.com.ve",
     icon: Shield,
     brandColor: "#ef4444",
-    embedMode: "native",
+    embedMode: "shell",
     groupId: "procesos-de-apoyo",
     dashboardOrder: 5,
-    navLinks: [],
+    navLinks: [
+      { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
+      { label: "Formato de Inspección", path: "/dashboard/inspeccion", icon: FileCheck },
+      ...[buildRequisicionesNavGroup("sst")],
+    ],
   }),
   build_app_config({
     id: "ted",
