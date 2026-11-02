@@ -536,24 +536,29 @@ export function AsistenciaTedClient({
                           </span>
                         )}
 
-                        <button
-                          type="button"
-                          disabled={pending}
-                          onClick={() =>
-                            handleToggleManualAttendance(
-                              u.usuario_id,
-                              !u.presente_en_corte,
-                            )
-                          }
-                          className="text-[11px] font-medium text-slate-400 hover:text-indigo-600 underline"
-                          title={
-                            u.presente_en_corte
-                              ? "Quitar marca de asistencia"
-                              : "Marcar presente manualmente"
-                          }
-                        >
-                          {u.presente_en_corte ? "Quitar marca" : "Marcar presente"}
-                        </button>
+                        {(() => {
+                          const hasRegistro = Boolean(u.hora_registro);
+                          return (
+                            <button
+                              type="button"
+                              disabled={pending}
+                              onClick={() =>
+                                handleToggleManualAttendance(
+                                  u.usuario_id,
+                                  !hasRegistro,
+                                )
+                              }
+                              className="text-[11px] font-medium text-slate-400 hover:text-indigo-600 underline"
+                              title={
+                                hasRegistro
+                                  ? "Quitar marca de asistencia"
+                                  : "Marcar presente manualmente (hora actual)"
+                              }
+                            >
+                              {hasRegistro ? "Quitar marca" : "Marcar presente"}
+                            </button>
+                          );
+                        })()}
                       </div>
                     </div>
                   ))}

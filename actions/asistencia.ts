@@ -16,6 +16,7 @@ import {
 import type { AsistenciaSnapshot } from "@/lib/asistencia/email-template";
 import {
   getCaracasDateString,
+  getCaracasTimeString,
   normalizeCutoffTime,
 } from "@/lib/asistencia/time";
 
@@ -266,17 +267,27 @@ export async function markManualAttendanceAction(input: {
     const corte: 1 | 2 = input.corte === 2 ? 2 : 1;
 
     if (input.presente) {
-      // Set hora_registro at 08:00:00 (12:00:00 UTC) for corte 1, or 13:00:00 (17:00:00 UTC) for corte 2
-      const defaultOnTimeIso =
-        corte === 2
-          ? `${input.fecha}T17:00:00.000Z`
-          : `${input.fecha}T12:00:00.000Z`;
+      // Record the exact time the button is clicked instead of hardcoding 8:00 AM / 1:00 PM
+      const now = new Date();
+      const todayCaracas = getCaracasDateString(now);
+      let horaRegistroIso: string;
+
+      if (input.fecha === todayCaracas) {
+        horaRegistroIso = now.toISOString();
+      } else {
+        // If marking for another date, use current Caracas time on that selected date
+        const timeCaracas = getCaracasTimeString(now);
+        horaRegistroIso = new Date(
+          `${input.fecha}T${timeCaracas}-04:00`,
+        ).toISOString();
+      }
+
       const { error } = await admin.from("asistencia_diaria").upsert(
         {
           usuario_id: input.usuario_id,
           fecha: input.fecha,
           corte,
-          hora_registro: defaultOnTimeIso,
+          hora_registro: horaRegistroIso,
           metodo: "manual",
         },
         { onConflict: "usuario_id,fecha,corte" },
