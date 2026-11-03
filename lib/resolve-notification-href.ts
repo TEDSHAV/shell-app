@@ -96,6 +96,11 @@ export function resolve_notification_href(
     }
   }
 
+  // Presupuesto mensual (spresupuesto): los recibos de cada persona se abren en Utilidades → Nómina, que ven todos.
+  if (notification.app_slug === "spresupuesto" && notification.link_path.startsWith("/apu/mis-recibos")) {
+    return `/nomina${notification.link_path}`;
+  }
+
   if (notification.app_slug === SCAP_APP_SLUG) {
     const cap_href = capacitacion_osi_preview_href(notification.link_path);
     if (cap_href) {
