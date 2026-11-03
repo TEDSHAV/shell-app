@@ -5,6 +5,10 @@ export interface OSIListFilters {
   ejecutivo?: string;
   dateFrom?: string;
   dateTo?: string;
+  executionDateFrom?: string;
+  executionDateTo?: string;
+  issueDateFrom?: string;
+  issueDateTo?: string;
   status?: string;
   attachmentReceived?: "received" | "not_received";
   tipoServicio?: "capacitacion" | "servicios_tecnicos";
@@ -36,6 +40,7 @@ export interface OSIListItem {
   ejecutivo_negocios: string | null;
   fecha_inicio_real: string | null;
   fecha_fin_real: string | null;
+  fecha_emision?: string | null;
   participantes: number | null;
   id_estatus: number | null;
   status_name: string;
