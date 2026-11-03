@@ -46,6 +46,8 @@ import {
   Star,
   QrCode,
   Tags,
+  AlertOctagon,
+  GitFork,
 } from "lucide-react";
 import { build_app_config } from "@/lib/app-theme";
 import { AppConfig, AppGroupConfig, NavGroup } from "@/types";
@@ -1118,6 +1120,24 @@ export const apps: AppConfig[] = [
         label: "Dashboard",
         path: "/dashboard/calidad",
         icon: LayoutDashboard,
+        requiredPermissions: ["scalidad:all:access"],
+      },
+      {
+        label: "Control Panel KPI",
+        path: "/dashboard/calidad/kpi",
+        icon: Gauge,
+        requiredPermissions: ["scalidad:all:access"],
+      },
+      {
+        label: "Hallazgos",
+        path: "/dashboard/calidad/hallazgos",
+        icon: AlertOctagon,
+        requiredPermissions: ["scalidad:all:access"],
+      },
+      {
+        label: "Diagrama Ishikawa",
+        path: "/dashboard/calidad/ishikawa",
+        icon: GitFork,
         requiredPermissions: ["scalidad:all:access"],
       },
       {
