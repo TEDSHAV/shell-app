@@ -505,6 +505,7 @@ export function OsiCapacitacionRecursosBlocks({
           {format_certificado_entrega_display(
             slice.certificadoImpreso,
             slice.entregaCertificado,
+            slice.horasCertificado,
           )}
         </td>
         <td className={cn(OSI_BOOLEAN_VALUE_CLASS, "h-9")} colSpan={2}>

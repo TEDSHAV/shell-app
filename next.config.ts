@@ -26,6 +26,11 @@ const RH_URL =
   process.env.NEXT_PUBLIC_RH_URL ||
   "https://rh.shadevenezuela.com.ve";
 
+const SST_URL =
+  process.env.SST_INTERNAL_URL ||
+  process.env.NEXT_PUBLIC_SST_URL ||
+  "https://sst.shadevenezuela.com.ve";
+
 const nextConfig: NextConfig = {
   output: "standalone",
   transpilePackages: ["@sha/osi-formato"],
@@ -72,6 +77,14 @@ const nextConfig: NextConfig = {
         source: "/recursos-humanos/api/:path*",
         destination: `${RH_URL}/api/:path*`,
       },
+      {
+        source: "/sst/_next/:path*",
+        destination: `${SST_URL}/_next/:path*`,
+      },
+      {
+        source: "/sst/api/:path*",
+        destination: `${SST_URL}/api/:path*`,
+      },
     ];
   },
 };
@@ -91,7 +104,7 @@ export default withSentryConfig(nextConfig, {
   project: sentry_project,
   authToken: has_valid_sentry_token ? sentry_auth_token : undefined,
   widenClientFileUpload: true,
-  tunnelRoute: "/monitoring",
+  tunnelRoute: process.env.NODE_ENV === "production" ? "/monitoring" : undefined,
   silent: !process.env.CI,
   sourcemaps: {
     disable: !should_upload_sourcemaps,

@@ -4,7 +4,22 @@ export type OsiSessionSlotRow = {
   fecha: string;
   hora_inicio?: string | null;
   hora_fin?: string | null;
+  horas?: number | null;
+  participantes?: number | null;
 };
+
+export type OsiExecutionDayQuantity = {
+  dia?: number | null;
+  horas: number | null;
+  participantes: number | null;
+};
+
+function to_slot_int(value: unknown): number | null {
+  if (value == null || value === "") return null;
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n)) return null;
+  return Math.trunc(n);
+}
 
 export const OSI_FECHA_POR_PLANIFICAR_LABEL = "Por planificar";
 
@@ -25,6 +40,8 @@ export function parse_osi_session_slots(value: unknown): OsiSessionSlotRow[] {
         row.hora_fin == null || row.hora_fin === ""
           ? null
           : String(row.hora_fin).trim() || null,
+      horas: to_slot_int(row.horas),
+      participantes: to_slot_int(row.participantes),
     });
   }
   return result;
@@ -32,6 +49,44 @@ export function parse_osi_session_slots(value: unknown): OsiSessionSlotRow[] {
 
 export function count_osi_session_slots(value: unknown): number {
   return parse_osi_session_slots(value).length;
+}
+
+/** Lee día/horas/participantes de la distribución de ejecución (JSON ECC/OSI). */
+export function parse_execution_day_quantities(
+  value: unknown,
+): OsiExecutionDayQuantity[] {
+  if (!Array.isArray(value)) return [];
+  const days: OsiExecutionDayQuantity[] = [];
+  for (const raw of value) {
+    if (!raw || typeof raw !== "object") continue;
+    const row = raw as Record<string, unknown>;
+    days.push({
+      dia: to_slot_int(row.dia),
+      horas: to_slot_int(row.horas),
+      participantes: to_slot_int(row.participantes),
+    });
+  }
+  return days;
+}
+
+/** Copia horas (y participantes si se distribuyen) de cada día al slot de sesión. */
+export function merge_session_slot_day_quantities<
+  T extends OsiSessionSlotRow,
+>(
+  slots: T[],
+  days: OsiExecutionDayQuantity[],
+  distribuir_participantes: boolean,
+): Array<T & { horas: number | null; participantes: number | null }> {
+  return slots.map((slot, index) => {
+    const day = days[index];
+    return {
+      ...slot,
+      horas: day?.horas ?? slot.horas ?? null,
+      participantes: distribuir_participantes
+        ? (day?.participantes ?? slot.participantes ?? null)
+        : (slot.participantes ?? null),
+    };
+  });
 }
 
 /** Rellena hasta `target_count` con filas vacías (sin inventar fechas). */
@@ -48,6 +103,8 @@ export function pad_osi_session_slots(
         fecha: "",
         hora_inicio: null,
         hora_fin: null,
+        horas: null,
+        participantes: null,
       },
     );
   }

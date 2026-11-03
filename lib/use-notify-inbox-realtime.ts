@@ -84,17 +84,38 @@ export function useNotifyInboxRealtime({
       }
     };
 
+    let startSeq = 0;
+
     const startChannel = async () => {
       if (disposed) return;
+      const mySeq = ++startSeq;
       await tearDownChannel();
 
       // Ensure Realtime socket has a fresh JWT (avoids silent auth drops).
       try {
         await supabase.auth.getSession();
       } catch {
-        scheduleReconnect();
+        if (mySeq === startSeq && !disposed) {
+          scheduleReconnect();
+        }
         return;
       }
+
+      if (disposed || mySeq !== startSeq) return;
+      await tearDownChannel();
+
+      // Also remove any lingering channel with the same topic from the client
+      for (const existing of supabase.getChannels()) {
+        if (existing.topic === `realtime:${channelName}`) {
+          try {
+            await supabase.removeChannel(existing);
+          } catch {
+            // ignore
+          }
+        }
+      }
+
+      if (disposed || mySeq !== startSeq) return;
 
       const next = supabase
         .channel(channelName)

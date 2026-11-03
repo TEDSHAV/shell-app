@@ -11,7 +11,9 @@ import SessionExecutionModal, {
   type SessionExecutionPayload,
 } from "./SessionExecutionModal";
 import OSINotasModal from "./OSINotasModal";
-import { Eye, FileText, Loader2, ChevronDown, ChevronRight, MessageSquare, CheckCircle2, EyeOff, Eye as EyeShow, Paperclip, Pencil, StickyNote } from "lucide-react";
+import OSIGuiaModal from "./OSIGuiaModal";
+import { Eye, FileText, Loader2, ChevronDown, ChevronRight, MessageSquare, CheckCircle2, EyeOff, Eye as EyeShow, Paperclip, Pencil, StickyNote, Star, Truck } from "lucide-react";
+import { GenerateSurveyModal } from "@/features/satisfaccion-clientes/components/GenerateSurveyModal";
 
 interface OSITableProps {
   osis: OSIListItem[];
@@ -31,6 +33,7 @@ interface OSITableProps {
   onToggleHidden?: (osi: OSIListItem, hidden: boolean) => Promise<{ success: boolean; error?: string }>;
   canToggleAttachment?: boolean;
   onToggleAttachment?: (osi: OSIListItem) => Promise<{ success: boolean; error?: string }>;
+  canAccessSatisfaccion?: boolean;
   onNotasUpdated?: (osiId: number, updatedNotas: OsiNota[]) => void;
 }
 
@@ -63,9 +66,11 @@ export default function OSITable({
   onToggleHidden,
   canToggleAttachment,
   onToggleAttachment,
+  canAccessSatisfaccion = false,
   onNotasUpdated,
 }: OSITableProps) {
   const [notasModalOSI, setNotasModalOSI] = useState<OSIListItem | null>(null);
+  const [guiaModalOsi, setGuiaModalOsi] = useState<OSIListItem | null>(null);
   const [statusLoadingId, setStatusLoadingId] = useState<number | null>(null);
   const [expandedOSIId, setExpandedOSIId] = useState<number | null>(null);
   const [sessionsByOSI, setSessionsByOSI] = useState<Record<number, OSISession[]>>({});
@@ -74,6 +79,7 @@ export default function OSITable({
   const [allFinalBanner, setAllFinalBanner] = useState<Record<number, boolean>>({});
   const [hideLoadingId, setHideLoadingId] = useState<number | null>(null);
   const [attachmentLoadingId, setAttachmentLoadingId] = useState<number | null>(null);
+  const [surveyModalOsi, setSurveyModalOsi] = useState<OSIListItem | null>(null);
   const [executionModalSessions, setExecutionModalSessions] = useState<OSISession[]>([]);
   const [executionModalOsi, setExecutionModalOsi] = useState<OSIListItem | null>(null);
   const [executionModalAlsoUpdateOsi, setExecutionModalAlsoUpdateOsi] =
@@ -494,6 +500,20 @@ export default function OSITable({
                       Recibida
                     </span>
                   )}
+                  {osi.nro_guia_zoom && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setGuiaModalOsi(osi);
+                      }}
+                      title={`Guía de envío Zoom: ${osi.nro_guia_zoom} — Clic para ver detalles`}
+                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/70 hover:bg-indigo-100 hover:border-indigo-300 transition-colors cursor-pointer"
+                    >
+                      <Truck className="h-2.5 w-2.5 text-indigo-600 shrink-0" />
+                      <span className="font-mono">{osi.nro_guia_zoom}</span>
+                    </button>
+                  )}
                 </div>
               </td>
               <td className="px-2 py-2 min-w-0">
@@ -645,8 +665,21 @@ export default function OSITable({
                     className="inline-flex items-center justify-center rounded-md border border-gray-200 p-1.5 text-blue-700 hover:bg-blue-50 transition-colors"
                     title="Ver formato OSI"
                   >
-                    <Eye className="h-3.5 w-3.5" />
+                    <FileText className="h-3.5 w-3.5" />
                   </Link>
+                  {osi.nro_guia_zoom && (
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setGuiaModalOsi(osi);
+                      }}
+                      className="inline-flex items-center justify-center rounded-md border border-indigo-200 p-1.5 text-indigo-600 bg-indigo-50/60 hover:bg-indigo-100 hover:text-indigo-800 transition-colors cursor-pointer"
+                      title={`Guía Zoom: ${osi.nro_guia_zoom} — Clic para ver detalles`}
+                    >
+                      <Truck className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                   <button
                     onClick={(event) => {
                       event.stopPropagation();
@@ -657,6 +690,18 @@ export default function OSITable({
                   >
                     <MessageSquare className="h-3.5 w-3.5" />
                   </button>
+                  {canAccessSatisfaccion && (
+                    <button
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setSurveyModalOsi(osi);
+                      }}
+                      className="inline-flex items-center justify-center rounded-md border border-gray-200 p-1.5 text-amber-600 hover:bg-amber-50 transition-colors"
+                      title="Encuesta de Satisfacción del Cliente"
+                    >
+                      <Star className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                   {canHideForClient && osi.id_osi && onToggleHidden && (
                     <button
                       onClick={(event) => {
@@ -919,6 +964,31 @@ export default function OSITable({
             prev && prev.id_osi === osiId ? { ...prev, notas: updatedNotas } : prev,
           );
         }}
+      />
+      {Boolean(surveyModalOsi) && (
+        <GenerateSurveyModal
+          isOpen={true}
+          onClose={() => setSurveyModalOsi(null)}
+          initialOsi={
+            surveyModalOsi
+              ? {
+                  id_osi: surveyModalOsi.id_osi,
+                  nro_osi: surveyModalOsi.nro_osi,
+                  nombre_empresa: surveyModalOsi.nombre_empresa,
+                  servicio: surveyModalOsi.servicio,
+                  tipo_servicio: surveyModalOsi.tipo_servicio,
+                  ejecutivo_negocios: surveyModalOsi.ejecutivo_negocios,
+                  ciudad_ejecucion: surveyModalOsi.ciudad_ejecucion,
+                  fecha_servicio: surveyModalOsi.fecha_inicio_real,
+                }
+              : undefined
+          }
+        />
+      )}
+      <OSIGuiaModal
+        osi={guiaModalOsi}
+        open={Boolean(guiaModalOsi)}
+        onClose={() => setGuiaModalOsi(null)}
       />
     </div>
   );

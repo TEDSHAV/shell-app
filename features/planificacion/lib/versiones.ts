@@ -11,6 +11,7 @@ export type PlanVersionObjetivo = {
   titulo: string;
   estado: "abierto" | "cumplido" | "cancelado";
   mes: string;
+  avance: number;
 };
 
 export type PlanVersionNode = {
@@ -21,6 +22,10 @@ export type PlanVersionNode = {
   mes_plan: string | null;
   etiqueta: string | null;
   notas: string | null;
+  /** Liberada: mensaje del tag / CHANGELOG. Planificada: objetivos ya terminados. */
+  descripcion: string[];
+  /** Historial curado a partir del git (data/versiones-historial.json). */
+  historial: VersionHistorial | null;
   objetivos: PlanVersionObjetivo[];
   children: PlanVersionNode[];
 };
@@ -35,6 +40,14 @@ export type PlanVersionApp = {
   roots: PlanVersionNode[];
 };
 
+export type VersionHistorial = {
+  resumen: string;
+  secciones: Array<{ titulo: string; items: string[] }>;
+};
+
+/** Forma de data/versiones-historial.json: clave `app_slug@version`. */
+export type VersionHistorialFile = Record<string, VersionHistorial>;
+
 /** Forma de features/planificacion/data/versiones-git.json. */
 export type GitVersionesFile = {
   generated_at: string;
@@ -44,7 +57,7 @@ export type GitVersionesFile = {
     container?: boolean;
     repo: string;
     package_version: string | null;
-    tags: Array<{ tag: string; version: string; fecha: string | null }>;
+    tags: Array<{ tag: string; version: string; fecha: string | null; descripcion?: string[] }>;
   }>;
 };
 
@@ -76,6 +89,7 @@ export function build_version_tree(
   git: GitVersionesFile,
   planned: PlannedVersion[],
   app_names: Map<string, string>,
+  historial: VersionHistorialFile = {},
 ): PlanVersionApp[] {
   const slugs = new Set([...git.apps.map((app) => app.app_slug), ...planned.map((p) => p.app_slug)]);
   const out: PlanVersionApp[] = [];
@@ -89,6 +103,8 @@ export function build_version_tree(
         mes_plan: null,
         etiqueta: tag.tag,
         notas: null,
+        descripcion: tag.descripcion ?? [],
+        historial: historial[`${slug}@${tag.version}`] ?? null,
         objetivos: [],
         children: [],
       }));
@@ -101,6 +117,8 @@ export function build_version_tree(
         mes_plan: null,
         etiqueta: "package.json",
         notas: null,
+        descripcion: [],
+        historial: historial[`${slug}@${source.package_version}`] ?? null,
         objetivos: [],
         children: [],
       });
@@ -125,6 +143,8 @@ export function build_version_tree(
         mes_plan: plan.mes_plan,
         etiqueta: null,
         notas: plan.notas,
+        descripcion: plan.objetivos.filter(is_objetivo_terminado).map((o) => o.titulo),
+        historial: historial[`${slug}@${plan.version}`] ?? null,
         objetivos: plan.objetivos,
         children: [],
       });

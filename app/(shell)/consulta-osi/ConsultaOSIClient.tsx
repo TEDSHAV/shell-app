@@ -22,6 +22,7 @@ interface ConsultaOSIClientProps {
   canChangeStatus: boolean;
   canHideForClient: boolean;
   canToggleAttachment: boolean;
+  canAccessSatisfaccion?: boolean;
   isDev?: boolean;
   initialNroOsi?: string;
   initialOsis?: OSIListItem[];
@@ -56,6 +57,7 @@ export default function ConsultaOSIClient({
   canChangeStatus,
   canHideForClient,
   canToggleAttachment,
+  canAccessSatisfaccion = false,
   isDev,
   initialNroOsi,
   initialOsis,
@@ -531,6 +533,7 @@ export default function ConsultaOSIClient({
           onToggleHidden={canHideForClient ? handleToggleHidden : undefined}
           canToggleAttachment={canToggleAttachment}
           onToggleAttachment={canToggleAttachment ? handleToggleAttachment : undefined}
+          canAccessSatisfaccion={canAccessSatisfaccion}
           onNotasUpdated={handleNotasUpdated}
         />
 

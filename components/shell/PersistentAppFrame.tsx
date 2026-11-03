@@ -15,6 +15,7 @@ interface PersistentAppFrameProps {
 }
 
 function getSubPath(pathname: string, basePath: string): string {
+  if (!pathname.startsWith(basePath)) return "";
   const rest = pathname.slice(basePath.length);
   return rest.startsWith("/") ? rest.slice(1) : rest;
 }

@@ -126,6 +126,7 @@ export function OsiResumenRecursosConsolidado({
             {format_certificado_entrega_display(
               c.certificadoImpreso,
               c.entregaCertificado,
+              c.horasCertificado,
             )}
           </td>
           <td className={cn(OSI_BOOLEAN_VALUE_CLASS, "h-9")} colSpan={2}>

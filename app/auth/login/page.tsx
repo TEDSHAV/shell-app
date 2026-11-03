@@ -20,8 +20,8 @@ export default async function Page({
   const next = safe_internal_next_path(params.next);
   const supabase = await createClient();
   const { data } = await supabase.auth.getClaims();
-  if (data?.claims && next) {
-    redirect(next);
+  if (data?.claims) {
+    redirect(next ?? "/dashboard");
   }
 
   const cookieStore = await cookies();

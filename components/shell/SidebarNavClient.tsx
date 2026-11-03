@@ -131,6 +131,7 @@ interface SidebarNavClientProps {
   userPermsByApp: Record<string, string[]>;
   userRolesByApp: Record<string, string>;
   globalRole?: string;
+  userDept?: string | null;
   canAccessConsultaOSI?: boolean;
   canAccessRequisicionesGestion?: boolean;
 }
@@ -142,6 +143,7 @@ export function SidebarNavClient({
   userPermsByApp,
   userRolesByApp,
   globalRole,
+  userDept,
   canAccessConsultaOSI,
   canAccessRequisicionesGestion = false,
 }: SidebarNavClientProps) {
@@ -196,7 +198,7 @@ export function SidebarNavClient({
   );
 
   const canAccessApp = (app: AppConfig) =>
-    can_access_shell_app(app, userRolesByApp, globalRole);
+    can_access_shell_app(app, userRolesByApp, globalRole, userDept);
 
   const consultaOsiLink = (
     <Link

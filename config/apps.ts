@@ -43,6 +43,8 @@ import {
   FileStack,
   LayoutGrid,
   Settings,
+  Star,
+  QrCode,
   Tags,
 } from "lucide-react";
 import { build_app_config } from "@/lib/app-theme";
@@ -189,6 +191,8 @@ export const UTILIDADES_HEADER_APP_IDS = [
   "inventario",
   "directorio",
   "cedula",
+  "visitantes",
+  "satisfaccion-clientes",
   "administracion",
 ] as const;
 
@@ -257,6 +261,13 @@ export const apps: AppConfig[] = [
             label: "Servicios",
             path: "/directorio/servicios",
             icon: Package,
+            requiredPermissions: ["directorio:access"],
+          },
+          {
+            label: "Nuevos Servicios",
+            path: "/nuevo-servicio",
+            href: "/nuevo-servicio",
+            icon: ClipboardList,
             requiredPermissions: ["directorio:access"],
           },
           {
@@ -765,6 +776,13 @@ export const apps: AppConfig[] = [
         collapsible: "always",
         links: [
           {
+            label: "Diseño de Servicios",
+            path: "/nuevo-servicio",
+            href: "/nuevo-servicio?dept=cap",
+            icon: ClipboardList,
+            requiredPermissions: ["scapacitacion:all:access"],
+          },
+          {
             label: "Seguimiento de Servicios",
             path: "/dashboard/capacitacion/seguimiento-servicios",
             icon: Calendar,
@@ -966,7 +984,8 @@ export const apps: AppConfig[] = [
       { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
       {
         label: "Diseño y Desarrollo de Servicios",
-        path: "/dashboard/nuevos-servicios",
+        path: "/nuevo-servicio",
+        href: "/nuevo-servicio?dept=st",
         icon: ClipboardList,
       },
       { label: "Control de Calibración", path: "/dashboard/control-calibracion", icon: Gauge },
@@ -1038,6 +1057,44 @@ export const apps: AppConfig[] = [
     hiddenFromDashboard: true,
     groupId: "utilidades",
     dashboardOrder: 9,
+    navLinks: [],
+  }),
+  build_app_config({
+    id: "visitantes",
+    name: "Control de Visitantes",
+    description: "Registro de visitantes por código QR, asignación de responsables y control de acceso",
+    basePath: "/visitantes",
+    icon: QrCode,
+    brandColor: "#0D9488",
+    embedMode: "native",
+    hiddenFromDashboard: true,
+    groupId: "utilidades",
+    dashboardOrder: 9.5,
+    navLinks: [
+      {
+        label: "Lista de Visitantes",
+        path: "/",
+        icon: Users,
+      },
+      {
+        label: "Formulario Público QR",
+        path: "/registro-visitante",
+        href: "/registro-visitante",
+        icon: QrCode,
+      },
+    ],
+  }),
+  build_app_config({
+    id: "satisfaccion-clientes",
+    name: "Satisfacción de Clientes",
+    description: "Encuestas de satisfacción post-servicio e indicadores de calidad",
+    basePath: "/satisfaccion-clientes",
+    icon: Star,
+    brandColor: "#059669",
+    embedMode: "native",
+    hiddenFromDashboard: true,
+    groupId: "utilidades",
+    dashboardOrder: 10,
     navLinks: [],
   }),
   // Placeholders: módulos visibles en dashboard para completar el mapa de procesos
@@ -1147,15 +1204,24 @@ export const apps: AppConfig[] = [
   }),
   build_app_config({
     id: "sst",
+    dbSlug: "sst",
     name: "SST",
-    description: "Seguridad y salud en el trabajo",
-    basePath: "#",
+    description: "Seguridad y Salud en el Trabajo · PRISMA SST",
+    basePath: "/sst",
+    defaultSubPath: "dashboard",
+    upstreamUrl:
+      process.env.NEXT_PUBLIC_SST_URL ||
+      "https://sst.shadevenezuela.com.ve",
     icon: Shield,
     brandColor: "#ef4444",
-    embedMode: "native",
+    embedMode: "shell",
     groupId: "procesos-de-apoyo",
     dashboardOrder: 5,
-    navLinks: [],
+    navLinks: [
+      { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
+      { label: "Formato de Inspección", path: "/dashboard/inspeccion", icon: FileCheck },
+      ...[buildRequisicionesNavGroup("sst")],
+    ],
   }),
   build_app_config({
     id: "ted",
@@ -1264,11 +1330,6 @@ export const apps: AppConfig[] = [
             requiredRoles: ["ted"],
             requiredPermissions: ["gestion-usuarios-prisma:access-all"],
           },
-          {
-            label: "Accesos y roles",
-            path: "/usuarios/accesos",
-            icon: Shield,
-          },
         ],
       },
       {
@@ -1286,6 +1347,12 @@ export const apps: AppConfig[] = [
             label: "Por usuario",
             path: "/notificaciones/usuarios",
             icon: Users,
+            requiredRoles: ["ted"],
+          },
+          {
+            label: "Control de asistencia",
+            path: "/asistencia",
+            icon: UserCheck,
             requiredRoles: ["ted"],
           },
         ],

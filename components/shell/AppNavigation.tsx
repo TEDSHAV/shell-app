@@ -19,9 +19,10 @@ import { can_access_shell_app } from "@/lib/shell-app-access";
 interface AppNavigationProps {
   userRolesByApp?: Record<string, string>;
   globalRole?: string;
+  userDept?: string | null;
 }
 
-export const AppNavigation = ({ userRolesByApp = {}, globalRole }: AppNavigationProps) => {
+export const AppNavigation = ({ userRolesByApp = {}, globalRole, userDept }: AppNavigationProps) => {
   const pathname = usePathname();
   const [canAccessOsi, setCanAccessOsi] = useState(false);
 
@@ -36,7 +37,7 @@ export const AppNavigation = ({ userRolesByApp = {}, globalRole }: AppNavigation
   }, []);
 
   const canAccessApp = (app: AppConfig) =>
-    can_access_shell_app(app, userRolesByApp, globalRole);
+    can_access_shell_app(app, userRolesByApp, globalRole, userDept);
 
   const groupMap = new Map<string, AppConfig[]>();
   for (const app of apps.filter((a) => get_header_group_id(a) && canAccessApp(a))) {

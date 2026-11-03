@@ -20,3 +20,21 @@ export function getSupabaseCookieOptions(
     secure: process.env.NEXT_PUBLIC_COOKIE_SECURE !== "false",
   };
 }
+
+export function getSessionDateCookieOptions() {
+  if (process.env.NODE_ENV !== "production") {
+    return {
+      path: "/",
+      sameSite: "lax" as const,
+      httpOnly: true,
+    };
+  }
+
+  return {
+    path: "/",
+    domain: process.env.NEXT_PUBLIC_COOKIE_DOMAIN || ".shadevenezuela.com.ve",
+    sameSite: "lax" as const,
+    secure: process.env.NEXT_PUBLIC_COOKIE_SECURE !== "false",
+    httpOnly: true,
+  };
+}

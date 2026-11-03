@@ -5,6 +5,8 @@ export type OsiPreviewData = {
     fecha: string;
     hora_inicio?: string | null;
     hora_fin?: string | null;
+    horas?: number | null;
+    participantes?: number | null;
   }>;
   nroOsi: string;
   nroTrato?: string | null;
@@ -28,6 +30,8 @@ export type OsiPreviewData = {
     fecha: string;
     hora_inicio?: string | null;
     hora_fin?: string | null;
+    horas?: number | null;
+    participantes?: number | null;
   }>;
   /** Fase 2: fechas reales de ejecución por sesión (osi_sesion). */
   sesionesFechaEjecutada?: Array<{
@@ -36,6 +40,8 @@ export type OsiPreviewData = {
     hora_fin?: string | null;
   }>;
   revisionDocumento?: string | null;
+  documentFormatVersion?: 1 | 2;
+  distribuirParticipantes?: boolean;
   detalleServicio: string | null;
   servicio: string | null;
   tipoServicio: string | null;
@@ -80,6 +86,7 @@ export type OsiPreviewData = {
   /** Per-session resource blocks (modo por sesión). Empty = bloque global. */
   desgloseRecursosSesiones?: OsiRecursosSesionPreview[];
   certificadoImpreso: boolean;
+  horasCertificado?: number | null;
   carnetImpreso: boolean;
   incluyeRefrigerio?: boolean;
   entregaCertificado?: "retira_cliente" | "se_envia" | null;
