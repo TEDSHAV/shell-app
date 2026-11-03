@@ -22,6 +22,11 @@ export function can_access_shell_app(
 ): boolean {
   const roles = collect_user_roles(userRolesByApp, globalRole);
 
+  // Presupuesto mensual (sueldos): solo con rol en esa app, ni siquiera los admin de otras apps.
+  if (app.id === "presupuesto-mensual") {
+    return Boolean(userRolesByApp.spresupuesto);
+  }
+
   if (roles.some((r) => r === "admin" || r === "superadmin")) {
     return true;
   }

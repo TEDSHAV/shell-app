@@ -46,9 +46,15 @@ import {
   Star,
   QrCode,
   Tags,
+  Wallet,
 } from "lucide-react";
 import { build_app_config } from "@/lib/app-theme";
 import { AppConfig, AppGroupConfig, NavGroup } from "@/types";
+
+/** Administración (presupuesto mensual, nómina y APU). Mientras no haya dirección pública, se usa esta. */
+const ADMINISTRACION_URL =
+  process.env.NEXT_PUBLIC_ADMINISTRACION_URL ||
+  "https://administracion.shadevenezuela.com.ve";
 
 function buildRequisicionesNavGroup(fromApp: string): NavGroup {
   const q = `?from=${fromApp}`;
@@ -194,6 +200,7 @@ export const UTILIDADES_HEADER_APP_IDS = [
   "visitantes",
   "satisfaccion-clientes",
   "administracion",
+  "nomina",
 ] as const;
 
 export function get_header_group_id(app: AppConfig): string | undefined {
@@ -735,6 +742,45 @@ export const apps: AppConfig[] = [
       administracionNavGroup,
       administracionFacturacionNavGroup,
     ],
+  }),
+  // App de Administración (apps/administracion): presupuesto mensual, nómina y APU.
+  build_app_config({
+    id: "presupuesto-mensual",
+    dbSlug: "spresupuesto",
+    name: "Presupuesto mensual",
+    description: "Presupuesto de la empresa, nómina y APU de cada trabajador",
+    basePath: "/presupuesto-mensual",
+    upstreamUrl: ADMINISTRACION_URL,
+    icon: Wallet,
+    brandColor: "#047857",
+    embedMode: "shell",
+    groupId: "procesos-de-apoyo",
+    dashboardOrder: 3,
+    navLinks: [
+      { label: "Inicio", path: "/", icon: LayoutDashboard },
+      { label: "Nómina", path: "/apu", icon: Receipt },
+      { label: "Consolidado APU", path: "/apu/consolidado", icon: Calculator },
+      { label: "Presupuesto", path: "/presupuesto", icon: Wallet },
+      { label: "Cierre del mes", path: "/cierre", icon: Calendar },
+      { label: "Mis recibos", path: "/apu/mis-recibos", icon: FileText },
+    ],
+  }),
+  // Cualquier trabajador: sus recibos de pago (la misma app, abierta en Mis recibos).
+  build_app_config({
+    id: "nomina",
+    dbSlug: "spresupuesto",
+    name: "Nómina",
+    description: "Tus recibos de pago y el «Recibí conforme»",
+    basePath: "/nomina",
+    upstreamUrl: ADMINISTRACION_URL,
+    defaultSubPath: "apu/mis-recibos",
+    icon: Receipt,
+    brandColor: "#D97706",
+    embedMode: "shell",
+    hiddenFromDashboard: true,
+    groupId: "utilidades",
+    headerLabel: "Nómina",
+    navLinks: [{ label: "Mis recibos", path: "/apu/mis-recibos", icon: FileText }],
   }),
   build_app_config({
     id: "capacitacion",
