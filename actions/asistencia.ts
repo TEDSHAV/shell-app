@@ -282,17 +282,34 @@ export async function markManualAttendanceAction(input: {
         ).toISOString();
       }
 
-      const { error } = await admin.from("asistencia_diaria").upsert(
+      const { error: primaryError } = await admin.from("asistencia_diaria").upsert(
         {
           usuario_id: input.usuario_id,
           fecha: input.fecha,
           corte,
           hora_registro: horaRegistroIso,
           metodo: "manual",
+          editado: false,
         },
         { onConflict: "usuario_id,fecha,corte" },
       );
-      if (error) return { ok: false, error: error.message };
+      if (primaryError) {
+        if (primaryError.message.includes("editado")) {
+          const { error: fallbackError } = await admin.from("asistencia_diaria").upsert(
+            {
+              usuario_id: input.usuario_id,
+              fecha: input.fecha,
+              corte,
+              hora_registro: horaRegistroIso,
+              metodo: "manual",
+            },
+            { onConflict: "usuario_id,fecha,corte" },
+          );
+          if (fallbackError) return { ok: false, error: fallbackError.message };
+        } else {
+          return { ok: false, error: primaryError.message };
+        }
+      }
     } else {
       const { error } = await admin
         .from("asistencia_diaria")
@@ -301,6 +318,70 @@ export async function markManualAttendanceAction(input: {
         .eq("fecha", input.fecha)
         .eq("corte", corte);
       if (error) return { ok: false, error: error.message };
+    }
+
+    revalidatePath("/ted/asistencia");
+    return { ok: true };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : "Error inesperado",
+    };
+  }
+}
+
+export async function editAttendanceTimeAction(input: {
+  usuario_id: number;
+  fecha: string;
+  corte?: 1 | 2;
+  hora: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await assertTedAccess();
+    const admin = await createAdminClient();
+    const corte: 1 | 2 = input.corte === 2 ? 2 : 1;
+
+    const trimmedTime = (input.hora || "").trim();
+    const match = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(trimmedTime);
+    if (!match) {
+      return { ok: false, error: "Formato de hora inválido. Use HH:MM (ej: 08:30)." };
+    }
+
+    const normHora = normalizeCutoffTime(trimmedTime);
+    const horaRegistroIso = new Date(`${input.fecha}T${normHora}-04:00`).toISOString();
+
+    const payloadWithEditado = {
+      usuario_id: input.usuario_id,
+      fecha: input.fecha,
+      corte,
+      hora_registro: horaRegistroIso,
+      metodo: "manual",
+      editado: true,
+    };
+
+    const { error: primaryError } = await admin
+      .from("asistencia_diaria")
+      .upsert(payloadWithEditado, { onConflict: "usuario_id,fecha,corte" });
+
+    if (primaryError) {
+      if (primaryError.message.includes("editado")) {
+        const payloadWithoutEditado = {
+          usuario_id: input.usuario_id,
+          fecha: input.fecha,
+          corte,
+          hora_registro: horaRegistroIso,
+          metodo: "manual",
+        };
+        const { error: fallbackError } = await admin
+          .from("asistencia_diaria")
+          .upsert(payloadWithoutEditado, { onConflict: "usuario_id,fecha,corte" });
+
+        if (fallbackError) {
+          return { ok: false, error: fallbackError.message };
+        }
+      } else {
+        return { ok: false, error: primaryError.message };
+      }
     }
 
     revalidatePath("/ted/asistencia");

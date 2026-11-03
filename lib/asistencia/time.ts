@@ -130,6 +130,20 @@ export function formatCaracasTime12h(isoOrDate: string | Date): string {
 }
 
 /**
+ * Formats an ISO timestamp or Date into a 24-hour time string ("HH:MM") in America/Caracas timezone.
+ * Returns defaultFallback (default "08:00") if the date is invalid or undefined.
+ */
+export function getCaracasTime24h(
+  isoOrDate?: string | Date | null,
+  defaultFallback: string = "08:00",
+): string {
+  if (!isoOrDate) return defaultFallback;
+  const d = typeof isoOrDate === "string" ? new Date(isoOrDate) : isoOrDate;
+  if (Number.isNaN(d.getTime())) return defaultFallback;
+  return getCaracasTimeString(d).slice(0, 5);
+}
+
+/**
  * Returns true if the given ISO timestamp or Date was recorded at or before the cutoff time
  * on its Caracas date.
  */

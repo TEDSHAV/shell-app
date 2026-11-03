@@ -4,11 +4,13 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   Calendar,
+  Check,
   CheckCircle2,
   Clock,
   Eye,
   History,
   Mail,
+  Pencil,
   Plus,
   Send,
   Settings,
@@ -23,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   addAsistenciaDestinatarioAction,
+  editAttendanceTimeAction,
   markManualAttendanceAction,
   removeAsistenciaDestinatarioAction,
   sendManualAsistenciaReportAction,
@@ -36,12 +39,14 @@ import type {
 import {
   buildAsistenciaReportEmail,
   type AsistenciaSnapshot,
+  type AsistenciaUserRow,
 } from "@/lib/asistencia/email-template";
 import {
   formatCaracasTime12h,
   formatCutoffLabel,
   formatDdMmYyyy,
   formatSpanishLongDate,
+  getCaracasTime24h,
 } from "@/lib/asistencia/time";
 
 type Props = {
@@ -100,6 +105,10 @@ export function AsistenciaTedClient({
   );
   const [userSearch, setUserSearch] = useState("");
 
+  // Editing attendance state
+  const [editingUserId, setEditingUserId] = useState<number | null>(null);
+  const [editTime, setEditTime] = useState<string>("");
+
   // New recipient state
   const [newEmail, setNewEmail] = useState("");
   const [newNombre, setNewNombre] = useState("");
@@ -110,10 +119,63 @@ export function AsistenciaTedClient({
   const corte2Label = formatCutoffLabel(config.hora_corte_2);
 
   function handleDateChange(nextDate: string) {
+    setEditingUserId(null);
     setSelectedDate(nextDate);
     if (nextDate) {
       router.push(`/ted/asistencia?fecha=${encodeURIComponent(nextDate)}`);
     }
+  }
+
+  function handleSelectCorte(corte: 1 | 2) {
+    setEditingUserId(null);
+    setSelectedCorte(corte);
+  }
+
+  function handleSelectTab(tab: ActiveTab) {
+    setEditingUserId(null);
+    setActiveTab(tab);
+  }
+
+  function startEditing(usuario: AsistenciaUserRow) {
+    setEditingUserId(usuario.usuario_id);
+    if (usuario.hora_registro) {
+      setEditTime(getCaracasTime24h(usuario.hora_registro));
+    } else {
+      const defaultTime = selectedCorte === 1 ? "08:00" : "13:00";
+      setEditTime(defaultTime);
+    }
+  }
+
+  function cancelEditing() {
+    setEditingUserId(null);
+    setEditTime("");
+  }
+
+  function handleSaveEdit(usuarioId: number) {
+    if (!editTime.trim()) return;
+    startTransition(async () => {
+      setFeedback(null);
+      const res = await editAttendanceTimeAction({
+        usuario_id: usuarioId,
+        fecha: activeSnapshot.fecha,
+        corte: selectedCorte,
+        hora: editTime.trim(),
+      });
+      if (!res.ok) {
+        setFeedback({
+          type: "error",
+          text: res.error || "No se pudo actualizar la hora de asistencia.",
+        });
+        return;
+      }
+      setEditingUserId(null);
+      setEditTime("");
+      setFeedback({
+        type: "success",
+        text: "Hora de asistencia actualizada correctamente.",
+      });
+      router.refresh();
+    });
   }
 
   function handleSendReport(onlyTestEmail: boolean) {
@@ -253,7 +315,7 @@ export function AsistenciaTedClient({
         <div className="inline-flex rounded-xl bg-slate-100 p-1">
           <button
             type="button"
-            onClick={() => setActiveTab("registro")}
+            onClick={() => handleSelectTab("registro")}
             className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
               activeTab === "registro"
                 ? "bg-white text-slate-900 shadow-sm"
@@ -265,7 +327,7 @@ export function AsistenciaTedClient({
           </button>
           <button
             type="button"
-            onClick={() => setActiveTab("configuracion")}
+            onClick={() => handleSelectTab("configuracion")}
             className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
               activeTab === "configuracion"
                 ? "bg-white text-slate-900 shadow-sm"
@@ -277,7 +339,7 @@ export function AsistenciaTedClient({
           </button>
           <button
             type="button"
-            onClick={() => setActiveTab("historial")}
+            onClick={() => handleSelectTab("historial")}
             className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
               activeTab === "historial"
                 ? "bg-white text-slate-900 shadow-sm"
@@ -319,7 +381,7 @@ export function AsistenciaTedClient({
           <div className="flex flex-wrap items-center gap-2 p-1.5 bg-slate-100 rounded-xl w-fit">
             <button
               type="button"
-              onClick={() => setSelectedCorte(1)}
+              onClick={() => handleSelectCorte(1)}
               className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
                 selectedCorte === 1
                   ? "bg-white text-indigo-700 shadow-sm"
@@ -336,7 +398,7 @@ export function AsistenciaTedClient({
             </button>
             <button
               type="button"
-              onClick={() => setSelectedCorte(2)}
+              onClick={() => handleSelectCorte(2)}
               className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
                 selectedCorte === 2
                   ? "bg-white text-indigo-700 shadow-sm"
@@ -506,12 +568,27 @@ export function AsistenciaTedClient({
                   {dept.usuarios.map((u) => (
                     <div
                       key={u.usuario_id}
-                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-5 py-3 hover:bg-slate-50/60"
+                      className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-5 py-3 transition-colors ${
+                        u.editado
+                          ? "bg-amber-50/20 hover:bg-amber-50/40"
+                          : "hover:bg-slate-50/60"
+                      }`}
                     >
                       <div>
-                        <p className="text-sm font-semibold text-slate-900">
-                          {u.nombre_apellido}
-                        </p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-semibold text-slate-900">
+                            {u.nombre_apellido}
+                          </p>
+                          {u.editado && (
+                            <span
+                              className="inline-flex items-center gap-1 rounded-full border border-amber-200/80 bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700 shadow-2xs"
+                              title="Hora de asistencia modificada manualmente"
+                            >
+                              <Pencil className="h-2.5 w-2.5 text-amber-600" />
+                              Editado
+                            </span>
+                          )}
+                        </div>
                         <p className="text-xs text-slate-500">
                           {u.cargo || "Sin cargo especificado"}
                           {u.email_corporativo ? ` · ${u.email_corporativo}` : ""}
@@ -536,29 +613,89 @@ export function AsistenciaTedClient({
                           </span>
                         )}
 
-                        {(() => {
-                          const hasRegistro = Boolean(u.hora_registro);
-                          return (
-                            <button
-                              type="button"
+                        {editingUserId === u.usuario_id ? (
+                          <div className="flex items-center gap-1.5 animate-in fade-in duration-150">
+                            <Input
+                              type="time"
+                              value={editTime}
+                              onChange={(e) => setEditTime(e.target.value)}
                               disabled={pending}
-                              onClick={() =>
-                                handleToggleManualAttendance(
-                                  u.usuario_id,
-                                  !hasRegistro,
-                                )
-                              }
-                              className="text-[11px] font-medium text-slate-400 hover:text-indigo-600 underline"
-                              title={
-                                hasRegistro
-                                  ? "Quitar marca de asistencia"
-                                  : "Marcar presente manualmente (hora actual)"
-                              }
+                              className="h-7 w-28 rounded-md bg-white px-2 text-xs border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                              autoFocus
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  handleSaveEdit(u.usuario_id);
+                                } else if (e.key === "Escape") {
+                                  cancelEditing();
+                                }
+                              }}
+                            />
+                            <Button
+                              type="button"
+                              size="sm"
+                              disabled={pending || !editTime.trim()}
+                              onClick={() => handleSaveEdit(u.usuario_id)}
+                              className="h-7 px-2 text-xs bg-indigo-600 hover:bg-indigo-700 text-white rounded-md inline-flex items-center gap-1"
+                              title="Guardar hora de entrada"
                             >
-                              {hasRegistro ? "Quitar marca" : "Marcar presente"}
-                            </button>
-                          );
-                        })()}
+                              <Check className="h-3.5 w-3.5" />
+                              <span className="hidden sm:inline">Guardar</span>
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              disabled={pending}
+                              onClick={cancelEditing}
+                              className="h-7 px-1.5 text-xs text-slate-500 hover:text-slate-800 rounded-md"
+                              title="Cancelar edición"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        ) : (
+                          (() => {
+                            const hasRegistro = Boolean(u.hora_registro);
+                            return (
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  disabled={pending}
+                                  onClick={() =>
+                                    handleToggleManualAttendance(
+                                      u.usuario_id,
+                                      !hasRegistro,
+                                    )
+                                  }
+                                  className="text-[11px] font-medium text-slate-400 hover:text-indigo-600 underline"
+                                  title={
+                                    hasRegistro
+                                      ? "Quitar marca de asistencia"
+                                      : "Marcar entrada manualmente (hora actual)"
+                                  }
+                                >
+                                  {hasRegistro ? "Quitar marca" : "Marcar entrada"}
+                                </button>
+                                <span className="text-slate-300 text-xs">·</span>
+                                <button
+                                  type="button"
+                                  disabled={pending}
+                                  onClick={() => startEditing(u)}
+                                  className="text-[11px] font-medium text-slate-400 hover:text-indigo-600 underline inline-flex items-center gap-1"
+                                  title={
+                                    hasRegistro
+                                      ? "Editar hora de entrada"
+                                      : "Registrar con hora personalizada"
+                                  }
+                                >
+                                  <Pencil className="h-3 w-3" />
+                                  Editar
+                                </button>
+                              </div>
+                            );
+                          })()
+                        )}
                       </div>
                     </div>
                   ))}

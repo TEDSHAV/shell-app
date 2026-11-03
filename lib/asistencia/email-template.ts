@@ -20,6 +20,7 @@ export type AsistenciaUserRow = {
   metodo: string | null;
   estado: AsistenciaStatus;
   presente_en_corte: boolean;
+  editado?: boolean;
 };
 
 export type AsistenciaDepartmentGroup = {
@@ -87,8 +88,9 @@ export function buildAsistenciaReportEmail(snapshot: AsistenciaSnapshot): {
         : u.estado === "tardio" && u.hora_formateada
           ? ` (Ingreso posterior: ${u.hora_formateada})`
           : "";
+      const editadoInfo = u.editado ? " [Editado]" : "";
       const cargoInfo = u.cargo ? ` — ${u.cargo}` : "";
-      textLines.push(`  ${icon} ${u.nombre_apellido}${cargoInfo}${timeInfo}`);
+      textLines.push(`  ${icon} ${u.nombre_apellido}${cargoInfo}${timeInfo}${editadoInfo}`);
     }
     textLines.push(``);
   }
@@ -107,10 +109,14 @@ export function buildAsistenciaReportEmail(snapshot: AsistenciaSnapshot): {
             ? `<span style="display: inline-block; background-color: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 9999px; white-space: nowrap;">&#10003; Presente</span>`
             : `<span style="display: inline-block; background-color: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 9999px; white-space: nowrap;">&#10005; Sin registro</span>`;
 
+          const editadoBadge = u.editado
+            ? `<div style="font-size: 10px; font-weight: 600; color: #b45309; margin-top: 2px;">(Editado)</div>`
+            : "";
+
           const timeCell = u.presente_en_corte && u.hora_formateada
-            ? `<span style="font-size: 12px; font-weight: 600; color: #0f172a;">${email_escape(u.hora_formateada)}</span>`
+            ? `<span style="font-size: 12px; font-weight: 600; color: #0f172a;">${email_escape(u.hora_formateada)}</span>${editadoBadge}`
             : u.estado === "tardio" && u.hora_formateada
-              ? `<span style="font-size: 11px; font-weight: 600; color: #b45309;">${email_escape(u.hora_formateada)} (tardío)</span>`
+              ? `<span style="font-size: 11px; font-weight: 600; color: #b45309;">${email_escape(u.hora_formateada)} (tardío)</span>${editadoBadge}`
               : `<span style="font-size: 12px; color: #94a3b8;">&mdash;</span>`;
 
           return `

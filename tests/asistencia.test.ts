@@ -7,6 +7,7 @@ import {
   formatCutoffLabel,
   formatDdMmYyyy,
   getCaracasDateString,
+  getCaracasTime24h,
   getCaracasTimeString,
   getCaracasWorkdaySessionStamp,
   getCorteForCaracasTime,
@@ -82,6 +83,16 @@ describe("lib/asistencia/time (America/Caracas UTC-4)", () => {
     assert.equal(formatCutoffLabel("08:30:00"), "08:30 AM");
     assert.equal(formatCutoffLabel("13:15:00"), "01:15 PM");
     assert.equal(formatDdMmYyyy("2026-10-23"), "23/10/2026");
+  });
+
+  it("formats 24-hour time strings (getCaracasTime24h) accurately in America/Caracas", () => {
+    // 12:15:30 UTC -> 08:15 in America/Caracas
+    assert.equal(getCaracasTime24h("2026-10-23T12:15:30.000Z"), "08:15");
+    // 17:45:00 UTC -> 13:45 in America/Caracas
+    assert.equal(getCaracasTime24h("2026-10-23T17:45:00.000Z"), "13:45");
+    // Invalid date fallback
+    assert.equal(getCaracasTime24h(null, "08:00"), "08:00");
+    assert.equal(getCaracasTime24h("invalid", "13:00"), "13:00");
   });
 
   it("detects weekdays vs weekends in America/Caracas", () => {
@@ -280,6 +291,53 @@ describe("lib/asistencia/email-template", () => {
     assert.ok(email.html.includes("Segundo Corte (Tarde)"));
     assert.ok(email.text.includes("SEGUNDO CORTE (TARDE)"));
   });
+
+  it("subtly renders [Editado] in text and (Editado) in HTML when a user record is marked editado", () => {
+    const mockSnapshot: AsistenciaSnapshot = {
+      fecha: "2026-10-23",
+      hora_corte: "08:30:00",
+      corte: 1,
+      es_feriado: false,
+      nombre_feriado: null,
+      total_esperados: 1,
+      total_presentes: 1,
+      total_tardios: 0,
+      total_ausentes: 0,
+      total_excluidos: 0,
+      porcentaje_asistencia: 100,
+      excluidos: [],
+      departamentos: [
+        {
+          departamento_id: 1,
+          departamento_nombre: "TED",
+          total: 1,
+          presentes: 1,
+          ausentes: 0,
+          tardios: 0,
+          usuarios: [
+            {
+              usuario_id: 10,
+              nombre_apellido: "Luis Martinez",
+              email_corporativo: "lmartinez@shadevenezuela.com.ve",
+              cargo: "Analista",
+              departamento_id: 1,
+              departamento_nombre: "TED",
+              hora_registro: "2026-10-23T12:10:00.000Z",
+              hora_formateada: "08:10 AM",
+              metodo: "manual",
+              estado: "presente",
+              presente_en_corte: true,
+              editado: true,
+            },
+          ],
+        },
+      ],
+    };
+
+    const email = buildAsistenciaReportEmail(mockSnapshot);
+    assert.ok(email.text.includes("[✓ PRESENTE] Luis Martinez — Analista (08:10 AM) [Editado]"));
+    assert.ok(email.html.includes("(Editado)"));
+  });
 });
 
 function createMockSupabase(opts: {
@@ -432,11 +490,12 @@ describe("lib/asistencia/report-service", () => {
       ],
       puestos: [{ id_empleado: 2, cargo: "Contador" }],
       asistencia: [
-        // Ana logged in at 07:50 AM Caracas (11:50 UTC) -> Presente
+        // Ana logged in at 07:50 AM Caracas (11:50 UTC) -> Presente, edited
         {
           usuario_id: 1,
           hora_registro: "2026-10-23T11:50:00.000Z",
-          metodo: "login",
+          metodo: "manual",
+          editado: true,
         },
         // Pedro logged in at 08:45 AM Caracas (12:45 UTC) -> Tardío (counts as absent at 08:30 cutoff)
         {
@@ -472,6 +531,10 @@ describe("lib/asistencia/report-service", () => {
     assert.equal(pedro.estado, "tardio");
     assert.equal(pedro.presente_en_corte, false);
     assert.equal(pedro.hora_formateada, "08:45 AM");
+    assert.equal(pedro.editado, false);
+
+    const ana = adminDept.usuarios.find((u) => u.usuario_id === 1)!;
+    assert.equal(ana.editado, true);
   });
 
   it("calculates Corte 2 (14:00:00) snapshot correctly crediting morning tardies as present and afternoon late arrivals as tardy", async () => {

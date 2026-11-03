@@ -206,11 +206,21 @@ export async function buildAsistenciaSnapshot(
       .select("id, nombre")
       .order("nombre", { ascending: true }),
     supabase.from("puestos_empleados").select("id_empleado, cargo"),
-    supabase
-      .from("asistencia_diaria")
-      .select("usuario_id, hora_registro, metodo")
-      .eq("fecha", fecha)
-      .eq("corte", corte),
+    (async () => {
+      const primaryRes = await supabase
+        .from("asistencia_diaria")
+        .select("usuario_id, hora_registro, metodo, editado")
+        .eq("fecha", fecha)
+        .eq("corte", corte);
+      if (primaryRes.error && primaryRes.error.message.includes("editado")) {
+        return supabase
+          .from("asistencia_diaria")
+          .select("usuario_id, hora_registro, metodo")
+          .eq("fecha", fecha)
+          .eq("corte", corte);
+      }
+      return primaryRes;
+    })(),
     supabase
       .from("cat_feriados_venezuela")
       .select("fecha, nombre")
@@ -234,7 +244,7 @@ export async function buildAsistenciaSnapshot(
 
   const attendanceByUserId = new Map<
     number,
-    { hora_registro: string; metodo: string }
+    { hora_registro: string; metodo: string; editado: boolean }
   >();
   for (const a of (asistenciaRes.data ?? []) as Array<Record<string, unknown>>) {
     const uid = Number(a.usuario_id ?? 0);
@@ -242,6 +252,7 @@ export async function buildAsistenciaSnapshot(
       attendanceByUserId.set(uid, {
         hora_registro: String(a.hora_registro),
         metodo: String(a.metodo ?? "login"),
+        editado: Boolean(a.editado),
       });
     }
   }
@@ -314,6 +325,7 @@ export async function buildAsistenciaSnapshot(
       metodo: att?.metodo ?? null,
       estado,
       presente_en_corte,
+      editado: att?.editado ?? false,
     };
 
     if (isExcluded) {
