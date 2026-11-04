@@ -16,12 +16,21 @@ export function OsiPreviewToolbar({
   const autoPrint = searchParams.get("print") === "1";
   const [printing, setPrinting] = useState(false);
 
+  // Si se llegó desde el calendario (?from=calendario&mes=YYYY-MM), se vuelve a ese mes.
+  const fromCalendario = searchParams.get("from") === "calendario";
+  const mesCalendario = searchParams.get("mes");
+  const backHref = fromCalendario
+    ? `/consulta-osi/calendario${mesCalendario ? `?mes=${encodeURIComponent(mesCalendario)}` : ""}`
+    : "/consulta-osi";
+
   const handleBack = (e: React.MouseEvent) => {
     e.preventDefault();
-    if (typeof window !== "undefined" && window.history.length > 1) {
+    if (fromCalendario) {
+      router.push(backHref);
+    } else if (typeof window !== "undefined" && window.history.length > 1) {
       router.back();
     } else {
-      router.push("/consulta-osi");
+      router.push(backHref);
     }
   };
 
@@ -68,7 +77,7 @@ export function OsiPreviewToolbar({
         onClick={handleBack}
       >
         <ArrowLeft className="h-4 w-4" />
-        Volver a consulta
+        {fromCalendario ? "Volver al calendario" : "Volver a consulta"}
       </Button>
       <div className="text-sm text-gray-600">
         OSI <span className="font-semibold text-gray-900">{osiLabel}</span>

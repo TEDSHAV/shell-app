@@ -10,6 +10,7 @@ import SessionExecutionModal, {
   type SessionExecutionConfirmItem,
   type SessionExecutionPayload,
 } from "./SessionExecutionModal";
+import OSICommentsBadge from "./OSICommentsBadge";
 import OSINotasModal from "./OSINotasModal";
 import OSIGuiaModal from "./OSIGuiaModal";
 import { Eye, FileText, Loader2, ChevronDown, ChevronRight, MessageSquare, CheckCircle2, EyeOff, Eye as EyeShow, Paperclip, Pencil, StickyNote, Star, Truck } from "lucide-react";
@@ -685,10 +686,11 @@ export default function OSITable({
                       event.stopPropagation();
                       onCommentsClick(osi);
                     }}
-                    className="inline-flex items-center justify-center rounded-md border border-gray-200 p-1.5 text-green-700 hover:bg-green-50 transition-colors"
-                    title="Comentarios"
+                    className="relative inline-flex items-center justify-center rounded-md border border-gray-200 p-1.5 text-green-700 hover:bg-green-50 transition-colors"
+                    title={osi.comentarios_count ? `Comentarios (${osi.comentarios_count})` : "Comentarios"}
                   >
                     <MessageSquare className="h-3.5 w-3.5" />
+                    <OSICommentsBadge count={osi.comentarios_count} />
                   </button>
                   {canAccessSatisfaccion && (
                     <button

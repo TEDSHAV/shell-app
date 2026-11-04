@@ -57,6 +57,8 @@ export interface OSIListItem {
   // Tracking / Envio info from capacitacion_proceso_steps (sobre_enviado_zoom)
   nro_guia_zoom?: string | null;
   guias_envio?: OsiGuiaEnvio[];
+  // Comentarios vinculados a la OSI (comentario_entidad_vinculos)
+  comentarios_count?: number;
 }
 
 export interface OsiGuiaEnvio {

@@ -17,6 +17,7 @@ import OSIFilters from "./components/OSIFilters";
 import OSITable from "./components/OSITable";
 import OSIPagination from "./components/OSIPagination";
 import OSICommentsSheet from "./components/OSICommentsSheet";
+import { getOSIComentariosResumen } from "@/actions/osi-comentarios";
 
 interface ConsultaOSIClientProps {
   canChangeStatus: boolean;
@@ -356,7 +357,16 @@ export default function ConsultaOSIClient({
 
   const handleSidebarClose = useCallback(() => {
     setSidebarOpen(false);
-  }, []);
+    const osiId = selectedOSI?.id_osi;
+    if (!osiId) return;
+    // Refresca la burbuja de comentarios de la OSI que se acaba de mirar.
+    void getOSIComentariosResumen([osiId]).then((resumen) => {
+      const total = resumen[osiId]?.total ?? 0;
+      setOsis((prev) =>
+        prev.map((o) => (o.id_osi === osiId ? { ...o, comentarios_count: total } : o)),
+      );
+    });
+  }, [selectedOSI]);
 
   const handleStatusChange = useCallback(
     async (osi: OSIListItem, newStatusId: number) => {

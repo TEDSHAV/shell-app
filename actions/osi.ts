@@ -5,6 +5,7 @@ import { unstable_cache } from "next/cache";
 import { createAdminClient, createClient, peek_dev_db_target } from "@/lib/supabase/server";
 import type { DevDbTarget } from "@/lib/supabase/dev-db";
 import { notifySessionStatusChange } from "@/actions/osi-session-notifications";
+import { getOSIComentariosResumen } from "@/actions/osi-comentarios";
 import {
   getUserRole,
   getUserRolesByApp,
@@ -283,7 +284,7 @@ export async function getOSIList(
 
     const adminClientPromise = pageOsiIds.length > 0 ? createAdminClient() : null;
 
-    const [statuses, cityResult, visibleOsiIds, sesionesProgramadasResult, attachmentResult, notasResult, guiasResult] = await Promise.all([
+    const [statuses, cityResult, visibleOsiIds, sesionesProgramadasResult, attachmentResult, notasResult, guiasResult, comentariosResumen] = await Promise.all([
       getOSIStatuses(await peek_dev_db_target()),
       uniqueCityIds.length > 0
         ? supabase
@@ -353,6 +354,7 @@ export async function getOSIList(
             return { data: stepRows || [] };
           })
         : Promise.resolve({ data: [] }),
+      getOSIComentariosResumen(pageOsiIds),
     ]);
 
     const statusMap = new Map(statuses.map((s) => [s.id, s]));
@@ -430,6 +432,7 @@ export async function getOSIList(
         notas: osi.id_osi ? notasByOsi.get(osi.id_osi) ?? [] : [],
         nro_guia_zoom: nroGuiaZoom,
         guias_envio: osiGuias,
+        comentarios_count: osi.id_osi ? comentariosResumen[osi.id_osi]?.total ?? 0 : 0,
       };
     });
 

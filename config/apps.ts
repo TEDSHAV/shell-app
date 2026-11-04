@@ -202,6 +202,7 @@ export const UTILIDADES_HEADER_APP_IDS = [
   "visitantes",
   "satisfaccion-clientes",
   "administracion",
+  "presupuesto-mensual",
   "nomina",
 ] as const;
 
@@ -756,8 +757,10 @@ export const apps: AppConfig[] = [
     icon: Wallet,
     brandColor: "#047857",
     embedMode: "shell",
-    groupId: "procesos-de-apoyo",
-    dashboardOrder: 3,
+    // Sin tarjeta en el inicio: solo en el desplegable Utilidades del header.
+    hiddenFromDashboard: true,
+    groupId: "utilidades",
+    headerLabel: "Presupuesto mensual",
     navLinks: [
       { label: "Inicio", path: "/", icon: LayoutDashboard },
       { label: "Nómina", path: "/apu", icon: Receipt },
@@ -1069,7 +1072,10 @@ export const apps: AppConfig[] = [
     embedMode: "native",
     hiddenFromDashboard: true,
     dashboardOrder: 7.5,
-    navLinks: [],
+    navLinks: [
+      { label: "Consulta de OSIs", path: "/", icon: Search },
+      { label: "Calendario de servicios", path: "/calendario", icon: Calendar },
+    ],
   }),
   build_app_config({
     id: "credenciales-clientes",
