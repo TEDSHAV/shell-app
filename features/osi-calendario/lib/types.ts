@@ -1,10 +1,10 @@
-export type EstadoSesion =
-  | "planificada"
-  | "atrasada"
-  | "reagendada"
-  | "por_confirmar"
-  | "ejecutada"
-  | "no_ejecutada";
+/**
+ * Vocabulario único del calendario:
+ * programada (aún no llega la fecha) · por_registrar (la fecha pasó y nadie marcó qué pasó) ·
+ * reagendada (no se dio, se dará más adelante; sin_fecha si aún no hay fecha nueva) ·
+ * ejecutada (se dictó) · cancelada (no se dio y no se va a dar).
+ */
+export type EstadoSesion = "programada" | "por_registrar" | "reagendada" | "sin_fecha" | "ejecutada" | "cancelada";
 
 export type AccionSesion = "ejecutar" | "reagendar" | "no_ejecutar";
 

@@ -1,19 +1,19 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { CalendarClock, CheckCircle2 } from "lucide-react";
+import { CheckCircle2, X } from "lucide-react";
 
 import OSICommentsSheet from "@/app/(shell)/consulta-osi/components/OSICommentsSheet";
 import type { OSIListItem } from "@/types/osi";
-import { etiqueta_mes, fecha_larga, inicio_semana, mover_mes, rango_grilla, sumar_dias } from "../lib/mes-grid";
-import type { AccionSesion, CalendarioMesData, EventoCalendario } from "../lib/types";
+import { coincide_estado, empresa_y_sede } from "../lib/estado-sesion";
+import { etiqueta_mes, fecha_larga, mover_mes } from "../lib/mes-grid";
+import type { AccionSesion, CalendarioMesData, EstadoSesion, EventoCalendario } from "../lib/types";
+import AgendaItem from "./AgendaItem";
 import CalendarioMes from "./CalendarioMes";
-import CalendarioSemana from "./CalendarioSemana";
-import CalendarioToolbar, { FILTROS_VACIOS, type FiltrosCalendario, type Vista } from "./CalendarioToolbar";
-import EventoChip from "./EventoChip";
+import Encabezado, { FILTROS_VACIOS, type FiltrosCalendario } from "./Encabezado";
 import EventoDetalle from "./EventoDetalle";
-import ResumenEstados from "./ResumenEstados";
+import MiniMes from "./MiniMes";
 import SesionAccionModal from "./SesionAccionModal";
 import TablaServicios from "./TablaServicios";
 
@@ -43,34 +43,45 @@ function a_osi_item(e: EventoCalendario): OSIListItem {
 export default function CalendarioServicios({ data, mostrarTipo }: { data: CalendarioMesData; mostrarTipo: boolean }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [vista, set_vista] = useState<Vista>("mes");
-  const [lunes, set_lunes] = useState(() => inicio_semana(data.mes === data.hoy.slice(0, 7) ? data.hoy : `${data.mes}-01`));
+  // En el mes actual la agenda del teléfono arranca hoy; en otro mes, en el primer día con sesiones.
+  const dia_inicial =
+    data.mes === data.hoy.slice(0, 7)
+      ? data.hoy
+      : data.eventos.find((e) => e.fecha_efectiva.startsWith(data.mes))?.fecha_efectiva ?? `${data.mes}-01`;
+  const [dia, set_dia] = useState(dia_inicial);
   const [filtros, set_filtros] = useState<FiltrosCalendario>(FILTROS_VACIOS);
   const [detalle, set_detalle] = useState<EventoCalendario | null>(null);
   const [accion, set_accion] = useState<{ evento: EventoCalendario; accion: AccionSesion } | null>(null);
   const [chat, set_chat] = useState<EventoCalendario | null>(null);
   const [aviso, set_aviso] = useState<string | null>(null);
 
+  useEffect(() => set_dia(dia_inicial), [dia_inicial]);
+
   const ir_a_mes = (mes: string) => router.push(`${pathname}?mes=${mes}`, { scroll: false });
 
-  /** Filtros de búsqueda, tipo y ejecutivo; el de estado se aplica aparte para que las tarjetas mantengan su conteo. */
   const pasa_base = (e: EventoCalendario) => {
     const t = filtros.texto.trim().toLowerCase();
-    if (t && !`${e.nro_osi ?? ""} ${e.nombre_empresa ?? ""}`.toLowerCase().includes(t)) return false;
+    if (t && !`${e.nro_osi ?? ""} ${e.nombre_empresa ?? ""} ${e.servicio ?? ""}`.toLowerCase().includes(t)) return false;
     if (filtros.tipo === "capacitacion" && !/capacitacion/i.test(e.tipo_servicio ?? "")) return false;
     if (filtros.tipo === "servicios_tecnicos" && !ES_ST.test(e.tipo_servicio ?? "")) return false;
     if (filtros.ejecutivo && e.ejecutivo_negocios !== filtros.ejecutivo) return false;
     return true;
   };
-  const pasa = (e: EventoCalendario) => pasa_base(e) && (!filtros.estado || e.estado === filtros.estado);
 
   const base = useMemo(() => data.eventos.filter(pasa_base), [data.eventos, filtros]); // eslint-disable-line react-hooks/exhaustive-deps
-  const eventos = useMemo(() => base.filter(pasa), [base, filtros]); // eslint-disable-line react-hooks/exhaustive-deps
-  const por_confirmar = useMemo(() => data.por_confirmar.filter(pasa), [data.por_confirmar, filtros]); // eslint-disable-line react-hooks/exhaustive-deps
-  const del_periodo = useMemo(
-    () => (vista === "mes" ? eventos.filter((e) => e.fecha_efectiva.startsWith(data.mes)) : eventos.filter((e) => e.fecha_efectiva >= lunes && e.fecha_efectiva <= sumar_dias(lunes, 6))),
-    [eventos, vista, data.mes, lunes],
-  );
+  const sin_fecha_base = useMemo(() => data.por_confirmar.filter(pasa_base), [data.por_confirmar, filtros]); // eslint-disable-line react-hooks/exhaustive-deps
+  const eventos = useMemo(() => base.filter((e) => coincide_estado(e.estado, filtros.estado)), [base, filtros.estado]);
+  const sin_fecha = useMemo(() => sin_fecha_base.filter((e) => coincide_estado(e.estado, filtros.estado)), [sin_fecha_base, filtros.estado]);
+
+  const conteo = useMemo(() => {
+    const c: Partial<Record<EstadoSesion, number>> = {};
+    for (const e of [...base.filter((x) => x.fecha_efectiva.startsWith(data.mes)), ...sin_fecha_base]) {
+      const k = e.estado === "sin_fecha" ? "reagendada" : e.estado;
+      c[k] = (c[k] ?? 0) + 1;
+    }
+    return c;
+  }, [base, sin_fecha_base, data.mes]);
+
   const ejecutivos = useMemo(
     () => [...new Set([...data.eventos, ...data.por_confirmar].map((e) => e.ejecutivo_negocios).filter((x): x is string => !!x))].sort(),
     [data.eventos, data.por_confirmar],
@@ -85,17 +96,9 @@ export default function CalendarioServicios({ data, mostrarTipo }: { data: Calen
     return m;
   }, [eventos]);
 
-  const mover_semana = (dias: number) => {
-    const nuevo = sumar_dias(lunes, dias);
-    set_lunes(nuevo);
-    const { desde, hasta } = rango_grilla(data.mes);
-    if (nuevo < desde || sumar_dias(nuevo, 6) > hasta) ir_a_mes(sumar_dias(nuevo, 3).slice(0, 7));
-  };
-
-  const titulo =
-    vista === "mes"
-      ? etiqueta_mes(data.mes)
-      : `${fecha_larga(lunes).slice(4)} – ${fecha_larga(sumar_dias(lunes, 6)).slice(4)}`;
+  const del_dia = por_fecha.get(dia) ?? [];
+  const del_mes = eventos.filter((e) => e.fecha_efectiva.startsWith(data.mes));
+  const [mes_nombre, anio] = etiqueta_mes(data.mes).split(" ");
 
   const abrir_accion = (evento: EventoCalendario, a: AccionSesion) => {
     set_detalle(null);
@@ -104,70 +107,68 @@ export default function CalendarioServicios({ data, mostrarTipo }: { data: Calen
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-      <CalendarioToolbar
-        titulo={titulo}
-        subtitulo={vista === "mes" ? "Clic en un día para verlo por horas" : "Semana por horas"}
-        vista={vista}
-        filtros={filtros}
-        ejecutivos={ejecutivos}
-        mostrarTipo={mostrarTipo}
-        onPrev={() => (vista === "mes" ? ir_a_mes(mover_mes(data.mes, -1)) : mover_semana(-7))}
-        onNext={() => (vista === "mes" ? ir_a_mes(mover_mes(data.mes, 1)) : mover_semana(7))}
-        onHoy={() => {
-          set_lunes(inicio_semana(data.hoy));
-          if (data.mes !== data.hoy.slice(0, 7)) ir_a_mes(data.hoy.slice(0, 7));
-        }}
-        onVista={set_vista}
-        onFiltros={set_filtros}
-      />
-
-      <ResumenEstados
-        eventos={base.filter((e) => e.fecha_efectiva.startsWith(data.mes))}
-        activo={filtros.estado}
-        onSelect={(estado) => set_filtros((f) => ({ ...f, estado }))}
-      />
-
-      {aviso ? (
-        <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800" role="status">
-          <CheckCircle2 className="h-4 w-4" /> {aviso}
-          <button type="button" onClick={() => set_aviso(null)} className="ml-auto text-xs underline">Cerrar</button>
-        </div>
-      ) : null}
-
-      {vista === "mes" ? (
-        <CalendarioMes
-          mes={data.mes}
-          hoy={data.hoy}
-          eventosPorFecha={por_fecha}
-          onSelect={set_detalle}
-          onComments={set_chat}
-          onVerSemana={(fecha) => {
-            set_lunes(inicio_semana(fecha));
-            set_vista("semana");
+      <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
+        <Encabezado
+          mesTitulo={mes_nombre}
+          anio={anio}
+          filtros={filtros}
+          conteo={conteo}
+          ejecutivos={ejecutivos}
+          mostrarTipo={mostrarTipo}
+          onPrev={() => ir_a_mes(mover_mes(data.mes, -1))}
+          onNext={() => ir_a_mes(mover_mes(data.mes, 1))}
+          onHoy={() => {
+            set_dia(data.hoy);
+            if (data.mes !== data.hoy.slice(0, 7)) ir_a_mes(data.hoy.slice(0, 7));
           }}
+          onFiltros={set_filtros}
         />
-      ) : (
-        <CalendarioSemana lunes={lunes} hoy={data.hoy} eventosPorFecha={por_fecha} onSelect={set_detalle} onComments={set_chat} />
-      )}
 
+        {aviso ? (
+          <div className="flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-800" role="status">
+            <CheckCircle2 className="h-4 w-4 shrink-0" />
+            <span className="min-w-0 flex-1">{aviso}</span>
+            <button type="button" onClick={() => set_aviso(null)} aria-label="Cerrar aviso" className="rounded p-0.5 hover:bg-emerald-100">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        ) : null}
+
+        <div className="hidden md:block">
+          <CalendarioMes mes={data.mes} hoy={data.hoy} eventosPorFecha={por_fecha} onSelect={set_detalle} onComments={set_chat} />
+        </div>
+
+        <div className="flex flex-col gap-4 md:hidden">
+          <MiniMes mes={data.mes} hoy={data.hoy} seleccion={dia} eventosPorFecha={por_fecha} onSeleccion={set_dia} />
+          <div className="border-t border-slate-100 pt-4">
+            <p className="mb-3 text-sm font-semibold capitalize text-slate-900">
+              {fecha_larga(dia)}
+              <span className="ml-2 font-normal normal-case text-slate-400">
+                {del_dia.length ? `${del_dia.length} ${del_dia.length === 1 ? "sesión" : "sesiones"}` : "Sin sesiones"}
+              </span>
+            </p>
+            <div className="flex flex-col gap-2">
+              {del_dia.map((e) => (
+                <AgendaItem key={e.id_sesion} evento={e} onSelect={set_detalle} onComments={set_chat} />
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
 
-      {por_confirmar.length > 0 ? (
-        <section className="rounded-xl border border-dashed border-orange-300 bg-orange-50/40 p-4">
-          <h3 className="flex items-center gap-1.5 text-sm font-semibold text-orange-900">
-            <CalendarClock className="h-4 w-4" /> Reagendadas sin fecha nueva ({por_confirmar.length})
-          </h3>
-          <p className="mb-3 text-xs text-orange-800/80">No aparecen en el calendario hasta que se les asigne fecha.</p>
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-            {por_confirmar.map((e) => (
-              <EventoChip key={e.id_sesion} evento={e} onSelect={set_detalle} onComments={set_chat} />
+      {sin_fecha.length > 0 ? (
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
+          <h3 className="text-base font-semibold text-slate-900">Reagendadas sin fecha</h3>
+          <p className="mb-3 text-xs text-slate-500">No se dieron y todavía no tienen fecha nueva, por eso no aparecen en el calendario.</p>
+          <div className="grid gap-2 lg:grid-cols-2">
+            {sin_fecha.map((e) => (
+              <AgendaItem key={e.id_sesion} evento={e} onSelect={set_detalle} onComments={set_chat} lateral={`OSI ${e.nro_osi ?? e.id_osi}`} />
             ))}
           </div>
         </section>
       ) : null}
 
-      <TablaServicios eventos={[...del_periodo, ...por_confirmar]} onSelect={set_detalle} onComments={set_chat} />
+      <TablaServicios eventos={[...del_mes, ...sin_fecha]} onSelect={set_detalle} onComments={set_chat} />
 
       <EventoDetalle
         evento={detalle}
@@ -192,7 +193,7 @@ export default function CalendarioServicios({ data, mostrarTipo }: { data: Calen
         }}
       />
       <OSICommentsSheet
-        osi={chat ? a_osi_item(chat) : null}
+        osi={chat ? { ...a_osi_item(chat), nombre_empresa: empresa_y_sede(chat.nombre_empresa).empresa } : null}
         open={!!chat}
         onClose={() => {
           set_chat(null);

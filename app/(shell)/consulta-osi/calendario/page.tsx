@@ -25,13 +25,8 @@ export default async function CalendarioServiciosPage({
   if (!canAccess) redirect("/dashboard");
 
   return (
-    <div className="flex flex-col gap-4 p-4 sm:p-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Calendario de servicios</h1>
-        <p className="text-sm text-slate-500">
-          Cada sesión de una OSI en su fecha planificada; cuando se reagenda o se ejecuta, se mueve a esa fecha sin cambiar la planificada.
-        </p>
-      </div>
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 p-3 sm:p-6">
+      <h1 className="px-1 text-sm font-medium text-slate-500">Calendario de servicios</h1>
       {result.ok ? (
         <CalendarioServicios data={result.data} mostrarTipo={access === "all" || access === "other"} />
       ) : (

@@ -6,33 +6,109 @@ export const ESTATUS_NO_EJECUTADO = 39;
 export const ESTATUS_REAGENDADO = 46;
 
 /**
- * Estado visual de una sesión. Manda la fecha ejecutada; luego el último estatus del historial;
- * una reagenda sin fecha queda "por confirmar"; lo planificado ya pasado y sin cerrar, "atrasada".
+ * Estado de una sesión. Manda la fecha ejecutada; luego el último estatus del historial;
+ * una reagenda sin fecha queda "sin_fecha"; lo que ya pasó sin registrar, "por_registrar".
  */
 export function estado_sesion(s: Pick<SesionCalendario,
   "fecha_ejecutada" | "id_estatus_sesion" | "fecha_reagendada" | "reagenda_count" | "fecha_efectiva">,
   hoy: string,
 ): EstadoSesion {
   if (s.fecha_ejecutada || s.id_estatus_sesion === ESTATUS_EJECUTADO) return "ejecutada";
-  if (s.id_estatus_sesion === ESTATUS_NO_EJECUTADO) return "no_ejecutada";
+  if (s.id_estatus_sesion === ESTATUS_NO_EJECUTADO) return "cancelada";
   if (s.id_estatus_sesion === ESTATUS_REAGENDADO || s.reagenda_count > 0) {
-    if (!s.fecha_reagendada) return "por_confirmar";
-    return s.fecha_reagendada < hoy ? "atrasada" : "reagendada";
+    if (!s.fecha_reagendada) return "sin_fecha";
+    return s.fecha_reagendada < hoy ? "por_registrar" : "reagendada";
   }
-  return s.fecha_efectiva < hoy ? "atrasada" : "planificada";
+  return s.fecha_efectiva < hoy ? "por_registrar" : "programada";
 }
 
-export const ESTADOS_ORDEN: EstadoSesion[] = ["planificada", "atrasada", "reagendada", "por_confirmar", "ejecutada", "no_ejecutada"];
+/** Orden de la leyenda. `sin_fecha` se cuenta junto con `reagendada`. */
+export const ESTADOS_LEYENDA: EstadoSesion[] = ["programada", "por_registrar", "reagendada", "ejecutada", "cancelada"];
 
-/** Clases por estado. `chip`: fondo de la etiqueta; `barra`: borde izquierdo; `punto`: indicador; `tarjeta`: tarjeta de resumen activa. */
-export const ESTADO_UI: Record<EstadoSesion, { etiqueta: string; corta: string; chip: string; barra: string; punto: string; texto: string; tarjeta: string }> = {
-  planificada: { etiqueta: "Planificada", corta: "Planificadas", chip: "bg-sky-50 hover:bg-sky-100", barra: "border-l-sky-500", punto: "bg-sky-500", texto: "text-sky-700", tarjeta: "border-sky-300 bg-sky-50 ring-2 ring-sky-200" },
-  atrasada: { etiqueta: "Falta confirmar si se dio", corta: "Sin confirmar", chip: "bg-amber-50 hover:bg-amber-100", barra: "border-l-amber-500", punto: "bg-amber-500", texto: "text-amber-700", tarjeta: "border-amber-300 bg-amber-50 ring-2 ring-amber-200" },
-  reagendada: { etiqueta: "Reagendada", corta: "Reagendadas", chip: "bg-orange-50 hover:bg-orange-100", barra: "border-l-orange-500", punto: "bg-orange-500", texto: "text-orange-700", tarjeta: "border-orange-300 bg-orange-50 ring-2 ring-orange-200" },
-  por_confirmar: { etiqueta: "Reagendada · sin fecha", corta: "Sin fecha", chip: "bg-orange-50 hover:bg-orange-100", barra: "border-l-orange-300 border-dashed", punto: "bg-orange-300", texto: "text-orange-700", tarjeta: "border-orange-300 bg-orange-50 ring-2 ring-orange-200" },
-  ejecutada: { etiqueta: "Ejecutada", corta: "Ejecutadas", chip: "bg-emerald-50 hover:bg-emerald-100", barra: "border-l-emerald-500", punto: "bg-emerald-500", texto: "text-emerald-700", tarjeta: "border-emerald-300 bg-emerald-50 ring-2 ring-emerald-200" },
-  no_ejecutada: { etiqueta: "No ejecutada", corta: "No ejecutadas", chip: "bg-rose-50 hover:bg-rose-100", barra: "border-l-rose-500", punto: "bg-rose-500", texto: "text-rose-700", tarjeta: "border-rose-300 bg-rose-50 ring-2 ring-rose-200" },
+type EstadoUi = {
+  etiqueta: string;
+  descripcion: string;
+  /** Fondo suave de etiquetas y tarjetas. */
+  suave: string;
+  /** Borde izquierdo de acento. */
+  barra: string;
+  punto: string;
+  texto: string;
+  /** Pastilla de estado. */
+  pill: string;
 };
+
+export const ESTADO_UI: Record<EstadoSesion, EstadoUi> = {
+  programada: {
+    etiqueta: "Programada",
+    descripcion: "La fecha todavía no llega.",
+    suave: "bg-sky-50 hover:bg-sky-100/70",
+    barra: "border-sky-500",
+    punto: "bg-sky-500",
+    texto: "text-sky-800",
+    pill: "bg-sky-100 text-sky-800",
+  },
+  por_registrar: {
+    etiqueta: "Por registrar",
+    descripcion: "La fecha ya pasó y nadie ha marcado si se dio.",
+    suave: "bg-slate-100 hover:bg-slate-200/70",
+    barra: "border-slate-400",
+    punto: "bg-slate-400",
+    texto: "text-slate-700",
+    pill: "bg-slate-200 text-slate-700",
+  },
+  reagendada: {
+    etiqueta: "Reagendada",
+    descripcion: "No se dio en su fecha y se dará más adelante.",
+    suave: "bg-violet-50 hover:bg-violet-100/70",
+    barra: "border-violet-500",
+    punto: "bg-violet-500",
+    texto: "text-violet-800",
+    pill: "bg-violet-100 text-violet-800",
+  },
+  sin_fecha: {
+    etiqueta: "Reagendada · sin fecha",
+    descripcion: "No se dio y todavía no tiene fecha nueva.",
+    suave: "bg-violet-50 hover:bg-violet-100/70",
+    barra: "border-violet-300 border-dashed",
+    punto: "bg-violet-300",
+    texto: "text-violet-800",
+    pill: "bg-violet-100 text-violet-800",
+  },
+  ejecutada: {
+    etiqueta: "Ejecutada",
+    descripcion: "Se dictó.",
+    suave: "bg-emerald-50 hover:bg-emerald-100/70",
+    barra: "border-emerald-500",
+    punto: "bg-emerald-500",
+    texto: "text-emerald-800",
+    pill: "bg-emerald-100 text-emerald-800",
+  },
+  cancelada: {
+    etiqueta: "Cancelada",
+    descripcion: "No se dio y no se va a dar.",
+    suave: "bg-rose-50 hover:bg-rose-100/70",
+    barra: "border-rose-500",
+    punto: "bg-rose-500",
+    texto: "text-rose-800",
+    pill: "bg-rose-100 text-rose-800",
+  },
+};
+
+/** El filtro de "reagendada" incluye las que no tienen fecha. */
+export function coincide_estado(estado: EstadoSesion, filtro: "" | EstadoSesion): boolean {
+  if (!filtro) return true;
+  if (filtro === "reagendada") return estado === "reagendada" || estado === "sin_fecha";
+  return estado === filtro;
+}
+
+/** `nombre_empresa` viene como "RAZÓN SOCIAL  SEDE" (dos espacios) desde v_osi_lista. */
+export function empresa_y_sede(nombre: string | null): { empresa: string; sede: string | null } {
+  if (!nombre) return { empresa: "Sin empresa", sede: null };
+  const i = nombre.indexOf("  ");
+  if (i < 0) return { empresa: nombre.trim(), sede: null };
+  return { empresa: nombre.slice(0, i).trim(), sede: nombre.slice(i).trim() || null };
+}
 
 /** Hora que se muestra: la ejecutada, la reagendada o la planificada. */
 export function hora_efectiva(s: Pick<SesionCalendario, "hora_ejecutada" | "hora_reagendada" | "hora_inicio" | "fecha_ejecutada" | "fecha_reagendada">): string | null {

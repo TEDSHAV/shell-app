@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CalendarClock, CheckCircle2, MapPin, MessageSquare, Repeat, User, XCircle } from "lucide-react";
+import { ChevronDown, Clock, FileText, MapPin, MessageSquare, User } from "lucide-react";
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { getReagendasSesion } from "../actions/calendario-actions";
-import { ESTADO_UI } from "../lib/estado-sesion";
+import { ACCION_UI, HOJA_MOVIL } from "../lib/acciones";
+import { empresa_y_sede, ESTADO_UI, hora_efectiva } from "../lib/estado-sesion";
 import { fecha_larga, hora_corta } from "../lib/mes-grid";
 import type { AccionSesion, EventoCalendario, ReagendaHistorial } from "../lib/types";
+import AccionIcono from "./AccionIcono";
 import OsiPreviewBox from "./OsiPreviewBox";
 
 type EventoDetalleProps = {
@@ -19,26 +21,41 @@ type EventoDetalleProps = {
   onComments: (evento: EventoCalendario) => void;
 };
 
-function Fecha({ titulo, fecha, hora, tono }: { titulo: string; fecha: string | null; hora?: string | null; tono: string }) {
+function useEsEscritorio(): boolean {
+  const [ok, set_ok] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const on = () => set_ok(mq.matches);
+    on();
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
+  return ok;
+}
+
+function Linea({ titulo, fecha, hora, punto }: { titulo: string; fecha: string | null; hora?: string | null; punto: string }) {
   return (
-    <div className="flex items-center gap-3">
-      <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${tono}`} />
-      <div className="min-w-0">
-        <p className="text-[11px] font-medium uppercase tracking-wider text-slate-500">{titulo}</p>
-        <p className="text-sm font-semibold capitalize text-slate-900">
-          {fecha ? fecha_larga(fecha) : "Por confirmar"}
-          {fecha && hora ? <span className="font-normal normal-case text-slate-600"> · {hora_corta(hora)}</span> : null}
+    <li className="flex items-start gap-3">
+      <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${punto}`} />
+      <div>
+        <p className="text-xs text-slate-500">{titulo}</p>
+        <p className="text-sm font-medium capitalize text-slate-900">
+          {fecha ? fecha_larga(fecha) : "Sin fecha todavía"}
+          {fecha && hora ? <span className="font-normal normal-case text-slate-500"> · {hora_corta(hora)}</span> : null}
         </p>
       </div>
-    </div>
+    </li>
   );
 }
 
 export default function EventoDetalle({ evento, mes, puedeGestionar, onClose, onAccion, onComments }: EventoDetalleProps) {
   const [reagendas, set_reagendas] = useState<ReagendaHistorial[]>([]);
+  const [ver_formato, set_ver_formato] = useState(false);
+  const escritorio = useEsEscritorio();
 
   useEffect(() => {
     set_reagendas([]);
+    set_ver_formato(false);
     if (!evento || evento.reagenda_count === 0) return;
     let vivo = true;
     void getReagendasSesion(evento.id_sesion).then((res) => {
@@ -51,30 +68,41 @@ export default function EventoDetalle({ evento, mes, puedeGestionar, onClose, on
 
   if (!evento) return null;
   const ui = ESTADO_UI[evento.estado];
-  const href_completa = `/consulta-osi/preview/${evento.id_osi}?from=calendario&mes=${mes}`;
+  const { empresa, sede } = empresa_y_sede(evento.nombre_empresa);
+  const hora = hora_corta(hora_efectiva(evento));
+  const mostrar_formato = escritorio || ver_formato;
+  const acciones: AccionSesion[] = ["ejecutar", "reagendar", "no_ejecutar"];
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-5xl gap-0 p-0">
-        <div className="grid min-h-0 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
-          <div className="flex flex-col gap-5 border-b border-slate-200 p-6 lg:border-b-0 lg:border-r">
-            <DialogHeader>
-              <span className={`inline-flex w-fit items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold ${ui.chip} ${ui.texto}`}>
+      <DialogContent className={`max-w-5xl gap-0 p-0 ${HOJA_MOVIL}`}>
+        <div className="grid min-h-0 lg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
+          <div className="flex flex-col gap-5 p-5 sm:p-6">
+            <DialogHeader className="gap-2">
+              <span className={`inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${ui.pill}`}>
                 <span className={`h-1.5 w-1.5 rounded-full ${ui.punto}`} />
                 {ui.etiqueta}
               </span>
-              <DialogTitle className="text-xl">
-                OSI {evento.nro_osi ?? evento.id_osi}
-                <span className="ml-2 text-base font-normal text-slate-500">
-                  Sesión {evento.nro_sesion}
-                  {evento.total_sesiones > 1 ? ` de ${evento.total_sesiones}` : ""}
-                </span>
-              </DialogTitle>
-              <DialogDescription className="text-base font-medium text-slate-800">{evento.nombre_empresa ?? "Sin empresa"}</DialogDescription>
-              <p className="text-sm text-slate-500">{evento.servicio}</p>
+              <DialogTitle className="text-lg leading-snug sm:text-xl">{evento.servicio ?? "Servicio"}</DialogTitle>
+              <DialogDescription asChild>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[15px] font-medium text-slate-800">{empresa}</span>
+                  {sede ? <span className="text-sm text-slate-500">Sede {sede}</span> : null}
+                </div>
+              </DialogDescription>
             </DialogHeader>
 
-            <div className="flex flex-col gap-1.5 text-sm text-slate-600">
+            <div className="flex flex-col gap-2 text-sm text-slate-600">
+              <span className="flex items-center gap-2">
+                <Clock className="h-4 w-4 shrink-0 text-slate-400" />
+                <span className="capitalize">{evento.estado === "sin_fecha" ? "Sin fecha" : fecha_larga(evento.fecha_efectiva)}</span>
+                {hora && evento.estado !== "sin_fecha" ? <span>· {hora}</span> : null}
+              </span>
+              <span className="flex items-center gap-2">
+                <FileText className="h-4 w-4 shrink-0 text-slate-400" />
+                OSI {evento.nro_osi ?? evento.id_osi}
+                {evento.total_sesiones > 1 ? ` · Sesión ${evento.nro_sesion} de ${evento.total_sesiones}` : ""}
+              </span>
               {evento.ciudad || evento.direccion_ejecucion ? (
                 <span className="flex items-start gap-2">
                   <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
@@ -89,72 +117,79 @@ export default function EventoDetalle({ evento, mes, puedeGestionar, onClose, on
               ) : null}
             </div>
 
-            <div className="flex flex-col gap-3 rounded-xl bg-slate-50 p-4">
-              <Fecha titulo="Planificada en la OSI" fecha={evento.fecha_planificada} hora={evento.hora_inicio} tono="bg-sky-500" />
-              {evento.reagenda_count > 0 ? (
-                <Fecha
-                  titulo={evento.reagenda_count > 1 ? `Reagendada (${evento.reagenda_count} veces)` : "Reagendada"}
-                  fecha={evento.fecha_reagendada}
-                  hora={evento.hora_reagendada}
-                  tono="bg-orange-500"
-                />
-              ) : null}
-              {evento.fecha_ejecutada ? <Fecha titulo="Ejecutada" fecha={evento.fecha_ejecutada} hora={evento.hora_ejecutada} tono="bg-emerald-500" /> : null}
-              {evento.estado === "no_ejecutada" ? (
-                <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
-                  No se ejecutó{evento.motivo_no_ejecucion ? `: ${evento.motivo_no_ejecucion}` : ""}
-                </p>
-              ) : null}
-            </div>
-
-            {reagendas.length > 0 ? (
-              <details className="text-sm text-slate-600">
-                <summary className="flex cursor-pointer items-center gap-1.5 font-medium text-slate-700">
-                  <Repeat className="h-4 w-4 text-orange-600" /> Historial de reagendas ({reagendas.length})
-                </summary>
-                <ol className="mt-3 flex flex-col gap-3 border-l-2 border-orange-200 pl-3">
-                  {reagendas.map((r) => (
-                    <li key={r.id} className="text-xs">
-                      <span className="font-semibold capitalize text-slate-800">
-                        {r.fecha_desde ? fecha_larga(r.fecha_desde) : "—"} → {r.fecha_hasta ? fecha_larga(r.fecha_hasta) : "por confirmar"}
-                      </span>
-                      <span className="block text-slate-600">{r.motivo}</span>
-                      <span className="block text-slate-400">{new Date(r.created_at).toLocaleString("es-VE", { timeZone: "America/Caracas" })}</span>
+            {evento.reagenda_count > 0 || evento.fecha_ejecutada || evento.estado === "cancelada" ? (
+              <ul className="flex flex-col gap-3 rounded-xl bg-slate-50 p-4">
+                <Linea titulo="Fecha planificada en la OSI" fecha={evento.fecha_planificada} hora={evento.hora_inicio} punto="bg-sky-500" />
+                {reagendas
+                  .slice()
+                  .reverse()
+                  .map((r, i) => (
+                    <li key={r.id} className="flex items-start gap-3">
+                      <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-violet-500" />
+                      <div>
+                        <p className="text-xs text-slate-500">Reagenda {i + 1}{r.motivo_tipo ? ` · ${r.motivo_tipo}` : ""}</p>
+                        <p className="text-sm font-medium capitalize text-slate-900">{r.fecha_hasta ? fecha_larga(r.fecha_hasta) : "Sin fecha todavía"}</p>
+                        {r.motivo && r.motivo !== r.motivo_tipo ? <p className="text-xs text-slate-500">{r.motivo}</p> : null}
+                      </div>
                     </li>
                   ))}
-                </ol>
-              </details>
+                {evento.fecha_ejecutada ? <Linea titulo="Ejecutada" fecha={evento.fecha_ejecutada} hora={evento.hora_ejecutada} punto="bg-emerald-500" /> : null}
+                {evento.estado === "cancelada" ? (
+                  <li className="flex items-start gap-3">
+                    <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-rose-500" />
+                    <div>
+                      <p className="text-xs text-slate-500">Cancelada{evento.motivo_no_ejecucion_tipo ? ` · ${evento.motivo_no_ejecucion_tipo}` : ""}</p>
+                      <p className="text-sm text-slate-800">{evento.motivo_no_ejecucion ?? "Sin motivo"}</p>
+                    </div>
+                  </li>
+                ) : null}
+              </ul>
             ) : null}
 
             {puedeGestionar ? (
               <div className="flex flex-col gap-2">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">¿Qué pasó con esta sesión?</p>
-                <div className="grid grid-cols-3 gap-2">
-                  <button type="button" onClick={() => onAccion(evento, "ejecutar")} className="inline-flex flex-col items-center gap-1 rounded-lg border border-emerald-200 bg-white px-2 py-2.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50">
-                    <CheckCircle2 className="h-5 w-5" /> {evento.estado === "ejecutada" ? "Corregir" : "Se dio"}
-                  </button>
-                  <button type="button" onClick={() => onAccion(evento, "reagendar")} className="inline-flex flex-col items-center gap-1 rounded-lg border border-orange-200 bg-white px-2 py-2.5 text-xs font-semibold text-orange-700 transition hover:bg-orange-50">
-                    <CalendarClock className="h-5 w-5" /> Reagendar
-                  </button>
-                  <button type="button" onClick={() => onAccion(evento, "no_ejecutar")} disabled={evento.estado === "no_ejecutada"} className="inline-flex flex-col items-center gap-1 rounded-lg border border-rose-200 bg-white px-2 py-2.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50 disabled:opacity-40">
-                    <XCircle className="h-5 w-5" /> No se dio
-                  </button>
-                </div>
+                <p className="text-xs font-medium text-slate-500">Registrar qué pasó</p>
+                {acciones.map((a) => {
+                  const info = ACCION_UI[a];
+                  const deshabilitada = a === "no_ejecutar" && evento.estado === "cancelada";
+                  return (
+                    <button
+                      key={a}
+                      type="button"
+                      disabled={deshabilitada}
+                      onClick={() => onAccion(evento, a)}
+                      className={`flex items-center gap-3 rounded-xl border bg-white px-3 py-2.5 text-left transition disabled:opacity-40 ${info.color}`}
+                    >
+                      <AccionIcono accion={a} />
+                      <span className="min-w-0">
+                        <span className="block text-sm font-semibold">{a === "ejecutar" && evento.estado === "ejecutada" ? "Corregir fecha de ejecución" : info.titulo}</span>
+                        <span className="block text-xs text-slate-500">{info.descripcion}</span>
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             ) : null}
 
-            <button type="button" onClick={() => onComments(evento)} className="mt-auto inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-green-700 transition hover:bg-green-50">
-              <MessageSquare className="h-4 w-4" />
-              Comentarios de la OSI
-              {evento.comentarios_count ? (
-                <span className="rounded-full bg-sky-600 px-1.5 text-[11px] font-semibold text-white">{evento.comentarios_count}</span>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => onComments(evento)} className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                <MessageSquare className="h-4 w-4 text-emerald-600" />
+                Comentarios
+                {evento.comentarios_count ? <span className="rounded-full bg-sky-600 px-1.5 text-[11px] font-semibold text-white">{evento.comentarios_count}</span> : null}
+              </button>
+              {!escritorio ? (
+                <button type="button" onClick={() => set_ver_formato((v) => !v)} aria-expanded={ver_formato} className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                  Formato OSI <ChevronDown className={`h-4 w-4 transition ${ver_formato ? "rotate-180" : ""}`} />
+                </button>
               ) : null}
-            </button>
+            </div>
           </div>
 
-          <div className="flex min-h-0 flex-col p-4 pt-12 lg:p-6 lg:pt-12">
-            <OsiPreviewBox osiId={evento.id_osi} hrefCompleta={href_completa} />
-          </div>
+          {mostrar_formato ? (
+            <div className="flex min-h-0 flex-col border-t border-slate-200 bg-slate-50 p-4 lg:border-l lg:border-t-0 lg:p-6 lg:pt-14">
+              <OsiPreviewBox osiId={evento.id_osi} hrefCompleta={`/consulta-osi/preview/${evento.id_osi}?from=calendario&mes=${mes}`} />
+            </div>
+          ) : null}
         </div>
       </DialogContent>
     </Dialog>

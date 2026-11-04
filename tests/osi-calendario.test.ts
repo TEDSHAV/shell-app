@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { estado_sesion, comparar_eventos } from "../features/osi-calendario/lib/estado-sesion";
+import { estado_sesion, comparar_eventos, empresa_y_sede } from "../features/osi-calendario/lib/estado-sesion";
 import { hora_corta, inicio_semana, mover_mes, normalizar_mes, rango_grilla, semanas_del_mes } from "../features/osi-calendario/lib/mes-grid";
 
 describe("mes-grid", () => {
@@ -34,17 +34,17 @@ describe("estado-sesion", () => {
   const base = { fecha_ejecutada: null, id_estatus_sesion: null, fecha_reagendada: null, reagenda_count: 0, fecha_efectiva: "2026-11-10" };
   const hoy = "2026-11-04";
 
-  it("planificada, atrasada y ejecutada", () => {
-    assert.equal(estado_sesion(base, hoy), "planificada");
-    assert.equal(estado_sesion({ ...base, fecha_efectiva: "2026-11-01" }, hoy), "atrasada");
+  it("programada, por registrar y ejecutada", () => {
+    assert.equal(estado_sesion(base, hoy), "programada");
+    assert.equal(estado_sesion({ ...base, fecha_efectiva: "2026-11-01" }, hoy), "por_registrar");
     assert.equal(estado_sesion({ ...base, fecha_ejecutada: "2026-11-02" }, hoy), "ejecutada");
-    assert.equal(estado_sesion({ ...base, id_estatus_sesion: 39 }, hoy), "no_ejecutada");
+    assert.equal(estado_sesion({ ...base, id_estatus_sesion: 39 }, hoy), "cancelada");
   });
 
   it("reagenda con y sin fecha", () => {
-    assert.equal(estado_sesion({ ...base, id_estatus_sesion: 46, reagenda_count: 1 }, hoy), "por_confirmar");
+    assert.equal(estado_sesion({ ...base, id_estatus_sesion: 46, reagenda_count: 1 }, hoy), "sin_fecha");
     assert.equal(estado_sesion({ ...base, id_estatus_sesion: 46, reagenda_count: 2, fecha_reagendada: "2026-11-20" }, hoy), "reagendada");
-    assert.equal(estado_sesion({ ...base, id_estatus_sesion: 46, reagenda_count: 1, fecha_reagendada: "2026-11-03" }, hoy), "atrasada");
+    assert.equal(estado_sesion({ ...base, id_estatus_sesion: 46, reagenda_count: 1, fecha_reagendada: "2026-11-03" }, hoy), "por_registrar");
   });
 
   it("ordena por hora y deja sin hora al final", () => {
@@ -53,5 +53,10 @@ describe("estado-sesion", () => {
     });
     const lista = [ev(1, null), ev(2, "14:00"), ev(3, "08:00")].sort(comparar_eventos);
     assert.deepEqual(lista.map((e) => e.id_osi), [3, 2, 1]);
+  });
+
+  it("separa empresa y sede", () => {
+    assert.deepEqual(empresa_y_sede("COCA COLA FEMSA  DISTRIBUIDORA BOLIVAR"), { empresa: "COCA COLA FEMSA", sede: "DISTRIBUIDORA BOLIVAR" });
+    assert.deepEqual(empresa_y_sede("NEW PROYECT CA"), { empresa: "NEW PROYECT CA", sede: null });
   });
 });

@@ -12,7 +12,7 @@ export const MOTIVOS_REAGENDA = [
   "Postergación de común acuerdo",
 ] as const;
 
-export const MOTIVOS_NO_EJECUCION = [
+export const MOTIVOS_CANCELACION = [
   "Cancelado por la empresa cliente",
   "Sin participantes",
   "Servicio sustituido por otra OSI",
