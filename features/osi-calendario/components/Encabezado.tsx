@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronLeft, ChevronRight, Search, SlidersHorizontal, X } from "lucide-react";
+import { Building2, ChevronLeft, ChevronRight, Search, SlidersHorizontal, X } from "lucide-react";
 
 import { ESTADO_UI, ESTADOS_LEYENDA } from "../lib/estado-sesion";
 import type { EstadoSesion } from "../lib/types";
@@ -11,15 +11,18 @@ export type FiltrosCalendario = {
   tipo: "" | "capacitacion" | "servicios_tecnicos";
   ejecutivo: string;
   estado: "" | EstadoSesion;
+  /** Solo sesiones en las instalaciones de SHA. */
+  en_sha: boolean;
 };
 
-export const FILTROS_VACIOS: FiltrosCalendario = { texto: "", tipo: "", ejecutivo: "", estado: "" };
+export const FILTROS_VACIOS: FiltrosCalendario = { texto: "", tipo: "", ejecutivo: "", estado: "", en_sha: false };
 
 type EncabezadoProps = {
   mesTitulo: string;
   anio: string;
   filtros: FiltrosCalendario;
   conteo: Partial<Record<EstadoSesion, number>>;
+  conteoEnSha: number;
   ejecutivos: string[];
   mostrarTipo: boolean;
   onPrev: () => void;
@@ -43,10 +46,10 @@ export default function Encabezado(props: EncabezadoProps) {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
-        <h2 className="mr-auto whitespace-nowrap text-lg font-semibold capitalize text-slate-900 sm:text-2xl">
+        <h2 className="mr-auto whitespace-nowrap text-xl font-semibold capitalize text-slate-900 sm:text-[1.7rem]">
           {props.mesTitulo} <span className="font-normal text-slate-400">{props.anio}</span>
         </h2>
-        <button type="button" onClick={props.onHoy} className="h-9 rounded-lg border border-slate-200 px-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 sm:px-3">
+        <button type="button" onClick={props.onHoy} className="h-10 rounded-lg border border-slate-200 px-3 text-[15px] font-medium text-slate-700 hover:bg-slate-50 sm:px-3">
           Hoy
         </button>
         <div className="flex">
@@ -61,7 +64,7 @@ export default function Encabezado(props: EncabezadoProps) {
           type="button"
           onClick={() => set_panel((v) => !v)}
           aria-expanded={panel}
-          className={`relative inline-flex h-9 items-center gap-1.5 rounded-lg border px-2.5 text-sm font-medium transition ${panel || n_filtros ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 text-slate-700 hover:bg-slate-50"}`}
+          className={`relative inline-flex h-10 items-center gap-1.5 rounded-lg border px-3 text-[15px] font-medium transition ${panel || n_filtros ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 text-slate-700 hover:bg-slate-50"}`}
         >
           <SlidersHorizontal className="h-4 w-4" />
           <span className="hidden sm:inline">Filtros</span>
@@ -90,7 +93,7 @@ export default function Encabezado(props: EncabezadoProps) {
           </select>
           <button
             type="button"
-            onClick={() => onFiltros({ ...FILTROS_VACIOS, estado: filtros.estado })}
+            onClick={() => onFiltros({ ...FILTROS_VACIOS, estado: filtros.estado, en_sha: filtros.en_sha })}
             disabled={!n_filtros}
             className="inline-flex h-10 items-center justify-center gap-1 rounded-lg px-3 text-sm font-medium text-slate-600 hover:bg-slate-200 disabled:opacity-40"
           >
@@ -100,6 +103,20 @@ export default function Encabezado(props: EncabezadoProps) {
       ) : null}
 
       <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <button
+          type="button"
+          onClick={() => set("en_sha", !filtros.en_sha)}
+          aria-pressed={filtros.en_sha}
+          title="Solo los servicios que se dictan en las instalaciones de SHA (Puerto La Cruz)"
+          className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-medium transition ${
+            filtros.en_sha ? "border-sky-700 bg-sky-700 text-white" : "border-slate-200 text-slate-600 hover:bg-slate-50"
+          }`}
+        >
+          <Building2 className="h-4 w-4" />
+          En SHA
+          <span className={`tabular-nums ${filtros.en_sha ? "text-white/70" : "text-slate-400"}`}>{props.conteoEnSha}</span>
+        </button>
+        <span className="my-1 w-px shrink-0 bg-slate-200" aria-hidden />
         {ESTADOS_LEYENDA.map((estado) => {
           const ui = ESTADO_UI[estado];
           const sel = filtros.estado === estado;
@@ -111,11 +128,11 @@ export default function Encabezado(props: EncabezadoProps) {
               title={ui.descripcion}
               onClick={() => set("estado", sel ? "" : estado)}
               aria-pressed={sel}
-              className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition ${
+              className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-medium transition ${
                 sel ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 text-slate-600 hover:bg-slate-50"
               }`}
             >
-              <span className={`h-2 w-2 rounded-full ${ui.punto}`} />
+              <span className={`h-2.5 w-2.5 rounded-full ${ui.punto}`} />
               {ui.etiqueta}
               <span className={`tabular-nums ${sel ? "text-white/70" : "text-slate-400"}`}>{n}</span>
             </button>

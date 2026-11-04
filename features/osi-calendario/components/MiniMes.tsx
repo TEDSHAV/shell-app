@@ -17,7 +17,7 @@ export default function MiniMes({ mes, hoy, seleccion, eventosPorFecha, onSelecc
   return (
     <div className="grid grid-cols-7 gap-y-1">
       {DIAS_SEMANA.map((d) => (
-        <div key={d} className="pb-1 text-center text-[11px] font-medium text-slate-400">
+        <div key={d} className="pb-1 text-center text-xs font-medium text-slate-400">
           {d.slice(0, 1)}
         </div>
       ))}
@@ -38,7 +38,7 @@ export default function MiniMes({ mes, hoy, seleccion, eventosPorFecha, onSelecc
               className="flex flex-col items-center gap-0.5 py-0.5"
             >
               <span
-                className={`inline-flex h-9 w-9 items-center justify-center rounded-full text-sm font-medium transition ${
+                className={`inline-flex h-10 w-10 items-center justify-center rounded-full text-[15px] font-medium transition ${
                   sel ? "bg-slate-900 text-white" : es_hoy ? "bg-slate-100 text-slate-900 ring-1 ring-slate-300" : en_mes ? "text-slate-800" : "text-slate-300"
                 }`}
               >

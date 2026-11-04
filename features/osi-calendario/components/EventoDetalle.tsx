@@ -75,14 +75,19 @@ export default function EventoDetalle({ evento, mes, puedeGestionar, onClose, on
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className={`max-w-5xl gap-0 p-0 ${HOJA_MOVIL}`}>
-        <div className="grid min-h-0 lg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
-          <div className="flex flex-col gap-5 p-5 sm:p-6">
+      <DialogContent className={`max-w-6xl gap-0 p-0 lg:min-h-[min(40rem,calc(100dvh-3rem))] ${HOJA_MOVIL}`}>
+        {/* En escritorio la columna izquierda marca el alto (sin scroll propio); el formato se estira a ese alto y hace scroll por dentro. */}
+        <div className="grid lg:grid-cols-[minmax(0,21rem)_minmax(0,1fr)]">
+          <div className="flex flex-col gap-3 px-5 py-4">
             <DialogHeader className="gap-2">
-              <span className={`inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${ui.pill}`}>
-                <span className={`h-1.5 w-1.5 rounded-full ${ui.punto}`} />
-                {ui.etiqueta}
-              </span>
+              <div className="flex flex-wrap items-center gap-1.5 pr-8">
+                <span className="rounded-full bg-slate-900 px-2.5 py-0.5 text-xs font-semibold text-white">OSI {evento.nro_osi ?? evento.id_osi}</span>
+                <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${ui.pill}`}>
+                  <span className={`h-1.5 w-1.5 rounded-full ${ui.punto}`} />
+                  {ui.etiqueta}
+                </span>
+                {evento.en_sha ? <span className="rounded-full bg-sky-100 px-2.5 py-0.5 text-xs font-medium text-sky-800">En SHA</span> : null}
+              </div>
               <DialogTitle className="text-lg leading-snug sm:text-xl">{evento.servicio ?? "Servicio"}</DialogTitle>
               <DialogDescription asChild>
                 <div className="flex flex-col gap-0.5">
@@ -92,7 +97,7 @@ export default function EventoDetalle({ evento, mes, puedeGestionar, onClose, on
               </DialogDescription>
             </DialogHeader>
 
-            <div className="flex flex-col gap-2 text-sm text-slate-600">
+            <div className="flex flex-col gap-1.5 text-sm text-slate-600">
               <span className="flex items-center gap-2">
                 <Clock className="h-4 w-4 shrink-0 text-slate-400" />
                 <span className="capitalize">{evento.estado === "sin_fecha" ? "Sin fecha" : fecha_larga(evento.fecha_efectiva)}</span>
@@ -100,8 +105,7 @@ export default function EventoDetalle({ evento, mes, puedeGestionar, onClose, on
               </span>
               <span className="flex items-center gap-2">
                 <FileText className="h-4 w-4 shrink-0 text-slate-400" />
-                OSI {evento.nro_osi ?? evento.id_osi}
-                {evento.total_sesiones > 1 ? ` · Sesión ${evento.nro_sesion} de ${evento.total_sesiones}` : ""}
+                {evento.total_sesiones > 1 ? `Sesión ${evento.nro_sesion} de ${evento.total_sesiones}` : "Sesión única"}
               </span>
               {evento.ciudad || evento.direccion_ejecucion ? (
                 <span className="flex items-start gap-2">
@@ -118,7 +122,7 @@ export default function EventoDetalle({ evento, mes, puedeGestionar, onClose, on
             </div>
 
             {evento.reagenda_count > 0 || evento.fecha_ejecutada || evento.estado === "cancelada" ? (
-              <ul className="flex flex-col gap-3 rounded-xl bg-slate-50 p-4">
+              <ul className="flex flex-col gap-2 rounded-xl bg-slate-50 px-3.5 py-3">
                 <Linea titulo="Fecha planificada en la OSI" fecha={evento.fecha_planificada} hora={evento.hora_inicio} punto="bg-sky-500" />
                 {reagendas
                   .slice()
@@ -147,7 +151,7 @@ export default function EventoDetalle({ evento, mes, puedeGestionar, onClose, on
             ) : null}
 
             {puedeGestionar ? (
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-1.5">
                 <p className="text-xs font-medium text-slate-500">Registrar qué pasó</p>
                 {acciones.map((a) => {
                   const info = ACCION_UI[a];
@@ -158,7 +162,7 @@ export default function EventoDetalle({ evento, mes, puedeGestionar, onClose, on
                       type="button"
                       disabled={deshabilitada}
                       onClick={() => onAccion(evento, a)}
-                      className={`flex items-center gap-3 rounded-xl border bg-white px-3 py-2.5 text-left transition disabled:opacity-40 ${info.color}`}
+                      className={`flex items-center gap-3 rounded-xl border bg-white px-3 py-1.5 text-left transition disabled:opacity-40 ${info.color}`}
                     >
                       <AccionIcono accion={a} />
                       <span className="min-w-0">
@@ -172,7 +176,7 @@ export default function EventoDetalle({ evento, mes, puedeGestionar, onClose, on
             ) : null}
 
             <div className="flex gap-2">
-              <button type="button" onClick={() => onComments(evento)} className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
+              <button type="button" onClick={() => onComments(evento)} className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
                 <MessageSquare className="h-4 w-4 text-emerald-600" />
                 Comentarios
                 {evento.comentarios_count ? <span className="rounded-full bg-sky-600 px-1.5 text-[11px] font-semibold text-white">{evento.comentarios_count}</span> : null}
@@ -186,7 +190,7 @@ export default function EventoDetalle({ evento, mes, puedeGestionar, onClose, on
           </div>
 
           {mostrar_formato ? (
-            <div className="flex min-h-0 flex-col border-t border-slate-200 bg-slate-50 p-4 lg:border-l lg:border-t-0 lg:p-6 lg:pt-14">
+            <div className="flex min-h-0 flex-col border-t border-slate-200 bg-slate-50 p-4 lg:border-l lg:border-t-0 lg:p-4 lg:pt-12">
               <OsiPreviewBox osiId={evento.id_osi} hrefCompleta={`/consulta-osi/preview/${evento.id_osi}?from=calendario&mes=${mes}`} />
             </div>
           ) : null}

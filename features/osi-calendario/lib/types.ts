@@ -40,6 +40,8 @@ export interface EventoCalendario extends SesionCalendario {
   estado: EstadoSesion;
   ciudad: string | null;
   comentarios_count: number;
+  /** Se dicta en las instalaciones de SHA (ver lib/en-sha.ts). */
+  en_sha: boolean;
 }
 
 export interface ReagendaHistorial {

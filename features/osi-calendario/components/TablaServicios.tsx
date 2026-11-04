@@ -37,7 +37,7 @@ function Sesiones({ sesiones, onSelect }: { sesiones: EventoCalendario[]; onSele
             type="button"
             onClick={() => onSelect(s)}
             title={`${ui.etiqueta}: ${ui.descripcion}`}
-            className={`inline-flex items-center gap-1.5 rounded-md border-l-[3px] px-2 py-1 text-[11px] transition ${ui.suave} ${ui.barra}`}
+            className={`inline-flex items-center gap-1.5 rounded-md border-l-[3px] px-2.5 py-1 text-[13px] transition ${ui.suave} ${ui.barra}`}
           >
             {sesiones.length > 1 || s.total_sesiones > 1 ? <span className="font-semibold text-slate-700">S{s.nro_sesion}</span> : null}
             <span className="text-slate-600">
@@ -58,7 +58,7 @@ function Avance({ sesiones }: { sesiones: EventoCalendario[] }) {
       <div className="h-1.5 w-full max-w-[6rem] overflow-hidden rounded-full bg-slate-100">
         <div className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.round((ejecutadas / total) * 100)}%` }} />
       </div>
-      <span className="whitespace-nowrap text-xs tabular-nums text-slate-500">{ejecutadas}/{total} ejecutadas</span>
+      <span className="whitespace-nowrap text-[13px] tabular-nums text-slate-500">{ejecutadas}/{total} ejecutadas</span>
     </div>
   );
 }
@@ -70,8 +70,8 @@ export default function TablaServicios({ eventos, onSelect, onComments }: TablaS
   return (
     <section className="rounded-2xl border border-slate-200 bg-white">
       <header className="flex items-baseline justify-between gap-2 px-4 pb-2 pt-4 sm:px-5">
-        <h3 className="text-base font-semibold text-slate-900">Servicios del mes</h3>
-        <span className="text-xs text-slate-500">
+        <h3 className="text-lg font-semibold text-slate-900">Servicios del mes</h3>
+        <span className="text-sm text-slate-500">
           {filas.length} {filas.length === 1 ? "OSI" : "OSIs"} · {eventos.length} {eventos.length === 1 ? "sesión" : "sesiones"}
         </span>
       </header>
@@ -88,9 +88,9 @@ export default function TablaServicios({ eventos, onSelect, onComments }: TablaS
                 <li key={id_osi} className="flex flex-col gap-2 px-4 py-3">
                   <div className="flex items-start gap-2">
                     <button type="button" onClick={() => onSelect(p)} className="min-w-0 flex-1 text-left">
-                      <p className="text-sm font-semibold leading-snug text-slate-900">{p.servicio}</p>
-                      <p className="truncate text-[13px] text-slate-600">{empresa}{sede ? ` · ${sede}` : ""}</p>
-                      <p className="text-xs text-slate-400">OSI {p.nro_osi ?? id_osi}{p.ciudad ? ` · ${p.ciudad}` : ""}</p>
+                      <p className="text-[15px] font-semibold leading-snug text-slate-900">{p.servicio}</p>
+                      <p className="truncate text-sm text-slate-600">{empresa}{sede ? ` · ${sede}` : ""}</p>
+                      <p className="text-[13px] text-slate-400">OSI {p.nro_osi ?? id_osi}{p.ciudad ? ` · ${p.ciudad}` : ""}</p>
                     </button>
                     <BurbujaComentarios evento={p} onComments={onComments} />
                   </div>
@@ -102,8 +102,8 @@ export default function TablaServicios({ eventos, onSelect, onComments }: TablaS
           </ul>
 
           <div className="hidden overflow-x-auto md:block">
-            <table className="w-full text-sm">
-              <thead className="border-y border-slate-100 text-left text-xs font-medium text-slate-500">
+            <table className="w-full text-[15px]">
+              <thead className="border-y border-slate-100 text-left text-[13px] font-medium text-slate-500">
                 <tr>
                   <th className="px-5 py-2 font-medium">Servicio</th>
                   <th className="px-3 py-2 font-medium">Empresa · Sede</th>
@@ -122,11 +122,11 @@ export default function TablaServicios({ eventos, onSelect, onComments }: TablaS
                         <button type="button" onClick={() => onSelect(p)} className="text-left font-semibold text-slate-900 hover:underline">
                           {p.servicio}
                         </button>
-                        <span className="block text-xs text-slate-400">OSI {p.nro_osi ?? id_osi} · {p.ejecutivo_negocios ?? "Sin ejecutivo"}</span>
+                        <span className="block text-[13px] text-slate-400">OSI {p.nro_osi ?? id_osi} · {p.ejecutivo_negocios ?? "Sin ejecutivo"}</span>
                       </td>
                       <td className="max-w-[18rem] px-3 py-3">
                         <span className="block truncate text-slate-800">{empresa}</span>
-                        <span className="block truncate text-xs text-slate-500">{[sede, p.ciudad].filter(Boolean).join(" · ") || "—"}</span>
+                        <span className="block truncate text-[13px] text-slate-500">{[sede, p.ciudad].filter(Boolean).join(" · ") || "—"}</span>
                       </td>
                       <td className="px-3 py-3"><Sesiones sesiones={sesiones} onSelect={onSelect} /></td>
                       <td className="w-44 px-3 py-3"><Avance sesiones={sesiones} /></td>

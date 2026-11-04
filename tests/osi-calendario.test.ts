@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { estado_sesion, comparar_eventos, empresa_y_sede } from "../features/osi-calendario/lib/estado-sesion";
+import { es_en_sha } from "../features/osi-calendario/lib/en-sha";
 import { hora_corta, inicio_semana, mover_mes, normalizar_mes, rango_grilla, semanas_del_mes } from "../features/osi-calendario/lib/mes-grid";
 
 describe("mes-grid", () => {
@@ -58,5 +59,18 @@ describe("estado-sesion", () => {
   it("separa empresa y sede", () => {
     assert.deepEqual(empresa_y_sede("COCA COLA FEMSA  DISTRIBUIDORA BOLIVAR"), { empresa: "COCA COLA FEMSA", sede: "DISTRIBUIDORA BOLIVAR" });
     assert.deepEqual(empresa_y_sede("NEW PROYECT CA"), { empresa: "NEW PROYECT CA", sede: null });
+  });
+});
+
+describe("en-sha", () => {
+  it("reconoce las variantes de la sede SHA", () => {
+    for (const d of ["SHA", "SHA DE VENEZUELA.C,A,", "Instalaciones de SHA", "SHA DE VENEZUELA -  HOTEL RASIL, PUERTO LA CRUZ", "Av. Paseo Colón con Calle Monagas CC Hotel Rasil Nivel 2 Local 8"]) {
+      assert.equal(es_en_sha(d), true, d);
+    }
+  });
+  it("no confunde Brasil, Caracas ni direcciones de clientes", () => {
+    for (const d of ["CALLE BRASIL CASA NRO S/N", "CARACAS INSTALACIONES DE SIEMENS Y SHA DE VENEZUELA", "CARRETERA LOS MONTONES, BARCELONA", null, ""]) {
+      assert.equal(es_en_sha(d), false, String(d));
+    }
   });
 });

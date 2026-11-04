@@ -95,6 +95,11 @@ export const ESTADO_UI: Record<EstadoSesion, EstadoUi> = {
   },
 };
 
+/** Estados en los que la sesión todavía se puede mover de fecha (arrastrar o reagendar). */
+export function se_puede_reagendar(estado: EstadoSesion): boolean {
+  return estado === "programada" || estado === "por_registrar" || estado === "reagendada" || estado === "sin_fecha";
+}
+
 /** El filtro de "reagendada" incluye las que no tienen fecha. */
 export function coincide_estado(estado: EstadoSesion, filtro: "" | EstadoSesion): boolean {
   if (!filtro) return true;

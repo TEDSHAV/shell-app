@@ -6,7 +6,7 @@ import { CheckCircle2, X } from "lucide-react";
 
 import OSICommentsSheet from "@/app/(shell)/consulta-osi/components/OSICommentsSheet";
 import type { OSIListItem } from "@/types/osi";
-import { coincide_estado, empresa_y_sede } from "../lib/estado-sesion";
+import { coincide_estado, empresa_y_sede, se_puede_reagendar } from "../lib/estado-sesion";
 import { etiqueta_mes, fecha_larga, mover_mes } from "../lib/mes-grid";
 import type { AccionSesion, CalendarioMesData, EstadoSesion, EventoCalendario } from "../lib/types";
 import AgendaItem from "./AgendaItem";
@@ -51,7 +51,8 @@ export default function CalendarioServicios({ data, mostrarTipo }: { data: Calen
   const [dia, set_dia] = useState(dia_inicial);
   const [filtros, set_filtros] = useState<FiltrosCalendario>(FILTROS_VACIOS);
   const [detalle, set_detalle] = useState<EventoCalendario | null>(null);
-  const [accion, set_accion] = useState<{ evento: EventoCalendario; accion: AccionSesion } | null>(null);
+  const [accion, set_accion] = useState<{ evento: EventoCalendario; accion: AccionSesion; fecha?: string } | null>(null);
+  const [arrastrando, set_arrastrando] = useState<EventoCalendario | null>(null);
   const [chat, set_chat] = useState<EventoCalendario | null>(null);
   const [aviso, set_aviso] = useState<string | null>(null);
 
@@ -65,6 +66,7 @@ export default function CalendarioServicios({ data, mostrarTipo }: { data: Calen
     if (filtros.tipo === "capacitacion" && !/capacitacion/i.test(e.tipo_servicio ?? "")) return false;
     if (filtros.tipo === "servicios_tecnicos" && !ES_ST.test(e.tipo_servicio ?? "")) return false;
     if (filtros.ejecutivo && e.ejecutivo_negocios !== filtros.ejecutivo) return false;
+    if (filtros.en_sha && !e.en_sha) return false;
     return true;
   };
 
@@ -81,6 +83,19 @@ export default function CalendarioServicios({ data, mostrarTipo }: { data: Calen
     }
     return c;
   }, [base, sin_fecha_base, data.mes]);
+
+  const conteo_en_sha = useMemo(
+    () => [...data.eventos.filter((e) => e.fecha_efectiva.startsWith(data.mes)), ...data.por_confirmar].filter((e) => e.en_sha).length,
+    [data.eventos, data.por_confirmar, data.mes],
+  );
+
+  const puede_arrastrar = (e: EventoCalendario) => data.puede_gestionar && se_puede_reagendar(e.estado);
+  const soltar = (evento: EventoCalendario, fecha: string) => {
+    set_arrastrando(null);
+    if (evento.estado !== "sin_fecha" && fecha === evento.fecha_efectiva) return;
+    set_detalle(null);
+    set_accion({ evento, accion: "reagendar", fecha });
+  };
 
   const ejecutivos = useMemo(
     () => [...new Set([...data.eventos, ...data.por_confirmar].map((e) => e.ejecutivo_negocios).filter((x): x is string => !!x))].sort(),
@@ -113,6 +128,7 @@ export default function CalendarioServicios({ data, mostrarTipo }: { data: Calen
           anio={anio}
           filtros={filtros}
           conteo={conteo}
+          conteoEnSha={conteo_en_sha}
           ejecutivos={ejecutivos}
           mostrarTipo={mostrarTipo}
           onPrev={() => ir_a_mes(mover_mes(data.mes, -1))}
@@ -135,7 +151,20 @@ export default function CalendarioServicios({ data, mostrarTipo }: { data: Calen
         ) : null}
 
         <div className="hidden md:block">
-          <CalendarioMes mes={data.mes} hoy={data.hoy} eventosPorFecha={por_fecha} onSelect={set_detalle} onComments={set_chat} />
+          <CalendarioMes
+            mes={data.mes}
+            hoy={data.hoy}
+            eventosPorFecha={por_fecha}
+            onSelect={set_detalle}
+            onComments={set_chat}
+            arrastrando={arrastrando}
+            puedeArrastrar={puede_arrastrar}
+            onArrastre={set_arrastrando}
+            onSoltar={soltar}
+          />
+          {data.puede_gestionar ? (
+            <p className="mt-2 text-xs text-slate-400">Arrastra una sesión a otro día para reagendarla.</p>
+          ) : null}
         </div>
 
         <div className="flex flex-col gap-4 md:hidden">
@@ -159,10 +188,13 @@ export default function CalendarioServicios({ data, mostrarTipo }: { data: Calen
       {sin_fecha.length > 0 ? (
         <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
           <h3 className="text-base font-semibold text-slate-900">Reagendadas sin fecha</h3>
-          <p className="mb-3 text-xs text-slate-500">No se dieron y todavía no tienen fecha nueva, por eso no aparecen en el calendario.</p>
+          <p className="mb-3 text-xs text-slate-500">
+            No se dieron y todavía no tienen fecha nueva, por eso no aparecen en el calendario.
+            {data.puede_gestionar ? <span className="hidden md:inline"> Arrastra una al calendario para darle fecha.</span> : null}
+          </p>
           <div className="grid gap-2 lg:grid-cols-2">
             {sin_fecha.map((e) => (
-              <AgendaItem key={e.id_sesion} evento={e} onSelect={set_detalle} onComments={set_chat} lateral={`OSI ${e.nro_osi ?? e.id_osi}`} />
+              <AgendaItem key={e.id_sesion} evento={e} onSelect={set_detalle} onComments={set_chat} lateral={`OSI ${e.nro_osi ?? e.id_osi}`} arrastrable={puede_arrastrar(e)} onArrastre={set_arrastrando} />
             ))}
           </div>
         </section>
@@ -184,6 +216,7 @@ export default function CalendarioServicios({ data, mostrarTipo }: { data: Calen
       <SesionAccionModal
         evento={accion?.evento ?? null}
         accionInicial={accion?.accion ?? null}
+        fechaInicial={accion?.fecha ?? null}
         hoy={data.hoy}
         onClose={() => set_accion(null)}
         onDone={(mensaje) => {

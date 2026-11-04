@@ -8,6 +8,7 @@ import { getUserPermissionsByApp } from "@/actions/apps";
 import { has_permission_slug } from "@/lib/ted-slugs";
 import { OSI_SESION_GESTIONAR } from "@/lib/osi-slugs";
 import { comparar_eventos, estado_sesion, ESTATUS_REAGENDADO } from "../lib/estado-sesion";
+import { es_en_sha } from "../lib/en-sha";
 import { hoy_caracas, normalizar_mes, rango_grilla } from "../lib/mes-grid";
 import type { CalendarioMesData, EventoCalendario, ReagendaHistorial, SesionCalendario } from "../lib/types";
 
@@ -85,6 +86,7 @@ export async function getCalendarioMes(mes_param?: string | null): Promise<Resul
     estado: estado_sesion(s, hoy),
     ciudad: s.id_ciudad != null ? ciudades.get(s.id_ciudad) ?? null : null,
     comentarios_count: comentarios[s.id_osi]?.total ?? 0,
+    en_sha: es_en_sha(s.direccion_ejecucion),
   });
 
   const por_confirmar = pendientes.map(a_evento).sort(comparar_eventos);

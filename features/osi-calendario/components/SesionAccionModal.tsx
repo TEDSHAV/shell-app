@@ -15,6 +15,8 @@ import AccionIcono from "./AccionIcono";
 type SesionAccionModalProps = {
   evento: EventoCalendario | null;
   accionInicial: AccionSesion | null;
+  /** Fecha propuesta al soltar la sesión sobre un día del calendario. */
+  fechaInicial?: string | null;
   hoy: string;
   onClose: () => void;
   onDone: (mensaje: string) => void;
@@ -27,7 +29,7 @@ function hhmm(hora: string | null | undefined): string {
   return hora ? hora.slice(0, 5) : "";
 }
 
-export default function SesionAccionModal({ evento, accionInicial, hoy, onClose, onDone }: SesionAccionModalProps) {
+export default function SesionAccionModal({ evento, accionInicial, fechaInicial = null, hoy, onClose, onDone }: SesionAccionModalProps) {
   const [accion, set_accion] = useState<AccionSesion>("ejecutar");
   const [fecha, set_fecha] = useState("");
   const [hora, set_hora] = useState("");
@@ -46,8 +48,10 @@ export default function SesionAccionModal({ evento, accionInicial, hoy, onClose,
   };
 
   useEffect(() => {
-    if (evento) reiniciar(accionInicial ?? "ejecutar", evento);
-  }, [evento, accionInicial]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!evento) return;
+    reiniciar(accionInicial ?? "ejecutar", evento);
+    if (fechaInicial && (accionInicial ?? "ejecutar") === "reagendar") set_fecha(fechaInicial);
+  }, [evento, accionInicial, fechaInicial]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!evento) return null;
   const { empresa, sede } = empresa_y_sede(evento.nombre_empresa);
@@ -96,6 +100,12 @@ export default function SesionAccionModal({ evento, accionInicial, hoy, onClose,
             {evento.hora_inicio ? ` · ${hora_corta(evento.hora_inicio)}` : ""}
           </p>
         </DialogHeader>
+
+        {fechaInicial && accion === "reagendar" && fecha === fechaInicial ? (
+          <p className="rounded-lg bg-violet-50 px-3 py-2 text-sm text-violet-900">
+            Moviste la sesión al <span className="font-semibold capitalize">{fecha_larga(fechaInicial)}</span>. Indica el motivo y confirma la hora.
+          </p>
+        ) : null}
 
         <div className="grid gap-2 sm:grid-cols-3">
           {ACCIONES.map((a) => {
