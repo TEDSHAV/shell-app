@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Building2, ChevronDown, ChevronLeft, ChevronRight, Search, SlidersHorizontal, X } from "lucide-react";
+import { Building2, CheckSquare, ChevronDown, ChevronLeft, ChevronRight, Search, SlidersHorizontal, X } from "lucide-react";
 
 import { ESTADO_UI, ESTADOS_LEYENDA } from "../lib/estado-sesion";
 import type { EstadoSesion } from "../lib/types";
+import SelectorMes from "./SelectorMes";
 import SelectorSemana from "./SelectorSemana";
 
 export type FiltrosCalendario = {
@@ -38,6 +39,13 @@ type EncabezadoProps = {
   lunes: string;
   hoy: string;
   onSemana: (lunes: string) => void;
+  /** Vista mes: mes cargado ('YYYY-MM') y salto directo a otro mes. */
+  mes: string;
+  onMes: (mes: string) => void;
+  /** Selección múltiple: solo se ofrece si el usuario tiene algún permiso de acción. */
+  puedeSeleccionar: boolean;
+  seleccionando: boolean;
+  onSeleccionar: () => void;
 };
 
 const CAMPO = "h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-slate-400";
@@ -52,6 +60,7 @@ export default function Encabezado(props: EncabezadoProps) {
   const [selector, set_selector] = useState(false);
   const set = <K extends keyof FiltrosCalendario>(k: K, v: FiltrosCalendario[K]) => onFiltros({ ...filtros, [k]: v });
   const n_filtros = [filtros.texto, filtros.tipo, filtros.ejecutivo].filter(Boolean).length;
+  const total = Object.values(props.conteo).reduce((a, b) => a + (b ?? 0), 0);
 
   return (
     <div className="flex flex-col gap-3">
@@ -59,40 +68,58 @@ export default function Encabezado(props: EncabezadoProps) {
         <button type="button" onClick={props.onPrev} aria-label={props.vista === "mes" ? "Mes anterior" : "Semana anterior"} className="shrink-0 rounded-lg p-1.5 text-slate-600 hover:bg-slate-100 sm:p-2">
           <ChevronLeft className="h-5 w-5" />
         </button>
-        {props.vista === "semana" ? (
-          <div className="relative min-w-0">
-            <button
-              type="button"
-              onClick={() => set_selector((v) => !v)}
-              aria-expanded={selector}
-              title="Elegir semana"
-              className="inline-flex min-w-0 items-center gap-1 rounded-lg px-1 hover:bg-slate-100"
-            >
-              <h2 className="min-w-0 truncate whitespace-nowrap text-lg font-semibold text-slate-900 sm:text-2xl">
-                {props.mesTitulo} <span className="font-normal text-slate-400">{props.anio}</span>
-              </h2>
-              <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition ${selector ? "rotate-180" : ""}`} />
-            </button>
-            {selector ? (
-              <SelectorSemana
-                lunes={props.lunes}
-                hoy={props.hoy}
-                onSelect={(l) => {
-                  set_selector(false);
-                  props.onSemana(l);
-                }}
-                onClose={() => set_selector(false)}
-              />
-            ) : null}
-          </div>
-        ) : (
-          <h2 className="min-w-0 truncate whitespace-nowrap px-1 text-xl font-semibold capitalize text-slate-900 sm:text-[1.7rem]">
-            {props.mesTitulo} <span className="font-normal text-slate-400">{props.anio}</span>
-          </h2>
-        )}
+        {/* El título abre un selector: anual en vista mes, de semanas en vista semana. */}
+        <div className="relative min-w-0">
+          <button
+            type="button"
+            onClick={() => set_selector((v) => !v)}
+            aria-expanded={selector}
+            title={props.vista === "mes" ? "Elegir mes" : "Elegir semana"}
+            className="inline-flex min-w-0 items-center gap-1 rounded-lg px-1 hover:bg-slate-100"
+          >
+            <h2 className={`min-w-0 truncate whitespace-nowrap font-semibold text-slate-900 ${props.vista === "mes" ? "text-xl capitalize sm:text-[1.7rem]" : "text-lg sm:text-2xl"}`}>
+              {props.mesTitulo} <span className="font-normal text-slate-400">{props.anio}</span>
+            </h2>
+            <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition ${selector ? "rotate-180" : ""}`} />
+          </button>
+          {selector && props.vista === "semana" ? (
+            <SelectorSemana
+              lunes={props.lunes}
+              hoy={props.hoy}
+              onSelect={(l) => {
+                set_selector(false);
+                props.onSemana(l);
+              }}
+              onClose={() => set_selector(false)}
+            />
+          ) : null}
+          {selector && props.vista === "mes" ? (
+            <SelectorMes
+              mes={props.mes}
+              hoy={props.hoy}
+              onSelect={(m) => {
+                set_selector(false);
+                props.onMes(m);
+              }}
+              onClose={() => set_selector(false)}
+            />
+          ) : null}
+        </div>
         <button type="button" onClick={props.onNext} aria-label={props.vista === "mes" ? "Mes siguiente" : "Semana siguiente"} className="mr-auto shrink-0 rounded-lg p-1.5 text-slate-600 hover:bg-slate-100 sm:p-2">
           <ChevronRight className="h-5 w-5" />
         </button>
+        {props.puedeSeleccionar ? (
+          <button
+            type="button"
+            onClick={props.onSeleccionar}
+            aria-pressed={props.seleccionando}
+            title={props.seleccionando ? "Terminar selección" : "Seleccionar varias sesiones"}
+            className={`inline-flex h-10 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-[15px] font-medium transition ${props.seleccionando ? "border-sky-700 bg-sky-700 text-white" : "border-slate-200 text-slate-700 hover:bg-slate-50"}`}
+          >
+            <CheckSquare className="h-4 w-4" />
+            <span className="hidden sm:inline">{props.seleccionando ? "Listo" : "Seleccionar"}</span>
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={() => set_panel((v) => !v)}
@@ -135,43 +162,41 @@ export default function Encabezado(props: EncabezadoProps) {
         </div>
       ) : null}
 
-      <div className="flex items-center gap-2">
-      <div className="-mx-1 flex min-w-0 flex-1 gap-1.5 overflow-x-auto px-1 [scrollbar-width:none] max-lg:pr-6 max-lg:[mask-image:linear-gradient(to_right,black_85%,transparent)] [&::-webkit-scrollbar]:hidden">
-        <button
-          type="button"
-          onClick={() => set("en_sha", !filtros.en_sha)}
-          aria-pressed={filtros.en_sha}
-          title="Solo los servicios que se dictan en las instalaciones de SHA (Puerto La Cruz)"
-          className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-medium transition ${
-            filtros.en_sha ? "border-sky-700 bg-sky-700 text-white" : "border-slate-200 text-slate-600 hover:bg-slate-50"
-          }`}
-        >
-          <Building2 className="h-4 w-4" />
-          En SHA
-          <span className={`tabular-nums ${filtros.en_sha ? "text-white/70" : "text-slate-400"}`}>{props.conteoEnSha}</span>
-        </button>
-        <span className="my-1 w-px shrink-0 bg-slate-200" aria-hidden />
+      {/* Estados: en pantallas medianas y grandes bajan de línea en lugar de amontonarse (sidebar abierto); en teléfono se deslizan. */}
+      <div className="flex items-start gap-2">
+      <div className="-mx-1 flex min-w-0 flex-1 gap-1.5 px-1 max-sm:overflow-x-auto max-sm:pr-6 max-sm:[mask-image:linear-gradient(to_right,black_85%,transparent)] max-sm:[scrollbar-width:none] sm:flex-wrap max-sm:[&::-webkit-scrollbar]:hidden">
+        <ChipFiltro
+          activo={filtros.estado === ""}
+          onClick={() => set("estado", "")}
+          titulo="Todas las sesiones del periodo"
+          etiqueta="Todos"
+          n={total}
+        />
         {ESTADOS_LEYENDA.map((estado) => {
           const ui = ESTADO_UI[estado];
           const sel = filtros.estado === estado;
-          const n = props.conteo[estado] ?? 0;
           return (
-            <button
+            <ChipFiltro
               key={estado}
-              type="button"
-              title={ui.descripcion}
+              activo={sel}
               onClick={() => set("estado", sel ? "" : estado)}
-              aria-pressed={sel}
-              className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-medium transition ${
-                sel ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 text-slate-600 hover:bg-slate-50"
-              }`}
-            >
-              <span className={`h-2.5 w-2.5 rounded-full ${ui.punto}`} />
-              {ui.etiqueta}
-              <span className={`tabular-nums ${sel ? "text-white/70" : "text-slate-400"}`}>{n}</span>
-            </button>
+              titulo={ui.descripcion}
+              etiqueta={ui.etiqueta}
+              n={props.conteo[estado] ?? 0}
+              icono={<span className={`h-2 w-2 rounded-full ${ui.punto}`} />}
+            />
           );
         })}
+        <span className="mx-0.5 my-1 w-px shrink-0 self-stretch bg-slate-200" aria-hidden />
+        <ChipFiltro
+          activo={filtros.en_sha}
+          onClick={() => set("en_sha", !filtros.en_sha)}
+          titulo="Solo los servicios que se dictan en las instalaciones de SHA (Puerto La Cruz)"
+          etiqueta="En SHA"
+          n={props.conteoEnSha}
+          icono={<Building2 className="h-3.5 w-3.5" />}
+          tono="sha"
+        />
       </div>
       <div className="inline-flex shrink-0 rounded-lg border border-slate-200 bg-slate-100 p-0.5">
         {(["mes", "semana"] as const).map((v) => (
@@ -188,5 +213,32 @@ export default function Encabezado(props: EncabezadoProps) {
       </div>
       </div>
     </div>
+  );
+}
+
+function ChipFiltro({ activo, onClick, titulo, etiqueta, n, icono, tono = "estado" }: {
+  activo: boolean;
+  onClick: () => void;
+  titulo: string;
+  etiqueta: string;
+  n: number;
+  icono?: React.ReactNode;
+  tono?: "estado" | "sha";
+}) {
+  const sel = tono === "sha" ? "border-sky-700 bg-sky-700 text-white" : "border-slate-900 bg-slate-900 text-white";
+  return (
+    <button
+      type="button"
+      title={titulo}
+      onClick={onClick}
+      aria-pressed={activo}
+      className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-[13px] font-medium transition ${
+        activo ? sel : "border-slate-200 text-slate-600 hover:bg-slate-50"
+      } ${n === 0 && !activo ? "opacity-60" : ""}`}
+    >
+      {icono}
+      {etiqueta}
+      <span className={`tabular-nums ${activo ? "text-white/70" : "text-slate-400"}`}>{n}</span>
+    </button>
   );
 }

@@ -5,6 +5,7 @@ import { MessageSquare } from "lucide-react";
 
 import { empresa_y_sede, ESTADO_UI, hora_efectiva } from "../lib/estado-sesion";
 import { hora_corta } from "../lib/mes-grid";
+import { MarcaSeleccion, useEstadoSeleccion } from "./lote/seleccion-context";
 import type { EventoCalendario } from "../lib/types";
 
 type EventoChipProps = {
@@ -72,7 +73,9 @@ function TarjetaHover({ evento, rect, arrastrable }: { evento: EventoCalendario;
 }
 
 /** Etiqueta de una sesión en la grilla del mes: servicio, empresa y sede, hora. Arrastrable si se puede reagendar. */
-export default function EventoChip({ evento, onSelect, onComments, arrastrable = false, onArrastre, expandida = false }: EventoChipProps) {
+export default function EventoChip({ evento, onSelect, onComments, arrastrable: arrastrable_prop = false, onArrastre, expandida = false }: EventoChipProps) {
+  const { activa: seleccionando, marcada } = useEstadoSeleccion(evento.id_sesion);
+  const arrastrable = arrastrable_prop && !seleccionando;
   const ui = ESTADO_UI[evento.estado];
   const { empresa, sede } = empresa_y_sede(evento.nombre_empresa);
   const hora = hora_corta(hora_efectiva(evento));
@@ -90,7 +93,7 @@ export default function EventoChip({ evento, onSelect, onComments, arrastrable =
         onArrastre?.(evento);
       }}
       onDragEnd={() => onArrastre?.(null)}
-      onMouseEnter={(e) => set_rect(e.currentTarget.getBoundingClientRect())}
+      onMouseEnter={(e) => !seleccionando && set_rect(e.currentTarget.getBoundingClientRect())}
       onMouseLeave={() => set_rect(null)}
       onClick={() => {
         set_rect(null);
@@ -103,8 +106,10 @@ export default function EventoChip({ evento, onSelect, onComments, arrastrable =
         }
       }}
       aria-label={`OSI ${evento.nro_osi ?? evento.id_osi}: ${evento.servicio ?? ""}, ${empresa}`}
-      className={`group relative flex w-full flex-col gap-0.5 rounded-md border-l-[3px] text-left outline-none transition focus-visible:ring-2 focus-visible:ring-sky-400 ${expandida ? "rounded-lg py-2 pl-2.5 pr-2" : "py-1.5 pl-2 pr-1.5"} ${arrastrable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"} ${ui.suave} ${ui.barra}`}
+      aria-pressed={seleccionando ? marcada : undefined}
+      className={`group relative flex w-full flex-col gap-0.5 rounded-md border-l-[3px] text-left outline-none transition focus-visible:ring-2 focus-visible:ring-sky-400 ${expandida ? "rounded-lg py-2 pl-2.5 pr-2" : "py-1.5 pl-2 pr-1.5"} ${arrastrable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"} ${ui.suave} ${ui.barra} ${marcada ? "ring-2 ring-sky-500" : ""}`}
     >
+      {seleccionando ? <MarcaSeleccion marcada={marcada} /> : null}
       <span className={`${expandida ? "" : "line-clamp-2"} text-[11.7px] font-semibold leading-[1.15rem] ${ui.texto} ${evento.estado === "cancelada" ? "line-through decoration-rose-300" : ""}`}>
         {evento.servicio ?? "Servicio"}
       </span>

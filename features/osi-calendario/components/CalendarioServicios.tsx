@@ -13,10 +13,14 @@ import AgendaItem from "./AgendaItem";
 import CalendarioMes from "./CalendarioMes";
 import CalendarioSemana from "./CalendarioSemana";
 import Encabezado, { FILTROS_VACIOS, type FiltrosCalendario, type Vista } from "./Encabezado";
-import EventoDetalle from "./EventoDetalle";
+import EventoDetalle, { type PasoAccion } from "./EventoDetalle";
 import MiniMes from "./MiniMes";
-import SesionAccionModal from "./SesionAccionModal";
 import TablaServicios from "./TablaServicios";
+import BarraLote from "./lote/BarraLote";
+import DialogoLote from "./lote/DialogoLote";
+import { SeleccionContext } from "./lote/seleccion-context";
+import { useSeleccion } from "../hooks/use-seleccion";
+import { tiene_algun_permiso } from "../lib/acciones";
 
 const ES_ST = /servicios? tecnicos?/i;
 const MESES_CORTOS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
@@ -64,12 +68,19 @@ export default function CalendarioServicios({ data, mostrarTipo }: { data: Calen
   const [lunes, set_lunes] = useState(() => inicio_semana(dia_inicial));
   const [filtros, set_filtros] = useState<FiltrosCalendario>(FILTROS_VACIOS);
   const [detalle, set_detalle] = useState<EventoCalendario | null>(null);
-  const [accion, set_accion] = useState<{ evento: EventoCalendario; accion: AccionSesion; fecha?: string } | null>(null);
+  // El detalle abre en el paso 1; al soltar una sesión en otro día abre directo en «Reagendar» con esa fecha.
+  const [paso_inicial, set_paso_inicial] = useState<PasoAccion | null>(null);
   const [arrastrando, set_arrastrando] = useState<EventoCalendario | null>(null);
   const [chat, set_chat] = useState<EventoCalendario | null>(null);
   const [aviso, set_aviso] = useState<string | null>(null);
 
   useEffect(() => set_dia(dia_inicial), [dia_inicial]);
+
+  // Selección múltiple: con la selección activa, tocar una sesión la marca en lugar de abrir el detalle.
+  const seleccion = useSeleccion();
+  const [accion_lote, set_accion_lote] = useState<AccionSesion | null>(null);
+  const puede_seleccionar = tiene_algun_permiso(data.permisos);
+  const al_tocar = (e: EventoCalendario) => (seleccion.activa ? seleccion.alternar(e.id_sesion) : abrir_detalle(e));
 
   const ir_a_mes = (mes: string) => router.push(`${pathname}?mes=${mes}`, { scroll: false });
 
@@ -118,8 +129,13 @@ export default function CalendarioServicios({ data, mostrarTipo }: { data: Calen
   const soltar = (evento: EventoCalendario, fecha: string) => {
     set_arrastrando(null);
     if (evento.estado !== "sin_fecha" && fecha === evento.fecha_efectiva) return;
-    set_detalle(null);
-    set_accion({ evento, accion: "reagendar", fecha });
+    set_paso_inicial({ accion: "reagendar", fecha });
+    set_detalle(evento);
+  };
+
+  const abrir_detalle = (evento: EventoCalendario) => {
+    set_paso_inicial(null);
+    set_detalle(evento);
   };
 
   const ejecutivos = useMemo(
@@ -150,12 +166,8 @@ export default function CalendarioServicios({ data, mostrarTipo }: { data: Calen
     set_vista(v);
   };
 
-  const abrir_accion = (evento: EventoCalendario, a: AccionSesion) => {
-    set_detalle(null);
-    set_accion({ evento, accion: a });
-  };
-
   return (
+    <SeleccionContext.Provider value={{ activa: seleccion.activa, tiene: seleccion.tiene }}>
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
         <Encabezado
@@ -166,6 +178,11 @@ export default function CalendarioServicios({ data, mostrarTipo }: { data: Calen
           lunes={lunes}
           hoy={data.hoy}
           onSemana={ir_a_semana}
+          mes={data.mes}
+          onMes={ir_a_mes}
+          puedeSeleccionar={puede_seleccionar}
+          seleccionando={seleccion.activa}
+          onSeleccionar={() => (seleccion.activa ? seleccion.salir() : seleccion.set_activa(true))}
           filtros={filtros}
           conteo={conteo}
           conteoEnSha={conteo_en_sha}
@@ -192,7 +209,7 @@ export default function CalendarioServicios({ data, mostrarTipo }: { data: Calen
               lunes={lunes}
               hoy={data.hoy}
               eventosPorFecha={por_fecha}
-              onSelect={set_detalle}
+              onSelect={al_tocar}
               onComments={set_chat}
               arrastrando={arrastrando}
               puedeArrastrar={puede_arrastrar}
@@ -210,7 +227,7 @@ export default function CalendarioServicios({ data, mostrarTipo }: { data: Calen
             mes={data.mes}
             hoy={data.hoy}
             eventosPorFecha={por_fecha}
-            onSelect={set_detalle}
+            onSelect={al_tocar}
             onComments={set_chat}
             arrastrando={arrastrando}
             puedeArrastrar={puede_arrastrar}
@@ -233,7 +250,7 @@ export default function CalendarioServicios({ data, mostrarTipo }: { data: Calen
             </p>
             <div className="flex flex-col gap-2">
               {del_dia.map((e) => (
-                <AgendaItem key={e.id_sesion} evento={e} onSelect={set_detalle} onComments={set_chat} />
+                <AgendaItem key={e.id_sesion} evento={e} onSelect={al_tocar} onComments={set_chat} />
               ))}
             </div>
           </div>
@@ -249,7 +266,7 @@ export default function CalendarioServicios({ data, mostrarTipo }: { data: Calen
           </p>
           <div className="grid gap-2 lg:grid-cols-2">
             {sin_fecha.map((e) => (
-              <AgendaItem key={e.id_sesion} evento={e} onSelect={set_detalle} onComments={set_chat} lateral={`OSI ${e.nro_osi ?? e.id_osi}`} arrastrable={puede_arrastrar(e)} onArrastre={set_arrastrando} />
+              <AgendaItem key={e.id_sesion} evento={e} onSelect={al_tocar} onComments={set_chat} lateral={`OSI ${e.nro_osi ?? e.id_osi}`} arrastrable={puede_arrastrar(e)} onArrastre={set_arrastrando} />
             ))}
           </div>
         </section>
@@ -258,7 +275,7 @@ export default function CalendarioServicios({ data, mostrarTipo }: { data: Calen
       <TablaServicios
         titulo={vista === "mes" ? "Servicios del mes" : "Servicios de la semana"}
         eventos={[...del_periodo, ...sin_fecha]}
-        onSelect={set_detalle}
+        onSelect={al_tocar}
         onComments={set_chat}
       />
 
@@ -267,24 +284,16 @@ export default function CalendarioServicios({ data, mostrarTipo }: { data: Calen
         mes={data.mes}
         permisos={data.permisos}
         hoy={data.hoy}
+        pasoInicial={paso_inicial}
         onClose={() => set_detalle(null)}
-        onAccion={abrir_accion}
+        onDone={(mensaje) => {
+          set_detalle(null);
+          set_aviso(mensaje);
+          router.refresh();
+        }}
         onComments={(e) => {
           set_detalle(null);
           set_chat(e);
-        }}
-      />
-      <SesionAccionModal
-        evento={accion?.evento ?? null}
-        accionInicial={accion?.accion ?? null}
-        fechaInicial={accion?.fecha ?? null}
-        permisos={data.permisos}
-        hoy={data.hoy}
-        onClose={() => set_accion(null)}
-        onDone={(mensaje) => {
-          set_accion(null);
-          set_aviso(mensaje);
-          router.refresh();
         }}
       />
       <OSICommentsSheet
@@ -295,6 +304,28 @@ export default function CalendarioServicios({ data, mostrarTipo }: { data: Calen
           router.refresh();
         }}
       />
+      {seleccion.activa ? (
+        <BarraLote
+          cantidad={seleccion.cantidad}
+          unidad={["sesión", "sesiones"]}
+          permisos={data.permisos}
+          onAccion={set_accion_lote}
+          onLimpiar={seleccion.limpiar}
+        />
+      ) : null}
+      <DialogoLote
+        accion={accion_lote}
+        objetivo={{ tipo: "sesiones", ids: [...seleccion.ids] }}
+        hoy={data.hoy}
+        onClose={() => set_accion_lote(null)}
+        onDone={(mensaje) => {
+          set_accion_lote(null);
+          seleccion.salir();
+          set_aviso(mensaje);
+          router.refresh();
+        }}
+      />
     </div>
+    </SeleccionContext.Provider>
   );
 }

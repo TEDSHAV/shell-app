@@ -51,14 +51,14 @@ Prioridad: **P0** rompe datos o deja al usuario sin poder trabajar · **P1** pro
 
 ### P1. Las fechas no se validan en el servidor
 - **Ejecutar con fecha futura:** solo lo impide el `max` del `<input type="date">`. Ni la RPC ni Zod lo rechazan.
-- **Reagendar a una fecha pasada o a la misma fecha:** la sesión queda de inmediato como "Por registrar". Al arrastrar a un día anterior a hoy no hay ningún aviso.
+- **Reagendar a una fecha pasada o a la misma fecha:** la sesión queda de inmediato como "Sin estatus". Al arrastrar a un día anterior a hoy no hay ningún aviso.
 - **Orden de sesiones:** se puede reagendar la S2 antes de la S1. En prod ya hay **9 pares** de sesiones con la fecha planificada fuera de orden.
 
 ### P1. Datos de prod que el calendario va a mostrar raros
 | Caso | Prod | Qué se ve |
 |---|---:|---|
 | `fecha_ejecutada` con último estatus distinto de 12 | 8 | "Ejecutada", porque la fecha manda, aunque el historial diga otra cosa |
-| OSI en 12 con sesiones sin cerrar | 1 | Sesiones "Por registrar" de una OSI ya ejecutada |
+| OSI en 12 con sesiones sin cerrar | 1 | Sesiones "Sin estatus" de una OSI ya ejecutada |
 | OSIs sin filas en `osi_sesion` | 4 (2 activas) | No aparecen en el calendario |
 | Sesiones sin hora | 2 | "Sin hora" al final del día |
 | Cambios de estatus sin `id_usuario_cambio` | 548 de 633 | El historial de reagendas no puede decir quién lo hizo en lo viejo |
@@ -72,7 +72,7 @@ Prioridad: **P0** rompe datos o deja al usuario sin poder trabajar · **P1** pro
 - **Corrección de ejecución:** "Corregir fecha de ejecución" sobre una sesión ejecutada vuelve a escribir 12 en el historial sin dejar rastro del valor anterior, que se pierde.
 - **Revertir una cancelación:** no hay un "Deshacer cancelación". Solo se puede pasar a Ejecutada o Reagendada.
 - **Notificaciones:** `notifySessionStatusChange` no incluye la fecha nueva de la reagenda ni el motivo.
-- **Fecha de hoy:** `hoy` se calcula en el servidor al cargar la página. Si la pestaña queda abierta de un día a otro, "Por registrar" y los atajos Hoy/Ayer quedan desfasados.
+- **Fecha de hoy:** `hoy` se calcula en el servidor al cargar la página. Si la pestaña queda abierta de un día a otro, "Sin estatus" y los atajos Hoy/Ayer quedan desfasados.
 - **Volumen de "Reagendadas sin fecha":** la lista trae todas las de la historia, sin filtro de fecha. Con volumen puede crecer sin límite.
 
 ---
@@ -104,7 +104,7 @@ Prioridad: **P0** rompe datos o deja al usuario sin poder trabajar · **P1** pro
 ### P2. Accesibilidad
 - La etiqueta es `role="button"` y tiene dentro otro botón (la burbuja de comentarios). Esos interactivos anidados confunden a los lectores de pantalla.
 - La tarjeta flotante del hover no aparece con el foco del teclado y no se mueve si se hace scroll con el mouse encima.
-- Los colores de estado se distinguen bien entre sí, pero "Por registrar" (gris) y "Programada" (azul claro) dependen solo del color en la grilla del mes. Solo la leyenda tiene texto.
+- Los colores de estado se distinguen bien entre sí, pero "Sin estatus" (gris) y "Planificada" (azul claro) dependen solo del color en la grilla del mes. Solo la leyenda tiene texto.
 
 ### P2. Pequeños
 - **Mes vacío:** muestra la grilla en blanco, sin un mensaje ("No hay sesiones en octubre con estos filtros").

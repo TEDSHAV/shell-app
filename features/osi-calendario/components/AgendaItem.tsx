@@ -4,6 +4,7 @@ import { empresa_y_sede, ESTADO_UI, hora_efectiva } from "../lib/estado-sesion";
 import { hora_corta } from "../lib/mes-grid";
 import type { EventoCalendario } from "../lib/types";
 import { BurbujaComentarios } from "./EventoChip";
+import { MarcaSeleccion, useEstadoSeleccion } from "./lote/seleccion-context";
 
 type AgendaItemProps = {
   evento: EventoCalendario;
@@ -16,7 +17,9 @@ type AgendaItemProps = {
 };
 
 /** Tarjeta de agenda (teléfono y lista de reagendadas sin fecha). */
-export default function AgendaItem({ evento, onSelect, onComments, lateral, arrastrable = false, onArrastre }: AgendaItemProps) {
+export default function AgendaItem({ evento, onSelect, onComments, lateral, arrastrable: arrastrable_prop = false, onArrastre }: AgendaItemProps) {
+  const { activa: seleccionando, marcada } = useEstadoSeleccion(evento.id_sesion);
+  const arrastrable = arrastrable_prop && !seleccionando;
   const ui = ESTADO_UI[evento.estado];
   const { empresa, sede } = empresa_y_sede(evento.nombre_empresa);
   const hora = lateral ?? hora_corta(hora_efectiva(evento)) ?? "Sin hora";
@@ -42,8 +45,10 @@ export default function AgendaItem({ evento, onSelect, onComments, lateral, arra
             onSelect(evento);
           }
         }}
-        className={`flex min-w-0 flex-1 ${arrastrable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"} items-start gap-2 rounded-xl border-l-4 p-3 outline-none transition focus-visible:ring-2 focus-visible:ring-sky-400 ${ui.suave} ${ui.barra}`}
+        aria-pressed={seleccionando ? marcada : undefined}
+        className={`relative flex min-w-0 flex-1 ${arrastrable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"} items-start gap-2 rounded-xl border-l-4 p-3 outline-none transition focus-visible:ring-2 focus-visible:ring-sky-400 ${ui.suave} ${ui.barra} ${marcada ? "ring-2 ring-sky-500" : ""}`}
       >
+        {seleccionando ? <MarcaSeleccion marcada={marcada} /> : null}
         <div className="min-w-0 flex-1">
           <p className={`text-[15px] font-semibold leading-snug ${ui.texto} ${evento.estado === "cancelada" ? "line-through decoration-rose-300" : ""}`}>
             {evento.servicio ?? "Servicio"}

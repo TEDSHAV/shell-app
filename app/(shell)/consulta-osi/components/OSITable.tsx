@@ -11,6 +11,7 @@ import SessionExecutionModal, {
   type SessionExecutionPayload,
 } from "./SessionExecutionModal";
 import OSICommentsBadge from "./OSICommentsBadge";
+import { CasillaOSI, CasillaTodasOSI, type SeleccionOSI } from "./OSICasillaSeleccion";
 import OSINotasModal from "./OSINotasModal";
 import OSIGuiaModal from "./OSIGuiaModal";
 import { Eye, FileText, Loader2, ChevronDown, ChevronRight, MessageSquare, CheckCircle2, EyeOff, Eye as EyeShow, Paperclip, Pencil, StickyNote, Star, Truck } from "lucide-react";
@@ -36,6 +37,7 @@ interface OSITableProps {
   onToggleAttachment?: (osi: OSIListItem) => Promise<{ success: boolean; error?: string }>;
   canAccessSatisfaccion?: boolean;
   onNotasUpdated?: (osiId: number, updatedNotas: OsiNota[]) => void;
+  seleccion?: SeleccionOSI;
 }
 
 function getNotasTooltip(notas?: OsiNota[]): string {
@@ -69,6 +71,7 @@ export default function OSITable({
   onToggleAttachment,
   canAccessSatisfaccion = false,
   onNotasUpdated,
+  seleccion,
 }: OSITableProps) {
   const [notasModalOSI, setNotasModalOSI] = useState<OSIListItem | null>(null);
   const [guiaModalOsi, setGuiaModalOsi] = useState<OSIListItem | null>(null);
@@ -410,7 +413,7 @@ export default function OSITable({
       <table className="w-full">
         <thead className="bg-gray-50 border-b border-gray-200">
           <tr>
-            <th className="px-2 py-2 w-8"></th>
+            <th className="px-2 py-2 w-8"><CasillaTodasOSI seleccion={seleccion} ids={osis.map((o) => o.id_osi).filter((id): id is number => !!id)} /></th>
             <th className="px-2 py-2 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
               OSI
             </th>
@@ -463,7 +466,8 @@ export default function OSITable({
                   : "hover:bg-blue-50 border-l-transparent"
               }`}
             >
-              <td className="px-2 py-2 w-8">
+              <td className="px-2 py-2 w-8 whitespace-nowrap">
+                <CasillaOSI seleccion={seleccion} id={osi.id_osi} />
                 {osi.id_osi && osi.total_sesiones !== null && osi.total_sesiones >= 1 && (
                   <button
                     onClick={(e) => {

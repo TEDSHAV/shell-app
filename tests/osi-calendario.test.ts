@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { estado_sesion, comparar_eventos, empresa_y_sede } from "../features/osi-calendario/lib/estado-sesion";
 import { es_en_sha } from "../features/osi-calendario/lib/en-sha";
-import { acciones_disponibles } from "../features/osi-calendario/lib/acciones";
+import { acciones_disponibles, acciones_por_permiso, motivo_no_aplica } from "../features/osi-calendario/lib/acciones";
 import { hora_corta, inicio_semana, mover_mes, normalizar_mes, rango_grilla, semanas_del_mes } from "../features/osi-calendario/lib/mes-grid";
 
 describe("mes-grid", () => {
@@ -109,5 +109,23 @@ describe("no se dio y permisos por acción", () => {
   it("sin permisos no hay acciones; una cancelada no se vuelve a cancelar", () => {
     assert.deepEqual(acciones_disponibles({ ejecutar: false, reagendar: false, cancelar: false }, "por_registrar", "2026-11-03", hoy), []);
     assert.deepEqual(acciones_disponibles(todo, "cancelada", "2026-11-03", hoy), ["ejecutar", "reagendar"]);
+  });
+});
+
+describe("lote", () => {
+  const hoy = "2026-11-04";
+  it("acciones del lote según permisos", () => {
+    assert.deepEqual(acciones_por_permiso({ ejecutar: true, reagendar: true, cancelar: true }), ["ejecutar", "reagendar", "no_ejecutar"]);
+    assert.deepEqual(acciones_por_permiso({ ejecutar: true, reagendar: false, cancelar: false }), ["ejecutar", "no_se_dio"]);
+    assert.deepEqual(acciones_por_permiso({ ejecutar: false, reagendar: false, cancelar: true }), ["no_ejecutar"]);
+  });
+  it("omite lo que no aplica y dice por qué", () => {
+    assert.equal(motivo_no_aplica("ejecutar", "programada", "2026-11-10", hoy), "Su fecha todavía no llega");
+    assert.equal(motivo_no_aplica("ejecutar", "por_registrar", "2026-11-03", hoy), null);
+    assert.equal(motivo_no_aplica("ejecutar", "ejecutada", "2026-11-03", hoy), "Ya está ejecutada");
+    assert.equal(motivo_no_aplica("no_se_dio", "no_se_dio", "2026-11-03", hoy), "Ya está como no ejecutada");
+    assert.equal(motivo_no_aplica("reagendar", "no_se_dio", "2026-11-03", hoy), null);
+    assert.equal(motivo_no_aplica("reagendar", "cancelada", "2026-11-03", hoy), "Ya está cancelada");
+    assert.equal(motivo_no_aplica("no_ejecutar", "ejecutada", "2026-11-03", hoy), "Ya está ejecutada");
   });
 });

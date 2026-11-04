@@ -9,6 +9,8 @@ import {
   getOSIListFilterOptions,
 } from "@/actions/osi";
 import { canAccessSatisfaccionClientes } from "@/actions/satisfaccion-clientes";
+import { getPermisosSesionOSI } from "@/features/osi-calendario/actions/calendario-actions";
+import { hoy_caracas } from "@/features/osi-calendario/lib/mes-grid";
 
 export const metadata = {
   title: "Consulta de OSIs | PRISMA",
@@ -29,6 +31,7 @@ export default async function ConsultaOSIPage({
     canHideForClient,
     canToggleAttachment,
     canAccessSatisfaccion,
+    permisosSesion,
     initialData,
     filterOptions,
   ] = await Promise.all([
@@ -37,6 +40,7 @@ export default async function ConsultaOSIPage({
     canHideOSIFromClient(),
     canToggleOSIAttachment(),
     canAccessSatisfaccionClientes(),
+    getPermisosSesionOSI(),
     getOSIList(initialFilters, 1, 20),
     getOSIListFilterOptions(),
   ]);
@@ -56,6 +60,8 @@ export default async function ConsultaOSIPage({
       initialOsis={initialData.osis}
       initialTotalCount={initialData.totalCount}
       initialFilterOptions={filterOptions}
+      permisosSesion={permisosSesion}
+      hoy={hoy_caracas()}
     />
   );
 }

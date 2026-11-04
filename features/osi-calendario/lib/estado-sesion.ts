@@ -7,7 +7,7 @@ export const ESTATUS_REAGENDADO = 46;
 
 /**
  * Estado de una sesión. Manda la fecha ejecutada; luego el último estatus del historial;
- * "no se dio" (marcado, sin decidir aún) gana sobre lo demás; una reagenda sin fecha queda "sin_fecha";
+ * "no ejecutada" (no_se_dio: marcada, sin decidir aún) gana sobre lo demás; una reagenda sin fecha queda "sin_fecha";
  * lo que ya pasó sin registrar, "por_registrar".
  */
 export function estado_sesion(s: Pick<SesionCalendario,
@@ -42,8 +42,8 @@ type EstadoUi = {
 
 export const ESTADO_UI: Record<EstadoSesion, EstadoUi> = {
   programada: {
-    etiqueta: "Programada",
-    descripcion: "La fecha todavía no llega.",
+    etiqueta: "Planificada",
+    descripcion: "Está planificada y la fecha todavía no llega.",
     suave: "bg-sky-50 hover:bg-sky-100/70",
     barra: "border-sky-500",
     punto: "bg-sky-500",
@@ -51,8 +51,8 @@ export const ESTADO_UI: Record<EstadoSesion, EstadoUi> = {
     pill: "bg-sky-100 text-sky-800",
   },
   por_registrar: {
-    etiqueta: "Por registrar",
-    descripcion: "La fecha ya pasó y nadie ha marcado si se dio.",
+    etiqueta: "Sin estatus",
+    descripcion: "La fecha ya pasó y nadie ha registrado si se ejecutó.",
     suave: "bg-slate-100 hover:bg-slate-200/70",
     barra: "border-slate-400",
     punto: "bg-slate-400",
@@ -60,7 +60,7 @@ export const ESTADO_UI: Record<EstadoSesion, EstadoUi> = {
     pill: "bg-slate-200 text-slate-700",
   },
   no_se_dio: {
-    etiqueta: "No se dio",
+    etiqueta: "No ejecutada",
     descripcion: "No se dictó en su fecha. Falta decidir si se reagenda o se cancela.",
     suave: "bg-amber-50 hover:bg-amber-100/70",
     barra: "border-amber-500",

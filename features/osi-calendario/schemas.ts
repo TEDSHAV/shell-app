@@ -49,3 +49,21 @@ export const accion_sesion_schema = z.discriminatedUnion("accion", [
 ]);
 
 export type AccionSesionInput = z.infer<typeof accion_sesion_schema>;
+
+/** Misma acción sobre varias sesiones: por id de sesión (calendario) o por OSI completa (Consulta de OSIs). */
+export const accion_lote_schema = z
+  .object({
+    accion: z.enum(["ejecutar", "no_se_dio", "reagendar", "no_ejecutar"]),
+    ids_sesion: z.array(z.number().int().positive()).max(200).default([]),
+    ids_osi: z.array(z.number().int().positive()).max(100).default([]),
+    /** ejecutar: true = cada sesión en su propia fecha; false = todas en `fecha`. */
+    fecha_propia: z.boolean().default(true),
+    fecha: fecha.nullable().default(null),
+    motivo_tipo: z.string().trim().max(120).nullable().default(null),
+    motivo: z.string().trim().max(1000).nullable().default(null),
+  })
+  .refine((v) => v.ids_sesion.length + v.ids_osi.length > 0, "No hay nada seleccionado")
+  .refine((v) => v.accion !== "ejecutar" || v.fecha_propia || !!v.fecha, "Indica la fecha de ejecución")
+  .refine((v) => (v.accion !== "reagendar" && v.accion !== "no_ejecutar") || (v.motivo ?? "").length >= 3, "Escribe el motivo");
+
+export type AccionLoteInput = z.input<typeof accion_lote_schema>;

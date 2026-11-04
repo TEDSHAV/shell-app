@@ -18,6 +18,10 @@ import OSITable from "./components/OSITable";
 import OSIPagination from "./components/OSIPagination";
 import OSICommentsSheet from "./components/OSICommentsSheet";
 import { getOSIComentariosResumen } from "@/actions/osi-comentarios";
+import { ConsultaOSILote } from "./components/ConsultaOSILote";
+import { useSeleccion } from "@/features/osi-calendario/hooks/use-seleccion";
+import { tiene_algun_permiso, SIN_PERMISOS } from "@/features/osi-calendario/lib/acciones";
+import type { PermisosSesion } from "@/features/osi-calendario/lib/types";
 
 interface ConsultaOSIClientProps {
   canChangeStatus: boolean;
@@ -29,6 +33,9 @@ interface ConsultaOSIClientProps {
   initialOsis?: OSIListItem[];
   initialTotalCount?: number;
   initialFilterOptions?: OSIListFilterOptions;
+  /** Permisos de acciones sobre sesiones (lote por OSI). */
+  permisosSesion?: PermisosSesion;
+  hoy?: string;
 }
 
 // Cache key for a (filters, page, itemsPerPage) combination.
@@ -64,8 +71,12 @@ export default function ConsultaOSIClient({
   initialOsis,
   initialTotalCount,
   initialFilterOptions,
+  permisosSesion = SIN_PERMISOS,
+  hoy = "",
 }: ConsultaOSIClientProps) {
   const router = useRouter();
+  const seleccion = useSeleccion();
+  const puede_lote = tiene_algun_permiso(permisosSesion);
   const [loading, setLoading] = useState(!initialOsis);
   const [fetching, setFetching] = useState(false);
   const [osis, setOsis] = useState<OSIListItem[]>(initialOsis ?? []);
@@ -545,6 +556,7 @@ export default function ConsultaOSIClient({
           onToggleAttachment={canToggleAttachment ? handleToggleAttachment : undefined}
           canAccessSatisfaccion={canAccessSatisfaccion}
           onNotasUpdated={handleNotasUpdated}
+          seleccion={puede_lote ? seleccion : undefined}
         />
 
         <div className="mt-4">
@@ -566,6 +578,9 @@ export default function ConsultaOSIClient({
         open={sidebarOpen}
         onClose={handleSidebarClose}
       />
+      {puede_lote ? (
+        <ConsultaOSILote seleccion={seleccion} permisos={permisosSesion} hoy={hoy} onDone={refreshData} />
+      ) : null}
     </div>
   );
 }

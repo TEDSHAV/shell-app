@@ -10,6 +10,7 @@ import { empresa_y_sede, ESTADO_UI, hora_efectiva } from "../lib/estado-sesion";
 import { fecha_larga, hora_corta } from "../lib/mes-grid";
 import type { AccionSesion, EventoCalendario, PermisosSesion, ReagendaHistorial } from "../lib/types";
 import AccionIcono from "./AccionIcono";
+import FormularioAccion from "./FormularioAccion";
 import OsiPreviewBox from "./OsiPreviewBox";
 
 type EventoDetalleProps = {
@@ -17,10 +18,14 @@ type EventoDetalleProps = {
   mes: string;
   hoy: string;
   permisos: PermisosSesion;
+  /** Abre directo en el paso de acción (p. ej. al soltar una sesión en otro día). */
+  pasoInicial?: PasoAccion | null;
   onClose: () => void;
-  onAccion: (evento: EventoCalendario, accion: AccionSesion) => void;
+  onDone: (mensaje: string) => void;
   onComments: (evento: EventoCalendario) => void;
 };
+
+export type PasoAccion = { accion: AccionSesion; fecha?: string | null };
 
 function useEsEscritorio(): boolean {
   const [ok, set_ok] = useState(false);
@@ -49,10 +54,23 @@ function Linea({ titulo, fecha, hora, punto }: { titulo: string; fecha: string |
   );
 }
 
-export default function EventoDetalle({ evento, mes, hoy, permisos, onClose, onAccion, onComments }: EventoDetalleProps) {
+export default function EventoDetalle({ evento, mes, hoy, permisos, pasoInicial = null, onClose, onDone, onComments }: EventoDetalleProps) {
   const [reagendas, set_reagendas] = useState<ReagendaHistorial[]>([]);
   const [ver_formato, set_ver_formato] = useState(false);
+  // Paso 1 (null): detalle. Paso 2: formulario de la acción, en la misma columna y el mismo modal.
+  const [paso, set_paso] = useState<PasoAccion | null>(pasoInicial);
+  const [entra_desde, set_entra_desde] = useState<"derecha" | "izquierda">("derecha");
   const escritorio = useEsEscritorio();
+
+  useEffect(() => {
+    set_paso(pasoInicial);
+    set_entra_desde("derecha");
+  }, [evento?.id_sesion, pasoInicial]);
+
+  const ir_a_paso = (p: PasoAccion | null) => {
+    set_entra_desde(p ? "derecha" : "izquierda");
+    set_paso(p);
+  };
 
   useEffect(() => {
     set_reagendas([]);
@@ -79,7 +97,28 @@ export default function EventoDetalle({ evento, mes, hoy, permisos, onClose, onA
       <DialogContent className={`max-w-6xl gap-0 p-0 lg:min-h-[min(40rem,calc(100dvh-3rem))] ${HOJA_MOVIL}`}>
         {/* En escritorio la columna izquierda marca el alto (sin scroll propio); el formato se estira a ese alto y hace scroll por dentro. */}
         <div className="grid lg:grid-cols-[minmax(0,21rem)_minmax(0,1fr)]">
-          <div className="flex flex-col gap-3 px-5 py-4">
+          <div className="flex flex-col overflow-hidden px-5 py-4">
+          {paso ? (
+            <div
+              key="paso-accion"
+              className={`flex flex-1 flex-col duration-200 animate-in fade-in ${entra_desde === "derecha" ? "slide-in-from-right-6" : "slide-in-from-left-6"}`}
+            >
+              <DialogTitle className="sr-only">{`${ACCION_UI[paso.accion].titulo}: ${evento.servicio ?? "sesión"}`}</DialogTitle>
+              <FormularioAccion
+                evento={evento}
+                accionInicial={paso.accion}
+                fechaInicial={paso.fecha ?? null}
+                hoy={hoy}
+                permisos={permisos}
+                onVolver={() => ir_a_paso(null)}
+                onDone={onDone}
+              />
+            </div>
+          ) : (
+          <div
+            key="paso-detalle"
+            className={`flex flex-col gap-3 duration-200 animate-in fade-in ${entra_desde === "izquierda" ? "slide-in-from-left-6" : ""}`}
+          >
             <DialogHeader className="gap-2">
               <div className="flex flex-wrap items-center gap-1.5 pr-8">
                 <span className="rounded-full bg-slate-900 px-2.5 py-0.5 text-xs font-semibold text-white">OSI {evento.nro_osi ?? evento.id_osi}</span>
@@ -153,7 +192,7 @@ export default function EventoDetalle({ evento, mes, hoy, permisos, onClose, onA
 
             {evento.estado === "no_se_dio" ? (
               <p className="rounded-xl bg-amber-50 px-3.5 py-2.5 text-sm text-amber-900">
-                Se registró que no se dio
+                Se registró como no ejecutada
                 {evento.no_se_dio_at ? ` el ${new Date(evento.no_se_dio_at).toLocaleDateString("es-VE", { timeZone: "America/Caracas" })}` : ""}.
                 {evento.no_se_dio_nota ? <span className="block text-amber-800/80">{evento.no_se_dio_nota}</span> : null}
                 <span className="block text-xs text-amber-800/80">
@@ -173,7 +212,7 @@ export default function EventoDetalle({ evento, mes, hoy, permisos, onClose, onA
                     <button
                       key={a}
                       type="button"
-                      onClick={() => onAccion(evento, a)}
+                      onClick={() => ir_a_paso({ accion: a })}
                       className={`flex items-center gap-3 rounded-xl border bg-white px-3 py-1.5 text-left transition disabled:opacity-40 ${info.color}`}
                     >
                       <AccionIcono accion={a} />
@@ -199,6 +238,8 @@ export default function EventoDetalle({ evento, mes, hoy, permisos, onClose, onA
                 </button>
               ) : null}
             </div>
+          </div>
+          )}
           </div>
 
           {mostrar_formato ? (

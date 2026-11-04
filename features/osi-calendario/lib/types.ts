@@ -1,8 +1,8 @@
 /**
  * Vocabulario único del calendario:
- * programada (aún no llega la fecha) · por_registrar (la fecha pasó y nadie marcó qué pasó) ·
+ * programada = «Planificada» (aún no llega la fecha) · por_registrar = «Sin estatus» (la fecha pasó y nadie marcó qué pasó) ·
  * reagendada (no se dio, se dará más adelante; sin_fecha si aún no hay fecha nueva) ·
- * no_se_dio (no se dictó en su fecha; falta decidir si se reagenda o se cancela) ·
+ * no_se_dio = «No ejecutada» (no se dictó en su fecha; falta decidir si se reagenda o se cancela) ·
  * ejecutada (se dictó) · cancelada (no se dio y no se va a dar).
  */
 export type EstadoSesion = "programada" | "por_registrar" | "no_se_dio" | "reagendada" | "sin_fecha" | "ejecutada" | "cancelada";

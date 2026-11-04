@@ -73,7 +73,7 @@ export default function FormularioAccion({ evento, accionInicial, fechaInicial =
         accion === "ejecutar"
           ? `${quien}: ejecutada`
           : accion === "no_se_dio"
-            ? `${quien}: se registró que no se dio`
+            ? `${quien}: no ejecutada`
             : accion === "reagendar"
               ? `${quien}: reagendada ${fecha ? `para el ${fecha_larga(fecha)}` : "sin fecha todavía"}`
               : `${quien}: cancelada`,
@@ -108,7 +108,7 @@ export default function FormularioAccion({ evento, accionInicial, fechaInicial =
               aria-selected={accion === a}
               onClick={() => reiniciar(a)}
               className={`inline-flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-1.5 text-xs font-semibold transition ${
-                accion === a ? `bg-white shadow-sm ${ACCION_UI[a].color.split(" ").find((c) => c.startsWith("text-")) ?? "text-slate-900"}` : "text-slate-500 hover:text-slate-800"
+                accion === a ? `bg-white shadow-sm ${ACCION_UI[a].texto}` : "text-slate-500 hover:text-slate-800"
               }`}
             >
               <AccionIcono accion={a} className="h-3.5 w-3.5" />
@@ -146,7 +146,7 @@ export default function FormularioAccion({ evento, accionInicial, fechaInicial =
           </>
         ) : accion === "no_se_dio" ? (
           <p className="rounded-lg bg-amber-50 px-3 py-2.5 text-sm text-amber-900">
-            La sesión queda marcada como «No se dio» y no cambia de fecha. Quien tenga permiso de reagendar o cancelar decidirá qué hacer.
+            La sesión queda como «No ejecutada» y no cambia de fecha. Quien tenga permiso de reagendar o cancelar decidirá qué hacer.
           </p>
         ) : (
           <>
