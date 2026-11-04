@@ -1,5 +1,8 @@
 "use client";
 
+import { useState } from "react";
+import { Search, X } from "lucide-react";
+
 import { comparar_eventos, empresa_y_sede, ESTADO_UI, hora_efectiva } from "../lib/estado-sesion";
 import { fecha_corta, hora_corta } from "../lib/mes-grid";
 import type { EventoCalendario } from "../lib/types";
@@ -63,23 +66,63 @@ function Avance({ sesiones }: { sesiones: EventoCalendario[] }) {
   );
 }
 
-/** Servicios del mes agrupados por OSI. Tabla en escritorio, tarjetas en teléfono. */
+/** Texto en el que busca el buscador de la tabla: OSI, servicio, empresa y sede, ejecutivo y ciudad. */
+function texto_busqueda(e: EventoCalendario): string {
+  return [e.nro_osi, e.servicio, e.nombre_empresa, e.ejecutivo_negocios, e.ciudad]
+    .filter(Boolean)
+    .join(" ")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase();
+}
+
+/** Servicios del mes agrupados por OSI, con buscador y scroll interno. Tabla en escritorio, tarjetas en teléfono. */
 export default function TablaServicios({ eventos, onSelect, onComments }: TablaServiciosProps) {
-  const filas = agrupar(eventos);
+  const [busqueda, set_busqueda] = useState("");
+  const todas = agrupar(eventos);
+  const termino = busqueda.trim().normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  const filas = termino ? todas.filter(({ sesiones }) => texto_busqueda(sesiones[0]).includes(termino)) : todas;
+  const n_sesiones = filas.reduce((acc, f) => acc + f.sesiones.length, 0);
 
   return (
     <section className="rounded-2xl border border-slate-200 bg-white">
-      <header className="flex items-baseline justify-between gap-2 px-4 pb-2 pt-4 sm:px-5">
-        <h3 className="text-lg font-semibold text-slate-900">Servicios del mes</h3>
-        <span className="text-sm text-slate-500">
-          {filas.length} {filas.length === 1 ? "OSI" : "OSIs"} · {eventos.length} {eventos.length === 1 ? "sesión" : "sesiones"}
-        </span>
+      <header className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 pb-3 pt-4 sm:px-5">
+        <div className="mr-auto">
+          <h3 className="text-lg font-semibold text-slate-900">Servicios del mes</h3>
+          <span className="text-sm text-slate-500">
+            {termino && filas.length !== todas.length ? `${filas.length} de ${todas.length} OSIs` : `${filas.length} ${filas.length === 1 ? "OSI" : "OSIs"}`}
+            {" · "}
+            {n_sesiones} {n_sesiones === 1 ? "sesión" : "sesiones"}
+          </span>
+        </div>
+        <label className="relative w-full sm:w-72">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input
+            value={busqueda}
+            onChange={(e) => set_busqueda(e.target.value)}
+            placeholder="Buscar OSI, servicio, empresa…"
+            aria-label="Buscar en servicios del mes"
+            className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-9 text-sm text-slate-700 outline-none focus:border-slate-400"
+          />
+          {busqueda ? (
+            <button
+              type="button"
+              onClick={() => set_busqueda("")}
+              aria-label="Limpiar búsqueda"
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          ) : null}
+        </label>
       </header>
 
       {filas.length === 0 ? (
-        <p className="px-4 py-10 text-center text-sm text-slate-500">No hay servicios con los filtros actuales.</p>
+        <p className="px-4 py-10 text-center text-sm text-slate-500">
+          {termino ? `Ningún servicio coincide con «${busqueda.trim()}».` : "No hay servicios con los filtros actuales."}
+        </p>
       ) : (
-        <>
+        <div className="max-h-[32rem] overflow-y-auto border-t border-slate-100 md:border-t-0">
           <ul className="divide-y divide-slate-100 md:hidden">
             {filas.map(({ id_osi, sesiones }) => {
               const p = sesiones[0];
@@ -101,9 +144,9 @@ export default function TablaServicios({ eventos, onSelect, onComments }: TablaS
             })}
           </ul>
 
-          <div className="hidden overflow-x-auto md:block">
+          <div className="hidden md:block">
             <table className="w-full text-[15px]">
-              <thead className="border-y border-slate-100 text-left text-[13px] font-medium text-slate-500">
+              <thead className="sticky top-0 z-10 bg-white text-left text-[13px] font-medium text-slate-500 shadow-[inset_0_-1px_0_theme(colors.slate.100),inset_0_1px_0_theme(colors.slate.100)]">
                 <tr>
                   <th className="px-5 py-2 font-medium">Servicio</th>
                   <th className="px-3 py-2 font-medium">Empresa · Sede</th>
@@ -137,7 +180,7 @@ export default function TablaServicios({ eventos, onSelect, onComments }: TablaS
               </tbody>
             </table>
           </div>
-        </>
+        </div>
       )}
     </section>
   );
