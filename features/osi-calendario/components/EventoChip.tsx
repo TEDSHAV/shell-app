@@ -13,6 +13,8 @@ type EventoChipProps = {
   onComments: (evento: EventoCalendario) => void;
   arrastrable?: boolean;
   onArrastre?: (evento: EventoCalendario | null) => void;
+  /** Vista semana: sin recortar servicio, empresa ni sede. */
+  expandida?: boolean;
 };
 
 export function BurbujaComentarios({ evento, onComments, className = "" }: { evento: EventoCalendario; onComments: (e: EventoCalendario) => void; className?: string }) {
@@ -70,7 +72,7 @@ function TarjetaHover({ evento, rect, arrastrable }: { evento: EventoCalendario;
 }
 
 /** Etiqueta de una sesión en la grilla del mes: servicio, empresa y sede, hora. Arrastrable si se puede reagendar. */
-export default function EventoChip({ evento, onSelect, onComments, arrastrable = false, onArrastre }: EventoChipProps) {
+export default function EventoChip({ evento, onSelect, onComments, arrastrable = false, onArrastre, expandida = false }: EventoChipProps) {
   const ui = ESTADO_UI[evento.estado];
   const { empresa, sede } = empresa_y_sede(evento.nombre_empresa);
   const hora = hora_corta(hora_efectiva(evento));
@@ -101,16 +103,23 @@ export default function EventoChip({ evento, onSelect, onComments, arrastrable =
         }
       }}
       aria-label={`OSI ${evento.nro_osi ?? evento.id_osi}: ${evento.servicio ?? ""}, ${empresa}`}
-      className={`group relative flex w-full flex-col gap-0.5 rounded-md border-l-[3px] py-1.5 pl-2 pr-1.5 text-left outline-none transition focus-visible:ring-2 focus-visible:ring-sky-400 ${arrastrable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"} ${ui.suave} ${ui.barra}`}
+      className={`group relative flex w-full flex-col gap-0.5 rounded-md border-l-[3px] text-left outline-none transition focus-visible:ring-2 focus-visible:ring-sky-400 ${expandida ? "rounded-lg py-2 pl-2.5 pr-2" : "py-1.5 pl-2 pr-1.5"} ${arrastrable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"} ${ui.suave} ${ui.barra}`}
     >
-      <span className={`line-clamp-2 text-[13px] font-semibold leading-[1.3rem] ${ui.texto} ${evento.estado === "cancelada" ? "line-through decoration-rose-300" : ""}`}>
+      <span className={`${expandida ? "" : "line-clamp-2"} text-[13px] font-semibold leading-[1.3rem] ${ui.texto} ${evento.estado === "cancelada" ? "line-through decoration-rose-300" : ""}`}>
         {evento.servicio ?? "Servicio"}
       </span>
-      <span className="truncate text-[12px] leading-[1.15rem] text-slate-600">
-        {empresa}
-        {sede ? <span className="text-slate-400"> · {sede}</span> : null}
-      </span>
-      <span className="flex items-center gap-1 text-[12px] leading-[1.15rem] text-slate-500">
+      {expandida ? (
+        <>
+          <span className="text-[12px] leading-[1.15rem] text-slate-700">{empresa}</span>
+          {sede ? <span className="text-[12px] leading-[1.15rem] text-slate-500">{sede}</span> : null}
+        </>
+      ) : (
+        <span className="truncate text-[12px] leading-[1.15rem] text-slate-600">
+          {empresa}
+          {sede ? <span className="text-slate-400"> · {sede}</span> : null}
+        </span>
+      )}
+      <span className={`flex items-center gap-1 text-[12px] leading-[1.15rem] text-slate-500 ${expandida ? "flex-wrap gap-x-1.5" : ""}`}>
         <span className="shrink-0 whitespace-nowrap tabular-nums">{hora ?? "Sin hora"}</span>
         {evento.en_sha ? (
           <span className="shrink-0 rounded bg-white/80 px-1 text-[10px] font-semibold uppercase leading-4 tracking-wide text-slate-500 ring-1 ring-slate-200" title="Se dicta en SHA">
@@ -118,8 +127,8 @@ export default function EventoChip({ evento, onSelect, onComments, arrastrable =
           </span>
         ) : null}
         {evento.total_sesiones > 1 ? (
-          <span className="ml-auto min-w-0 truncate text-[11px] tabular-nums text-slate-400" title={`Sesión ${evento.nro_sesion} de ${evento.total_sesiones}`}>
-            S{evento.nro_sesion}/{evento.total_sesiones}
+          <span className={`tabular-nums text-slate-400 ${expandida ? "text-[12px]" : "ml-auto min-w-0 truncate text-[11px]"}`} title={`Sesión ${evento.nro_sesion} de ${evento.total_sesiones}`}>
+            {expandida ? `Sesión ${evento.nro_sesion}/${evento.total_sesiones}` : `S${evento.nro_sesion}/${evento.total_sesiones}`}
           </span>
         ) : null}
       </span>

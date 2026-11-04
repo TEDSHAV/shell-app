@@ -9,6 +9,7 @@ import type { EventoCalendario } from "../lib/types";
 import { BurbujaComentarios } from "./EventoChip";
 
 type TablaServiciosProps = {
+  titulo: string;
   eventos: EventoCalendario[];
   onSelect: (evento: EventoCalendario) => void;
   onComments: (evento: EventoCalendario) => void;
@@ -76,8 +77,8 @@ function texto_busqueda(e: EventoCalendario): string {
     .toLowerCase();
 }
 
-/** Servicios del mes agrupados por OSI, con buscador y scroll interno. Tabla en escritorio, tarjetas en teléfono. */
-export default function TablaServicios({ eventos, onSelect, onComments }: TablaServiciosProps) {
+/** Servicios del periodo agrupados por OSI, con buscador y scroll interno. Tabla en escritorio, tarjetas en teléfono. */
+export default function TablaServicios({ titulo, eventos, onSelect, onComments }: TablaServiciosProps) {
   const [busqueda, set_busqueda] = useState("");
   const todas = agrupar(eventos);
   const termino = busqueda.trim().normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -88,7 +89,7 @@ export default function TablaServicios({ eventos, onSelect, onComments }: TablaS
     <section className="rounded-2xl border border-slate-200 bg-white">
       <header className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 pb-3 pt-4 sm:px-5">
         <div className="mr-auto">
-          <h3 className="text-lg font-semibold text-slate-900">Servicios del mes</h3>
+          <h3 className="text-lg font-semibold text-slate-900">{titulo}</h3>
           <span className="text-sm text-slate-500">
             {termino && filas.length !== todas.length ? `${filas.length} de ${todas.length} OSIs` : `${filas.length} ${filas.length === 1 ? "OSI" : "OSIs"}`}
             {" · "}
@@ -101,7 +102,7 @@ export default function TablaServicios({ eventos, onSelect, onComments }: TablaS
             value={busqueda}
             onChange={(e) => set_busqueda(e.target.value)}
             placeholder="Buscar OSI, servicio, empresa…"
-            aria-label="Buscar en servicios del mes"
+            aria-label={`Buscar en ${titulo.toLowerCase()}`}
             className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-9 text-sm text-slate-700 outline-none focus:border-slate-400"
           />
           {busqueda ? (

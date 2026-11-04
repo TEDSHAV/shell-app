@@ -17,9 +17,14 @@ export type FiltrosCalendario = {
 
 export const FILTROS_VACIOS: FiltrosCalendario = { texto: "", tipo: "", ejecutivo: "", estado: "", en_sha: false };
 
+export type Vista = "mes" | "semana";
+
 type EncabezadoProps = {
+  /** "Octubre" en vista mes; "2 – 8 nov" en vista semana. */
   mesTitulo: string;
   anio: string;
+  vista: Vista;
+  onVista: (v: Vista) => void;
   filtros: FiltrosCalendario;
   conteo: Partial<Record<EstadoSesion, number>>;
   conteoEnSha: number;
@@ -45,18 +50,31 @@ export default function Encabezado(props: EncabezadoProps) {
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center gap-2">
-        <h2 className="mr-auto whitespace-nowrap text-xl font-semibold capitalize text-slate-900 sm:text-[1.7rem]">
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 className={`min-w-0 truncate whitespace-nowrap font-semibold max-sm:basis-full sm:mr-auto text-slate-900 ${props.vista === "mes" ? "text-xl capitalize sm:text-[1.7rem]" : "text-lg sm:text-2xl"}`}>
           {props.mesTitulo} <span className="font-normal text-slate-400">{props.anio}</span>
         </h2>
+        <div className="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-0.5 max-sm:mr-auto">
+          {(["mes", "semana"] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => props.onVista(v)}
+              aria-pressed={props.vista === v}
+              className={`rounded-md px-2.5 py-1.5 text-sm font-medium capitalize transition sm:px-3 ${props.vista === v ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
+            >
+              {v}
+            </button>
+          ))}
+        </div>
         <button type="button" onClick={props.onHoy} className="h-10 rounded-lg border border-slate-200 px-3 text-[15px] font-medium text-slate-700 hover:bg-slate-50 sm:px-3">
           Hoy
         </button>
         <div className="flex">
-          <button type="button" onClick={props.onPrev} aria-label="Mes anterior" className="rounded-lg p-1.5 text-slate-600 hover:bg-slate-100 sm:p-2">
+          <button type="button" onClick={props.onPrev} aria-label={props.vista === "mes" ? "Mes anterior" : "Semana anterior"} className="rounded-lg p-1.5 text-slate-600 hover:bg-slate-100 sm:p-2">
             <ChevronLeft className="h-5 w-5" />
           </button>
-          <button type="button" onClick={props.onNext} aria-label="Mes siguiente" className="rounded-lg p-1.5 text-slate-600 hover:bg-slate-100 sm:p-2">
+          <button type="button" onClick={props.onNext} aria-label={props.vista === "mes" ? "Mes siguiente" : "Semana siguiente"} className="rounded-lg p-1.5 text-slate-600 hover:bg-slate-100 sm:p-2">
             <ChevronRight className="h-5 w-5" />
           </button>
         </div>
