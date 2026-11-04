@@ -32,15 +32,14 @@ type EncabezadoProps = {
   mostrarTipo: boolean;
   onPrev: () => void;
   onNext: () => void;
-  onHoy: () => void;
   onFiltros: (f: FiltrosCalendario) => void;
 };
 
 const CAMPO = "h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-slate-400";
 
 /**
- * Una fila: mes con flechas y "Hoy"; a la derecha, buscar y filtros (en un panel plegable).
- * Debajo, la leyenda de estados, que también filtra.
+ * Arriba: ‹ mes año › y, a la derecha, Filtros (panel plegable).
+ * Debajo: la leyenda de estados, que también filtra, y a su derecha el selector Mes | Semana.
  */
 export default function Encabezado(props: EncabezadoProps) {
   const { filtros, onFiltros } = props;
@@ -50,39 +49,21 @@ export default function Encabezado(props: EncabezadoProps) {
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <h2 className={`min-w-0 truncate whitespace-nowrap font-semibold max-sm:basis-full sm:mr-auto text-slate-900 ${props.vista === "mes" ? "text-xl capitalize sm:text-[1.7rem]" : "text-lg sm:text-2xl"}`}>
+      <div className="flex items-center gap-1">
+        <button type="button" onClick={props.onPrev} aria-label={props.vista === "mes" ? "Mes anterior" : "Semana anterior"} className="shrink-0 rounded-lg p-1.5 text-slate-600 hover:bg-slate-100 sm:p-2">
+          <ChevronLeft className="h-5 w-5" />
+        </button>
+        <h2 className={`min-w-0 truncate whitespace-nowrap px-1 font-semibold text-slate-900 ${props.vista === "mes" ? "text-xl capitalize sm:text-[1.7rem]" : "text-lg sm:text-2xl"}`}>
           {props.mesTitulo} <span className="font-normal text-slate-400">{props.anio}</span>
         </h2>
-        <div className="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-0.5 max-sm:mr-auto">
-          {(["mes", "semana"] as const).map((v) => (
-            <button
-              key={v}
-              type="button"
-              onClick={() => props.onVista(v)}
-              aria-pressed={props.vista === v}
-              className={`rounded-md px-2.5 py-1.5 text-sm font-medium capitalize transition sm:px-3 ${props.vista === v ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
-            >
-              {v}
-            </button>
-          ))}
-        </div>
-        <button type="button" onClick={props.onHoy} className="h-10 rounded-lg border border-slate-200 px-3 text-[15px] font-medium text-slate-700 hover:bg-slate-50 sm:px-3">
-          Hoy
+        <button type="button" onClick={props.onNext} aria-label={props.vista === "mes" ? "Mes siguiente" : "Semana siguiente"} className="mr-auto shrink-0 rounded-lg p-1.5 text-slate-600 hover:bg-slate-100 sm:p-2">
+          <ChevronRight className="h-5 w-5" />
         </button>
-        <div className="flex">
-          <button type="button" onClick={props.onPrev} aria-label={props.vista === "mes" ? "Mes anterior" : "Semana anterior"} className="rounded-lg p-1.5 text-slate-600 hover:bg-slate-100 sm:p-2">
-            <ChevronLeft className="h-5 w-5" />
-          </button>
-          <button type="button" onClick={props.onNext} aria-label={props.vista === "mes" ? "Mes siguiente" : "Semana siguiente"} className="rounded-lg p-1.5 text-slate-600 hover:bg-slate-100 sm:p-2">
-            <ChevronRight className="h-5 w-5" />
-          </button>
-        </div>
         <button
           type="button"
           onClick={() => set_panel((v) => !v)}
           aria-expanded={panel}
-          className={`relative inline-flex h-10 items-center gap-1.5 rounded-lg border px-3 text-[15px] font-medium transition ${panel || n_filtros ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 text-slate-700 hover:bg-slate-50"}`}
+          className={`relative inline-flex h-10 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-[15px] font-medium transition ${panel || n_filtros ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 text-slate-700 hover:bg-slate-50"}`}
         >
           <SlidersHorizontal className="h-4 w-4" />
           <span className="hidden sm:inline">Filtros</span>
@@ -120,7 +101,8 @@ export default function Encabezado(props: EncabezadoProps) {
         </div>
       ) : null}
 
-      <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="flex items-center gap-2">
+      <div className="-mx-1 flex min-w-0 flex-1 gap-1.5 overflow-x-auto px-1 [scrollbar-width:none] max-lg:pr-6 max-lg:[mask-image:linear-gradient(to_right,black_85%,transparent)] [&::-webkit-scrollbar]:hidden">
         <button
           type="button"
           onClick={() => set("en_sha", !filtros.en_sha)}
@@ -156,6 +138,20 @@ export default function Encabezado(props: EncabezadoProps) {
             </button>
           );
         })}
+      </div>
+      <div className="inline-flex shrink-0 rounded-lg border border-slate-200 bg-slate-100 p-0.5">
+        {(["mes", "semana"] as const).map((v) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => props.onVista(v)}
+            aria-pressed={props.vista === v}
+            className={`rounded-md px-2.5 py-1 text-sm font-medium capitalize transition sm:px-3 ${props.vista === v ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
+          >
+            {v}
+          </button>
+        ))}
+      </div>
       </div>
     </div>
   );

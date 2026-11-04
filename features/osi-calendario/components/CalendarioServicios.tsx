@@ -170,11 +170,6 @@ export default function CalendarioServicios({ data, mostrarTipo }: { data: Calen
           mostrarTipo={mostrarTipo}
           onPrev={() => (vista === "mes" ? ir_a_mes(mover_mes(data.mes, -1)) : ir_a_semana(sumar_dias(lunes, -7)))}
           onNext={() => (vista === "mes" ? ir_a_mes(mover_mes(data.mes, 1)) : ir_a_semana(sumar_dias(lunes, 7)))}
-          onHoy={() => {
-            set_dia(data.hoy);
-            set_lunes(inicio_semana(data.hoy));
-            if (data.mes !== data.hoy.slice(0, 7)) ir_a_mes(data.hoy.slice(0, 7));
-          }}
           onFiltros={set_filtros}
         />
 
