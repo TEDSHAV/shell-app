@@ -3,7 +3,7 @@
 --   * reagenda iterativa por sesión sin tocar osi_sesion.fecha (fecha planificada legal),
 --   * no ejecución por sesión con motivo,
 --   * vista de calendario, RPC transaccional de acciones y RPC de conteo de comentarios por OSI,
---   * permiso osis:sesion:gestionar para todos los roles de sgestion.
+--   * los permisos de acción llegan en 20261104170000 (osis:sesion:ejecutar / reagendar / cancelar).
 -- Nota de dueño: osi_sesion es de Capacitación (nextjs-capacitacion-module); esta migración vive
 -- en Shell por decisión de la usuaria (2026-11-04).
 -- osi_sesion.fecha alimenta fn_sync_osi_dates_from_sessions (fecha_inicio_real / fecha_fin_real),
@@ -38,10 +38,19 @@ create index if not exists idx_osi_sesion_reagenda_sesion
 
 alter table public.osi_sesion_reagenda enable row level security;
 
-drop policy if exists osi_sesion_reagenda_select on public.osi_sesion_reagenda;
-create policy osi_sesion_reagenda_select on public.osi_sesion_reagenda
-  for select to authenticated
-  using ((select authprisma.current_usuario_id()) is not null);
+-- Se crea solo si no existe (sin DROP: el MCP de Supabase marca DROP/DELETE como destructivos y los rechaza).
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'osi_sesion_reagenda' and policyname = 'osi_sesion_reagenda_select'
+  ) then
+    create policy osi_sesion_reagenda_select on public.osi_sesion_reagenda
+      for select to authenticated
+      using ((select authprisma.current_usuario_id()) is not null);
+  end if;
+end;
+$$;
 
 grant select on public.osi_sesion_reagenda to authenticated;
 
@@ -249,15 +258,6 @@ $$;
 revoke all on function public.get_osi_comentarios_resumen(integer[]) from public, anon;
 grant execute on function public.get_osi_comentarios_resumen(integer[]) to authenticated;
 
--- ─── Permiso y asignación a todos los roles de sgestion ───
-insert into authprisma.permissions (slug, descripcion)
-values ('osis:sesion:gestionar', 'Ejecutar, reagendar o marcar como no ejecutadas las sesiones de una OSI (Calendario de servicios)')
-on conflict (slug) do nothing;
-
-insert into authprisma.role_permissions (role_id, permission_id)
-select r.id, p.id
-from authprisma.roles r
-join authprisma.apps a on a.id = r.app_id and a.slug = 'sgestion'
-cross join authprisma.permissions p
-where p.slug = 'osis:sesion:gestionar'
-on conflict do nothing;
+-- ─── Permisos ───
+-- El permiso único osis:sesion:gestionar se reemplazó por uno por acción en 20261104170000; ya no se crea aquí
+-- (así esa migración no tiene que borrarlo). Hasta aplicar 20261104170000, la RPC no autoriza a nadie.

@@ -238,7 +238,8 @@ $$;
 revoke all on function public.osi_sesion_registrar_accion(bigint, text, date, time, text, text, boolean) from public, anon;
 grant execute on function public.osi_sesion_registrar_accion(bigint, text, date, time, text, text, boolean) to authenticated;
 
--- ─── Permisos: uno por acción, en todos los roles de sgestion; se retira osis:sesion:gestionar ───
+-- ─── Permisos: uno por acción, en todos los roles de sgestion ───
+-- (osis:sesion:gestionar ya no lo crea 20261104120000, así que no hay nada que retirar.)
 insert into authprisma.permissions (slug, descripcion) values
   ('osis:sesion:ejecutar', 'Marcar una sesión de OSI como ejecutada o como «no se dio» (Calendario de servicios)'),
   ('osis:sesion:reagendar', 'Reagendar una sesión de OSI (Calendario de servicios)'),
@@ -252,9 +253,3 @@ join authprisma.apps a on a.id = r.app_id and a.slug = 'sgestion'
 cross join authprisma.permissions p
 where p.slug in ('osis:sesion:ejecutar', 'osis:sesion:reagendar', 'osis:sesion:cancelar')
 on conflict do nothing;
-
-delete from authprisma.role_permissions rp
-using authprisma.permissions p
-where p.id = rp.permission_id and p.slug = 'osis:sesion:gestionar';
-
-delete from authprisma.permissions where slug = 'osis:sesion:gestionar';

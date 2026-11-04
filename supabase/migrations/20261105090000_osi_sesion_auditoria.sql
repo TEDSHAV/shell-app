@@ -22,10 +22,19 @@ create index if not exists idx_osi_sesion_auditoria_sesion
 
 alter table public.osi_sesion_auditoria enable row level security;
 
-drop policy if exists osi_sesion_auditoria_select on public.osi_sesion_auditoria;
-create policy osi_sesion_auditoria_select on public.osi_sesion_auditoria
-  for select to authenticated
-  using ((select authprisma.current_usuario_id()) is not null);
+-- Se crea solo si no existe (sin DROP: el MCP de Supabase marca DROP/DELETE como destructivos y los rechaza).
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'osi_sesion_auditoria' and policyname = 'osi_sesion_auditoria_select'
+  ) then
+    create policy osi_sesion_auditoria_select on public.osi_sesion_auditoria
+      for select to authenticated
+      using ((select authprisma.current_usuario_id()) is not null);
+  end if;
+end;
+$$;
 
 grant select on public.osi_sesion_auditoria to authenticated;
 
