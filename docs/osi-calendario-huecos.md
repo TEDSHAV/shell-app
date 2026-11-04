@@ -22,15 +22,22 @@ Prioridad: **P0** rompe datos o deja al usuario sin poder trabajar · **P1** pro
 > `osi_sesion.no_se_dio*`, sin tocar historial ni estatus de la OSI) y rechaza ejecuciones con fecha futura en la RPC.
 > Siguen asignados solo a roles de `sgestion`.
 
-### P0. Solo los roles de `sgestion` tienen el permiso
-- `osis:sesion:gestionar` se asignó a todos los roles de la app `sgestion`, como se pidió.
-- Quien hoy marca la ejecución en el día a día es Capacitación (roles de `scapacitacion`) y Servicios Técnicos. Esos usuarios ven el calendario pero no pueden registrar nada.
-- `authprisma.can_access(..., 'sgestion')` está fijo en la RPC. Si se amplía a otras apps, hay que cambiar la RPC además de `role_permissions`.
+### ~~P0. Solo los roles de `sgestion` tienen el permiso~~ (resuelto)
+- `20261104210000_osi_sesion_permiso_cualquier_app.sql` (aplicada en staging, sin registrar) cambia la RPC para que acepte
+  los permisos `osis:sesion:*` desde un rol de **cualquier** app (`authprisma.can_access_any_app`), igual que el Shell.
+- Antes, con el permiso asignado a roles de `scapacitacion`, la pantalla ofrecía la acción y la BD la rechazaba
+  ("No tienes permiso para esta acción").
 
 ### P0. La migración no está registrada ni en prod
 - En staging se aplicó a mano: sus objetos existen, pero no aparece en `supabase_migrations.schema_migrations`.
 - En prod no existe. Sin ella, el calendario no carga y las burbujas de comentarios de Consulta de OSIs salen en 0 (solo queda un log de error).
 - `types/supabase.ts` no se regeneró, así que las RPC y la vista nuevas no tienen tipos.
+
+> **Plan top 5 (2026-11-04), en código:** aviso de cierre de OSI y caso `PEN-` antes de confirmar (`actions/impacto-actions.ts`,
+> `lib/impacto.ts`); reabrir una ejecutada pide confirmación y queda en `osi_sesion_auditoria`; avisos de fecha pasada y
+> fuera de orden (`lib/fechas-sesion.ts`, no bloquean). La RPC ya no baja una OSI 12 a 11 si la acción no reabrió nada.
+> Pendiente de aplicar: `20261105090000_osi_sesion_auditoria.sql` y, en prod, `20261105100000_osi_sesion_reconciliar_historial_ejecutadas.sql`
+> (la OSI 3508: 8 sesiones ejecutadas con historial en 11/10).
 
 ### P1. Pasar una OSI a "Ejecutado" tiene efectos laterales
 - Cuando todas las sesiones quedan cerradas, la RPC cambia `ejecucion_osi.id_estatus` a 12. Eso dispara:

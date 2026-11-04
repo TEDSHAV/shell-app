@@ -129,3 +129,34 @@ describe("lote", () => {
     assert.equal(motivo_no_aplica("no_ejecutar", "ejecutada", "2026-11-03", hoy), "Ya está ejecutada");
   });
 });
+
+describe("impacto en la OSI y avisos de fecha", () => {
+  const hoy = "2026-11-04";
+  const s = (id: number, nro: number, estado: import("../features/osi-calendario/lib/types").EstadoSesion, fecha = "2026-11-01") => ({ id_sesion: id, nro_sesion: nro, estado, fecha_efectiva: fecha });
+
+  it("ejecutar la última abierta cierra la OSI; con PEN- no se cierra", async () => {
+    const { efecto_en_osi } = await import("../features/osi-calendario/lib/impacto");
+    const sesiones = [s(1, 1, "ejecutada"), s(2, 2, "por_registrar")];
+    assert.equal(efecto_en_osi({ accion: "ejecutar", sesiones, ids_afectadas: new Set([2]), id_estatus_osi: 11, nro_osi: "3402" }), "cierra_ejecutada");
+    assert.equal(efecto_en_osi({ accion: "ejecutar", sesiones, ids_afectadas: new Set([2]), id_estatus_osi: 11, nro_osi: "PEN-12" }), "pendiente_pen");
+    assert.equal(efecto_en_osi({ accion: "ejecutar", sesiones: [...sesiones, s(3, 3, "programada")], ids_afectadas: new Set([2]), id_estatus_osi: 11, nro_osi: "3402" }), null);
+  });
+
+  it("cancelar todas cierra como no ejecutada; reagendar una ejecutada reabre", async () => {
+    const { efecto_en_osi } = await import("../features/osi-calendario/lib/impacto");
+    assert.equal(efecto_en_osi({ accion: "no_ejecutar", sesiones: [s(1, 1, "por_registrar")], ids_afectadas: new Set([1]), id_estatus_osi: 10, nro_osi: "1" }), "cierra_no_ejecutada");
+    assert.equal(efecto_en_osi({ accion: "reagendar", sesiones: [s(1, 1, "ejecutada"), s(2, 2, "ejecutada")], ids_afectadas: new Set([2]), id_estatus_osi: 12, nro_osi: "1" }), "reabre");
+    assert.equal(efecto_en_osi({ accion: "no_se_dio", sesiones: [s(1, 1, "por_registrar")], ids_afectadas: new Set([1]), id_estatus_osi: 11, nro_osi: "1" }), null);
+  });
+
+  it("avisa fecha pasada y fuera de orden", async () => {
+    const { avisos_fecha } = await import("../features/osi-calendario/lib/fechas-sesion");
+    const hermanas = [s(1, 1, "ejecutada", "2026-11-02"), s(2, 2, "programada", "2026-11-05"), s(3, 3, "programada", "2026-11-06")];
+    assert.equal(avisos_fecha({ id_sesion: 2, nro_sesion: 2 }, "2026-11-05", hermanas, hoy).length, 0);
+    const pasada = avisos_fecha({ id_sesion: 2, nro_sesion: 2 }, "2026-11-01", hermanas, hoy);
+    assert.equal(pasada.length, 2);
+    assert.match(pasada[0], /ya pasó/);
+    assert.match(pasada[1], /antes de la sesión 1/);
+    assert.match(avisos_fecha({ id_sesion: 2, nro_sesion: 2 }, "2026-11-09", hermanas, hoy)[0], /después de la sesión 3/);
+  });
+});

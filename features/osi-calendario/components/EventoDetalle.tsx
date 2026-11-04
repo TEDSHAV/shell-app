@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { ChevronDown, Clock, FileText, MapPin, MessageSquare, User } from "lucide-react";
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { getReagendasSesion } from "../actions/calendario-actions";
+import { getAuditoriaSesion, getReagendasSesion, type CambioEjecucion } from "../actions/calendario-actions";
 import { ACCION_UI, acciones_disponibles, HOJA_MOVIL } from "../lib/acciones";
 import { empresa_y_sede, ESTADO_UI, hora_efectiva } from "../lib/estado-sesion";
 import { fecha_larga, hora_corta } from "../lib/mes-grid";
@@ -23,6 +23,12 @@ type EventoDetalleProps = {
   onClose: () => void;
   onDone: (mensaje: string) => void;
   onComments: (evento: EventoCalendario) => void;
+};
+
+const ETIQUETA_CAMBIO: Record<string, string> = {
+  ejecutar: "Fecha de ejecución corregida",
+  reagendar: "Se reabrió para reagendar",
+  no_ejecutar: "Se canceló después de ejecutada",
 };
 
 export type PasoAccion = { accion: AccionSesion; fecha?: string | null };
@@ -56,6 +62,7 @@ function Linea({ titulo, fecha, hora, punto }: { titulo: string; fecha: string |
 
 export default function EventoDetalle({ evento, mes, hoy, permisos, pasoInicial = null, onClose, onDone, onComments }: EventoDetalleProps) {
   const [reagendas, set_reagendas] = useState<ReagendaHistorial[]>([]);
+  const [cambios, set_cambios] = useState<CambioEjecucion[]>([]);
   const [ver_formato, set_ver_formato] = useState(false);
   // Paso 1 (null): detalle. Paso 2: formulario de la acción, en la misma columna y el mismo modal.
   const [paso, set_paso] = useState<PasoAccion | null>(pasoInicial);
@@ -74,12 +81,21 @@ export default function EventoDetalle({ evento, mes, hoy, permisos, pasoInicial 
 
   useEffect(() => {
     set_reagendas([]);
+    set_cambios([]);
     set_ver_formato(false);
-    if (!evento || evento.reagenda_count === 0) return;
+    if (!evento) return;
     let vivo = true;
-    void getReagendasSesion(evento.id_sesion).then((res) => {
-      if (vivo && res.ok) set_reagendas(res.data);
-    });
+    // Reagendas y cambios sobre una ejecutada en paralelo; solo se piden si pueden existir.
+    if (evento.reagenda_count > 0) {
+      void getReagendasSesion(evento.id_sesion).then((res) => {
+        if (vivo && res.ok) set_reagendas(res.data);
+      });
+    }
+    if (evento.reagenda_count > 0 || evento.fecha_ejecutada || evento.estado === "cancelada") {
+      void getAuditoriaSesion(evento.id_sesion).then((res) => {
+        if (vivo && res.ok) set_cambios(res.data);
+      });
+    }
     return () => {
       vivo = false;
     };
@@ -188,6 +204,22 @@ export default function EventoDetalle({ evento, mes, hoy, permisos, pasoInicial 
                   </li>
                 ) : null}
               </ul>
+            ) : null}
+
+            {cambios.length ? (
+              <details className="rounded-xl border border-slate-200 px-3.5 py-2 text-sm">
+                <summary className="cursor-pointer text-xs font-medium text-slate-600">Cambios sobre la ejecución ({cambios.length})</summary>
+                <ul className="mt-2 flex flex-col gap-2">
+                  {cambios.map((c) => (
+                    <li key={c.id} className="text-xs text-slate-600">
+                      <span className="font-medium text-slate-800">{ETIQUETA_CAMBIO[c.accion] ?? c.accion}</span>
+                      {c.antes.fecha_ejecutada ? ` · estaba ejecutada el ${fecha_larga(c.antes.fecha_ejecutada)}` : ""}
+                      {c.despues.fecha_ejecutada ? ` · ahora ${fecha_larga(c.despues.fecha_ejecutada)}` : ""}
+                      <span className="block text-slate-400">{new Date(c.created_at).toLocaleString("es-VE", { timeZone: "America/Caracas" })}</span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
             ) : null}
 
             {evento.estado === "no_se_dio" ? (

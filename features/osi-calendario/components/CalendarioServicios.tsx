@@ -80,6 +80,10 @@ export default function CalendarioServicios({ data, mostrarTipo }: { data: Calen
   const seleccion = useSeleccion();
   const [accion_lote, set_accion_lote] = useState<AccionSesion | null>(null);
   const puede_seleccionar = tiene_algun_permiso(data.permisos);
+  const osis_de_seleccion = useMemo(() => {
+    const por_id = new Map([...data.eventos, ...data.por_confirmar].map((e) => [e.id_sesion, e.id_osi]));
+    return [...new Set([...seleccion.ids].map((id) => por_id.get(id)).filter((id): id is number => id != null))];
+  }, [seleccion.ids, data.eventos, data.por_confirmar]);
   const al_tocar = (e: EventoCalendario) => (seleccion.activa ? seleccion.alternar(e.id_sesion) : abrir_detalle(e));
 
   const ir_a_mes = (mes: string) => router.push(`${pathname}?mes=${mes}`, { scroll: false });
@@ -315,7 +319,7 @@ export default function CalendarioServicios({ data, mostrarTipo }: { data: Calen
       ) : null}
       <DialogoLote
         accion={accion_lote}
-        objetivo={{ tipo: "sesiones", ids: [...seleccion.ids] }}
+        objetivo={{ tipo: "sesiones", ids: [...seleccion.ids], ids_osi: osis_de_seleccion }}
         hoy={data.hoy}
         onClose={() => set_accion_lote(null)}
         onDone={(mensaje) => {

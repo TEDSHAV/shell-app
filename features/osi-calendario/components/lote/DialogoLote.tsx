@@ -9,8 +9,12 @@ import { ACCION_BOTON_PRIMARIO, ACCION_UI, HOJA_MOVIL } from "../../lib/acciones
 import type { AccionSesion } from "../../lib/types";
 import { MOTIVOS_CANCELACION, MOTIVOS_REAGENDA } from "../../schemas";
 import AccionIcono from "../AccionIcono";
+import AvisosAccion, { texto_efecto } from "../AvisosAccion";
+import { getImpactoAccion, type ImpactoOSI } from "../../actions/impacto-actions";
+import { avisos_fecha } from "../../lib/fechas-sesion";
 
-export type ObjetivoLote = { tipo: "sesiones"; ids: number[] } | { tipo: "osis"; ids: number[] };
+/** Sesiones del calendario (con sus OSIs, para calcular el efecto) u OSIs completas de Consulta. */
+export type ObjetivoLote = { tipo: "sesiones"; ids: number[]; ids_osi: number[] } | { tipo: "osis"; ids: number[] };
 
 type DialogoLoteProps = {
   accion: AccionSesion | null;
@@ -32,6 +36,24 @@ export default function DialogoLote({ accion, objetivo, hoy, onClose, onDone }: 
   const [error, set_error] = useState<string | null>(null);
   const [resultado, set_resultado] = useState<ResultadoLote | null>(null);
   const [pending, start] = useTransition();
+  const [impacto, set_impacto] = useState<ImpactoOSI[]>([]);
+  // Guarda qué avisos se confirmaron: si cambian (otra fecha, otro efecto), hay que confirmar de nuevo.
+  const [confirmado_para, set_confirmado_para] = useState<string | null>(null);
+  const ids_osi = objetivo.tipo === "osis" ? objetivo.ids : objetivo.ids_osi;
+  const clave_ids = `${objetivo.tipo}:${objetivo.ids.join(",")}`;
+
+  // Efecto en las OSIs: cuántas se cierran (y piden factura), cuáles quedan por PEN-.
+  useEffect(() => {
+    if (!accion) return;
+    let vivo = true;
+    set_impacto([]);
+    void getImpactoAccion({ accion, ids_osi, ids_sesion: objetivo.tipo === "sesiones" ? objetivo.ids : undefined }).then((res) => {
+      if (vivo && res.ok) set_impacto(res.data);
+    });
+    return () => {
+      vivo = false;
+    };
+  }, [accion, clave_ids]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     set_fecha_propia(true);
@@ -49,8 +71,35 @@ export default function DialogoLote({ accion, objetivo, hoy, onClose, onDone }: 
   const motivos = accion === "reagendar" ? MOTIVOS_REAGENDA : MOTIVOS_CANCELACION;
   const pide_motivo = accion === "reagendar" || accion === "no_ejecutar";
 
+  const efectos = impacto.map(texto_efecto).filter((e): e is NonNullable<typeof e> => !!e);
+  const cierran = impacto.filter((i) => i.efecto === "cierra_ejecutada");
+  const con_factura = cierran.filter((i) => i.solicitudes_factura.length).length;
+  // Con muchas OSIs, un resumen; con pocas, el detalle de cada una.
+  const avisos_efecto =
+    efectos.length > 3
+      ? [
+          ...(cierran.length ? [{ tono: "alerta" as const, texto: `${cierran.length} OSIs pasarán a Ejecutada y se pedirá su factura${con_factura ? ` (${con_factura} ya tienen solicitud)` : ""}.` }] : []),
+          ...(impacto.some((i) => i.efecto === "pendiente_pen") ? [{ tono: "info" as const, texto: `${impacto.filter((i) => i.efecto === "pendiente_pen").length} OSIs no se cerrarán por correlativo PEN-.` }] : []),
+          ...(impacto.some((i) => i.efecto === "cierra_no_ejecutada") ? [{ tono: "alerta" as const, texto: `${impacto.filter((i) => i.efecto === "cierra_no_ejecutada").length} OSIs pasarán a OSI NO EJECUTADA.` }] : []),
+        ]
+      : efectos;
+  // Reagendar «todas a esta fecha»: cuántas sesiones quedan en fecha pasada o fuera de orden.
+  const elegidas = objetivo.tipo === "sesiones" ? new Set(objetivo.ids) : null;
+  const con_aviso_fecha =
+    accion === "reagendar" && fecha
+      ? impacto.flatMap((i) => i.sesiones.filter((s) => (elegidas ? elegidas.has(s.id_sesion) : s.estado !== "ejecutada" && s.estado !== "cancelada")).map((s) => avisos_fecha(s, fecha, i.sesiones, hoy).length)).filter((n) => n > 0).length
+      : 0;
+  const avisos = [
+    ...avisos_efecto,
+    ...(con_aviso_fecha ? [{ tono: "alerta" as const, texto: `${con_aviso_fecha} ${con_aviso_fecha === 1 ? "sesión queda" : "sesiones quedan"} en fecha pasada o fuera de orden respecto a las otras de su OSI.` }] : []),
+  ];
+  const texto_confirmar = avisos.some((a) => a.tono === "alerta") ? "Entiendo y quiero continuar." : null;
+  const firma_avisos = avisos.map((a) => a.texto).join("|");
+  const confirmado = confirmado_para === firma_avisos;
+
   const enviar = () => {
     set_error(null);
+    if (texto_confirmar && !confirmado) return set_error("Confirma los avisos antes de continuar");
     if (accion === "ejecutar" && !fecha_propia && !fecha) return set_error("Indica la fecha");
     if (pide_motivo && motivo.trim().length < 3) return set_error("Escribe el motivo");
     start(async () => {
@@ -163,6 +212,8 @@ export default function DialogoLote({ accion, objetivo, hoy, onClose, onDone }: 
             )}
           </div>
         )}
+
+        {!resultado ? <AvisosAccion avisos={avisos} confirmado={confirmado} onConfirmar={(v) => set_confirmado_para(v ? firma_avisos : null)} textoConfirmar={texto_confirmar} /> : null}
 
         {error ? <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p> : null}
 

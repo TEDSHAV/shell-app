@@ -129,3 +129,28 @@ export async function getReagendasSesion(id_sesion: number): Promise<Result<Reag
   }
   return { ok: true, data: (data ?? []) as ReagendaHistorial[] };
 }
+
+export type CambioEjecucion = {
+  id: number;
+  accion: string;
+  antes: { fecha_ejecutada?: string | null; id_estatus?: number | null };
+  despues: { fecha_ejecutada?: string | null; fecha_reagendada?: string | null; id_estatus?: number | null };
+  created_at: string;
+};
+
+/** Cambios hechos sobre la sesión cuando ya estaba ejecutada (tabla de 20261105090000). Sin la tabla, lista vacía. */
+export async function getAuditoriaSesion(id_sesion: number): Promise<Result<CambioEjecucion[]>> {
+  if (!Number.isFinite(id_sesion) || id_sesion <= 0) return { ok: false, error: "Sesión inválida" };
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("osi_sesion_auditoria")
+    .select("id, accion, antes, despues, created_at")
+    .eq("id_sesion", id_sesion)
+    .order("created_at", { ascending: false });
+  if (error) {
+    // 42P01: la migración aún no está en este entorno.
+    if (error.code !== "42P01" && error.code !== "PGRST205") console.error("Error leyendo osi_sesion_auditoria:", error);
+    return { ok: true, data: [] };
+  }
+  return { ok: true, data: (data ?? []) as CambioEjecucion[] };
+}

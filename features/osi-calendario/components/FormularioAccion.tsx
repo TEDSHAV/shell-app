@@ -9,6 +9,9 @@ import { fecha_larga, hora_corta, sumar_dias } from "../lib/mes-grid";
 import type { AccionSesion, EventoCalendario, PermisosSesion } from "../lib/types";
 import { MOTIVOS_CANCELACION, MOTIVOS_REAGENDA } from "../schemas";
 import AccionIcono from "./AccionIcono";
+import AvisosAccion, { texto_efecto } from "./AvisosAccion";
+import { getImpactoAccion, type ImpactoOSI } from "../actions/impacto-actions";
+import { avisos_fecha } from "../lib/fechas-sesion";
 
 type FormularioAccionProps = {
   evento: EventoCalendario;
@@ -48,15 +51,51 @@ export default function FormularioAccion({ evento, accionInicial, fechaInicial =
 
   useEffect(() => reiniciar(accionInicial), [evento.id_sesion, accionInicial, fechaInicial]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Efecto de la acción en la OSI (cierre, PEN-, reapertura) y sesiones hermanas para los avisos de fecha.
+  const [impacto, set_impacto] = useState<ImpactoOSI | null>(null);
+  const [confirmado, set_confirmado] = useState(false);
+  useEffect(() => {
+    let vivo = true;
+    set_impacto(null);
+    set_confirmado(false);
+    void getImpactoAccion({ accion, ids_osi: [evento.id_osi], ids_sesion: [evento.id_sesion], individual: true }).then((res) => {
+      if (vivo && res.ok) set_impacto(res.data[0] ?? null);
+    });
+    return () => {
+      vivo = false;
+    };
+  }, [accion, evento.id_osi, evento.id_sesion]);
+
   const acciones = acciones_disponibles(permisos, evento.estado, evento.fecha_efectiva, hoy);
   const motivos = accion === "reagendar" ? MOTIVOS_REAGENDA : MOTIVOS_CANCELACION;
   const pide_motivo = accion === "reagendar" || accion === "no_ejecutar";
   const sesion = `Sesión ${evento.nro_sesion}${evento.total_sesiones > 1 ? ` de ${evento.total_sesiones}` : ""}`;
 
+  // Reabrir una ejecutada (reagendar o cancelar) se permite, pero con confirmación; corregir la fecha queda auditado.
+  const reabre = evento.estado === "ejecutada" && (accion === "reagendar" || accion === "no_ejecutar");
+  const avisos_de_fecha = accion === "reagendar" ? avisos_fecha(evento, fecha || null, impacto?.sesiones ?? [], hoy) : [];
+  const efecto = impacto ? texto_efecto(impacto) : null;
+  const avisos = [
+    ...(reabre ? [{ tono: "alerta" as const, texto: "Esta sesión ya está ejecutada: se quitará la fecha de ejecución. El cambio queda registrado." }] : []),
+    ...(evento.estado === "ejecutada" && accion === "ejecutar" ? [{ tono: "info" as const, texto: "Se corrige la fecha de ejecución; el valor anterior queda registrado." }] : []),
+    ...(efecto ? [efecto] : []),
+    ...avisos_de_fecha.map((texto) => ({ tono: "alerta" as const, texto })),
+  ];
+  const texto_confirmar = reabre
+    ? "Entiendo que la sesión ejecutada se reabre."
+    : efecto?.tono === "alerta" || avisos_de_fecha.length
+      ? "Entiendo y quiero continuar."
+      : null;
+
+  // Avisos nuevos (otra fecha, otro efecto) piden confirmar otra vez.
+  const firma_avisos = avisos.map((a) => a.texto).join("|");
+  useEffect(() => set_confirmado(false), [firma_avisos]);
+
   const enviar = () => {
     set_error(null);
     if (accion === "ejecutar" && !fecha) return set_error("Indica la fecha en que se dio");
     if (pide_motivo && motivo.trim().length < 3) return set_error("Escribe el motivo");
+    if (texto_confirmar && !confirmado) return set_error("Confirma los avisos antes de continuar");
     start(async () => {
       const input =
         accion === "ejecutar"
@@ -69,14 +108,18 @@ export default function FormularioAccion({ evento, accionInicial, fechaInicial =
       const res = await registrarAccionSesion(input);
       if (!res.ok) return set_error(res.error);
       const quien = `${sesion} · OSI ${evento.nro_osi ?? evento.id_osi}`;
+      const estatus_osi = res.data.id_estatus_osi;
+      const cambio_osi = estatus_osi !== evento.id_estatus_osi
+        ? estatus_osi === 12 ? " · La OSI pasó a Ejecutada" : estatus_osi === 39 ? " · La OSI pasó a OSI NO EJECUTADA" : estatus_osi === 11 && (evento.id_estatus_osi === 12 || evento.id_estatus_osi === 39) ? " · La OSI se reabrió" : ""
+        : "";
       onDone(
-        accion === "ejecutar"
+        (accion === "ejecutar"
           ? `${quien}: ejecutada`
           : accion === "no_se_dio"
             ? `${quien}: no ejecutada`
             : accion === "reagendar"
               ? `${quien}: reagendada ${fecha ? `para el ${fecha_larga(fecha)}` : "sin fecha todavía"}`
-              : `${quien}: cancelada`,
+              : `${quien}: cancelada`) + cambio_osi,
       );
     });
   };
@@ -186,6 +229,8 @@ export default function FormularioAccion({ evento, accionInicial, fechaInicial =
           </>
         )}
       </div>
+
+      <AvisosAccion avisos={avisos} confirmado={confirmado} onConfirmar={set_confirmado} textoConfirmar={texto_confirmar} />
 
       {error ? <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p> : null}
 
