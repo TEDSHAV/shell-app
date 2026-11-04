@@ -142,6 +142,10 @@ export async function getOSIList(
       !filters.ejecutivo &&
       !filters.dateFrom &&
       !filters.dateTo &&
+      !filters.executionDateFrom &&
+      !filters.executionDateTo &&
+      !filters.issueDateFrom &&
+      !filters.issueDateTo &&
       !filters.status &&
       !filters.attachmentReceived &&
       !filters.tipoServicio;
@@ -174,7 +178,7 @@ export async function getOSIList(
     let query = supabase
       .from("v_osi_lista")
       .select(
-        "id_osi, nro_osi, nombre_empresa, servicio, tipo_servicio, id_ciudad_direccion_ejecucion_efectiva, ejecutivo_negocios, fecha_inicio_real, fecha_fin_real, participantes_ejecucion, participantes_max_solped, id_estatus, sesiones_ejecucion",
+        "id_osi, nro_osi, nombre_empresa, servicio, tipo_servicio, id_ciudad_direccion_ejecucion_efectiva, ejecutivo_negocios, fecha_inicio_real, fecha_fin_real, fecha_emision, participantes_ejecucion, participantes_max_solped, id_estatus, sesiones_ejecucion",
         { count: "exact" },
       );
 
@@ -222,12 +226,29 @@ export async function getOSIList(
       query = query.ilike("ejecutivo_negocios", `%${filters.ejecutivo}%`);
     }
 
-    if (filters.dateFrom) {
-      query = query.gte("fecha_inicio_real", filters.dateFrom);
+    const execFrom = filters.executionDateFrom || filters.dateFrom;
+    const execTo = filters.executionDateTo || filters.dateTo;
+
+    if (execFrom) {
+      query = query.gte("fecha_inicio_real", execFrom);
     }
 
-    if (filters.dateTo) {
-      query = query.lte("fecha_inicio_real", filters.dateTo);
+    if (execTo) {
+      query = query.lte("fecha_inicio_real", execTo);
+    }
+
+    if (filters.issueDateFrom) {
+      const fromStr = filters.issueDateFrom.includes("T")
+        ? filters.issueDateFrom
+        : `${filters.issueDateFrom}T00:00:00-04:00`;
+      query = query.gte("fecha_emision", fromStr);
+    }
+
+    if (filters.issueDateTo) {
+      const toStr = filters.issueDateTo.includes("T")
+        ? filters.issueDateTo
+        : `${filters.issueDateTo}T23:59:59.999-04:00`;
+      query = query.lte("fecha_emision", toStr);
     }
 
     if (filters.status) {
@@ -395,6 +416,7 @@ export async function getOSIList(
         ejecutivo_negocios: osi.ejecutivo_negocios,
         fecha_inicio_real: osi.fecha_inicio_real,
         fecha_fin_real: osi.fecha_fin_real,
+        fecha_emision: osi.fecha_emision,
         participantes: osi.participantes_ejecucion ?? osi.participantes_max_solped ?? null,
         id_estatus: osi.id_estatus,
         status_name: status?.nombre_estado || "Desconocido",

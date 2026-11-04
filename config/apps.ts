@@ -47,6 +47,8 @@ import {
   QrCode,
   Tags,
   Wallet,
+  AlertOctagon,
+  GitFork,
 } from "lucide-react";
 import { build_app_config } from "@/lib/app-theme";
 import { AppConfig, AppGroupConfig, NavGroup } from "@/types";
@@ -1034,6 +1036,7 @@ export const apps: AppConfig[] = [
         href: "/nuevo-servicio?dept=st",
         icon: ClipboardList,
       },
+      { label: "Códigos QR LOTO", path: "/dashboard/loto-qr", icon: QrCode },
       { label: "Control de Calibración", path: "/dashboard/control-calibracion", icon: Gauge },
       { label: "Entrada y Salida de Equipos", path: "/dashboard/entrada-salida-equipos", icon: ArrowLeftRight },
       { label: "Formulario de Novedades", path: "/dashboard/formulario-novedades", icon: FileText },
@@ -1164,6 +1167,24 @@ export const apps: AppConfig[] = [
         label: "Dashboard",
         path: "/dashboard/calidad",
         icon: LayoutDashboard,
+        requiredPermissions: ["scalidad:all:access"],
+      },
+      {
+        label: "Control Panel KPI",
+        path: "/dashboard/calidad/kpi",
+        icon: Gauge,
+        requiredPermissions: ["scalidad:all:access"],
+      },
+      {
+        label: "Hallazgos",
+        path: "/dashboard/calidad/hallazgos",
+        icon: AlertOctagon,
+        requiredPermissions: ["scalidad:all:access"],
+      },
+      {
+        label: "Diagrama Ishikawa",
+        path: "/dashboard/calidad/ishikawa",
+        icon: GitFork,
         requiredPermissions: ["scalidad:all:access"],
       },
       {
