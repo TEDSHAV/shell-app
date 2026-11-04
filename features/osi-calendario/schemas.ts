@@ -27,6 +27,12 @@ export const accion_sesion_schema = z.discriminatedUnion("accion", [
     hora: hora.nullable(),
   }),
   z.object({
+    accion: z.literal("no_se_dio"),
+    id_sesion: z.number().int().positive(),
+    /** Nota opcional de qué pasó. */
+    motivo: z.string().trim().max(1000).nullable(),
+  }),
+  z.object({
     accion: z.literal("reagendar"),
     id_sesion: z.number().int().positive(),
     fecha: fecha.nullable(),

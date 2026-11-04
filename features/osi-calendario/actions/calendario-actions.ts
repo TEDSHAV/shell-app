@@ -6,23 +6,29 @@ import { getUserOSIAccessFilter } from "@/actions/osi";
 import { getOSIComentariosResumen } from "@/actions/osi-comentarios";
 import { getUserPermissionsByApp } from "@/actions/apps";
 import { has_permission_slug } from "@/lib/ted-slugs";
-import { OSI_SESION_GESTIONAR } from "@/lib/osi-slugs";
+import { OSI_SESION_CANCELAR, OSI_SESION_EJECUTAR, OSI_SESION_REAGENDAR } from "@/lib/osi-slugs";
 import { comparar_eventos, estado_sesion, ESTATUS_REAGENDADO } from "../lib/estado-sesion";
 import { es_en_sha } from "../lib/en-sha";
 import { hoy_caracas, normalizar_mes, rango_grilla } from "../lib/mes-grid";
-import type { CalendarioMesData, EventoCalendario, ReagendaHistorial, SesionCalendario } from "../lib/types";
+import type { CalendarioMesData, EventoCalendario, PermisosSesion, ReagendaHistorial, SesionCalendario } from "../lib/types";
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string };
 
-const SESION_COLUMNS =
+const SESION_COLUMNS_BASE =
   "id_sesion, id_osi, nro_osi, nro_sesion, total_sesiones, fecha_planificada, hora_inicio, hora_fin, fecha_reagendada, hora_reagendada, fecha_ejecutada, hora_ejecutada, fecha_efectiva, reagenda_count, motivo_no_ejecucion_tipo, motivo_no_ejecucion, id_estatus_sesion, id_estatus_osi, nombre_empresa, servicio, tipo_servicio, id_ciudad, direccion_ejecucion, ejecutivo_negocios";
+/** Columnas de 20261104170000_osi_sesion_permisos_por_accion; si la migración no está, se lee sin ellas. */
+const SESION_COLUMNS = `${SESION_COLUMNS_BASE}, no_se_dio, no_se_dio_at, no_se_dio_nota`;
 
 const TIPO_ST = "tipo_servicio.ilike.%servicios tecnicos%,tipo_servicio.ilike.%servicio tecnico%";
 
-/** ¿El usuario puede ejecutar / reagendar / no ejecutar sesiones? Una vez por petición. */
-export const canGestionarSesionesOSI = cache(async (): Promise<boolean> => {
+/** Un permiso por acción (ejecutar, reagendar, cancelar). Una vez por petición. */
+export const getPermisosSesionOSI = cache(async (): Promise<PermisosSesion> => {
   const perms = await getUserPermissionsByApp();
-  return has_permission_slug(perms, OSI_SESION_GESTIONAR);
+  return {
+    ejecutar: has_permission_slug(perms, OSI_SESION_EJECUTAR),
+    reagendar: has_permission_slug(perms, OSI_SESION_REAGENDAR),
+    cancelar: has_permission_slug(perms, OSI_SESION_CANCELAR),
+  };
 });
 
 export async function getCalendarioMes(mes_param?: string | null): Promise<Result<CalendarioMesData>> {
@@ -31,9 +37,9 @@ export async function getCalendarioMes(mes_param?: string | null): Promise<Resul
   const { desde, hasta } = rango_grilla(mes);
 
   // Onda 1: acceso, permiso y cliente en paralelo.
-  const [access, puede_gestionar, supabase] = await Promise.all([
+  const [access, permisos, supabase] = await Promise.all([
     getUserOSIAccessFilter(),
-    canGestionarSesionesOSI(),
+    getPermisosSesionOSI(),
     createClient(),
   ]);
   if (access === "none") return { ok: false, error: "Sin acceso a OSIs" };
@@ -44,23 +50,30 @@ export async function getCalendarioMes(mes_param?: string | null): Promise<Resul
     return q;
   };
 
-  const [mes_res, pendientes_res] = await Promise.all([
-    con_acceso(
-      supabase
-        .from("v_osi_sesion_calendario")
-        .select(SESION_COLUMNS)
-        .gte("fecha_efectiva", desde)
-        .lte("fecha_efectiva", hasta),
-    ),
-    con_acceso(
-      supabase
-        .from("v_osi_sesion_calendario")
-        .select(SESION_COLUMNS)
-        .eq("id_estatus_sesion", ESTATUS_REAGENDADO)
-        .is("fecha_reagendada", null)
-        .is("fecha_ejecutada", null),
-    ),
-  ]);
+  const leer = (columnas: string) =>
+    Promise.all([
+      con_acceso(
+        supabase
+          .from("v_osi_sesion_calendario")
+          .select(columnas)
+          .gte("fecha_efectiva", desde)
+          .lte("fecha_efectiva", hasta),
+      ),
+      con_acceso(
+        supabase
+          .from("v_osi_sesion_calendario")
+          .select(columnas)
+          .eq("id_estatus_sesion", ESTATUS_REAGENDADO)
+          .is("fecha_reagendada", null)
+          .is("fecha_ejecutada", null),
+      ),
+    ]);
+
+  let [mes_res, pendientes_res] = await leer(SESION_COLUMNS);
+  // 42703: la vista aún no tiene las columnas "no se dio" (migración pendiente en este entorno).
+  if (mes_res.error?.code === "42703" || pendientes_res.error?.code === "42703") {
+    [mes_res, pendientes_res] = await leer(SESION_COLUMNS_BASE);
+  }
 
   if (mes_res.error || pendientes_res.error) {
     console.error("Error leyendo v_osi_sesion_calendario:", mes_res.error ?? pendientes_res.error);
@@ -83,6 +96,9 @@ export async function getCalendarioMes(mes_param?: string | null): Promise<Resul
 
   const a_evento = (s: SesionCalendario): EventoCalendario => ({
     ...s,
+    no_se_dio: s.no_se_dio ?? false,
+    no_se_dio_at: s.no_se_dio_at ?? null,
+    no_se_dio_nota: s.no_se_dio_nota ?? null,
     estado: estado_sesion(s, hoy),
     ciudad: s.id_ciudad != null ? ciudades.get(s.id_ciudad) ?? null : null,
     comentarios_count: comentarios[s.id_osi]?.total ?? 0,
@@ -96,7 +112,7 @@ export async function getCalendarioMes(mes_param?: string | null): Promise<Resul
     .map(a_evento)
     .sort((a, b) => a.fecha_efectiva.localeCompare(b.fecha_efectiva) || comparar_eventos(a, b));
 
-  return { ok: true, data: { mes, hoy, eventos, por_confirmar, puede_gestionar } };
+  return { ok: true, data: { mes, hoy, eventos, por_confirmar, permisos } };
 }
 
 export async function getReagendasSesion(id_sesion: number): Promise<Result<ReagendaHistorial[]>> {

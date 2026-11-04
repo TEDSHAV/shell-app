@@ -17,6 +17,11 @@ Prioridad: **P0** rompe datos o deja al usuario sin poder trabajar · **P1** pro
 - No sabemos si Capacitación, al reagendar, sobrescribe `osi_sesion.fecha`. Si lo hace, pisa la fecha planificada legal y `fn_sync_osi_dates_from_sessions` mueve `fecha_inicio_real` y `fecha_fin_real` de la OSI.
 - **Decidir:** que haya un solo lugar para reagendar (el calendario), o que Capacitación use la RPC `osi_sesion_registrar_accion`. Además hace falta un backfill de esas 7 sesiones.
 
+> **Actualización (misma fecha):** la migración `20261104170000_osi_sesion_permisos_por_accion.sql` (pendiente de aplicar)
+> separa el permiso en `osis:sesion:ejecutar`, `:reagendar` y `:cancelar`, agrega el estado «No se dio» (columnas
+> `osi_sesion.no_se_dio*`, sin tocar historial ni estatus de la OSI) y rechaza ejecuciones con fecha futura en la RPC.
+> Siguen asignados solo a roles de `sgestion`.
+
 ### P0. Solo los roles de `sgestion` tienen el permiso
 - `osis:sesion:gestionar` se asignó a todos los roles de la app `sgestion`, como se pidió.
 - Quien hoy marca la ejecución en el día a día es Capacitación (roles de `scapacitacion`) y Servicios Técnicos. Esos usuarios ven el calendario pero no pueden registrar nada.

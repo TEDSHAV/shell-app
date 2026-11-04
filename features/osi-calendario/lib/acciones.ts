@@ -1,4 +1,4 @@
-import type { AccionSesion } from "./types";
+import type { AccionSesion, EstadoSesion, PermisosSesion } from "./types";
 
 /** Lo que significa cada acción, visible antes de elegirla (mismo vocabulario que los estados). */
 export const ACCION_UI: Record<AccionSesion, { titulo: string; descripcion: string; boton: string; color: string; activo: string; icono_activo: string }> = {
@@ -9,6 +9,14 @@ export const ACCION_UI: Record<AccionSesion, { titulo: string; descripcion: stri
     color: "border-emerald-200 text-emerald-800 hover:bg-emerald-50",
     activo: "border-emerald-500 bg-emerald-50 ring-1 ring-emerald-500",
     icono_activo: "bg-emerald-600 text-white",
+  },
+  no_se_dio: {
+    titulo: "No se dio",
+    descripcion: "No se dictó en su fecha. Quien corresponda decidirá si se reagenda o se cancela.",
+    boton: "Marcar que no se dio",
+    color: "border-amber-200 text-amber-900 hover:bg-amber-50",
+    activo: "border-amber-500 bg-amber-50 ring-1 ring-amber-500",
+    icono_activo: "bg-amber-500 text-white",
   },
   reagendar: {
     titulo: "Reagendar",
@@ -30,9 +38,35 @@ export const ACCION_UI: Record<AccionSesion, { titulo: string; descripcion: stri
 
 export const ACCION_BOTON_PRIMARIO: Record<AccionSesion, string> = {
   ejecutar: "bg-emerald-600 hover:bg-emerald-700",
+  no_se_dio: "bg-amber-500 hover:bg-amber-600",
   reagendar: "bg-violet-600 hover:bg-violet-700",
   no_ejecutar: "bg-rose-600 hover:bg-rose-700",
 };
+
+export const SIN_PERMISOS: PermisosSesion = { ejecutar: false, reagendar: false, cancelar: false };
+
+export function tiene_algun_permiso(p: PermisosSesion): boolean {
+  return p.ejecutar || p.reagendar || p.cancelar;
+}
+
+/**
+ * Acciones que ve cada quien, en orden:
+ * - ejecutar: permiso ejecutar.
+ * - no_se_dio: permiso ejecutar y le falta reagendar o cancelar (si tiene los tres, decide directo);
+ *   solo si la fecha ya llegó y la sesión sigue abierta.
+ * - reagendar: permiso reagendar. Cancelar: permiso cancelar.
+ */
+export function acciones_disponibles(p: PermisosSesion, estado: EstadoSesion, fecha_efectiva: string, hoy: string): AccionSesion[] {
+  const abierta = estado !== "ejecutada" && estado !== "cancelada";
+  const out: AccionSesion[] = [];
+  if (p.ejecutar) out.push("ejecutar");
+  if (p.ejecutar && !(p.reagendar && p.cancelar) && abierta && estado !== "no_se_dio" && estado !== "sin_fecha" && fecha_efectiva <= hoy) {
+    out.push("no_se_dio");
+  }
+  if (p.reagendar) out.push("reagendar");
+  if (p.cancelar && estado !== "cancelada") out.push("no_ejecutar");
+  return out;
+}
 
 /** Clases del diálogo: centrado en escritorio, hoja inferior en teléfono. */
 export const HOJA_MOVIL =

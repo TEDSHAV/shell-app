@@ -5,10 +5,10 @@ import { Loader2 } from "lucide-react";
 
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { registrarAccionSesion } from "../actions/sesion-accion-actions";
-import { ACCION_BOTON_PRIMARIO, ACCION_UI, HOJA_MOVIL } from "../lib/acciones";
+import { ACCION_BOTON_PRIMARIO, ACCION_UI, acciones_disponibles, HOJA_MOVIL } from "../lib/acciones";
 import { empresa_y_sede } from "../lib/estado-sesion";
 import { fecha_larga, hora_corta, sumar_dias } from "../lib/mes-grid";
-import type { AccionSesion, EventoCalendario } from "../lib/types";
+import type { AccionSesion, EventoCalendario, PermisosSesion } from "../lib/types";
 import { MOTIVOS_CANCELACION, MOTIVOS_REAGENDA } from "../schemas";
 import AccionIcono from "./AccionIcono";
 
@@ -18,18 +18,18 @@ type SesionAccionModalProps = {
   /** Fecha propuesta al soltar la sesión sobre un día del calendario. */
   fechaInicial?: string | null;
   hoy: string;
+  permisos: PermisosSesion;
   onClose: () => void;
   onDone: (mensaje: string) => void;
 };
 
-const ACCIONES: AccionSesion[] = ["ejecutar", "reagendar", "no_ejecutar"];
 const CAMPO = "h-11 rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none focus:border-slate-500";
 
 function hhmm(hora: string | null | undefined): string {
   return hora ? hora.slice(0, 5) : "";
 }
 
-export default function SesionAccionModal({ evento, accionInicial, fechaInicial = null, hoy, onClose, onDone }: SesionAccionModalProps) {
+export default function SesionAccionModal({ evento, accionInicial, fechaInicial = null, hoy, permisos, onClose, onDone }: SesionAccionModalProps) {
   const [accion, set_accion] = useState<AccionSesion>("ejecutar");
   const [fecha, set_fecha] = useState("");
   const [hora, set_hora] = useState("");
@@ -55,29 +55,35 @@ export default function SesionAccionModal({ evento, accionInicial, fechaInicial 
 
   if (!evento) return null;
   const { empresa, sede } = empresa_y_sede(evento.nombre_empresa);
+  const acciones = acciones_disponibles(permisos, evento.estado, evento.fecha_efectiva, hoy);
   const motivos = accion === "reagendar" ? MOTIVOS_REAGENDA : MOTIVOS_CANCELACION;
   const sesion = `Sesión ${evento.nro_sesion}${evento.total_sesiones > 1 ? ` de ${evento.total_sesiones}` : ""}`;
+  const pide_motivo = accion === "reagendar" || accion === "no_ejecutar";
 
   const enviar = () => {
     set_error(null);
     if (accion === "ejecutar" && !fecha) return set_error("Indica la fecha en que se dio");
-    if (accion !== "ejecutar" && motivo.trim().length < 3) return set_error("Escribe el motivo");
+    if (pide_motivo && motivo.trim().length < 3) return set_error("Escribe el motivo");
     start(async () => {
       const input =
         accion === "ejecutar"
           ? { accion, id_sesion: evento.id_sesion, fecha, hora: hora || null }
-          : accion === "reagendar"
-            ? { accion, id_sesion: evento.id_sesion, fecha: fecha || null, hora: fecha && hora ? hora : null, motivo_tipo, motivo }
-            : { accion, id_sesion: evento.id_sesion, motivo_tipo, motivo };
+          : accion === "no_se_dio"
+            ? { accion, id_sesion: evento.id_sesion, motivo: motivo.trim() || null }
+            : accion === "reagendar"
+              ? { accion, id_sesion: evento.id_sesion, fecha: fecha || null, hora: fecha && hora ? hora : null, motivo_tipo, motivo }
+              : { accion, id_sesion: evento.id_sesion, motivo_tipo, motivo };
       const res = await registrarAccionSesion(input);
       if (!res.ok) return set_error(res.error);
       const quien = `${sesion} · OSI ${evento.nro_osi ?? evento.id_osi}`;
       onDone(
         accion === "ejecutar"
           ? `${quien}: ejecutada`
-          : accion === "reagendar"
-            ? `${quien}: reagendada ${fecha ? `para el ${fecha_larga(fecha)}` : "sin fecha todavía"}`
-            : `${quien}: cancelada`,
+          : accion === "no_se_dio"
+            ? `${quien}: se registró que no se dio`
+            : accion === "reagendar"
+              ? `${quien}: reagendada ${fecha ? `para el ${fecha_larga(fecha)}` : "sin fecha todavía"}`
+              : `${quien}: cancelada`,
       );
     });
   };
@@ -107,8 +113,14 @@ export default function SesionAccionModal({ evento, accionInicial, fechaInicial 
           </p>
         ) : null}
 
-        <div className="grid gap-2 sm:grid-cols-3">
-          {ACCIONES.map((a) => {
+        {evento.estado === "no_se_dio" ? (
+          <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            Ya se registró que esta sesión no se dio{evento.no_se_dio_nota ? `: ${evento.no_se_dio_nota}` : ""}. Decide si se reagenda o se cancela.
+          </p>
+        ) : null}
+
+        <div className={`grid gap-2 ${acciones.length >= 3 ? "sm:grid-cols-3" : acciones.length === 2 ? "sm:grid-cols-2" : ""}`}>
+          {acciones.map((a) => {
             const info = ACCION_UI[a];
             const sel = accion === a;
             return (
@@ -147,6 +159,16 @@ export default function SesionAccionModal({ evento, accionInicial, fechaInicial 
               <input type="date" max={hoy} value={fecha} onChange={(e) => set_fecha(e.target.value)} aria-label="Fecha en que se dio" className={CAMPO} />
               <input type="time" value={hora} onChange={(e) => set_hora(e.target.value)} aria-label="Hora" className={CAMPO} />
             </div>
+          </div>
+        ) : accion === "no_se_dio" ? (
+          <div className="flex flex-col gap-2">
+            <span className="text-sm font-medium text-slate-800">
+              ¿Qué pasó? <span className="font-normal text-slate-500">(opcional)</span>
+            </span>
+            <textarea value={motivo} onChange={(e) => set_motivo(e.target.value)} rows={3} placeholder="Por ejemplo: el cliente no llegó, se suspendió por lluvia…" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500" />
+            <p className="text-xs text-slate-500">
+              La sesión queda marcada como «No se dio» y no cambia de fecha. Quien tenga permiso de reagendar o cancelar decidirá qué hacer.
+            </p>
           </div>
         ) : (
           <div className="flex flex-col gap-2">

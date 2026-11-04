@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Building2, ChevronLeft, ChevronRight, Search, SlidersHorizontal, X } from "lucide-react";
+import { Building2, ChevronDown, ChevronLeft, ChevronRight, Search, SlidersHorizontal, X } from "lucide-react";
 
 import { ESTADO_UI, ESTADOS_LEYENDA } from "../lib/estado-sesion";
 import type { EstadoSesion } from "../lib/types";
+import SelectorSemana from "./SelectorSemana";
 
 export type FiltrosCalendario = {
   texto: string;
@@ -33,6 +34,10 @@ type EncabezadoProps = {
   onPrev: () => void;
   onNext: () => void;
   onFiltros: (f: FiltrosCalendario) => void;
+  /** Vista semana: lunes elegido, hoy y salto directo a otra semana. */
+  lunes: string;
+  hoy: string;
+  onSemana: (lunes: string) => void;
 };
 
 const CAMPO = "h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-slate-400";
@@ -44,6 +49,7 @@ const CAMPO = "h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text
 export default function Encabezado(props: EncabezadoProps) {
   const { filtros, onFiltros } = props;
   const [panel, set_panel] = useState(false);
+  const [selector, set_selector] = useState(false);
   const set = <K extends keyof FiltrosCalendario>(k: K, v: FiltrosCalendario[K]) => onFiltros({ ...filtros, [k]: v });
   const n_filtros = [filtros.texto, filtros.tipo, filtros.ejecutivo].filter(Boolean).length;
 
@@ -53,9 +59,37 @@ export default function Encabezado(props: EncabezadoProps) {
         <button type="button" onClick={props.onPrev} aria-label={props.vista === "mes" ? "Mes anterior" : "Semana anterior"} className="shrink-0 rounded-lg p-1.5 text-slate-600 hover:bg-slate-100 sm:p-2">
           <ChevronLeft className="h-5 w-5" />
         </button>
-        <h2 className={`min-w-0 truncate whitespace-nowrap px-1 font-semibold text-slate-900 ${props.vista === "mes" ? "text-xl capitalize sm:text-[1.7rem]" : "text-lg sm:text-2xl"}`}>
-          {props.mesTitulo} <span className="font-normal text-slate-400">{props.anio}</span>
-        </h2>
+        {props.vista === "semana" ? (
+          <div className="relative min-w-0">
+            <button
+              type="button"
+              onClick={() => set_selector((v) => !v)}
+              aria-expanded={selector}
+              title="Elegir semana"
+              className="inline-flex min-w-0 items-center gap-1 rounded-lg px-1 hover:bg-slate-100"
+            >
+              <h2 className="min-w-0 truncate whitespace-nowrap text-lg font-semibold text-slate-900 sm:text-2xl">
+                {props.mesTitulo} <span className="font-normal text-slate-400">{props.anio}</span>
+              </h2>
+              <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition ${selector ? "rotate-180" : ""}`} />
+            </button>
+            {selector ? (
+              <SelectorSemana
+                lunes={props.lunes}
+                hoy={props.hoy}
+                onSelect={(l) => {
+                  set_selector(false);
+                  props.onSemana(l);
+                }}
+                onClose={() => set_selector(false)}
+              />
+            ) : null}
+          </div>
+        ) : (
+          <h2 className="min-w-0 truncate whitespace-nowrap px-1 text-xl font-semibold capitalize text-slate-900 sm:text-[1.7rem]">
+            {props.mesTitulo} <span className="font-normal text-slate-400">{props.anio}</span>
+          </h2>
+        )}
         <button type="button" onClick={props.onNext} aria-label={props.vista === "mes" ? "Mes siguiente" : "Semana siguiente"} className="mr-auto shrink-0 rounded-lg p-1.5 text-slate-600 hover:bg-slate-100 sm:p-2">
           <ChevronRight className="h-5 w-5" />
         </button>

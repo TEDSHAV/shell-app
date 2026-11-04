@@ -7,14 +7,16 @@ export const ESTATUS_REAGENDADO = 46;
 
 /**
  * Estado de una sesión. Manda la fecha ejecutada; luego el último estatus del historial;
- * una reagenda sin fecha queda "sin_fecha"; lo que ya pasó sin registrar, "por_registrar".
+ * "no se dio" (marcado, sin decidir aún) gana sobre lo demás; una reagenda sin fecha queda "sin_fecha";
+ * lo que ya pasó sin registrar, "por_registrar".
  */
 export function estado_sesion(s: Pick<SesionCalendario,
-  "fecha_ejecutada" | "id_estatus_sesion" | "fecha_reagendada" | "reagenda_count" | "fecha_efectiva">,
+  "fecha_ejecutada" | "id_estatus_sesion" | "fecha_reagendada" | "reagenda_count" | "fecha_efectiva"> & { no_se_dio?: boolean },
   hoy: string,
 ): EstadoSesion {
   if (s.fecha_ejecutada || s.id_estatus_sesion === ESTATUS_EJECUTADO) return "ejecutada";
   if (s.id_estatus_sesion === ESTATUS_NO_EJECUTADO) return "cancelada";
+  if (s.no_se_dio) return "no_se_dio";
   if (s.id_estatus_sesion === ESTATUS_REAGENDADO || s.reagenda_count > 0) {
     if (!s.fecha_reagendada) return "sin_fecha";
     return s.fecha_reagendada < hoy ? "por_registrar" : "reagendada";
@@ -23,7 +25,7 @@ export function estado_sesion(s: Pick<SesionCalendario,
 }
 
 /** Orden de la leyenda. `sin_fecha` se cuenta junto con `reagendada`. */
-export const ESTADOS_LEYENDA: EstadoSesion[] = ["programada", "por_registrar", "reagendada", "ejecutada", "cancelada"];
+export const ESTADOS_LEYENDA: EstadoSesion[] = ["programada", "por_registrar", "no_se_dio", "reagendada", "ejecutada", "cancelada"];
 
 type EstadoUi = {
   etiqueta: string;
@@ -56,6 +58,15 @@ export const ESTADO_UI: Record<EstadoSesion, EstadoUi> = {
     punto: "bg-slate-400",
     texto: "text-slate-700",
     pill: "bg-slate-200 text-slate-700",
+  },
+  no_se_dio: {
+    etiqueta: "No se dio",
+    descripcion: "No se dictó en su fecha. Falta decidir si se reagenda o se cancela.",
+    suave: "bg-amber-50 hover:bg-amber-100/70",
+    barra: "border-amber-500",
+    punto: "bg-amber-500",
+    texto: "text-amber-900",
+    pill: "bg-amber-100 text-amber-900",
   },
   reagendada: {
     etiqueta: "Reagendada",
@@ -97,7 +108,7 @@ export const ESTADO_UI: Record<EstadoSesion, EstadoUi> = {
 
 /** Estados en los que la sesión todavía se puede mover de fecha (arrastrar o reagendar). */
 export function se_puede_reagendar(estado: EstadoSesion): boolean {
-  return estado === "programada" || estado === "por_registrar" || estado === "reagendada" || estado === "sin_fecha";
+  return estado === "programada" || estado === "por_registrar" || estado === "no_se_dio" || estado === "reagendada" || estado === "sin_fecha";
 }
 
 /** El filtro de "reagendada" incluye las que no tienen fecha. */

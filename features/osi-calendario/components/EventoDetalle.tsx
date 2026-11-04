@@ -5,17 +5,18 @@ import { ChevronDown, Clock, FileText, MapPin, MessageSquare, User } from "lucid
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { getReagendasSesion } from "../actions/calendario-actions";
-import { ACCION_UI, HOJA_MOVIL } from "../lib/acciones";
+import { ACCION_UI, acciones_disponibles, HOJA_MOVIL } from "../lib/acciones";
 import { empresa_y_sede, ESTADO_UI, hora_efectiva } from "../lib/estado-sesion";
 import { fecha_larga, hora_corta } from "../lib/mes-grid";
-import type { AccionSesion, EventoCalendario, ReagendaHistorial } from "../lib/types";
+import type { AccionSesion, EventoCalendario, PermisosSesion, ReagendaHistorial } from "../lib/types";
 import AccionIcono from "./AccionIcono";
 import OsiPreviewBox from "./OsiPreviewBox";
 
 type EventoDetalleProps = {
   evento: EventoCalendario | null;
   mes: string;
-  puedeGestionar: boolean;
+  hoy: string;
+  permisos: PermisosSesion;
   onClose: () => void;
   onAccion: (evento: EventoCalendario, accion: AccionSesion) => void;
   onComments: (evento: EventoCalendario) => void;
@@ -48,7 +49,7 @@ function Linea({ titulo, fecha, hora, punto }: { titulo: string; fecha: string |
   );
 }
 
-export default function EventoDetalle({ evento, mes, puedeGestionar, onClose, onAccion, onComments }: EventoDetalleProps) {
+export default function EventoDetalle({ evento, mes, hoy, permisos, onClose, onAccion, onComments }: EventoDetalleProps) {
   const [reagendas, set_reagendas] = useState<ReagendaHistorial[]>([]);
   const [ver_formato, set_ver_formato] = useState(false);
   const escritorio = useEsEscritorio();
@@ -71,7 +72,7 @@ export default function EventoDetalle({ evento, mes, puedeGestionar, onClose, on
   const { empresa, sede } = empresa_y_sede(evento.nombre_empresa);
   const hora = hora_corta(hora_efectiva(evento));
   const mostrar_formato = escritorio || ver_formato;
-  const acciones: AccionSesion[] = ["ejecutar", "reagendar", "no_ejecutar"];
+  const acciones = acciones_disponibles(permisos, evento.estado, evento.fecha_efectiva, hoy);
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -150,17 +151,28 @@ export default function EventoDetalle({ evento, mes, puedeGestionar, onClose, on
               </ul>
             ) : null}
 
-            {puedeGestionar ? (
+            {evento.estado === "no_se_dio" ? (
+              <p className="rounded-xl bg-amber-50 px-3.5 py-2.5 text-sm text-amber-900">
+                Se registró que no se dio
+                {evento.no_se_dio_at ? ` el ${new Date(evento.no_se_dio_at).toLocaleDateString("es-VE", { timeZone: "America/Caracas" })}` : ""}.
+                {evento.no_se_dio_nota ? <span className="block text-amber-800/80">{evento.no_se_dio_nota}</span> : null}
+                <span className="block text-xs text-amber-800/80">
+                  {permisos.reagendar || permisos.cancelar ? "Falta decidir si se reagenda o se cancela." : "Quien tenga permiso de reagendar o cancelar decidirá qué hacer."}
+                </span>
+              </p>
+            ) : null}
+
+            {acciones.length ? (
               <div className="flex flex-col gap-1.5">
-                <p className="text-xs font-medium text-slate-500">Registrar qué pasó</p>
-                {acciones.map((a) => {
+                <p className="text-xs font-medium text-slate-500">
+                  {evento.estado === "no_se_dio" ? "Decidir qué pasa con la sesión" : "Registrar qué pasó"}
+                </p>
+                {acciones.map((a: AccionSesion) => {
                   const info = ACCION_UI[a];
-                  const deshabilitada = a === "no_ejecutar" && evento.estado === "cancelada";
                   return (
                     <button
                       key={a}
                       type="button"
-                      disabled={deshabilitada}
                       onClick={() => onAccion(evento, a)}
                       className={`flex items-center gap-3 rounded-xl border bg-white px-3 py-1.5 text-left transition disabled:opacity-40 ${info.color}`}
                     >

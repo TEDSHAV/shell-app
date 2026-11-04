@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { estado_sesion, comparar_eventos, empresa_y_sede } from "../features/osi-calendario/lib/estado-sesion";
 import { es_en_sha } from "../features/osi-calendario/lib/en-sha";
+import { acciones_disponibles } from "../features/osi-calendario/lib/acciones";
 import { hora_corta, inicio_semana, mover_mes, normalizar_mes, rango_grilla, semanas_del_mes } from "../features/osi-calendario/lib/mes-grid";
 
 describe("mes-grid", () => {
@@ -72,5 +73,41 @@ describe("en-sha", () => {
     for (const d of ["CALLE BRASIL CASA NRO S/N", "CARACAS INSTALACIONES DE SIEMENS Y SHA DE VENEZUELA", "CARRETERA LOS MONTONES, BARCELONA", null, ""]) {
       assert.equal(es_en_sha(d), false, String(d));
     }
+  });
+});
+
+describe("no se dio y permisos por acción", () => {
+  const hoy = "2026-11-04";
+  const base = { fecha_ejecutada: null, id_estatus_sesion: null, fecha_reagendada: null, reagenda_count: 0, fecha_efectiva: "2026-11-03" };
+
+  it("«no se dio» queda pendiente de decisión, pero no tapa ejecutada ni cancelada", () => {
+    assert.equal(estado_sesion({ ...base, no_se_dio: true }, hoy), "no_se_dio");
+    assert.equal(estado_sesion({ ...base, no_se_dio: true, id_estatus_sesion: 39 }, hoy), "cancelada");
+    assert.equal(estado_sesion({ ...base, no_se_dio: true, fecha_ejecutada: "2026-11-03" }, hoy), "ejecutada");
+  });
+
+  const todo = { ejecutar: true, reagendar: true, cancelar: true };
+  const solo_ejecutar = { ejecutar: true, reagendar: false, cancelar: false };
+
+  it("con los tres permisos: ejecutar, reagendar y cancelar (sin «no se dio»)", () => {
+    assert.deepEqual(acciones_disponibles(todo, "por_registrar", "2026-11-03", hoy), ["ejecutar", "reagendar", "no_ejecutar"]);
+  });
+
+  it("solo ejecutar: ejecutada / no se dio, y «no se dio» solo si la fecha ya llegó", () => {
+    assert.deepEqual(acciones_disponibles(solo_ejecutar, "por_registrar", "2026-11-03", hoy), ["ejecutar", "no_se_dio"]);
+    assert.deepEqual(acciones_disponibles(solo_ejecutar, "programada", "2026-11-10", hoy), ["ejecutar"]);
+    assert.deepEqual(acciones_disponibles(solo_ejecutar, "no_se_dio", "2026-11-03", hoy), ["ejecutar"]);
+  });
+
+  it("ejecutar y reagendar sin cancelar: también puede marcar «no se dio»", () => {
+    assert.deepEqual(
+      acciones_disponibles({ ejecutar: true, reagendar: true, cancelar: false }, "por_registrar", "2026-11-03", hoy),
+      ["ejecutar", "no_se_dio", "reagendar"],
+    );
+  });
+
+  it("sin permisos no hay acciones; una cancelada no se vuelve a cancelar", () => {
+    assert.deepEqual(acciones_disponibles({ ejecutar: false, reagendar: false, cancelar: false }, "por_registrar", "2026-11-03", hoy), []);
+    assert.deepEqual(acciones_disponibles(todo, "cancelada", "2026-11-03", hoy), ["ejecutar", "reagendar"]);
   });
 });

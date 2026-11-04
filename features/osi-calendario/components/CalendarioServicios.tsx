@@ -114,7 +114,7 @@ export default function CalendarioServicios({ data, mostrarTipo }: { data: Calen
     if (nuevo_lunes < desde || sumar_dias(nuevo_lunes, 6) > hasta) ir_a_mes(sumar_dias(nuevo_lunes, 3).slice(0, 7));
   };
 
-  const puede_arrastrar = (e: EventoCalendario) => data.puede_gestionar && se_puede_reagendar(e.estado);
+  const puede_arrastrar = (e: EventoCalendario) => data.permisos.reagendar && se_puede_reagendar(e.estado);
   const soltar = (evento: EventoCalendario, fecha: string) => {
     set_arrastrando(null);
     if (evento.estado !== "sin_fecha" && fecha === evento.fecha_efectiva) return;
@@ -163,6 +163,9 @@ export default function CalendarioServicios({ data, mostrarTipo }: { data: Calen
           anio={vista === "mes" ? anio_mes : semana.anio}
           vista={vista}
           onVista={cambiar_vista}
+          lunes={lunes}
+          hoy={data.hoy}
+          onSemana={ir_a_semana}
           filtros={filtros}
           conteo={conteo}
           conteoEnSha={conteo_en_sha}
@@ -196,7 +199,7 @@ export default function CalendarioServicios({ data, mostrarTipo }: { data: Calen
               onArrastre={set_arrastrando}
               onSoltar={soltar}
             />
-            {data.puede_gestionar ? (
+            {data.permisos.reagendar ? (
               <p className="-mt-2 hidden text-xs text-slate-400 md:block">Arrastra una sesión a otro día para reagendarla.</p>
             ) : null}
           </>
@@ -214,7 +217,7 @@ export default function CalendarioServicios({ data, mostrarTipo }: { data: Calen
             onArrastre={set_arrastrando}
             onSoltar={soltar}
           />
-          {data.puede_gestionar ? (
+          {data.permisos.reagendar ? (
             <p className="mt-2 text-xs text-slate-400">Arrastra una sesión a otro día para reagendarla.</p>
           ) : null}
         </div>
@@ -242,7 +245,7 @@ export default function CalendarioServicios({ data, mostrarTipo }: { data: Calen
           <h3 className="text-base font-semibold text-slate-900">Reagendadas sin fecha</h3>
           <p className="mb-3 text-xs text-slate-500">
             No se dieron y todavía no tienen fecha nueva, por eso no aparecen en el calendario.
-            {data.puede_gestionar ? <span className="hidden md:inline"> Arrastra una al calendario para darle fecha.</span> : null}
+            {data.permisos.reagendar ? <span className="hidden md:inline"> Arrastra una al calendario para darle fecha.</span> : null}
           </p>
           <div className="grid gap-2 lg:grid-cols-2">
             {sin_fecha.map((e) => (
@@ -262,7 +265,8 @@ export default function CalendarioServicios({ data, mostrarTipo }: { data: Calen
       <EventoDetalle
         evento={detalle}
         mes={data.mes}
-        puedeGestionar={data.puede_gestionar}
+        permisos={data.permisos}
+        hoy={data.hoy}
         onClose={() => set_detalle(null)}
         onAccion={abrir_accion}
         onComments={(e) => {
@@ -274,6 +278,7 @@ export default function CalendarioServicios({ data, mostrarTipo }: { data: Calen
         evento={accion?.evento ?? null}
         accionInicial={accion?.accion ?? null}
         fechaInicial={accion?.fecha ?? null}
+        permisos={data.permisos}
         hoy={data.hoy}
         onClose={() => set_accion(null)}
         onDone={(mensaje) => {
