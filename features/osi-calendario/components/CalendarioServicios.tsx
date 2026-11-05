@@ -2,18 +2,23 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { CheckCircle2, X } from "lucide-react";
 
 import OSICommentsSheet from "@/app/(shell)/consulta-osi/components/OSICommentsSheet";
 import type { OSIListItem } from "@/types/osi";
 import { coincide_estado, empresa_y_sede, se_puede_reagendar } from "../lib/estado-sesion";
+import { FILTROS_VACIOS, opciones_filtros, pasa_filtros, type FiltrosCalendario } from "../lib/filtros";
 import { etiqueta_mes, fecha_larga, inicio_semana, mover_mes, rango_grilla, sumar_dias } from "../lib/mes-grid";
 import type { AccionSesion, CalendarioMesData, EstadoSesion, EventoCalendario } from "../lib/types";
 import AgendaItem from "./AgendaItem";
+import Aviso from "./Aviso";
 import CalendarioMes from "./CalendarioMes";
 import CalendarioSemana from "./CalendarioSemana";
-import Encabezado, { FILTROS_VACIOS, type FiltrosCalendario, type Vista } from "./Encabezado";
+import CalendarioDia from "./CalendarioDia";
+import Encabezado, { type Vista } from "./Encabezado";
 import EventoDetalle, { type PasoAccion } from "./EventoDetalle";
+import { PuedeFacturarContext } from "./IndicadoresOSI";
+import BotonExportar from "./exportar/BotonExportar";
+import { armar_datos, nombre_archivo } from "../lib/exportar";
 import MiniMes from "./MiniMes";
 import TablaServicios from "./TablaServicios";
 import BarraLote from "./lote/BarraLote";
@@ -22,7 +27,6 @@ import { SeleccionContext } from "./lote/seleccion-context";
 import { useSeleccion } from "../hooks/use-seleccion";
 import { tiene_algun_permiso } from "../lib/acciones";
 
-const ES_ST = /servicios? tecnicos?/i;
 const MESES_CORTOS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 
 /** "2 – 8 nov" o, si la semana cruza de mes, "28 sep – 4 oct". */
@@ -32,6 +36,14 @@ function titulo_semana(lunes: string): { titulo: string; anio: string } {
   const m = (f: string) => MESES_CORTOS[Number(f.slice(5, 7)) - 1];
   const titulo = m(lunes) === m(domingo) ? `${d(lunes)} – ${d(domingo)} ${m(domingo)}` : `${d(lunes)} ${m(lunes)} – ${d(domingo)} ${m(domingo)}`;
   return { titulo, anio: domingo.slice(0, 4) };
+}
+
+const DIAS_CORTOS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+
+/** "Jue 5 nov" (corto para que quepa con las flechas en el teléfono). */
+function titulo_dia(fecha: string): string {
+  const d = new Date(`${fecha}T12:00:00`);
+  return `${DIAS_CORTOS[d.getDay()]} ${Number(fecha.slice(8))} ${MESES_CORTOS[Number(fecha.slice(5, 7)) - 1]}`;
 }
 
 function a_osi_item(e: EventoCalendario): OSIListItem {
@@ -73,8 +85,13 @@ export default function CalendarioServicios({ data, mostrarTipo }: { data: Calen
   const [arrastrando, set_arrastrando] = useState<EventoCalendario | null>(null);
   const [chat, set_chat] = useState<EventoCalendario | null>(null);
   const [aviso, set_aviso] = useState<string | null>(null);
+  const [error, set_error] = useState<string | null>(null);
 
-  useEffect(() => set_dia(dia_inicial), [dia_inicial]);
+  // Al cargar otro mes: en vista día se conserva el día elegido (si cae en la grilla); si no, se vuelve al día inicial.
+  useEffect(() => {
+    const { desde, hasta } = rango_grilla(data.mes);
+    set_dia((d) => (vista === "dia" && d >= desde && d <= hasta ? d : dia_inicial));
+  }, [dia_inicial]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Selección múltiple: con la selección activa, tocar una sesión la marca en lugar de abrir el detalle.
   const seleccion = useSeleccion();
@@ -88,25 +105,21 @@ export default function CalendarioServicios({ data, mostrarTipo }: { data: Calen
 
   const ir_a_mes = (mes: string) => router.push(`${pathname}?mes=${mes}`, { scroll: false });
 
-  const pasa_base = (e: EventoCalendario) => {
-    const t = filtros.texto.trim().toLowerCase();
-    if (t && !`${e.nro_osi ?? ""} ${e.nombre_empresa ?? ""} ${e.servicio ?? ""}`.toLowerCase().includes(t)) return false;
-    if (filtros.tipo === "capacitacion" && !/capacitacion/i.test(e.tipo_servicio ?? "")) return false;
-    if (filtros.tipo === "servicios_tecnicos" && !ES_ST.test(e.tipo_servicio ?? "")) return false;
-    if (filtros.ejecutivo && e.ejecutivo_negocios !== filtros.ejecutivo) return false;
-    if (filtros.en_sha && !e.en_sha) return false;
-    return true;
-  };
+  const pasa_base = (e: EventoCalendario) => pasa_filtros(e, filtros);
 
   const base = useMemo(() => data.eventos.filter(pasa_base), [data.eventos, filtros]); // eslint-disable-line react-hooks/exhaustive-deps
   const sin_fecha_base = useMemo(() => data.por_confirmar.filter(pasa_base), [data.por_confirmar, filtros]); // eslint-disable-line react-hooks/exhaustive-deps
   const eventos = useMemo(() => base.filter((e) => coincide_estado(e.estado, filtros.estado)), [base, filtros.estado]);
   const sin_fecha = useMemo(() => sin_fecha_base.filter((e) => coincide_estado(e.estado, filtros.estado)), [sin_fecha_base, filtros.estado]);
 
-  /** Periodo visible: el mes o la semana. Leyenda, contadores y tabla se calculan sobre él. */
+  /** Periodo visible: el mes, la semana o el día. Leyenda, contadores y tabla se calculan sobre él. */
   const domingo = sumar_dias(lunes, 6);
   const en_periodo = (e: EventoCalendario) =>
-    vista === "mes" ? e.fecha_efectiva.startsWith(data.mes) : e.fecha_efectiva >= lunes && e.fecha_efectiva <= domingo;
+    vista === "mes"
+      ? e.fecha_efectiva.startsWith(data.mes)
+      : vista === "dia"
+        ? e.fecha_efectiva === dia
+        : e.fecha_efectiva >= lunes && e.fecha_efectiva <= domingo;
 
   const conteo = useMemo(() => {
     const c: Partial<Record<EstadoSesion, number>> = {};
@@ -115,12 +128,28 @@ export default function CalendarioServicios({ data, mostrarTipo }: { data: Calen
       c[k] = (c[k] ?? 0) + 1;
     }
     return c;
-  }, [base, sin_fecha_base, data.mes, vista, lunes]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [base, sin_fecha_base, data.mes, vista, lunes, dia]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const conteo_en_sha = useMemo(
     () => [...data.eventos.filter(en_periodo), ...data.por_confirmar].filter((e) => e.en_sha).length,
-    [data.eventos, data.por_confirmar, data.mes, vista, lunes], // eslint-disable-line react-hooks/exhaustive-deps
+    [data.eventos, data.por_confirmar, data.mes, vista, lunes, dia], // eslint-disable-line react-hooks/exhaustive-deps
   );
+
+  /** Sesiones por N° de OC en el periodo (sin filtros), para el selector de orden de compra. */
+  const oc_en_periodo = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const e of [...data.eventos.filter(en_periodo), ...data.por_confirmar]) {
+      for (const oc of e.ordenes_compra) m.set(oc, (m.get(oc) ?? 0) + 1);
+    }
+    return m;
+  }, [data.eventos, data.por_confirmar, data.mes, vista, lunes, dia]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Mueve el día; si sale de la grilla cargada, pide su mes. */
+  const ir_a_dia = (fecha: string) => {
+    set_dia(fecha);
+    const { desde, hasta } = rango_grilla(data.mes);
+    if (fecha < desde || fecha > hasta) ir_a_mes(fecha.slice(0, 7));
+  };
 
   /** Mueve la semana; si sale de la grilla cargada, pide el mes de esa semana (el del jueves). */
   const ir_a_semana = (nuevo_lunes: string) => {
@@ -142,8 +171,8 @@ export default function CalendarioServicios({ data, mostrarTipo }: { data: Calen
     set_detalle(evento);
   };
 
-  const ejecutivos = useMemo(
-    () => [...new Set([...data.eventos, ...data.por_confirmar].map((e) => e.ejecutivo_negocios).filter((x): x is string => !!x))].sort(),
+  const opciones = useMemo(
+    () => opciones_filtros([...data.eventos, ...data.por_confirmar]),
     [data.eventos, data.por_confirmar],
   );
   const por_fecha = useMemo(() => {
@@ -162,6 +191,8 @@ export default function CalendarioServicios({ data, mostrarTipo }: { data: Calen
   const semana = titulo_semana(lunes);
 
   const cambiar_vista = (v: Vista) => {
+    // La vista día arranca hoy si hoy está en el mes cargado; si no, en el día ya elegido de ese mes.
+    if (v === "dia" && vista !== "dia" && data.hoy.startsWith(data.mes)) set_dia(data.hoy);
     // Al pasar a semana desde el mes, arranca en la semana del día elegido (hoy o el primero con sesiones).
     if (v === "semana" && vista === "mes") {
       const { desde, hasta } = rango_grilla(data.mes);
@@ -171,12 +202,15 @@ export default function CalendarioServicios({ data, mostrarTipo }: { data: Calen
   };
 
   return (
+    <PuedeFacturarContext.Provider value={data.puede_facturar}>
     <SeleccionContext.Provider value={{ activa: seleccion.activa, tiene: seleccion.tiene }}>
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
         <Encabezado
-          mesTitulo={vista === "mes" ? mes_nombre : semana.titulo}
-          anio={vista === "mes" ? anio_mes : semana.anio}
+          mesTitulo={vista === "mes" ? mes_nombre : vista === "dia" ? titulo_dia(dia) : semana.titulo}
+          anio={vista === "mes" ? anio_mes : vista === "dia" ? dia.slice(0, 4) : semana.anio}
+          dia={dia}
+          onDia={ir_a_dia}
           vista={vista}
           onVista={cambiar_vista}
           lunes={lunes}
@@ -185,26 +219,43 @@ export default function CalendarioServicios({ data, mostrarTipo }: { data: Calen
           mes={data.mes}
           onMes={ir_a_mes}
           puedeSeleccionar={puede_seleccionar}
+          exportar={
+            <BotonExportar
+              archivo={nombre_archivo(vista, data.mes, lunes, dia)}
+              onError={set_error}
+              obtenerDatos={() =>
+                armar_datos({
+                  vista,
+                  titulo: vista === "mes" ? `${mes_nombre} ${anio_mes}` : vista === "dia" ? `${titulo_dia(dia)} ${dia.slice(0, 4)}` : `${semana.titulo} ${semana.anio}`,
+                  mes: data.mes,
+                  lunes,
+                  dia,
+                  eventos,
+                  sin_fecha,
+                  filtros,
+                })
+              }
+            />
+          }
           seleccionando={seleccion.activa}
           onSeleccionar={() => (seleccion.activa ? seleccion.salir() : seleccion.set_activa(true))}
           filtros={filtros}
           conteo={conteo}
           conteoEnSha={conteo_en_sha}
-          ejecutivos={ejecutivos}
+          opciones={opciones}
+          ocEnPeriodo={oc_en_periodo}
           mostrarTipo={mostrarTipo}
-          onPrev={() => (vista === "mes" ? ir_a_mes(mover_mes(data.mes, -1)) : ir_a_semana(sumar_dias(lunes, -7)))}
-          onNext={() => (vista === "mes" ? ir_a_mes(mover_mes(data.mes, 1)) : ir_a_semana(sumar_dias(lunes, 7)))}
+          onPrev={() => (vista === "mes" ? ir_a_mes(mover_mes(data.mes, -1)) : vista === "dia" ? ir_a_dia(sumar_dias(dia, -1)) : ir_a_semana(sumar_dias(lunes, -7)))}
+          onNext={() => (vista === "mes" ? ir_a_mes(mover_mes(data.mes, 1)) : vista === "dia" ? ir_a_dia(sumar_dias(dia, 1)) : ir_a_semana(sumar_dias(lunes, 7)))}
           onFiltros={set_filtros}
         />
 
-        {aviso ? (
-          <div className="flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-800" role="status">
-            <CheckCircle2 className="h-4 w-4 shrink-0" />
-            <span className="min-w-0 flex-1">{aviso}</span>
-            <button type="button" onClick={() => set_aviso(null)} aria-label="Cerrar aviso" className="rounded p-0.5 hover:bg-emerald-100">
-              <X className="h-4 w-4" />
-            </button>
-          </div>
+        {aviso ? <Aviso tipo="ok" texto={aviso} onCerrar={() => set_aviso(null)} /> : null}
+
+        {error ? <Aviso tipo="error" texto={error} onCerrar={() => set_error(null)} /> : null}
+
+        {vista === "dia" ? (
+          <CalendarioDia dia={dia} hoy={data.hoy} eventosPorFecha={por_fecha} onDia={ir_a_dia} onSelect={al_tocar} onComments={set_chat} />
         ) : null}
 
         {vista === "semana" ? (
@@ -276,12 +327,15 @@ export default function CalendarioServicios({ data, mostrarTipo }: { data: Calen
         </section>
       ) : null}
 
-      <TablaServicios
-        titulo={vista === "mes" ? "Servicios del mes" : "Servicios de la semana"}
-        eventos={[...del_periodo, ...sin_fecha]}
-        onSelect={al_tocar}
-        onComments={set_chat}
-      />
+      {/* En la vista día la lista ya es la tabla; la tabla queda para semana y mes. */}
+      {vista !== "dia" ? (
+        <TablaServicios
+          titulo={vista === "mes" ? "Servicios del mes" : "Servicios de la semana"}
+          eventos={[...del_periodo, ...sin_fecha]}
+          onSelect={al_tocar}
+          onComments={set_chat}
+        />
+      ) : null}
 
       <EventoDetalle
         evento={detalle}
@@ -331,5 +385,6 @@ export default function CalendarioServicios({ data, mostrarTipo }: { data: Calen
       />
     </div>
     </SeleccionContext.Provider>
+    </PuedeFacturarContext.Provider>
   );
 }

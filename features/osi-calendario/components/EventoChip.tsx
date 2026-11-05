@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useContext, useState } from "react";
 import { MessageSquare } from "lucide-react";
 
+import { estatus_factura, etiqueta_factura, se_puede_facturar } from "../lib/factura";
 import { empresa_y_sede, ESTADO_UI, hora_efectiva } from "../lib/estado-sesion";
 import { hora_corta } from "../lib/mes-grid";
+import { BotonFactura, IndicadorCertificado, PuedeFacturarContext, UbicacionSesion } from "./IndicadoresOSI";
 import { MarcaSeleccion, useEstadoSeleccion } from "./lote/seleccion-context";
 import type { EventoCalendario } from "../lib/types";
 
@@ -65,8 +67,22 @@ function TarjetaHover({ evento, rect, arrastrable }: { evento: EventoCalendario;
       <p className="mt-1.5 text-xs text-slate-500">
         {hora ?? "Sin hora"}
         {evento.total_sesiones > 1 ? ` · Sesión ${evento.nro_sesion} de ${evento.total_sesiones}` : ""}
-        {evento.en_sha ? " · En SHA" : ""}
+        {evento.en_sha ? " · En SHA" : evento.ciudad ? ` · ${evento.ciudad}` : ""}
       </p>
+      {evento.certificados > 0 || evento.factura || evento.ordenes_compra.length ? (
+        <ul className="mt-2 space-y-0.5 border-t border-slate-100 pt-2 text-xs text-slate-600">
+          {evento.certificados > 0 ? (
+            <li className="text-emerald-700">{evento.certificados === 1 ? "1 certificado listo" : `${evento.certificados} certificados listos`}</li>
+          ) : null}
+          {evento.factura ? (
+            <li className="text-emerald-700">
+              {etiqueta_factura(evento.factura)}
+              {estatus_factura(evento.factura) ? ` · ${estatus_factura(evento.factura)}` : ""}
+            </li>
+          ) : null}
+          {evento.ordenes_compra.length ? <li>OC {evento.ordenes_compra.join(", ")}</li> : null}
+        </ul>
+      ) : null}
       {arrastrable ? <p className="mt-2 border-t border-slate-100 pt-2 text-[11px] text-slate-400">Arrástrala a otro día para reagendar</p> : null}
     </div>
   );
@@ -80,6 +96,7 @@ export default function EventoChip({ evento, onSelect, onComments, arrastrable: 
   const { empresa, sede } = empresa_y_sede(evento.nombre_empresa);
   const hora = hora_corta(hora_efectiva(evento));
   const [rect, set_rect] = useState<DOMRect | null>(null);
+  const puede_facturar = useContext(PuedeFacturarContext);
 
   return (
     <div
@@ -125,19 +142,31 @@ export default function EventoChip({ evento, onSelect, onComments, arrastrable: 
           {sede ? <span className="text-slate-400"> · {sede}</span> : null}
         </span>
       )}
-      <span className={`flex items-center gap-1 text-[10.8px] leading-4 text-slate-500 ${expandida ? "flex-wrap gap-x-1.5" : ""}`}>
+      {/* Pie: hora, sesión y factura; debajo, dónde se dicta con el certificado en la esquina inferior derecha. */}
+      <span className="flex min-h-5 items-center gap-1.5 text-[10.8px] leading-4 text-slate-500">
         <span className="shrink-0 whitespace-nowrap tabular-nums">{hora ?? "Sin hora"}</span>
-        {evento.en_sha ? (
-          <span className="shrink-0 rounded bg-white/80 px-1 text-[9px] font-semibold uppercase leading-[0.9rem] tracking-wide text-slate-500 ring-1 ring-slate-200" title="Se dicta en SHA">
-            SHA
+        {evento.total_sesiones > 1 ? (
+          <span className="shrink-0 tabular-nums text-slate-400" title={`Sesión ${evento.nro_sesion} de ${evento.total_sesiones}`}>
+            {expandida ? `· Sesión ${evento.nro_sesion}/${evento.total_sesiones}` : `· S${evento.nro_sesion}/${evento.total_sesiones}`}
           </span>
         ) : null}
-        {evento.total_sesiones > 1 ? (
-          <span className={`tabular-nums text-slate-400 ${expandida ? "text-[10.8px]" : "ml-auto min-w-0 truncate text-[10px]"}`} title={`Sesión ${evento.nro_sesion} de ${evento.total_sesiones}`}>
-            {expandida ? `Sesión ${evento.nro_sesion}/${evento.total_sesiones}` : `S${evento.nro_sesion}/${evento.total_sesiones}`}
+        {!expandida ? (
+          <span className="ml-auto flex shrink-0 items-center">
+            <BotonFactura evento={evento} variante="icono" />
           </span>
         ) : null}
       </span>
+      <span className="flex min-h-5 items-center gap-1 text-[10.8px] leading-4 text-slate-600">
+        <UbicacionSesion evento={evento} className="min-w-0 flex-1" />
+        <span className="ml-auto flex shrink-0">
+          <IndicadorCertificado evento={evento} variante="icono" />
+        </span>
+      </span>
+      {expandida && (evento.factura || se_puede_facturar(evento, puede_facturar)) ? (
+        <span className="mt-1 flex flex-wrap items-center gap-1">
+          <BotonFactura evento={evento} variante="etiqueta" />
+        </span>
+      ) : null}
       {evento.comentarios_count > 0 ? (
         <button
           type="button"

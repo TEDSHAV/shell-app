@@ -1,28 +1,25 @@
 "use client";
 
-import { useState } from "react";
-import { Building2, CheckSquare, ChevronDown, ChevronLeft, ChevronRight, Search, SlidersHorizontal, X } from "lucide-react";
+import { useRef, useState } from "react";
+import { Building2, CheckSquare, ChevronDown, ChevronLeft, ChevronRight, SlidersHorizontal } from "lucide-react";
 
 import { ESTADO_UI, ESTADOS_LEYENDA } from "../lib/estado-sesion";
+import { contar_filtros_panel, type FiltrosCalendario } from "../lib/filtros";
 import type { EstadoSesion } from "../lib/types";
+import PanelFiltros, { FiltrosActivos, type OpcionesFiltros } from "./filtros/PanelFiltros";
 import SelectorMes from "./SelectorMes";
 import SelectorSemana from "./SelectorSemana";
 
-export type FiltrosCalendario = {
-  texto: string;
-  tipo: "" | "capacitacion" | "servicios_tecnicos";
-  ejecutivo: string;
-  estado: "" | EstadoSesion;
-  /** Solo sesiones en las instalaciones de SHA. */
-  en_sha: boolean;
-};
+export type Vista = "dia" | "semana" | "mes";
 
-export const FILTROS_VACIOS: FiltrosCalendario = { texto: "", tipo: "", ejecutivo: "", estado: "", en_sha: false };
-
-export type Vista = "mes" | "semana";
+const VISTAS: Array<{ v: Vista; etiqueta: string }> = [
+  { v: "dia", etiqueta: "Día" },
+  { v: "semana", etiqueta: "Semana" },
+  { v: "mes", etiqueta: "Mes" },
+];
 
 type EncabezadoProps = {
-  /** "Octubre" en vista mes; "2 – 8 nov" en vista semana. */
+  /** "Octubre" en vista mes; "2 – 8 nov" en vista semana; "Jueves 5 nov" en vista día. */
   mesTitulo: string;
   anio: string;
   vista: Vista;
@@ -30,7 +27,9 @@ type EncabezadoProps = {
   filtros: FiltrosCalendario;
   conteo: Partial<Record<EstadoSesion, number>>;
   conteoEnSha: number;
-  ejecutivos: string[];
+  opciones: OpcionesFiltros;
+  /** Sesiones por N° de OC en el periodo visible. */
+  ocEnPeriodo: Map<string, number>;
   mostrarTipo: boolean;
   onPrev: () => void;
   onNext: () => void;
@@ -39,16 +38,22 @@ type EncabezadoProps = {
   lunes: string;
   hoy: string;
   onSemana: (lunes: string) => void;
+  /** Vista día: día elegido y salto directo a otra fecha. */
+  dia: string;
+  onDia: (fecha: string) => void;
   /** Vista mes: mes cargado ('YYYY-MM') y salto directo a otro mes. */
   mes: string;
   onMes: (mes: string) => void;
   /** Selección múltiple: solo se ofrece si el usuario tiene algún permiso de acción. */
   puedeSeleccionar: boolean;
+  /** Botón «Exportar» (PNG / PDF). */
+  exportar: React.ReactNode;
   seleccionando: boolean;
   onSeleccionar: () => void;
 };
 
-const CAMPO = "h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-slate-400";
+const ANTERIOR: Record<Vista, string> = { dia: "Día anterior", semana: "Semana anterior", mes: "Mes anterior" };
+const SIGUIENTE: Record<Vista, string> = { dia: "Día siguiente", semana: "Semana siguiente", mes: "Mes siguiente" };
 
 /**
  * Arriba: ‹ mes año › y, a la derecha, Filtros (panel plegable).
@@ -58,30 +63,49 @@ export default function Encabezado(props: EncabezadoProps) {
   const { filtros, onFiltros } = props;
   const [panel, set_panel] = useState(false);
   const [selector, set_selector] = useState(false);
+  const fecha_input = useRef<HTMLInputElement>(null);
   const set = <K extends keyof FiltrosCalendario>(k: K, v: FiltrosCalendario[K]) => onFiltros({ ...filtros, [k]: v });
-  const n_filtros = [filtros.texto, filtros.tipo, filtros.ejecutivo].filter(Boolean).length;
+  const n_filtros = contar_filtros_panel(filtros);
   const total = Object.values(props.conteo).reduce((a, b) => a + (b ?? 0), 0);
 
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-1">
-        <button type="button" onClick={props.onPrev} aria-label={props.vista === "mes" ? "Mes anterior" : "Semana anterior"} className="shrink-0 rounded-lg p-1.5 text-slate-600 hover:bg-slate-100 sm:p-2">
+        <button type="button" onClick={props.onPrev} aria-label={ANTERIOR[props.vista]} className="shrink-0 rounded-lg p-1.5 text-slate-600 hover:bg-slate-100 sm:p-2">
           <ChevronLeft className="h-5 w-5" />
         </button>
         {/* El título abre un selector: anual en vista mes, de semanas en vista semana. */}
         <div className="relative min-w-0">
           <button
             type="button"
-            onClick={() => set_selector((v) => !v)}
-            aria-expanded={selector}
-            title={props.vista === "mes" ? "Elegir mes" : "Elegir semana"}
+            onClick={() => {
+              if (props.vista !== "dia") return set_selector((v) => !v);
+              try {
+                fecha_input.current?.showPicker();
+              } catch {
+                fecha_input.current?.focus();
+              }
+            }}
+            aria-expanded={props.vista === "dia" ? undefined : selector}
+            title={props.vista === "mes" ? "Elegir mes" : props.vista === "semana" ? "Elegir semana" : "Elegir fecha"}
             className="inline-flex min-w-0 items-center gap-1 rounded-lg px-1 hover:bg-slate-100"
           >
-            <h2 className={`min-w-0 truncate whitespace-nowrap font-semibold text-slate-900 ${props.vista === "mes" ? "text-xl capitalize sm:text-[1.7rem]" : "text-lg sm:text-2xl"}`}>
+            <h2 className={`min-w-0 truncate whitespace-nowrap font-semibold text-slate-900 ${props.vista === "semana" ? "text-lg sm:text-2xl" : props.vista === "dia" ? "text-xl sm:text-[1.7rem]" : "text-xl capitalize sm:text-[1.7rem]"}`}>
               {props.mesTitulo} <span className="font-normal text-slate-400">{props.anio}</span>
             </h2>
             <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition ${selector ? "rotate-180" : ""}`} />
           </button>
+          {props.vista === "dia" ? (
+            <input
+              ref={fecha_input}
+              type="date"
+              value={props.dia}
+              onChange={(e) => e.target.value && props.onDia(e.target.value)}
+              tabIndex={-1}
+              aria-hidden
+              className="pointer-events-none absolute bottom-0 left-0 h-0 w-0 opacity-0"
+            />
+          ) : null}
           {selector && props.vista === "semana" ? (
             <SelectorSemana
               lunes={props.lunes}
@@ -105,9 +129,10 @@ export default function Encabezado(props: EncabezadoProps) {
             />
           ) : null}
         </div>
-        <button type="button" onClick={props.onNext} aria-label={props.vista === "mes" ? "Mes siguiente" : "Semana siguiente"} className="mr-auto shrink-0 rounded-lg p-1.5 text-slate-600 hover:bg-slate-100 sm:p-2">
+        <button type="button" onClick={props.onNext} aria-label={SIGUIENTE[props.vista]} className="mr-auto shrink-0 rounded-lg p-1.5 text-slate-600 hover:bg-slate-100 sm:p-2">
           <ChevronRight className="h-5 w-5" />
         </button>
+        {props.exportar}
         {props.puedeSeleccionar ? (
           <button
             type="button"
@@ -133,34 +158,10 @@ export default function Encabezado(props: EncabezadoProps) {
       </div>
 
       {panel ? (
-        <div className="grid gap-2 rounded-xl bg-slate-50 p-3 sm:grid-cols-[1fr_auto_auto_auto]">
-          <label className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input value={filtros.texto} onChange={(e) => set("texto", e.target.value)} placeholder="N° OSI, empresa o servicio" className={`${CAMPO} pl-9`} />
-          </label>
-          {props.mostrarTipo ? (
-            <select value={filtros.tipo} onChange={(e) => set("tipo", e.target.value as FiltrosCalendario["tipo"])} className={CAMPO} aria-label="Tipo de servicio">
-              <option value="">Todos los tipos</option>
-              <option value="capacitacion">Capacitación</option>
-              <option value="servicios_tecnicos">Servicios técnicos</option>
-            </select>
-          ) : null}
-          <select value={filtros.ejecutivo} onChange={(e) => set("ejecutivo", e.target.value)} className={CAMPO} aria-label="Ejecutivo">
-            <option value="">Todos los ejecutivos</option>
-            {props.ejecutivos.map((e) => (
-              <option key={e} value={e}>{e}</option>
-            ))}
-          </select>
-          <button
-            type="button"
-            onClick={() => onFiltros({ ...FILTROS_VACIOS, estado: filtros.estado, en_sha: filtros.en_sha })}
-            disabled={!n_filtros}
-            className="inline-flex h-10 items-center justify-center gap-1 rounded-lg px-3 text-sm font-medium text-slate-600 hover:bg-slate-200 disabled:opacity-40"
-          >
-            <X className="h-4 w-4" /> Limpiar
-          </button>
-        </div>
-      ) : null}
+        <PanelFiltros filtros={filtros} onFiltros={onFiltros} opciones={props.opciones} mostrarTipo={props.mostrarTipo} ocEnPeriodo={props.ocEnPeriodo} />
+      ) : (
+        <FiltrosActivos filtros={filtros} onFiltros={onFiltros} />
+      )}
 
       {/* Estados: en pantallas medianas y grandes bajan de línea en lugar de amontonarse (sidebar abierto); en teléfono se deslizan. */}
       <div className="flex items-start gap-2">
@@ -199,15 +200,15 @@ export default function Encabezado(props: EncabezadoProps) {
         />
       </div>
       <div className="inline-flex shrink-0 rounded-lg border border-slate-200 bg-slate-100 p-0.5">
-        {(["mes", "semana"] as const).map((v) => (
+        {VISTAS.map(({ v, etiqueta }) => (
           <button
             key={v}
             type="button"
             onClick={() => props.onVista(v)}
             aria-pressed={props.vista === v}
-            className={`rounded-md px-2.5 py-1 text-sm font-medium capitalize transition sm:px-3 ${props.vista === v ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
+            className={`rounded-md px-2.5 py-1 text-sm font-medium transition sm:px-3 ${props.vista === v ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
           >
-            {v}
+            {etiqueta}
           </button>
         ))}
       </div>

@@ -6,6 +6,7 @@ import { createAdminClient, createClient, peek_dev_db_target } from "@/lib/supab
 import type { DevDbTarget } from "@/lib/supabase/dev-db";
 import { notifySessionStatusChange } from "@/actions/osi-session-notifications";
 import { getOSIComentariosResumen } from "@/actions/osi-comentarios";
+import { getOSICertificados } from "@/actions/osi-extras";
 import {
   getUserRole,
   getUserRolesByApp,
@@ -284,7 +285,7 @@ export async function getOSIList(
 
     const adminClientPromise = pageOsiIds.length > 0 ? createAdminClient() : null;
 
-    const [statuses, cityResult, visibleOsiIds, sesionesProgramadasResult, attachmentResult, notasResult, guiasResult, comentariosResumen] = await Promise.all([
+    const [statuses, cityResult, visibleOsiIds, sesionesProgramadasResult, attachmentResult, notasResult, guiasResult, comentariosResumen, certificadosPorOsi] = await Promise.all([
       getOSIStatuses(await peek_dev_db_target()),
       uniqueCityIds.length > 0
         ? supabase
@@ -355,6 +356,11 @@ export async function getOSIList(
           })
         : Promise.resolve({ data: [] }),
       getOSIComentariosResumen(pageOsiIds),
+      getOSICertificados(
+        ((data || []) as Array<{ id_osi: number | null; nro_osi: string | null }>)
+          .filter((osi): osi is { id_osi: number; nro_osi: string | null } => osi.id_osi != null)
+          .map((osi) => ({ id_osi: osi.id_osi, nro_osi: osi.nro_osi ?? null })),
+      ),
     ]);
 
     const statusMap = new Map(statuses.map((s) => [s.id, s]));
@@ -433,6 +439,7 @@ export async function getOSIList(
         nro_guia_zoom: nroGuiaZoom,
         guias_envio: osiGuias,
         comentarios_count: osi.id_osi ? comentariosResumen[osi.id_osi]?.total ?? 0 : 0,
+        certificados_count: osi.id_osi ? certificadosPorOsi[osi.id_osi] ?? 0 : 0,
       };
     });
 

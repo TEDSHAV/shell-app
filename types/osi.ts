@@ -59,6 +59,8 @@ export interface OSIListItem {
   guias_envio?: OsiGuiaEnvio[];
   // Comentarios vinculados a la OSI (comentario_entidad_vinculos)
   comentarios_count?: number;
+  /** Certificados listos (activos, sin anular) con el N° de la OSI. */
+  certificados_count?: number;
 }
 
 export interface OsiGuiaEnvio {
