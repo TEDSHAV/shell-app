@@ -57,6 +57,7 @@ export type PlanObjetivo = {
   solicitado_por: PlanParticipante | null;
   responsables: PlanParticipante[];
   para_mi: boolean;
+  orden: number;
   estado: PlanObjetivoEstado;
   tarea_count: number;
   avance: number;

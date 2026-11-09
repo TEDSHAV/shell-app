@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { plan_commit_schema } from "../schemas";
+import { plan_commit_schema, plan_reorder_schema } from "../schemas";
 import { require_objetivos_write_context } from "./assert-ted";
 import { month_bounds, parse_plan_month } from "../lib/plan-month";
 import { is_plan_mes_emitido, type PlanMesCambioKind } from "../lib/plan-mes";
@@ -153,6 +153,7 @@ export async function commit_plan_objetivos(
   let added = 0;
   let edited = 0;
   let sample = "";
+  const ordered_ids: number[] = [];
 
   for (const id of deleted_ids) {
     sample = existing_by_id.get(id)?.titulo ?? sample;
@@ -180,6 +181,7 @@ export async function commit_plan_objetivos(
       app_id: app_ids[0] ?? null,
       estado: item.estado ?? "abierto",
       solicitado_por,
+      orden: ordered_ids.length + 1,
     };
 
     if (item.id && existing_by_id.has(item.id) && !deleted_ids.includes(item.id)) {
@@ -191,7 +193,10 @@ export async function commit_plan_objetivos(
         (prev.estado ?? "abierto") !== payload.estado ||
         (prev.solicitado_por ?? null) !== (payload.solicitado_por ?? null) ||
         !same_id_list(prev_apps, app_ids);
-      if (!changed) continue;
+      if (!changed) {
+        ordered_ids.push(item.id);
+        continue;
+      }
       const { error } = await supabase
         .from("ted_plan_objetivos" as never)
         .update(payload as never)
@@ -204,6 +209,7 @@ export async function commit_plan_objetivos(
       if (links) {
         return { ok: false, error: "No se pudieron guardar las apps." };
       }
+      ordered_ids.push(item.id);
       edited += 1;
       sample = payload.titulo;
       continue;
@@ -225,21 +231,77 @@ export async function commit_plan_objetivos(
     }
     added += 1;
     sample = payload.titulo;
+    ordered_ids.push(id);
+  }
+
+  for (let i = 0; i < ordered_ids.length; i += 1) {
+    const { error } = await supabase
+      .from("ted_plan_objetivos" as never)
+      .update({ orden: i + 1 } as never)
+      .eq("id", ordered_ids[i]);
+    if (error) {
+      console.error("[planificacion] commit orden:", error);
+      return { ok: false, error: "No se pudo guardar el orden de los objetivos." };
+    }
   }
 
   const removed = deleted_ids.length;
-  const changed = added + removed + edited > 0;
-  if (!changed) {
+  const content_changed = added + removed + edited > 0;
+  if (!content_changed && ordered_ids.length === 0) {
     return { ok: false, error: "No hay cambios para guardar." };
   }
 
-  if (is_plan_mes_emitido(plan_before)) {
+  if (content_changed && is_plan_mes_emitido(plan_before)) {
     const plan = await bump_plan_mes_version(supabase, mes);
     await notify_plan_mes_actualizado(
       supabase,
       plan,
       cambio_from_counts({ added, removed, edited, sample }),
     );
+  }
+  revalidate_objetivos();
+  return { ok: true };
+}
+
+export async function reorder_plan_objetivos(
+  raw: unknown,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const parsed = plan_reorder_schema.safeParse(raw);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
+  }
+  const gate = await require_objetivos_write_context();
+  if (!gate.ok) return gate;
+  const { supabase } = gate.ctx;
+  const mes = parse_plan_month(parsed.data.mes);
+  const bounds = month_bounds(mes);
+  const unique_ids = [...new Set(parsed.data.ids)];
+  const { data: rows, error } = await supabase
+    .from("ted_plan_objetivos" as never)
+    .select("id")
+    .lte("fecha_inicio", bounds.end)
+    .gte("fecha_fin", bounds.start);
+  if (error) {
+    return { ok: false, error: "No se pudieron leer los objetivos." };
+  }
+  const month_ids = new Set(
+    ((rows ?? []) as Array<{ id: number }>).map((row) => row.id),
+  );
+  if (
+    unique_ids.length !== month_ids.size ||
+    unique_ids.some((id) => !month_ids.has(id))
+  ) {
+    return { ok: false, error: "El orden debe incluir todos los objetivos del mes." };
+  }
+  for (let i = 0; i < unique_ids.length; i += 1) {
+    const { error: upd } = await supabase
+      .from("ted_plan_objetivos" as never)
+      .update({ orden: i + 1 } as never)
+      .eq("id", unique_ids[i]);
+    if (upd) {
+      console.error("[planificacion] reorder:", upd);
+      return { ok: false, error: "No se pudo guardar el orden." };
+    }
   }
   revalidate_objetivos();
   return { ok: true };

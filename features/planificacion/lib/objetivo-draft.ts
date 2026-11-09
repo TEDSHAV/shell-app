@@ -62,8 +62,17 @@ export function plan_drafts_fingerprint(drafts: ObjetivoDraft[]): string {
   return drafts
     .filter((draft) => !draft_is_blank(draft))
     .map(draft_fingerprint)
-    .sort()
     .join("|");
+}
+
+export function move_drafts<T>(list: T[], from: number, to: number): T[] {
+  if (from === to || from < 0 || to < 0 || from >= list.length || to >= list.length) {
+    return list;
+  }
+  const next = [...list];
+  const [item] = next.splice(from, 1);
+  next.splice(to, 0, item);
+  return next;
 }
 
 export function originals_fingerprint(objetivos: PlanObjetivo[]): string {

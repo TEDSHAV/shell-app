@@ -133,6 +133,11 @@ export const plan_commit_schema = z.object({
   deleted_ids: z.array(z.number().int().positive()).default([]),
 });
 
+export const plan_reorder_schema = z.object({
+  mes: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Mes inválido"),
+  ids: z.array(z.number().int().positive()).min(1).max(80),
+});
+
 export const hito_schema = z.object({
   id: z.number().int().positive().optional(),
   app_id: z.number().int().positive(),

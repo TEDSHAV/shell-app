@@ -115,8 +115,11 @@ export function CubrirWorkspace({
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <h2 className="text-base font-semibold text-slate-900">
-                    {objetivo.titulo}
+                  <h2 className="flex items-start gap-2 text-base font-semibold text-slate-900">
+                    <span className="mt-0.5 inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-violet-100 px-1.5 text-xs font-bold tabular-nums text-violet-800">
+                      {objetivo.orden}
+                    </span>
+                    <span>{objetivo.titulo}</span>
                   </h2>
                   <p className="mt-0.5 text-xs text-slate-400">
                     {objetivo.tarea_count} tareas · {objetivo.avance}%

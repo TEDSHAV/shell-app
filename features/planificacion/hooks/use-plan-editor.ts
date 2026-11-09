@@ -8,6 +8,7 @@ import {
   draft_from_objetivo,
   draft_is_blank,
   empty_objetivo_draft,
+  move_drafts,
   originals_fingerprint,
   plan_drafts_fingerprint,
   type ObjetivoDraft,
@@ -32,7 +33,10 @@ export function use_plan_editor(objetivos: PlanObjetivo[], mes: string) {
   }, [baseline, drafts, editing]);
 
   function start() {
-    const next = objetivos.map(draft_from_objetivo);
+    const next =
+      objetivos.length > 0
+        ? objetivos.map(draft_from_objetivo)
+        : [empty_objetivo_draft()];
     set_drafts(next);
     set_baseline(originals_fingerprint(objetivos));
     set_error(null);
@@ -59,6 +63,10 @@ export function use_plan_editor(objetivos: PlanObjetivo[], mes: string) {
 
   function remove(key: string) {
     set_drafts((current) => current.filter((draft) => draft.key !== key));
+  }
+
+  function move(from: number, to: number) {
+    set_drafts((current) => move_drafts(current, from, to));
   }
 
   async function commit(): Promise<boolean> {
@@ -110,6 +118,7 @@ export function use_plan_editor(objetivos: PlanObjetivo[], mes: string) {
     patch,
     add,
     remove,
+    move,
     commit,
   };
 }

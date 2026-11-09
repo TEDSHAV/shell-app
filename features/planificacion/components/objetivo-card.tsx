@@ -55,8 +55,11 @@ export function ObjetivoCard({
               {format_month_label(objetivo.fecha_inicio.slice(0, 7))}
             </span>
           </div>
-          <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-900">
-            {objetivo.titulo}
+          <h2 className="mt-2 flex items-start gap-2 text-lg font-semibold tracking-tight text-slate-900">
+            <span className="mt-0.5 inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-violet-100 px-1.5 text-xs font-bold tabular-nums text-violet-800">
+              {objetivo.orden}
+            </span>
+            <span>{objetivo.titulo}</span>
           </h2>
         </div>
         <div className="text-right">
