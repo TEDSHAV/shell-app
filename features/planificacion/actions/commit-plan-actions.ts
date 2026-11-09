@@ -7,6 +7,7 @@ import { month_bounds, parse_plan_month } from "../lib/plan-month";
 import { is_plan_mes_emitido, type PlanMesCambioKind } from "../lib/plan-mes";
 import { bump_plan_mes_version, ensure_plan_mes, fetch_plan_mes } from "../lib/plan-mes-db";
 import { notify_plan_mes_actualizado } from "../lib/plan-mes-notify";
+import { TED_DEPARTMENT_ID } from "../lib/ted-department";
 import type { PlanObjetivoEstado } from "../lib/types";
 
 function revalidate_objetivos() {
@@ -50,6 +51,29 @@ async function replace_objetivo_apps(
   const { error } = await supabase.from("ted_plan_objetivo_apps" as never).insert(
     app_ids.map((app_id) => ({ objetivo_id, app_id })) as never,
   );
+  return error;
+}
+
+async function replace_objetivo_responsables(
+  supabase: Awaited<ReturnType<typeof import("@/lib/supabase/server").createAdminClient>>,
+  objetivo_id: number,
+  rows: Array<{ usuario_id: number; orden: number }>,
+) {
+  const { error: del_err } = await supabase
+    .from("ted_plan_objetivo_responsables" as never)
+    .delete()
+    .eq("objetivo_id", objetivo_id);
+  if (del_err) return del_err;
+  if (rows.length === 0) return null;
+  const { error } = await supabase
+    .from("ted_plan_objetivo_responsables" as never)
+    .insert(
+      rows.map((row) => ({
+        objetivo_id,
+        usuario_id: row.usuario_id,
+        orden: row.orden,
+      })) as never,
+    );
   return error;
 }
 
@@ -147,6 +171,51 @@ export async function commit_plan_objetivos(
     apps_by_id.set(row.id, list);
   }
 
+  const resp_by_id = new Map<number, number[]>();
+  if (existing.length > 0) {
+    const { data: resp_rows } = await supabase
+      .from("ted_plan_objetivo_responsables" as never)
+      .select("objetivo_id, usuario_id")
+      .in(
+        "objetivo_id",
+        existing.map((row) => row.id),
+      );
+    for (const row of (resp_rows ?? []) as Array<{
+      objetivo_id: number;
+      usuario_id: number;
+    }>) {
+      const list = resp_by_id.get(row.objetivo_id) ?? [];
+      if (!list.includes(row.usuario_id)) list.push(row.usuario_id);
+      resp_by_id.set(row.objetivo_id, list);
+    }
+  }
+
+  const all_responsable_ids = [
+    ...new Set(
+      parsed.data.items.flatMap((item) => item.responsable_ids ?? []),
+    ),
+  ];
+  if (all_responsable_ids.length > 0) {
+    const { data: ted_rows } = await supabase
+      .from("usuarios")
+      .select("id, departamento")
+      .in("id", all_responsable_ids);
+    const invalid = all_responsable_ids.some((id) => {
+      const row = ((ted_rows ?? []) as Array<{ id: number; departamento: number | null }>).find(
+        (item) => item.id === id,
+      );
+      return !row || Number(row.departamento) !== TED_DEPARTMENT_ID;
+    });
+    if (invalid) {
+      return { ok: false, error: "Solo se puede asignar objetivos a miembros TED." };
+    }
+  }
+
+  const order_keys = new Map<number, string[]>();
+  for (const row of parsed.data.user_orders) {
+    order_keys.set(row.usuario_id, row.keys);
+  }
+
   const deleted_ids = [...new Set(parsed.data.deleted_ids)].filter((id) =>
     existing_by_id.has(id),
   );
@@ -154,6 +223,12 @@ export async function commit_plan_objetivos(
   let edited = 0;
   let sample = "";
   const ordered_ids: number[] = [];
+  const saved_items: Array<{
+    id: number;
+    key: string;
+    responsable_ids: number[];
+    assignees_changed: boolean;
+  }> = [];
 
   for (const id of deleted_ids) {
     sample = existing_by_id.get(id)?.titulo ?? sample;
@@ -184,34 +259,46 @@ export async function commit_plan_objetivos(
       orden: ordered_ids.length + 1,
     };
 
+    const responsable_ids = [...new Set(item.responsable_ids ?? [])];
+    const item_key = item.client_key ?? (item.id ? `id:${item.id}` : "");
+
     if (item.id && existing_by_id.has(item.id) && !deleted_ids.includes(item.id)) {
       const prev = existing_by_id.get(item.id)!;
       const prev_apps = apps_by_id.get(item.id) ?? [];
+      const prev_resp = resp_by_id.get(item.id) ?? [];
+      const assignees_changed = !same_id_list(prev_resp, responsable_ids);
       const changed =
         (prev.titulo ?? "") !== payload.titulo ||
         (prev.descripcion ?? null) !== payload.descripcion ||
         (prev.estado ?? "abierto") !== payload.estado ||
         (prev.solicitado_por ?? null) !== (payload.solicitado_por ?? null) ||
         !same_id_list(prev_apps, app_ids);
-      if (!changed) {
-        ordered_ids.push(item.id);
-        continue;
-      }
-      const { error } = await supabase
-        .from("ted_plan_objetivos" as never)
-        .update(payload as never)
-        .eq("id", item.id);
-      if (error) {
-        console.error("[planificacion] commit update:", error);
-        return { ok: false, error: "No se pudo actualizar un objetivo." };
-      }
-      const links = await replace_objetivo_apps(supabase, item.id, app_ids);
-      if (links) {
-        return { ok: false, error: "No se pudieron guardar las apps." };
+      if (changed) {
+        const { error } = await supabase
+          .from("ted_plan_objetivos" as never)
+          .update(payload as never)
+          .eq("id", item.id);
+        if (error) {
+          console.error("[planificacion] commit update:", error);
+          return { ok: false, error: "No se pudo actualizar un objetivo." };
+        }
+        const links = await replace_objetivo_apps(supabase, item.id, app_ids);
+        if (links) {
+          return { ok: false, error: "No se pudieron guardar las apps." };
+        }
+        edited += 1;
+        sample = payload.titulo;
+      } else if (assignees_changed) {
+        edited += 1;
+        sample = payload.titulo;
       }
       ordered_ids.push(item.id);
-      edited += 1;
-      sample = payload.titulo;
+      saved_items.push({
+        id: item.id,
+        key: item_key || `id:${item.id}`,
+        responsable_ids,
+        assignees_changed,
+      });
       continue;
     }
 
@@ -232,6 +319,12 @@ export async function commit_plan_objetivos(
     added += 1;
     sample = payload.titulo;
     ordered_ids.push(id);
+    saved_items.push({
+      id,
+      key: item_key || `id:${id}`,
+      responsable_ids,
+      assignees_changed: responsable_ids.length > 0,
+    });
   }
 
   for (let i = 0; i < ordered_ids.length; i += 1) {
@@ -242,6 +335,26 @@ export async function commit_plan_objetivos(
     if (error) {
       console.error("[planificacion] commit orden:", error);
       return { ok: false, error: "No se pudo guardar el orden de los objetivos." };
+    }
+  }
+
+  for (const saved of saved_items) {
+    const rows = saved.responsable_ids.map((usuario_id) => {
+      const keys = order_keys.get(usuario_id) ?? [];
+      const index = keys.indexOf(saved.key);
+      return {
+        usuario_id,
+        orden: index >= 0 ? index + 1 : keys.length + 1,
+      };
+    });
+    const resp_err = await replace_objetivo_responsables(
+      supabase,
+      saved.id,
+      rows,
+    );
+    if (resp_err) {
+      console.error("[planificacion] commit responsables:", resp_err);
+      return { ok: false, error: "No se pudieron guardar los asignados." };
     }
   }
 
@@ -287,6 +400,41 @@ export async function reorder_plan_objetivos(
   const month_ids = new Set(
     ((rows ?? []) as Array<{ id: number }>).map((row) => row.id),
   );
+  const usuario_id = parsed.data.usuario_id;
+  if (usuario_id) {
+    const { data: assigned } = await supabase
+      .from("ted_plan_objetivo_responsables" as never)
+      .select("objetivo_id")
+      .eq("usuario_id", usuario_id)
+      .in("objetivo_id", [...month_ids]);
+    const owned = new Set(
+      ((assigned ?? []) as Array<{ objetivo_id: number }>).map(
+        (row) => row.objetivo_id,
+      ),
+    );
+    if (
+      unique_ids.length !== owned.size ||
+      unique_ids.some((id) => !owned.has(id))
+    ) {
+      return {
+        ok: false,
+        error: "El orden de esa persona debe incluir todos sus objetivos.",
+      };
+    }
+    for (let i = 0; i < unique_ids.length; i += 1) {
+      const { error: upd } = await supabase
+        .from("ted_plan_objetivo_responsables" as never)
+        .update({ orden: i + 1 } as never)
+        .eq("objetivo_id", unique_ids[i])
+        .eq("usuario_id", usuario_id);
+      if (upd) {
+        console.error("[planificacion] reorder user:", upd);
+        return { ok: false, error: "No se pudo guardar el orden de esa persona." };
+      }
+    }
+    revalidate_objetivos();
+    return { ok: true };
+  }
   if (
     unique_ids.length !== month_ids.size ||
     unique_ids.some((id) => !month_ids.has(id))

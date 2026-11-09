@@ -22,7 +22,7 @@ export function ObjetivoParaMiToggle({
   const [error, set_error] = useState<string | null>(null);
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-wrap items-center justify-end gap-2">
       <PlanAssigneeStack people={responsables} max={4} />
       <Button
         type="button"
@@ -30,8 +30,8 @@ export function ObjetivoParaMiToggle({
         disabled={busy}
         className={
           para_mi
-            ? "h-8 rounded-full border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
-            : "h-8 rounded-full bg-slate-900 text-white hover:bg-slate-800"
+            ? "h-8 shrink-0 whitespace-nowrap rounded-full border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+            : "h-8 shrink-0 whitespace-nowrap rounded-full bg-slate-900 text-white hover:bg-slate-800"
         }
         onClick={() => {
           void (async () => {

@@ -29,6 +29,7 @@ export default async function TedObjetivosPage({
           objetivos={loaded.objetivos}
           apps={loaded.apps}
           usuarios={loaded.usuarios}
+          equipo={loaded.equipo}
           can_write={can_write}
           show_mail_config={is_ted}
         />

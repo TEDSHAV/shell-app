@@ -40,6 +40,7 @@ export type PlanParticipante = {
   usuario_id: number;
   nombre: string;
   initials: string;
+  orden?: number;
 };
 
 export type PlanObjetivoEstado = "abierto" | "cumplido" | "cancelado";

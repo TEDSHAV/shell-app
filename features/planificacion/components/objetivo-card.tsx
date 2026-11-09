@@ -108,6 +108,16 @@ export function ObjetivoCard({
         <div className="flex flex-wrap items-center gap-2 px-5 pt-2">
           <span className="text-[11px] text-slate-400">Lo cubre TED</span>
           <PlanAssigneeStack people={objetivo.responsables} max={4} />
+          {objetivo.responsables.map((person) =>
+            person.orden && person.orden > 0 ? (
+              <span
+                key={person.usuario_id}
+                className="rounded-full bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-500 ring-1 ring-slate-200"
+              >
+                {person.nombre.split(" ")[0]} #{person.orden}
+              </span>
+            ) : null,
+          )}
         </div>
       ) : null}
 

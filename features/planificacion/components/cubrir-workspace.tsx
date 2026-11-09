@@ -14,6 +14,7 @@ import { ObjetivoParaMiToggle } from "./objetivo-para-mi-toggle";
 import { people_on_tarea } from "../lib/people";
 import { tarea_avance } from "../lib/task-progress";
 import { vincular_tarea_objetivo } from "../actions/objetivo-actions";
+import { objetivo_numero, objetivos_en_scope } from "../lib/objetivo-orden";
 import type { CubrirWorkspace } from "../lib/types";
 import type { PlanModulo, PlanTarea } from "../lib/types";
 
@@ -25,15 +26,26 @@ export function CubrirWorkspace({
   can_write?: boolean;
 }) {
   const router = useRouter();
-  const { mes, plan_mes, unpublished_hidden, objetivos, sueltas, plan_apps, usuarios } = data;
+  const {
+    mes,
+    plan_mes,
+    unpublished_hidden,
+    objetivos,
+    sueltas,
+    plan_apps,
+    usuarios,
+    current_user_id,
+  } = data;
   const [new_for, set_new_for] = useState<number | null>(null);
   const [link_for, set_link_for] = useState<number | null>(null);
   const [editing, set_editing] = useState<PlanTarea | null>(null);
   const [solo_mios, set_solo_mios] = useState(false);
-  const visibles = useMemo(
-    () => (solo_mios ? objetivos.filter((item) => item.para_mi) : objetivos),
-    [objetivos, solo_mios],
-  );
+  const visibles = useMemo(() => {
+    if (solo_mios && current_user_id) {
+      return objetivos_en_scope(objetivos, current_user_id);
+    }
+    return objetivos_en_scope(objetivos, "todos");
+  }, [current_user_id, objetivos, solo_mios]);
 
   const all_modulos = useMemo(() => {
     const seen = new Set<number>();
@@ -113,13 +125,18 @@ export function CubrirWorkspace({
               key={objetivo.id}
               className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
             >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0 flex-1">
                   <h2 className="flex items-start gap-2 text-base font-semibold text-slate-900">
                     <span className="mt-0.5 inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-violet-100 px-1.5 text-xs font-bold tabular-nums text-violet-800">
-                      {objetivo.orden}
+                      {objetivo_numero(
+                        objetivo,
+                        solo_mios && current_user_id
+                          ? current_user_id
+                          : "todos",
+                      )}
                     </span>
-                    <span>{objetivo.titulo}</span>
+                    <span className="min-w-0 break-words">{objetivo.titulo}</span>
                   </h2>
                   <p className="mt-0.5 text-xs text-slate-400">
                     {objetivo.tarea_count} tareas · {objetivo.avance}%
@@ -136,34 +153,36 @@ export function CubrirWorkspace({
                   </p>
                 </div>
                 {can_write ? (
-                  <div className="flex flex-col items-end gap-2">
+                  <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
                     <ObjetivoParaMiToggle
                       objetivo_id={objetivo.id}
                       para_mi={objetivo.para_mi}
                       responsables={objetivo.responsables}
                       onChanged={refresh}
                     />
-                    <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="h-8 rounded-full"
-                      onClick={() => set_link_for(objetivo.id)}
-                    >
-                      Vincular
-                    </Button>
-                    <Button
-                      type="button"
-                      className="h-8 rounded-full bg-slate-900 text-white hover:bg-slate-800"
-                      onClick={() => set_new_for(objetivo.id)}
-                    >
-                      <Plus className="mr-1 h-3.5 w-3.5" />
-                      Nueva tarea
-                    </Button>
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-8 shrink-0 rounded-full"
+                        onClick={() => set_link_for(objetivo.id)}
+                      >
+                        Vincular
+                      </Button>
+                      <Button
+                        type="button"
+                        className="h-8 shrink-0 rounded-full bg-slate-900 text-white hover:bg-slate-800"
+                        onClick={() => set_new_for(objetivo.id)}
+                      >
+                        <Plus className="mr-1 h-3.5 w-3.5" />
+                        Nueva tarea
+                      </Button>
                     </div>
                   </div>
                 ) : objetivo.responsables.length > 0 ? (
-                  <PlanAssigneeStack people={objetivo.responsables} max={4} />
+                  <div className="shrink-0">
+                    <PlanAssigneeStack people={objetivo.responsables} max={4} />
+                  </div>
                 ) : null}
               </div>
               {objetivo.tareas.length === 0 ? (

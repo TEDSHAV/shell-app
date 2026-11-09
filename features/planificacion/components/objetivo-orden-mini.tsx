@@ -12,23 +12,51 @@ export type ObjetivoOrdenItem = {
 export function ObjetivoOrdenMini({
   items,
   onReorder,
+  scopes,
+  scope,
+  onScope,
 }: {
   items: ObjetivoOrdenItem[];
   onReorder: (from: number, to: number) => void;
+  scopes?: Array<{ id: string; label: string }>;
+  scope?: string;
+  onScope?: (id: string) => void;
 }) {
   const [drag_from, set_drag_from] = useState<number | null>(null);
   const [over, set_over] = useState<number | null>(null);
 
-  if (items.length === 0) return null;
-
   return (
     <aside className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3">
       <p className="px-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-        Orden cronológico
+        Orden
       </p>
       <p className="mb-2 px-1 text-xs text-slate-400">
-        Arrastra el agarre o usa las flechas para subir y bajar.
+        {scope && scope !== "todos"
+          ? "Este número es el orden de esa persona. La lista general no cambia."
+          : "Lista general: uno debajo del otro. Si hay asignados, entra a cada persona para su propio orden."}
       </p>
+      {scopes && scopes.length > 1 && onScope ? (
+        <div className="mb-2 flex flex-wrap gap-1">
+          {scopes.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => onScope(item.id)}
+              className={cn(
+                "rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                scope === item.id
+                  ? "bg-violet-700 text-white"
+                  : "bg-white text-slate-600 ring-1 ring-slate-200",
+              )}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {items.length === 0 ? (
+        <p className="px-1 text-xs text-slate-400">Nada en esta lista.</p>
+      ) : (
       <ol className="space-y-1">
         {items.map((item, index) => (
           <li
@@ -96,6 +124,7 @@ export function ObjetivoOrdenMini({
           </li>
         ))}
       </ol>
+      )}
     </aside>
   );
 }

@@ -24,10 +24,21 @@ export async function toggle_objetivo_para_mi(
   }
 
   if (take) {
+    let orden = 1;
+    const { data: last } = await supabase
+      .from("ted_plan_objetivo_responsables" as never)
+      .select("orden")
+      .eq("usuario_id", user_id)
+      .order("orden", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (last && typeof (last as { orden?: number }).orden === "number") {
+      orden = (last as { orden: number }).orden + 1;
+    }
     const { error } = await supabase
       .from("ted_plan_objetivo_responsables" as never)
       .upsert(
-        { objetivo_id, usuario_id: user_id } as never,
+        { objetivo_id, usuario_id: user_id, orden } as never,
         { onConflict: "objetivo_id,usuario_id" },
       );
     if (error) {

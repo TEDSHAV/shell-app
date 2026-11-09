@@ -291,6 +291,7 @@ export async function load_objetivos_month(
       objetivos: PlanObjetivo[];
       apps: Array<{ id: number; nombre: string; slug: string }>;
       usuarios: PlanUsuarioOption[];
+      equipo: PlanUsuarioOption[];
     }
   | { ok: false; error: string }
 > {
@@ -311,6 +312,7 @@ export async function load_objetivos_month(
       slug: app.slug,
     })),
     usuarios,
+    equipo: cover.data.usuarios,
   };
 }
 
@@ -345,7 +347,7 @@ export async function load_cubrir_workspace(
       .order("fecha_inicio")
       .order("id");
   }
-  const [apps_res, responsables_res] =
+  const [apps_res, responsables_first] =
     await Promise.all([
     supabase
       .from("ted_plan_apps" as never)
@@ -354,8 +356,13 @@ export async function load_cubrir_workspace(
       .order("nombre"),
     supabase
       .from("ted_plan_objetivo_responsables" as never)
-      .select("objetivo_id, usuario_id"),
+      .select("objetivo_id, usuario_id, orden"),
   ]);
+  const responsables_res = responsables_first.error
+    ? await supabase
+        .from("ted_plan_objetivo_responsables" as never)
+        .select("objetivo_id, usuario_id")
+    : responsables_first;
 
   if (obj_res.error) {
     console.error("[planificacion] list objetivos:", obj_res.error);
@@ -412,10 +419,20 @@ export async function load_cubrir_workspace(
   for (const row of (responsables_res.data ?? []) as Array<{
     objetivo_id: number;
     usuario_id: number;
+    orden?: number | null;
   }>) {
     const list = responsables_by_obj.get(row.objetivo_id) ?? [];
-    list.push(person_of(row.usuario_id));
+    list.push({
+      ...person_of(row.usuario_id),
+      orden: row.orden && row.orden > 0 ? row.orden : list.length + 1,
+    });
     responsables_by_obj.set(row.objetivo_id, list);
+  }
+  for (const [objetivo_id, list] of responsables_by_obj) {
+    list.sort(
+      (a, b) => (a.orden ?? 0) - (b.orden ?? 0) || a.usuario_id - b.usuario_id,
+    );
+    responsables_by_obj.set(objetivo_id, list);
   }
   const obj_by_id = new Map(obj_rows.map((row) => [row.id, row]));
   const apps_by_obj = new Map<number, number[]>();
