@@ -112,7 +112,8 @@ function resolve_reportes_department(
   if (
     pathname.startsWith("/reportes/presupuestos") ||
     pathname.startsWith("/reportes/cierres") ||
-    pathname.startsWith("/reportes/crm-ejecutivos")
+    pathname.startsWith("/reportes/crm-ejecutivos") ||
+    pathname.startsWith("/reportes/horas-dictadas")
   ) {
     return "negocios";
   }

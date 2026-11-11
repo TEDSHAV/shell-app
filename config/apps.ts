@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   Users,
   BarChart2,
+  Clock,
   BookOpen,
   ClipboardList,
   Award,
@@ -541,6 +542,12 @@ export const apps: AppConfig[] = [
             requiredPermissions: ["reportes:access:presupuestos"],
           },
           {
+            label: "Indicador horas dictadas",
+            path: "/reportes/horas-dictadas",
+            icon: Clock,
+            requiredPermissions: ["finance:catalogo:access"],
+          },
+          {
             label: "Administración de cierres",
             path: "/reportes/cierres",
             icon: Calendar,
@@ -622,6 +629,18 @@ export const apps: AppConfig[] = [
             icon: Target,
             requiredPermissions: ["reportes:mi-avance:admin-access"],
             requiredRoles: ["admin", "superadmin"],
+          },
+        ],
+      },
+      {
+        groupLabel: "CAPACITACIÓN",
+        department: "negocios",
+        links: [
+          {
+            label: "Indicador horas dictadas",
+            path: "/horas-dictadas",
+            icon: Clock,
+            requiredPermissions: ["finance:catalogo:access"],
           },
         ],
       },
