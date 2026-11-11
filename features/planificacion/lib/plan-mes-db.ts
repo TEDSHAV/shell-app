@@ -10,6 +10,7 @@ type PlanMesRow = {
   version: number;
   emitido_at: string | null;
   emitido_por: number | null;
+  analisis_texto?: string | null;
 };
 
 export function as_plan_mes(row: PlanMesRow | null | undefined, mes: string): PlanMes {
@@ -20,6 +21,10 @@ export function as_plan_mes(row: PlanMesRow | null | undefined, mes: string): Pl
     version: Number(row.version ?? 0),
     emitido_at: row.emitido_at ?? null,
     emitido_por: row.emitido_por ?? null,
+    analisis_texto:
+      typeof row.analisis_texto === "string" && row.analisis_texto.trim()
+        ? row.analisis_texto
+        : null,
   };
 }
 
@@ -30,7 +35,7 @@ export async function fetch_plan_mes(
   const mes = parse_plan_month(mes_raw);
   const { data } = await supabase
     .from("ted_plan_mes" as never)
-    .select("mes, estado, version, emitido_at, emitido_por")
+    .select("mes, estado, version, emitido_at, emitido_por, analisis_texto")
     .eq("mes", mes)
     .maybeSingle();
   return as_plan_mes(data as PlanMesRow | null, mes);

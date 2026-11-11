@@ -18,11 +18,43 @@ export function can_access_shell_app(
   app: AppConfig,
   userRolesByApp: Record<string, string>,
   globalRole?: string,
+  userDept?: string | null,
 ): boolean {
   const roles = collect_user_roles(userRolesByApp, globalRole);
 
+  // Presupuesto mensual (sueldos): solo con rol en esa app, ni siquiera los admin de otras apps.
+  if (app.id === "presupuesto-mensual") {
+    return Boolean(userRolesByApp.spresupuesto);
+  }
+
   if (roles.some((r) => r === "admin" || r === "superadmin")) {
     return true;
+  }
+
+  // App-specific rule for Satisfacción de Clientes:
+  // Visible only for Negocios, TED, Calidad, and admin/superadmins
+  if (app.id === "satisfaccion-clientes") {
+    // 1. Roles in Negocios (sgestion/negocios), Calidad (scalidad/calidad), or TED
+    if (
+      userRolesByApp.sgestion ||
+      userRolesByApp.negocios ||
+      userRolesByApp.scalidad ||
+      userRolesByApp.calidad ||
+      userRolesByApp.ted
+    ) {
+      return true;
+    }
+    // 2. Department check
+    const deptUpper = userDept?.toUpperCase() || "";
+    if (
+      deptUpper.includes("NEGOCIOS") ||
+      deptUpper.includes("GESTION") ||
+      deptUpper.includes("CALIDAD") ||
+      deptUpper.includes("TED")
+    ) {
+      return true;
+    }
+    return false;
   }
 
   if (app.requiredRoles && app.requiredRoles.length > 0) {

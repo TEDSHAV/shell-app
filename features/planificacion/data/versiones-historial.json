@@ -1,0 +1,396 @@
+{
+  "negocios@1.5.0": {
+    "resumen": "Versión base oficial (4 sep 2026). Reúne todo lo construido desde el 5 de marzo: 599 commits.",
+    "secciones": [
+      {
+        "titulo": "CRM y pipeline",
+        "items": [
+          "Flujo CRM unificado en un solo diálogo: lead → empresa/contacto → trato → SOLPED.",
+          "Round robin de leads hacia ejecutivos de venta, con asignación automática y notificación.",
+          "Embudo de pipeline y decisión del cliente sobre el presupuesto: aprobación total, parcial por servicio, rechazo con motivo y contrapropuesta.",
+          "Sedes de empresa, direcciones del cliente y ubicación jerárquica con alta rápida.",
+          "RIF J, G y V; reasignación del ejecutivo dueño de una empresa; selección del contacto del trato.",
+          "Detección de leads duplicados contra contactos y recontactos con timeline de seguimiento.",
+          "Envíos sin doble clic e idempotencia en servidor para tratos y SOLPED."
+        ]
+      },
+      {
+        "titulo": "SOLPED e ingeniería de costos (ECC)",
+        "items": [
+          "Calculadora ECC con costos directos, gasto administrativo (por horas o por día de informe), márgenes y redondeo.",
+          "Motor y calculadora propios para Servicios Técnicos, con distribución de costos por servicio.",
+          "Paquete ECC consolidado y SOLPED consolidada imprimible; formulario ST con texto enriquecido.",
+          "Catálogo de costos con porcentaje perpetuo y costos que se pueden inactivar.",
+          "Clonar una ECC hacia otro ejecutivo sin tocar la SOLPED original.",
+          "Cancelación de SOLPED individual y en lote (sale del ciclo y avisa), con reversión para admin/superadmin.",
+          "Aprobación directa para admin/superadmin y aprobación condicional con proyección.",
+          "Página de edición ECC de ~3.440 a ~1.000 líneas: 16 hooks extraídos."
+        ]
+      },
+      {
+        "titulo": "Presupuestos",
+        "items": [
+          "Formatos imprimibles CAP y ST: cuerpo legal editable, precio en letras, datos bancarios y banco favorito.",
+          "Ocultar el precio por línea en propuestas CAP, monto neto e impresión en la misma página.",
+          "Licitaciones y paquetes en el trato, notas del presupuesto y configuración propia.",
+          "Estados de decisión (incluido facturado), rechazo masivo desde configuración y clon de presupuesto con OSI."
+        ]
+      },
+      {
+        "titulo": "OSI",
+        "items": [
+          "Calculadora de utilidad y recursos por sesión: horas y tarifas de instructor, hospedaje y logística.",
+          "Correlativo OSI con verificación de duplicados y número sugerido.",
+          "Aprobación y rechazo de la OSI por el líder.",
+          "Formato de OSI rehecho para CAP y ST: fechas de ejecución, entrega y garantía, costos por sesión y orden de compra.",
+          "Visibilidad de costos configurable y vista de OSI no ejecutadas."
+        ]
+      },
+      {
+        "titulo": "Facturación y prefactura (desde el 17 de agosto)",
+        "items": [
+          "Módulo nuevo de facturación: solicitud, aprobación de finanzas, emisión con doble control, cierre, rastreo y anulación comentada.",
+          "Comprobantes de pago con lectura OCR (de PaddleOCR a Tesseract); la aprobación de administración libera la emisión de OSIs.",
+          "Prefactura con cálculo de retenciones, con el mismo criterio que la factura.",
+          "Facturación por montos específicos, por sesión y con varios servicios por solicitud.",
+          "Asistente de OSI desde facturación; OC/Prefactura reemplaza la aprobación del líder de la OSI.",
+          "Manual de facturación y decisión de presupuesto."
+        ]
+      },
+      {
+        "titulo": "Colaboración, tareas y contexto",
+        "items": [
+          "Context hub: ficha lateral y timeline de actividad por entidad, con backfill del historial.",
+          "Tareas con menciones, categorías, reglas automáticas y lotes semanales.",
+          "Comentarios y notas en OSI y entidades, con permisos y vínculos.",
+          "Página de inicio nueva en 5 fases: buscador, actividad reciente y accionables."
+        ]
+      },
+      {
+        "titulo": "Plataforma",
+        "items": [
+          "Login integrado con Shell, permisos por rol y RLS para roles de seguridad.",
+          "Centro de notificaciones compartido con todas las apps y configuración de destinatarios.",
+          "Tablas estandarizadas: data table shadcn, toolbar unificada, filtros persistentes, agrupación y búsqueda en cliente.",
+          "Refactor de arquitectura en 9 fases (agosto) y manual interactivo por vista.",
+          "Sentry, Docker en Coolify con healthcheck y límites de error por ruta."
+        ]
+      }
+    ]
+  },
+  "negocios@1.18.0": {
+    "resumen": "Facturación por rol y vigencia de cobranza (5 sep 2026).",
+    "secciones": [
+      {
+        "titulo": "Facturación",
+        "items": [
+          "Vistas directas por rol (ejecutivo, finanzas, administración) y más restricciones según el rol.",
+          "Reglas de vencimiento de cobranza con notificación (migración factura_fase3_vigencia_notify).",
+          "Administración puede cargar pagos y reutilizar un pago en otra factura.",
+          "Si algo está mal, administración solo anula y la decisión vuelve al ejecutivo.",
+          "Retenciones en la emisión, devolución de monto y orden de compra adjunta a la factura.",
+          "Cancelar una solicitud antes de emitirla y devolverla a «Por facturar».",
+          "Prefactura en bolívares o dólares."
+        ]
+      },
+      {
+        "titulo": "Otros",
+        "items": [
+          "Integración OCR actualizada, con estados de carga.",
+          "Cada vista muestra la versión de su paquete."
+        ]
+      }
+    ]
+  },
+  "negocios@1.18.1": {
+    "resumen": "Correcciones de facturación y del OCR de comprobantes (5 sep 2026).",
+    "secciones": [
+      {
+        "titulo": "Correcciones",
+        "items": [
+          "Tres rondas de ajustes al lector OCR de comprobantes de pago.",
+          "Dos correcciones del flujo de facturación."
+        ]
+      }
+    ]
+  },
+  "negocios@1.19.0": {
+    "resumen": "Indicadores exportables a PDF (7 sep 2026).",
+    "secciones": [
+      {
+        "titulo": "Nuevo",
+        "items": [
+          "Indicador de presupuestos en PDF: resumen, ejecutivos, servicios, figuras y leyenda, generado con Gotenberg.",
+          "Indicador de marketing en PDF: resumen, origen, geografía y detalle."
+        ]
+      },
+      {
+        "titulo": "Correcciones",
+        "items": [
+          "Indicador de presupuestos más rápido y sin el error al aprobar.",
+          "Modo porcentaje del indicador funcionando en consolidado, ejecutivos y servicios."
+        ]
+      }
+    ]
+  },
+  "reportes@1.1.0": {
+    "resumen": "Versión base (4 sep 2026). Indicadores y cierres construidos desde el 23 de junio: 55 commits.",
+    "secciones": [
+      {
+        "titulo": "Indicadores",
+        "items": [
+          "Consolidado comercial, vista por ejecutivo, «Mi avance» y comparativa de ejecutivos con agrupación.",
+          "Tasa de aprobación calculada como monto aprobado ÷ meta de presupuesto del período.",
+          "Venta con facturación por sesión y por montos.",
+          "Inspector de KPI: tabla con OSI, factura, enlaces y proyección."
+        ]
+      },
+      {
+        "titulo": "Cierres y metas",
+        "items": [
+          "Cierres semanales y mensuales con períodos canónicos, congelamiento y recálculo de períodos cerrados.",
+          "Metas por ejecutivo con su configuración, oculta a los ejecutivos.",
+          "Acceso solo para administración y permiso explícito para «Mi avance»."
+        ]
+      },
+      {
+        "titulo": "Ayuda",
+        "items": ["Manual de reportes y cierres con ayuda dinámica en cada vista."]
+      }
+    ]
+  },
+  "reportes@1.1.1": {
+    "resumen": "Indicador de presupuestos en PDF y modo porcentaje (7 sep 2026).",
+    "secciones": [
+      {
+        "titulo": "Cambios",
+        "items": [
+          "Exportar el indicador de presupuestos a PDF.",
+          "Modo porcentaje funcionando en todas las tablas y gráficos.",
+          "Carga más rápida del indicador y corrección del error al aprobar."
+        ]
+      }
+    ]
+  },
+  "marketing@1.1.0": {
+    "resumen": "Versión base (4 sep 2026). Indicador de leads construido desde el 28 de julio.",
+    "secciones": [
+      {
+        "titulo": "Indicador de leads",
+        "items": [
+          "Servicios por lead y distribución por origen.",
+          "Mapa de leads por ubicación en Venezuela.",
+          "Tablas de detalle de leads y recontactos con timeline.",
+          "Reporte de leads dentro de Negocios, con sus permisos."
+        ]
+      }
+    ]
+  },
+  "marketing@1.1.1": {
+    "resumen": "Indicador de marketing en PDF (7 sep 2026).",
+    "secciones": [
+      {
+        "titulo": "Cambios",
+        "items": ["Exportar el indicador de marketing a PDF: resumen, origen, geografía y detalle."]
+      }
+    ]
+  },
+  "tareas@1.0.0": {
+    "resumen": "Versión base (4 sep 2026). Tablero de tareas construido desde el 8 de julio: 34 commits.",
+    "secciones": [
+      {
+        "titulo": "Tablero",
+        "items": [
+          "Tablero con arrastrar y soltar, detalle en hoja lateral y badges de contexto.",
+          "Filtros por asignado, estado, categoría y tiempo.",
+          "Emisión manual de tareas y aviso al creador cuando se completa."
+        ]
+      },
+      {
+        "titulo": "Automatización",
+        "items": [
+          "Categorías y reglas del sistema configurables, con desactivación real.",
+          "Lotes semanales: seguimiento, decisión de presupuesto y facturación (enviada al gestor de finanzas)."
+        ]
+      }
+    ]
+  },
+  "comentarios@1.0.0": {
+    "resumen": "Versión base (4 sep 2026). Notas y comentarios desde el 10 de julio.",
+    "secciones": [
+      {
+        "titulo": "Comentarios",
+        "items": [
+          "Notas y comentarios en OSI y otras entidades, con menciones.",
+          "Permisos por comentario.",
+          "Las notificaciones llevan directo a la tarea o al comentario."
+        ]
+      }
+    ]
+  },
+  "general@1.0.0": {
+    "resumen": "Versión general de Prisma: el portal desde el 7 de abril hasta septiembre de 2026.",
+    "secciones": [
+      {
+        "titulo": "Portal y sesión",
+        "items": [
+          "Login corporativo y sesión compartida con todas las apps por cookie de dominio.",
+          "Usuarios desactivados bloqueados, con el ban sincronizado en Supabase Auth.",
+          "Apps embebidas en iframe con navegación sincronizada y sin recargas dobles.",
+          "Dashboard organizado en Procesos Estratégicos, Medulares y de Apoyo."
+        ]
+      },
+      {
+        "titulo": "Apps integradas",
+        "items": [
+          "Negocios, Reportes y Marketing.",
+          "Capacitación, con su menú sincronizado en el sidebar.",
+          "Inventario, Drive y Tickets.",
+          "Servicios Técnicos, Calidad, Recursos Humanos y Administración."
+        ]
+      },
+      {
+        "titulo": "Notificaciones",
+        "items": [
+          "Campana en tiempo real, página de notificaciones y marcar como leídas.",
+          "Catálogo de eventos centralizado y destinatarios configurables."
+        ]
+      },
+      {
+        "titulo": "Requisiciones",
+        "items": [
+          "Internas y externas, con aprobación del coordinador o del líder.",
+          "Tasa BCV guardada en cada requisición y PDF de documento controlado rev.01.",
+          "Varias OSI y sesiones por requisición, revisiones por fila y entrega parcial de ítems.",
+          "Manual de requisiciones."
+        ]
+      },
+      {
+        "titulo": "Consulta de OSIs",
+        "items": [
+          "Disponible para todos los departamentos, con selector de sesión.",
+          "Estado por sesión con notificación.",
+          "Filtros por sede, tipo y adjunto recibido; costos visibles para administración."
+        ]
+      },
+      {
+        "titulo": "TED",
+        "items": [
+          "Creación de usuarios con su rol por app.",
+          "Solicitudes de RH con flujo de aprobación.",
+          "Accesos, roles y permisos (RBAC en authprisma).",
+          "Planificación TED: importación desde Excel, tareas, tickets, objetivos y correos.",
+          "Verificación de cédula."
+        ]
+      },
+      {
+        "titulo": "Rendimiento",
+        "items": [
+          "Índices para la lista de requisiciones (antes 680 ms en promedio).",
+          "Sesión y usuario resueltos una vez por petición.",
+          "Conteo y datos de notificaciones en una sola consulta."
+        ]
+      }
+    ]
+  },
+  "administracion@0.1.0": {
+    "resumen": "Repo creado el 15 de junio de 2026 a partir de la app de administración de SGestion.",
+    "secciones": [
+      {
+        "titulo": "En main",
+        "items": ["Proveedores: datos bancarios, bitácora de auditoría, notas y ficha imprimible (23 sep)."]
+      },
+      {
+        "titulo": "En desarrollo (feat/apu, solo staging)",
+        "items": [
+          "APU y nómina: catálogo de conceptos, empleados, períodos y plantillas.",
+          "Motor único de nómina, liquidación por quincena o semana y vista mes a mes.",
+          "Salario mínimo con tasa BCV, otros pagos y simulador APU.",
+          "Exportación a Excel y referencias de pago."
+        ]
+      }
+    ]
+  },
+  "servicios-tecnicos@0.1.0": {
+    "resumen": "App de Servicios Técnicos desde el 25 de junio de 2026.",
+    "secciones": [
+      {
+        "titulo": "Inicio",
+        "items": [
+          "Tablero de ST con requisiciones y formularios.",
+          "Privilegios para usuarios TED y ST; imagen Docker."
+        ]
+      },
+      {
+        "titulo": "Diseño y desarrollo de servicios",
+        "items": [
+          "Módulo integrado al Shell (14 sep), limitado a servicios ST desde la capa de datos.",
+          "Rol de administrador ST."
+        ]
+      }
+    ]
+  },
+  "calidad@1.0.0": {
+    "resumen": "Hub de calidad desde el 27 de agosto de 2026: 32 commits.",
+    "secciones": [
+      {
+        "titulo": "Documentos",
+        "items": [
+          "Hub documental por departamento con carpetas, guardado en Backblaze B2.",
+          "Versión inicial al subir, vista previa de PDF e imágenes y borrado con confirmación.",
+          "Carpetas que calidad y TED pueden crear, renombrar y quitar.",
+          "Versiones anteriores descargables y versionado manual."
+        ]
+      },
+      {
+        "titulo": "Formularios y encuestas",
+        "items": [
+          "Respuestas con nombre y departamento del usuario.",
+          "Puntuación automática y manual, con revisión.",
+          "PDF de respuestas con logo y pie de SHA.",
+          "Todos los usuarios de calidad pueden editar formularios y borrar respuestas.",
+          "Aviso a calidad cuando se envía un formulario."
+        ]
+      },
+      {
+        "titulo": "Integración",
+        "items": ["Fondos por departamento, buscador en administración e integración con el iframe del Shell."]
+      }
+    ]
+  },
+  "recursos-humanos@1.0.0": {
+    "resumen": "Módulo de Recursos Humanos del 3 al 23 de septiembre de 2026: 29 commits.",
+    "secciones": [
+      {
+        "titulo": "Solicitudes",
+        "items": [
+          "Solicitudes a TED: alta y desactivación de usuarios, contrato e ingreso, cambio de firma, carnet, hablador y marketing.",
+          "Notificaciones a TED y marketing y borrado de solicitudes."
+        ]
+      },
+      {
+        "titulo": "Gestión",
+        "items": [
+          "Bitácora de empleados, solicitudes de firma y normalización de cédula.",
+          "Proveedores, luego traspasados a Administración."
+        ]
+      },
+      {
+        "titulo": "Plataforma",
+        "items": [
+          "Acceso con el rol srh dado desde el Shell.",
+          "Menos carga en Supabase: badge de sincronización por eventos y departamentos en caché."
+        ]
+      }
+    ]
+  },
+  "drive@0.1.0": {
+    "resumen": "App inicial de Drive (22 abr 2026).",
+    "secciones": [
+      {
+        "titulo": "Cambios",
+        "items": ["Navegación de carpetas y logo corporativo."]
+      }
+    ]
+  }
+}

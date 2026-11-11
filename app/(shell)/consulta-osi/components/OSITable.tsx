@@ -2,7 +2,7 @@
 
 import { useState, Fragment } from "react";
 import Link from "next/link";
-import type { OSIListItem, OSIStatusOption, OSISession } from "@/types/osi";
+import type { OSIListItem, OSIStatusOption, OSISession, OsiNota } from "@/types/osi";
 import { OSI_STATUS_EJECUTADO_ID } from "@/types/osi";
 import { formatTimeAmPmEsVe } from "@sha/osi-formato";
 import { getOSISessions, checkAllSessionsFinal } from "@/actions/osi";
@@ -10,7 +10,12 @@ import SessionExecutionModal, {
   type SessionExecutionConfirmItem,
   type SessionExecutionPayload,
 } from "./SessionExecutionModal";
-import { Eye, FileText, Loader2, ChevronDown, ChevronRight, MessageSquare, CheckCircle2, EyeOff, Eye as EyeShow, Paperclip, Pencil } from "lucide-react";
+import OSICommentsBadge from "./OSICommentsBadge";
+import { CasillaOSI, CasillaTodasOSI, type SeleccionOSI } from "./OSICasillaSeleccion";
+import OSINotasModal from "./OSINotasModal";
+import OSIGuiaModal from "./OSIGuiaModal";
+import { Eye, FileText, Loader2, ChevronDown, ChevronRight, MessageSquare, CheckCircle2, EyeOff, Eye as EyeShow, Paperclip, Pencil, StickyNote, Star, Truck } from "lucide-react";
+import { GenerateSurveyModal } from "@/features/satisfaccion-clientes/components/GenerateSurveyModal";
 
 interface OSITableProps {
   osis: OSIListItem[];
@@ -30,6 +35,24 @@ interface OSITableProps {
   onToggleHidden?: (osi: OSIListItem, hidden: boolean) => Promise<{ success: boolean; error?: string }>;
   canToggleAttachment?: boolean;
   onToggleAttachment?: (osi: OSIListItem) => Promise<{ success: boolean; error?: string }>;
+  canAccessSatisfaccion?: boolean;
+  onNotasUpdated?: (osiId: number, updatedNotas: OsiNota[]) => void;
+  seleccion?: SeleccionOSI;
+}
+
+function getNotasTooltip(notas?: OsiNota[]): string {
+  if (!notas || notas.length === 0) {
+    return "Sin historial de estatus. Clic para ver.";
+  }
+  const lines = notas.slice(0, 3).map((n) => {
+    const autor = n.autorNombre ? `[${n.autorNombre}] ` : "";
+    return `• ${autor}${n.nota}`;
+  });
+  const more =
+    notas.length > 3
+      ? `\n(+${notas.length - 3} evento${notas.length - 3 === 1 ? "" : "s"} más...)`
+      : "";
+  return `${notas.length} evento${notas.length === 1 ? "" : "s"} de estatus:\n${lines.join("\n")}${more}\n\nClic para ver historial.`;
 }
 
 export default function OSITable({
@@ -46,7 +69,12 @@ export default function OSITable({
   onToggleHidden,
   canToggleAttachment,
   onToggleAttachment,
+  canAccessSatisfaccion = false,
+  onNotasUpdated,
+  seleccion,
 }: OSITableProps) {
+  const [notasModalOSI, setNotasModalOSI] = useState<OSIListItem | null>(null);
+  const [guiaModalOsi, setGuiaModalOsi] = useState<OSIListItem | null>(null);
   const [statusLoadingId, setStatusLoadingId] = useState<number | null>(null);
   const [expandedOSIId, setExpandedOSIId] = useState<number | null>(null);
   const [sessionsByOSI, setSessionsByOSI] = useState<Record<number, OSISession[]>>({});
@@ -55,6 +83,7 @@ export default function OSITable({
   const [allFinalBanner, setAllFinalBanner] = useState<Record<number, boolean>>({});
   const [hideLoadingId, setHideLoadingId] = useState<number | null>(null);
   const [attachmentLoadingId, setAttachmentLoadingId] = useState<number | null>(null);
+  const [surveyModalOsi, setSurveyModalOsi] = useState<OSIListItem | null>(null);
   const [executionModalSessions, setExecutionModalSessions] = useState<OSISession[]>([]);
   const [executionModalOsi, setExecutionModalOsi] = useState<OSIListItem | null>(null);
   const [executionModalAlsoUpdateOsi, setExecutionModalAlsoUpdateOsi] =
@@ -384,7 +413,7 @@ export default function OSITable({
       <table className="w-full">
         <thead className="bg-gray-50 border-b border-gray-200">
           <tr>
-            <th className="px-2 py-2 w-8"></th>
+            <th className="px-2 py-2 w-8"><CasillaTodasOSI seleccion={seleccion} ids={osis.map((o) => o.id_osi).filter((id): id is number => !!id)} /></th>
             <th className="px-2 py-2 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
               OSI
             </th>
@@ -416,6 +445,9 @@ export default function OSITable({
               Estado
             </th>
             <th className="px-2 py-2 text-center text-[11px] font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
+              Notas
+            </th>
+            <th className="px-2 py-2 text-center text-[11px] font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
               Acción
             </th>
           </tr>
@@ -434,7 +466,8 @@ export default function OSITable({
                   : "hover:bg-blue-50 border-l-transparent"
               }`}
             >
-              <td className="px-2 py-2 w-8">
+              <td className="px-2 py-2 w-8 whitespace-nowrap">
+                <CasillaOSI seleccion={seleccion} id={osi.id_osi} />
                 {osi.id_osi && osi.total_sesiones !== null && osi.total_sesiones >= 1 && (
                   <button
                     onClick={(e) => {
@@ -471,6 +504,20 @@ export default function OSITable({
                       <Paperclip className="h-2 w-2 shrink-0" />
                       Recibida
                     </span>
+                  )}
+                  {osi.nro_guia_zoom && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setGuiaModalOsi(osi);
+                      }}
+                      title={`Guía de envío Zoom: ${osi.nro_guia_zoom} — Clic para ver detalles`}
+                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/70 hover:bg-indigo-100 hover:border-indigo-300 transition-colors cursor-pointer"
+                    >
+                      <Truck className="h-2.5 w-2.5 text-indigo-600 shrink-0" />
+                      <span className="font-mono">{osi.nro_guia_zoom}</span>
+                    </button>
                   )}
                 </div>
               </td>
@@ -548,7 +595,7 @@ export default function OSITable({
                           style={{
                             color: osi.status_color,
                           }}
-                          title={`${osi.status_name} — Click para cambiar`}
+                          title={`${osi.status_name}${osi.notas && osi.notas.length > 0 ? ` — Última nota: ${osi.notas[0].nota}` : ""} — Click para cambiar`}
                         >
                         {statuses.map((status) => (
                           <option
@@ -580,9 +627,40 @@ export default function OSITable({
                       backgroundColor: `${osi.status_color}20`,
                       color: osi.status_color,
                     }}
+                    title={
+                      osi.notas && osi.notas.length > 0
+                        ? `${osi.status_name} — Última nota: ${osi.notas[0].nota}`
+                        : osi.status_name
+                    }
                   >
                     {osi.status_name}
                   </span>
+                )}
+              </td>
+              <td className="px-2 py-2 text-center">
+                {osi.id_osi ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setNotasModalOSI(osi);
+                    }}
+                    className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors border cursor-pointer ${
+                      (osi.notas?.length ?? 0) > 0
+                        ? "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 shadow-xs"
+                        : "bg-transparent text-gray-400 border-transparent hover:bg-gray-100 hover:text-gray-600"
+                    }`}
+                    title={getNotasTooltip(osi.notas)}
+                  >
+                    <StickyNote className="h-3.5 w-3.5 shrink-0" />
+                    {(osi.notas?.length ?? 0) > 0 ? (
+                      <span className="text-[11px] font-semibold">{osi.notas!.length}</span>
+                    ) : (
+                      <span className="text-[10px] text-gray-400 font-bold">—</span>
+                    )}
+                  </button>
+                ) : (
+                  <span className="text-gray-300">—</span>
                 )}
               </td>
               <td className="px-2 py-2 text-center">
@@ -592,18 +670,44 @@ export default function OSITable({
                     className="inline-flex items-center justify-center rounded-md border border-gray-200 p-1.5 text-blue-700 hover:bg-blue-50 transition-colors"
                     title="Ver formato OSI"
                   >
-                    <Eye className="h-3.5 w-3.5" />
+                    <FileText className="h-3.5 w-3.5" />
                   </Link>
+                  {osi.nro_guia_zoom && (
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setGuiaModalOsi(osi);
+                      }}
+                      className="inline-flex items-center justify-center rounded-md border border-indigo-200 p-1.5 text-indigo-600 bg-indigo-50/60 hover:bg-indigo-100 hover:text-indigo-800 transition-colors cursor-pointer"
+                      title={`Guía Zoom: ${osi.nro_guia_zoom} — Clic para ver detalles`}
+                    >
+                      <Truck className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                   <button
                     onClick={(event) => {
                       event.stopPropagation();
                       onCommentsClick(osi);
                     }}
-                    className="inline-flex items-center justify-center rounded-md border border-gray-200 p-1.5 text-green-700 hover:bg-green-50 transition-colors"
-                    title="Comentarios"
+                    className="relative inline-flex items-center justify-center rounded-md border border-gray-200 p-1.5 text-green-700 hover:bg-green-50 transition-colors"
+                    title={osi.comentarios_count ? `Comentarios (${osi.comentarios_count})` : "Comentarios"}
                   >
                     <MessageSquare className="h-3.5 w-3.5" />
+                    <OSICommentsBadge count={osi.comentarios_count} />
                   </button>
+                  {canAccessSatisfaccion && (
+                    <button
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setSurveyModalOsi(osi);
+                      }}
+                      className="inline-flex items-center justify-center rounded-md border border-gray-200 p-1.5 text-amber-600 hover:bg-amber-50 transition-colors"
+                      title="Encuesta de Satisfacción del Cliente"
+                    >
+                      <Star className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                   {canHideForClient && osi.id_osi && onToggleHidden && (
                     <button
                       onClick={(event) => {
@@ -654,7 +758,7 @@ export default function OSITable({
             {isExpanded && osi.id_osi && (
               sessionsLoading === osi.id_osi ? (
                 <tr className="bg-gray-50/50">
-                  <td colSpan={12} className="px-2 py-2">
+                  <td colSpan={13} className="px-2 py-2">
                     <div className="flex items-center gap-2 text-xs text-gray-500 pl-10">
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       Cargando sesiones...
@@ -663,7 +767,7 @@ export default function OSITable({
                 </tr>
               ) : (sessionsByOSI[osi.id_osi] || []).length === 0 ? (
                 <tr className="bg-gray-50/50">
-                  <td colSpan={12} className="px-2 py-2">
+                  <td colSpan={13} className="px-2 py-2">
                     <p className="text-xs text-gray-500 italic pl-10">Esta OSI no tiene sesiones registradas.</p>
                   </td>
                 </tr>
@@ -682,10 +786,25 @@ export default function OSITable({
                     <td className="px-2 py-1.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Fecha ejecutada</td>
                     <td className="px-2 py-1.5"></td>
                     <td className="px-2 py-1.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Estado</td>
+                    <td className="px-2 py-1.5 text-center text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Notas</td>
                     <td className="px-2 py-1.5"></td>
                   </tr>
                   {/* Session data rows */}
-                  {(sessionsByOSI[osi.id_osi] || []).map((session) => (
+                  {(sessionsByOSI[osi.id_osi] || []).map((session) => {
+                    const sessionNote = osi.notas?.find((n) => {
+                      const text = n.nota.toLowerCase();
+                      return (
+                        text.includes(`sesión ${session.nro_sesion}`) ||
+                        text.includes(`sesion ${session.nro_sesion}`) ||
+                        text.includes(`sesión #${session.nro_sesion}`) ||
+                        text.includes(`sesion #${session.nro_sesion}`)
+                      );
+                    });
+                    const sessionNoteTooltip = sessionNote
+                      ? `Nota de sesión: ${sessionNote.autorNombre ? `[${sessionNote.autorNombre}] ` : ""}${sessionNote.nota}`
+                      : undefined;
+
+                    return (
                     <tr key={session.id} className="bg-gray-50/50 border-b border-gray-100">
                       <td className="px-2 py-1.5 w-8"></td>
                       <td className="px-2 py-1.5 text-xs font-medium text-gray-700">#{session.nro_sesion}</td>
@@ -715,69 +834,97 @@ export default function OSITable({
                       </td>
                       <td className="px-2 py-1.5"></td>
                       <td className="px-2 py-1.5">
-                        {canChangeStatus && onSessionStatusChange ? (
-                          <div className="relative inline-block">
-                            {sessionStatusLoading === session.id ? (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] text-gray-500">
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                                ...
-                              </span>
-                            ) : (
-                              <div
-                                className="relative inline-flex items-center rounded-full transition-opacity hover:opacity-80"
-                                style={{
-                                  backgroundColor: `${getStatusInfo(session.id_estatus).color}20`,
-                                  border: `1px solid ${getStatusInfo(session.id_estatus).color}60`,
-                                }}
-                              >
-                                <select
-                                  value={session.id_estatus ?? ""}
-                                  onChange={(e) => {
-                                    const val = e.target.value;
-                                    if (val) handleSessionStatusSelect(session, parseInt(val));
+                        <div className="inline-flex items-center gap-1">
+                          {canChangeStatus && onSessionStatusChange ? (
+                            <div className="relative inline-block">
+                              {sessionStatusLoading === session.id ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] text-gray-500">
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                  ...
+                                </span>
+                              ) : (
+                                <div
+                                  className="relative inline-flex items-center rounded-full transition-opacity hover:opacity-80"
+                                  style={{
+                                    backgroundColor: `${getStatusInfo(session.id_estatus).color}20`,
+                                    border: `1px solid ${getStatusInfo(session.id_estatus).color}60`,
                                   }}
-                                  className="text-[10px] font-bold uppercase rounded-full pl-2 pr-5 py-0.5 text-center border-0 cursor-pointer focus:ring-2 focus:ring-blue-400 focus:outline-none appearance-none bg-transparent min-w-[55px]"
-                                  style={{ color: getStatusInfo(session.id_estatus).color }}
-                                  title={`${getStatusInfo(session.id_estatus).name} — Click para cambiar`}
                                 >
-                                  <option value="" style={{ backgroundColor: "white", color: "#374151", textTransform: "none", fontWeight: "normal", fontSize: "12px" }}>
-                                    Sin estado
-                                  </option>
-                                  {statuses.map((status) => (
-                                    <option
-                                      key={status.id}
-                                      value={status.id}
-                                      style={{ backgroundColor: "white", color: "#374151", textTransform: "none", fontWeight: "normal", fontSize: "12px" }}
-                                    >
-                                      {status.nombre_estado}
+                                  <select
+                                    value={session.id_estatus ?? ""}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      if (val) handleSessionStatusSelect(session, parseInt(val));
+                                    }}
+                                    className="text-[10px] font-bold uppercase rounded-full pl-2 pr-5 py-0.5 text-center border-0 cursor-pointer focus:ring-2 focus:ring-blue-400 focus:outline-none appearance-none bg-transparent min-w-[55px]"
+                                    style={{ color: getStatusInfo(session.id_estatus).color }}
+                                    title={`${getStatusInfo(session.id_estatus).name}${sessionNote ? ` — ${sessionNote.nota}` : ""} — Click para cambiar`}
+                                  >
+                                    <option value="" style={{ backgroundColor: "white", color: "#374151", textTransform: "none", fontWeight: "normal", fontSize: "12px" }}>
+                                      Sin estado
                                     </option>
-                                  ))}
-                                </select>
-                                <ChevronDown
-                                  className="pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 h-3 w-3"
-                                  style={{ color: getStatusInfo(session.id_estatus).color }}
-                                />
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <span
-                            className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase whitespace-nowrap"
-                            style={{
-                              backgroundColor: `${getStatusInfo(session.id_estatus).color}20`,
-                              color: getStatusInfo(session.id_estatus).color,
+                                    {statuses.map((status) => (
+                                      <option
+                                        key={status.id}
+                                        value={status.id}
+                                        style={{ backgroundColor: "white", color: "#374151", textTransform: "none", fontWeight: "normal", fontSize: "12px" }}
+                                      >
+                                        {status.nombre_estado}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <ChevronDown
+                                    className="pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 h-3 w-3"
+                                    style={{ color: getStatusInfo(session.id_estatus).color }}
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span
+                              className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase whitespace-nowrap"
+                              style={{
+                                backgroundColor: `${getStatusInfo(session.id_estatus).color}20`,
+                                color: getStatusInfo(session.id_estatus).color,
+                              }}
+                              title={`${getStatusInfo(session.id_estatus).name}${sessionNote ? ` — ${sessionNote.nota}` : ""}`}
+                            >
+                              {getStatusInfo(session.id_estatus).name}
+                            </span>
+                          )}
+                          {sessionNoteTooltip && (
+                            <span
+                              className="inline-flex items-center text-amber-600 hover:text-amber-700 cursor-help"
+                              title={sessionNoteTooltip}
+                            >
+                              <StickyNote className="h-3 w-3 shrink-0" />
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-2 py-1.5 text-center">
+                        {sessionNote ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setNotasModalOSI(osi);
                             }}
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-colors cursor-pointer"
+                            title={sessionNoteTooltip}
                           >
-                            {getStatusInfo(session.id_estatus).name}
-                          </span>
-                        )}
+                            <StickyNote className="h-3 w-3" />
+                            <span>Ver nota</span>
+                          </button>
+                        ) : null}
                       </td>
                       <td className="px-2 py-1.5"></td>
                     </tr>
-                  ))}
+                    );
+                  })}
                   {allFinalBanner[osi.id_osi] && (
                     <tr className="bg-gray-50/50">
-                      <td colSpan={12} className="px-2 py-2">
+                      <td colSpan={13} className="px-2 py-2">
                         <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-300 rounded text-xs text-amber-800">
                           <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
                           <span>Todas las sesiones están en estado final.</span>
@@ -812,6 +959,42 @@ export default function OSITable({
         mode={executionModalMode}
         onClose={closeExecutionModal}
         onConfirm={handleExecutionModalConfirm}
+      />
+      <OSINotasModal
+        osi={notasModalOSI}
+        open={Boolean(notasModalOSI)}
+        onClose={() => setNotasModalOSI(null)}
+        onNotasUpdated={(osiId, updatedNotas) => {
+          onNotasUpdated?.(osiId, updatedNotas);
+          setNotasModalOSI((prev) =>
+            prev && prev.id_osi === osiId ? { ...prev, notas: updatedNotas } : prev,
+          );
+        }}
+      />
+      {Boolean(surveyModalOsi) && (
+        <GenerateSurveyModal
+          isOpen={true}
+          onClose={() => setSurveyModalOsi(null)}
+          initialOsi={
+            surveyModalOsi
+              ? {
+                  id_osi: surveyModalOsi.id_osi,
+                  nro_osi: surveyModalOsi.nro_osi,
+                  nombre_empresa: surveyModalOsi.nombre_empresa,
+                  servicio: surveyModalOsi.servicio,
+                  tipo_servicio: surveyModalOsi.tipo_servicio,
+                  ejecutivo_negocios: surveyModalOsi.ejecutivo_negocios,
+                  ciudad_ejecucion: surveyModalOsi.ciudad_ejecucion,
+                  fecha_servicio: surveyModalOsi.fecha_inicio_real,
+                }
+              : undefined
+          }
+        />
+      )}
+      <OSIGuiaModal
+        osi={guiaModalOsi}
+        open={Boolean(guiaModalOsi)}
+        onClose={() => setGuiaModalOsi(null)}
       />
     </div>
   );

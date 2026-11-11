@@ -5,6 +5,7 @@ import { unstable_cache } from "next/cache";
 import { createAdminClient, createClient, peek_dev_db_target } from "@/lib/supabase/server";
 import type { DevDbTarget } from "@/lib/supabase/dev-db";
 import { notifySessionStatusChange } from "@/actions/osi-session-notifications";
+import { getOSIComentariosResumen } from "@/actions/osi-comentarios";
 import {
   getUserRole,
   getUserRolesByApp,
@@ -27,6 +28,8 @@ import type {
   OSISession,
   OSISessionsFinalCheck,
   SessionExecutionPayload,
+  OsiNota,
+  OsiGuiaEnvio,
 } from "@/types/osi";
 import { OSI_STATUS_EJECUTADO_ID } from "@/types/osi";
 
@@ -140,6 +143,10 @@ export async function getOSIList(
       !filters.ejecutivo &&
       !filters.dateFrom &&
       !filters.dateTo &&
+      !filters.executionDateFrom &&
+      !filters.executionDateTo &&
+      !filters.issueDateFrom &&
+      !filters.issueDateTo &&
       !filters.status &&
       !filters.attachmentReceived &&
       !filters.tipoServicio;
@@ -172,7 +179,7 @@ export async function getOSIList(
     let query = supabase
       .from("v_osi_lista")
       .select(
-        "id_osi, nro_osi, nombre_empresa, servicio, tipo_servicio, id_ciudad_direccion_ejecucion_efectiva, ejecutivo_negocios, fecha_inicio_real, fecha_fin_real, participantes_ejecucion, participantes_max_solped, id_estatus, sesiones_ejecucion",
+        "id_osi, nro_osi, nombre_empresa, servicio, tipo_servicio, id_ciudad_direccion_ejecucion_efectiva, ejecutivo_negocios, fecha_inicio_real, fecha_fin_real, fecha_emision, participantes_ejecucion, participantes_max_solped, id_estatus, sesiones_ejecucion",
         { count: "exact" },
       );
 
@@ -220,12 +227,29 @@ export async function getOSIList(
       query = query.ilike("ejecutivo_negocios", `%${filters.ejecutivo}%`);
     }
 
-    if (filters.dateFrom) {
-      query = query.gte("fecha_inicio_real", filters.dateFrom);
+    const execFrom = filters.executionDateFrom || filters.dateFrom;
+    const execTo = filters.executionDateTo || filters.dateTo;
+
+    if (execFrom) {
+      query = query.gte("fecha_inicio_real", execFrom);
     }
 
-    if (filters.dateTo) {
-      query = query.lte("fecha_inicio_real", filters.dateTo);
+    if (execTo) {
+      query = query.lte("fecha_inicio_real", execTo);
+    }
+
+    if (filters.issueDateFrom) {
+      const fromStr = filters.issueDateFrom.includes("T")
+        ? filters.issueDateFrom
+        : `${filters.issueDateFrom}T00:00:00-04:00`;
+      query = query.gte("fecha_emision", fromStr);
+    }
+
+    if (filters.issueDateTo) {
+      const toStr = filters.issueDateTo.includes("T")
+        ? filters.issueDateTo
+        : `${filters.issueDateTo}T23:59:59.999-04:00`;
+      query = query.lte("fecha_emision", toStr);
     }
 
     if (filters.status) {
@@ -260,7 +284,7 @@ export async function getOSIList(
 
     const adminClientPromise = pageOsiIds.length > 0 ? createAdminClient() : null;
 
-    const [statuses, cityResult, visibleOsiIds, sesionesProgramadasResult, attachmentResult] = await Promise.all([
+    const [statuses, cityResult, visibleOsiIds, sesionesProgramadasResult, attachmentResult, notasResult, guiasResult, comentariosResumen] = await Promise.all([
       getOSIStatuses(await peek_dev_db_target()),
       uniqueCityIds.length > 0
         ? supabase
@@ -284,6 +308,53 @@ export async function getOSIList(
               .eq("is_active", true)
           )
         : Promise.resolve({ data: null }),
+      adminClientPromise
+        ? adminClientPromise.then(async (admin) => {
+            const { data: notas } = await admin
+              .from("capacitacion_osi_notas")
+              .select("id, osi_id, nota, created_at, created_by")
+              .in("osi_id", pageOsiIds)
+              .order("created_at", { ascending: false });
+
+            if (!notas || notas.length === 0) return { data: [] };
+
+            const userIds = [
+              ...new Set(notas.map((n: any) => n.created_by).filter(Boolean)),
+            ] as string[];
+            const userNameMap = new Map<string, string>();
+            if (userIds.length > 0) {
+              const { data: usuarios } = await admin
+                .from("usuarios")
+                .select("id_auth, nombre")
+                .in("id_auth", userIds);
+              for (const u of usuarios || []) {
+                if (u.id_auth && u.nombre) userNameMap.set(u.id_auth, u.nombre);
+              }
+            }
+
+            return {
+              data: notas.map((n: any) => ({
+                id: n.id as number,
+                osiId: n.osi_id as number,
+                nota: n.nota as string,
+                createdAt: n.created_at as string,
+                autorNombre: n.created_by ? userNameMap.get(n.created_by) ?? null : null,
+              })),
+            };
+          })
+        : Promise.resolve({ data: [] }),
+      adminClientPromise
+        ? adminClientPromise.then(async (admin) => {
+            const { data: stepRows } = await admin
+              .from("capacitacion_proceso_steps")
+              .select("osi_id, nro_sesion, notes, step_metadata, completed_at")
+              .in("osi_id", pageOsiIds)
+              .eq("step_key", "sobre_enviado_zoom")
+              .eq("completed", true);
+            return { data: stepRows || [] };
+          })
+        : Promise.resolve({ data: [] }),
+      getOSIComentariosResumen(pageOsiIds),
     ]);
 
     const statusMap = new Map(statuses.map((s) => [s.id, s]));
@@ -306,9 +377,35 @@ export async function getOSIList(
       });
     }
 
+    // Map notas by osi_id
+    const notasByOsi = new Map<number, OsiNota[]>();
+    for (const n of ((notasResult as any)?.data || []) as OsiNota[]) {
+      const existing = notasByOsi.get(n.osiId) || [];
+      existing.push(n);
+      notasByOsi.set(n.osiId, existing);
+    }
+
+    // Map tracking / guia info by osi_id
+    const guiasByOsi = new Map<number, OsiGuiaEnvio[]>();
+    for (const row of ((guiasResult as any)?.data || [])) {
+      const meta = (row.step_metadata as Record<string, unknown>) || {};
+      const guia = ((meta.guia as string) || (row.notes as string) || "").trim();
+      if (!guia) continue;
+      const osiId = row.osi_id as number;
+      const list = guiasByOsi.get(osiId) || [];
+      list.push({
+        nro_sesion: row.nro_sesion as number,
+        guia,
+        fecha: (row.completed_at as string) || null,
+      });
+      guiasByOsi.set(osiId, list);
+    }
+
     const enrichedOSIs: OSIListItem[] = (data || []).map((osi: any) => {
       const status = osi.id_estatus ? statusMap.get(osi.id_estatus) : null;
       const attachment = osi.id_osi ? attachmentByOsi.get(osi.id_osi) : undefined;
+      const osiGuias = osi.id_osi ? guiasByOsi.get(osi.id_osi) ?? [] : [];
+      const nroGuiaZoom = osiGuias.length > 0 ? osiGuias.map((g) => g.guia).join(", ") : null;
       return {
         id_osi: osi.id_osi,
         nro_osi: osi.nro_osi,
@@ -321,6 +418,7 @@ export async function getOSIList(
         ejecutivo_negocios: osi.ejecutivo_negocios,
         fecha_inicio_real: osi.fecha_inicio_real,
         fecha_fin_real: osi.fecha_fin_real,
+        fecha_emision: osi.fecha_emision,
         participantes: osi.participantes_ejecucion ?? osi.participantes_max_solped ?? null,
         id_estatus: osi.id_estatus,
         status_name: status?.nombre_estado || "Desconocido",
@@ -331,6 +429,10 @@ export async function getOSIList(
         attachment_received: attachment?.received ?? false,
         attachment_received_at: attachment?.at ?? null,
         attachment_received_by: attachment?.by ?? null,
+        notas: osi.id_osi ? notasByOsi.get(osi.id_osi) ?? [] : [],
+        nro_guia_zoom: nroGuiaZoom,
+        guias_envio: osiGuias,
+        comentarios_count: osi.id_osi ? comentariosResumen[osi.id_osi]?.total ?? 0 : 0,
       };
     });
 
@@ -743,34 +845,11 @@ export async function canAccessConsultaOSI(): Promise<boolean> {
   return filter !== "none";
 }
 
-export async function canChangeOSIStatus(osiId?: number): Promise<boolean> {
-  try {
-    const filter = await getUserOSIAccessFilter();
-
-    if (filter === "none" || filter === "other") return false;
-    if (filter === "all") return true;
-
-    if (osiId !== undefined) {
-      const supabase = await createClient();
-      const { data: osi } = await supabase
-        .from("v_osi_lista")
-        .select("tipo_servicio")
-        .eq("id_osi", osiId)
-        .single();
-
-      if (!osi?.tipo_servicio) return false;
-      const tipoUpper = osi.tipo_servicio.toUpperCase();
-
-      if (filter === "capacitacion") return tipoUpper.includes("CAPACITACION");
-      if (filter === "servicios_tecnicos")
-        return tipoUpper.includes("SERVICIOS TECNICOS") || tipoUpper.includes("SERVICIO TECNICO");
-    }
-
-    return true;
-  } catch (err) {
-    console.error("Error checking OSI status change permission:", err);
-    return false;
-  }
+export async function canChangeOSIStatus(_osiId?: number): Promise<boolean> {
+  // Los cambios de estatus de OSIs y sesiones ya no se permiten desde Consulta de OSIs.
+  // Toda la gestión de estatus (ejecutado, en proceso, reagendado, etc.) debe realizarse
+  // exclusivamente desde el módulo de Capacitación (Seguimiento de Servicios / Confirmación en Vivo).
+  return false;
 }
 
 // ─── Cliente visibility ("Ocultar para cliente") ───
@@ -1044,7 +1123,7 @@ export async function updateOSIStatus(
   try {
     const canChange = await canChangeOSIStatus(osiId);
     if (!canChange) {
-      return { success: false, error: "No tiene permisos para cambiar el estado de OSIs" };
+      return { success: false, error: "El estatus de las OSIs debe gestionarse exclusivamente desde el módulo de Capacitación." };
     }
 
     const supabase = await createClient();
@@ -1277,7 +1356,7 @@ export async function updateSessionStatus(
 
     const canChange = await canChangeOSIStatus(session.id_osi);
     if (!canChange) {
-      return { success: false, error: "No tiene permisos para cambiar el estado de sesiones" };
+      return { success: false, error: "El estatus de las sesiones debe gestionarse exclusivamente desde el módulo de Capacitación." };
     }
 
     const EJECUTADO_ID = 12;
@@ -1467,5 +1546,107 @@ export async function checkAllSessionsFinal(
   } catch (err) {
     console.error("Unexpected error in checkAllSessionsFinal:", err);
     return { allFinal: false, totalSessions: 0, finalCount: 0 };
+  }
+}
+
+export async function addOsiNota(
+  osiId: number,
+  nota: string,
+): Promise<{ success: boolean; data?: OsiNota; error?: string }> {
+  if (!Number.isFinite(osiId) || osiId <= 0) {
+    return { success: false, error: "OSI id inválido" };
+  }
+
+  const trimmed = (nota ?? "").trim();
+  if (!trimmed) {
+    return { success: false, error: "La nota no puede estar vacía" };
+  }
+
+  if (trimmed.length > 2000) {
+    return { success: false, error: "La nota no puede exceder 2000 caracteres" };
+  }
+
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    const userId = user?.id ?? null;
+
+    const admin = await createAdminClient();
+
+    const { data: inserted, error: insertError } = await admin
+      .from("capacitacion_osi_notas")
+      .insert({
+        osi_id: osiId,
+        nota: trimmed,
+        created_by: userId,
+      })
+      .select("id, osi_id, nota, created_at, created_by")
+      .single();
+
+    if (insertError) {
+      console.error("[actions/osi] Error inserting nota:", insertError);
+      return { success: false, error: insertError.message };
+    }
+
+    let autorNombre: string | null = null;
+    if (userId) {
+      const { data: usuario } = await admin
+        .from("usuarios")
+        .select("nombre")
+        .eq("id_auth", userId)
+        .single();
+      autorNombre = usuario?.nombre ?? null;
+    }
+
+    await clearOsiListServerCache();
+
+    return {
+      success: true,
+      data: {
+        id: inserted.id as number,
+        osiId: inserted.osi_id as number,
+        nota: inserted.nota as string,
+        createdAt: inserted.created_at as string,
+        autorNombre,
+      },
+    };
+  } catch (err) {
+    console.error("[actions/osi] Unexpected error adding nota:", err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Error desconocido",
+    };
+  }
+}
+
+export async function deleteOsiNota(
+  notaId: number,
+): Promise<{ success: boolean; error?: string }> {
+  if (!Number.isFinite(notaId) || notaId <= 0) {
+    return { success: false, error: "Nota id inválido" };
+  }
+
+  try {
+    const admin = await createAdminClient();
+    const { error: deleteError } = await admin
+      .from("capacitacion_osi_notas")
+      .delete()
+      .eq("id", notaId);
+
+    if (deleteError) {
+      console.error("[actions/osi] Error deleting nota:", deleteError);
+      return { success: false, error: deleteError.message };
+    }
+
+    await clearOsiListServerCache();
+    return { success: true };
+  } catch (err) {
+    console.error("[actions/osi] Unexpected error deleting nota:", err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Error desconocido",
+    };
   }
 }

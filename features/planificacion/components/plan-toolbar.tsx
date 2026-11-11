@@ -11,6 +11,10 @@ import { TedPersonPicker } from "./ted-person-picker";
 import { FilterExpand } from "./filter-expand";
 import { Search, SlidersHorizontal } from "lucide-react";
 import { useState } from "react";
+import {
+  PRISMA_PLANNED_PUBLIC_LABEL,
+  prisma_salud_label,
+} from "../lib/prisma-kpis";
 
 const SALUD: Array<PlanSalud | "Todos"> = [
   "Todos",
@@ -34,6 +38,7 @@ export function PlanToolbar({
   origin_counts,
   usuarios,
   on_change,
+  public_labels = false,
 }: {
   query: PlanQuery;
   years: number[];
@@ -41,6 +46,8 @@ export function PlanToolbar({
   origin_counts?: Map<PlanOrigen | "Todos", number>;
   usuarios: PlanUsuarioOption[];
   on_change: (next: Partial<PlanQuery>) => void;
+  /** Foto pública: renombra «Planificado» en chips. */
+  public_labels?: boolean;
 }) {
   const [more, set_more] = useState(false);
   const search_ref = useRef<HTMLInputElement>(null);
@@ -67,7 +74,17 @@ export function PlanToolbar({
               {sc ? (
                 <span className={`h-1.5 w-1.5 rounded-full ${sc.dot}`} />
               ) : null}
-              {item === "Todos" ? "Todos" : item}
+              <span
+                title={
+                  public_labels && item === "Planificado"
+                    ? PRISMA_PLANNED_PUBLIC_LABEL
+                    : undefined
+                }
+              >
+                {item === "Todos"
+                  ? "Todos"
+                  : prisma_salud_label(item, public_labels, true)}
+              </span>
               <span className="text-[11px] font-bold opacity-70">
                 {counts[item] || 0}
               </span>

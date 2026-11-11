@@ -8,8 +8,10 @@ import { average_avance, is_tarea_pending } from "../lib/task-progress";
 import { user_initials } from "../lib/display";
 import { unique_people } from "../lib/people";
 import type {
+  CubrirWorkspace,
   PlanApp,
   PlanObjetivo,
+  PlanObjetivoCover,
   PlanObjetivoEstado,
   PlanOrigen,
   PlanParticipante,
@@ -19,6 +21,7 @@ import type {
 import { is_plan_mes_emitido, type PlanMes } from "../lib/plan-mes";
 import { ensure_plan_mes, fetch_plan_mes } from "../lib/plan-mes-db";
 import { list_objetivo_solicitantes } from "../lib/objetivo-solicitantes";
+import { fetch_objetivo_versions } from "../lib/versiones-db";
 
 function revalidate_objetivos() {
   revalidatePath("/ted/planificacion");
@@ -55,20 +58,6 @@ type ObjetivoRow = {
   estado: PlanObjetivoEstado;
   created_by: number | null;
   solicitado_por: number | null;
-};
-
-export type PlanObjetivoCover = PlanObjetivo & { tareas: PlanTarea[] };
-
-export type CubrirWorkspace = {
-  mes: string;
-  plan_mes: PlanMes;
-  unpublished_hidden: boolean;
-  current_user_id: number | null;
-  objetivos: PlanObjetivoCover[];
-  sueltas: PlanTarea[];
-  apps: Array<{ id: number; nombre: string }>;
-  plan_apps: PlanApp[];
-  usuarios: PlanUsuarioOption[];
 };
 
 function sorted_ids(ids: number[]): number[] {
@@ -452,6 +441,10 @@ export async function load_cubrir_workspace(
     if (in_dates || in_created) sueltas.push(tarea);
   }
 
+  const versions = await fetch_objetivo_versions(
+    supabase,
+    obj_rows.map((row) => row.id),
+  );
   const objetivos: PlanObjetivoCover[] = obj_rows.map((row) => {
     const tareas = tareas_by_obj.get(row.id) ?? [];
     const app_ids =
@@ -477,6 +470,7 @@ export async function load_cubrir_workspace(
       estado: row.estado,
       tarea_count: tareas.length,
       avance: average_avance(tareas),
+      version: versions.get(row.id) ?? null,
       tareas,
     };
   });

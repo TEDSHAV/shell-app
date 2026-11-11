@@ -54,11 +54,12 @@ export function resolve_notification_href(
     return notification.link_path;
   }
 
-  // Tareas, tickets y requisiciones viven en Shell (rutas nativas, sin basePath de app).
+  // Tareas, tickets, requisiciones y nuevo-servicio viven en Shell (rutas nativas, sin basePath de app).
   if (
     notification.link_path.startsWith("/tareas") ||
     notification.link_path.startsWith("/tickets") ||
-    notification.link_path.startsWith("/requisiciones")
+    notification.link_path.startsWith("/requisiciones") ||
+    notification.link_path.startsWith("/nuevo-servicio")
   ) {
     return notification.link_path;
   }
@@ -93,6 +94,11 @@ export function resolve_notification_href(
     if (notification.link_path.startsWith("/facturacion")) {
       return `/requisiciones${notification.link_path}`;
     }
+  }
+
+  // Presupuesto mensual (spresupuesto): los recibos de cada persona se abren en Utilidades → Nómina, que ven todos.
+  if (notification.app_slug === "spresupuesto" && notification.link_path.startsWith("/apu/mis-recibos")) {
+    return `/nomina${notification.link_path}`;
   }
 
   if (notification.app_slug === SCAP_APP_SLUG) {

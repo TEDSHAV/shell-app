@@ -45,7 +45,7 @@ export async function signInAction(state: { error: string } | null, formData: Fo
   const admin = await createAdminClient();
   const { data: usuario } = await admin
     .from("usuarios")
-    .select("esta_activo")
+    .select("id, esta_activo")
     .eq("id_auth", data.user.id)
     .single();
 

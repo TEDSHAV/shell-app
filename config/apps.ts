@@ -43,6 +43,12 @@ import {
   FileStack,
   LayoutGrid,
   Settings,
+  Star,
+  QrCode,
+  Tags,
+  Wallet,
+  AlertOctagon,
+  GitFork,
 } from "lucide-react";
 import { build_app_config } from "@/lib/app-theme";
 import { AppConfig, AppGroupConfig, NavGroup, NavLink } from "@/types";
@@ -65,6 +71,11 @@ function inventarioServiciosHrefForApp(fromApp: string): string | null {
   }
   return null;
 }
+
+/** Administración (presupuesto mensual, nómina y APU). Mientras no haya dirección pública, se usa esta. */
+const ADMINISTRACION_URL =
+  process.env.NEXT_PUBLIC_ADMINISTRACION_URL ||
+  "https://administracion.shadevenezuela.com.ve";
 
 function buildRequisicionesNavGroup(fromApp: string): NavGroup {
   const q = `?from=${fromApp}`;
@@ -221,7 +232,11 @@ export const UTILIDADES_HEADER_APP_IDS = [
   "inventario",
   "directorio",
   "cedula",
+  "visitantes",
+  "satisfaccion-clientes",
   "administracion",
+  "presupuesto-mensual",
+  "nomina",
 ] as const;
 
 export function get_header_group_id(app: AppConfig): string | undefined {
@@ -289,6 +304,13 @@ export const apps: AppConfig[] = [
             label: "Servicios",
             path: "/directorio/servicios",
             icon: Package,
+            requiredPermissions: ["directorio:access"],
+          },
+          {
+            label: "Nuevos Servicios",
+            path: "/nuevo-servicio",
+            href: "/nuevo-servicio",
+            icon: ClipboardList,
             requiredPermissions: ["directorio:access"],
           },
           {
@@ -531,15 +553,29 @@ export const apps: AppConfig[] = [
             requiredPermissions: ["reportes:access:presupuestos"],
           },
           {
-            label: "Mi avance",
+            label: "Mi avance Presupuesto",
             path: "/reportes/presupuestos/mi-avance",
             icon: Target,
-            requiredRoles: ["gestor_clientes"],
+            requiredRoles: ["gestor_clientes", "coordinador"],
             excludeRoles: ["admin", "superadmin"],
           },
           {
-            label: "Mi avance",
+            label: "Mi avance Presupuesto",
             path: "/reportes/presupuestos/mi-avance",
+            icon: Target,
+            requiredPermissions: ["reportes:mi-avance:admin-access"],
+            requiredRoles: ["admin", "superadmin"],
+          },
+          {
+            label: "Mi avance Leads",
+            path: "/reportes/crm-ejecutivos/mi-avance",
+            icon: Target,
+            requiredRoles: ["gestor_clientes", "coordinador"],
+            excludeRoles: ["admin", "superadmin"],
+          },
+          {
+            label: "Mi avance Leads",
+            path: "/reportes/crm-ejecutivos/mi-avance",
             icon: Target,
             requiredPermissions: ["reportes:mi-avance:admin-access"],
             requiredRoles: ["admin", "superadmin"],
@@ -574,14 +610,14 @@ export const apps: AppConfig[] = [
             requiredPermissions: ["reportes:access:presupuestos"],
           },
           {
-            label: "Mi avance",
+            label: "Mi avance Presupuesto",
             path: "/presupuestos/mi-avance",
             icon: Target,
-            requiredRoles: ["gestor_clientes"],
+            requiredRoles: ["gestor_clientes", "coordinador"],
             excludeRoles: ["admin", "superadmin"],
           },
           {
-            label: "Mi avance",
+            label: "Mi avance Presupuesto",
             path: "/presupuestos/mi-avance",
             icon: Target,
             requiredPermissions: ["reportes:mi-avance:admin-access"],
@@ -603,7 +639,7 @@ export const apps: AppConfig[] = [
             label: "Mi avance Leads",
             path: "/crm-ejecutivos/mi-avance",
             icon: Target,
-            requiredRoles: ["gestor_clientes"],
+            requiredRoles: ["gestor_clientes", "coordinador"],
             excludeRoles: ["admin", "superadmin"],
           },
           {
@@ -749,6 +785,47 @@ export const apps: AppConfig[] = [
       administracionFacturacionNavGroup,
     ],
   }),
+  // App de Administración (apps/administracion): presupuesto mensual, nómina y APU.
+  build_app_config({
+    id: "presupuesto-mensual",
+    dbSlug: "spresupuesto",
+    name: "Presupuesto mensual",
+    description: "Presupuesto de la empresa, nómina y APU de cada trabajador",
+    basePath: "/presupuesto-mensual",
+    upstreamUrl: ADMINISTRACION_URL,
+    icon: Wallet,
+    brandColor: "#047857",
+    embedMode: "shell",
+    // Sin tarjeta en el inicio: solo en el desplegable Utilidades del header.
+    hiddenFromDashboard: true,
+    groupId: "utilidades",
+    headerLabel: "Presupuesto mensual",
+    navLinks: [
+      { label: "Inicio", path: "/", icon: LayoutDashboard },
+      { label: "Nómina", path: "/apu", icon: Receipt },
+      { label: "Consolidado APU", path: "/apu/consolidado", icon: Calculator },
+      { label: "Presupuesto", path: "/presupuesto", icon: Wallet },
+      { label: "Cierre del mes", path: "/cierre", icon: Calendar },
+      { label: "Mis recibos", path: "/apu/mis-recibos", icon: FileText },
+    ],
+  }),
+  // Cualquier trabajador: sus recibos de pago (la misma app, abierta en Mis recibos).
+  build_app_config({
+    id: "nomina",
+    dbSlug: "spresupuesto",
+    name: "Nómina",
+    description: "Tus recibos de pago y el «Recibí conforme»",
+    basePath: "/nomina",
+    upstreamUrl: ADMINISTRACION_URL,
+    defaultSubPath: "apu/mis-recibos",
+    icon: Receipt,
+    brandColor: "#D97706",
+    embedMode: "shell",
+    hiddenFromDashboard: true,
+    groupId: "utilidades",
+    headerLabel: "Nómina",
+    navLinks: [{ label: "Mis recibos", path: "/apu/mis-recibos", icon: FileText }],
+  }),
   build_app_config({
     id: "capacitacion",
     dbSlug: "scapacitacion",
@@ -788,6 +865,13 @@ export const apps: AppConfig[] = [
         icon: Calendar,
         collapsible: "always",
         links: [
+          {
+            label: "Diseño de Servicios",
+            path: "/nuevo-servicio",
+            href: "/nuevo-servicio?dept=cap",
+            icon: ClipboardList,
+            requiredPermissions: ["scapacitacion:all:access"],
+          },
           {
             label: "Seguimiento de Servicios",
             path: "/dashboard/capacitacion/seguimiento-servicios",
@@ -1004,9 +1088,11 @@ export const apps: AppConfig[] = [
       { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
       {
         label: "Diseño y Desarrollo de Servicios",
-        path: "/dashboard/nuevos-servicios",
+        path: "/nuevo-servicio",
+        href: "/nuevo-servicio?dept=st",
         icon: ClipboardList,
       },
+      { label: "Códigos QR LOTO", path: "/dashboard/loto-qr", icon: QrCode },
       { label: "Control de Calibración", path: "/dashboard/control-calibracion", icon: Gauge },
       { label: "Entrada y Salida de Equipos", path: "/dashboard/entrada-salida-equipos", icon: ArrowLeftRight },
       { label: "Formulario de Novedades", path: "/dashboard/formulario-novedades", icon: FileText },
@@ -1039,7 +1125,10 @@ export const apps: AppConfig[] = [
     embedMode: "native",
     hiddenFromDashboard: true,
     dashboardOrder: 7.5,
-    navLinks: [],
+    navLinks: [
+      { label: "Consulta de OSIs", path: "/", icon: Search },
+      { label: "Calendario de servicios", path: "/calendario", icon: Calendar },
+    ],
   }),
   build_app_config({
     id: "credenciales-clientes",
@@ -1078,6 +1167,44 @@ export const apps: AppConfig[] = [
     dashboardOrder: 9,
     navLinks: [],
   }),
+  build_app_config({
+    id: "visitantes",
+    name: "Control de Visitantes",
+    description: "Registro de visitantes por código QR, asignación de responsables y control de acceso",
+    basePath: "/visitantes",
+    icon: QrCode,
+    brandColor: "#0D9488",
+    embedMode: "native",
+    hiddenFromDashboard: true,
+    groupId: "utilidades",
+    dashboardOrder: 9.5,
+    navLinks: [
+      {
+        label: "Lista de Visitantes",
+        path: "/",
+        icon: Users,
+      },
+      {
+        label: "Formulario Público QR",
+        path: "/registro-visitante",
+        href: "/registro-visitante",
+        icon: QrCode,
+      },
+    ],
+  }),
+  build_app_config({
+    id: "satisfaccion-clientes",
+    name: "Satisfacción de Clientes",
+    description: "Encuestas de satisfacción post-servicio e indicadores de calidad",
+    basePath: "/satisfaccion-clientes",
+    icon: Star,
+    brandColor: "#059669",
+    embedMode: "native",
+    hiddenFromDashboard: true,
+    groupId: "utilidades",
+    dashboardOrder: 10,
+    navLinks: [],
+  }),
   // Placeholders: módulos visibles en dashboard para completar el mapa de procesos
   build_app_config({
     id: "calidad",
@@ -1099,6 +1226,24 @@ export const apps: AppConfig[] = [
         label: "Dashboard",
         path: "/dashboard/calidad",
         icon: LayoutDashboard,
+        requiredPermissions: ["scalidad:all:access"],
+      },
+      {
+        label: "Control Panel KPI",
+        path: "/dashboard/calidad/kpi",
+        icon: Gauge,
+        requiredPermissions: ["scalidad:all:access"],
+      },
+      {
+        label: "Hallazgos",
+        path: "/dashboard/calidad/hallazgos",
+        icon: AlertOctagon,
+        requiredPermissions: ["scalidad:all:access"],
+      },
+      {
+        label: "Diagrama Ishikawa",
+        path: "/dashboard/calidad/ishikawa",
+        icon: GitFork,
         requiredPermissions: ["scalidad:all:access"],
       },
       {
@@ -1185,15 +1330,24 @@ export const apps: AppConfig[] = [
   }),
   build_app_config({
     id: "sst",
+    dbSlug: "sst",
     name: "SST",
-    description: "Seguridad y salud en el trabajo",
-    basePath: "#",
+    description: "Seguridad y Salud en el Trabajo · PRISMA SST",
+    basePath: "/sst",
+    defaultSubPath: "dashboard",
+    upstreamUrl:
+      process.env.NEXT_PUBLIC_SST_URL ||
+      "https://sst.shadevenezuela.com.ve",
     icon: Shield,
     brandColor: "#ef4444",
-    embedMode: "native",
+    embedMode: "shell",
     groupId: "procesos-de-apoyo",
     dashboardOrder: 5,
-    navLinks: [],
+    navLinks: [
+      { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
+      { label: "Formato de Inspección", path: "/dashboard/inspeccion", icon: FileCheck },
+      ...[buildRequisicionesNavGroup("sst")],
+    ],
   }),
   build_app_config({
     id: "ted",
@@ -1235,6 +1389,13 @@ export const apps: AppConfig[] = [
             requiredRoles: ["ted"],
             requiredPermissions: ["planificacion-ted:access-all"],
           },
+          {
+            label: "Versiones",
+            path: "/planificacion/versiones",
+            icon: Tags,
+            requiredRoles: ["ted"],
+            requiredPermissions: ["planificacion-ted:access-all"],
+          },
         ],
       },
       {
@@ -1266,6 +1427,12 @@ export const apps: AppConfig[] = [
             label: "Informe",
             path: "/planificacion/informe",
             icon: BarChart2,
+            requiredPermissions: ["objetivos-ted:access-all"],
+          },
+          {
+            label: "Versiones",
+            path: "/planificacion/objetivos/versiones",
+            icon: Tags,
             requiredPermissions: ["objetivos-ted:access-all"],
           },
         ],
@@ -1306,6 +1473,12 @@ export const apps: AppConfig[] = [
             label: "Por usuario",
             path: "/notificaciones/usuarios",
             icon: Users,
+            requiredRoles: ["ted"],
+          },
+          {
+            label: "Control de asistencia",
+            path: "/asistencia",
+            icon: UserCheck,
             requiredRoles: ["ted"],
           },
         ],

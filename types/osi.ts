@@ -5,6 +5,10 @@ export interface OSIListFilters {
   ejecutivo?: string;
   dateFrom?: string;
   dateTo?: string;
+  executionDateFrom?: string;
+  executionDateTo?: string;
+  issueDateFrom?: string;
+  issueDateTo?: string;
   status?: string;
   attachmentReceived?: "received" | "not_received";
   tipoServicio?: "capacitacion" | "servicios_tecnicos";
@@ -18,6 +22,14 @@ export interface OSIStatusOption {
   es_estado_final: boolean | null;
 }
 
+export interface OsiNota {
+  id: number;
+  osiId: number;
+  nota: string;
+  createdAt: string;
+  autorNombre: string | null;
+}
+
 export interface OSIListItem {
   id_osi: number | null;
   nro_osi: string | null;
@@ -28,6 +40,7 @@ export interface OSIListItem {
   ejecutivo_negocios: string | null;
   fecha_inicio_real: string | null;
   fecha_fin_real: string | null;
+  fecha_emision?: string | null;
   participantes: number | null;
   id_estatus: number | null;
   status_name: string;
@@ -39,6 +52,19 @@ export interface OSIListItem {
   attachment_received?: boolean | null;
   attachment_received_at?: string | null;
   attachment_received_by?: string | null;
+  // Notes and observations from capacitacion_osi_notas
+  notas?: OsiNota[];
+  // Tracking / Envio info from capacitacion_proceso_steps (sobre_enviado_zoom)
+  nro_guia_zoom?: string | null;
+  guias_envio?: OsiGuiaEnvio[];
+  // Comentarios vinculados a la OSI (comentario_entidad_vinculos)
+  comentarios_count?: number;
+}
+
+export interface OsiGuiaEnvio {
+  nro_sesion: number;
+  guia: string;
+  fecha?: string | null;
 }
 
 export interface OSIListResult {

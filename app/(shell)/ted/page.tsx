@@ -9,6 +9,7 @@ import {
   Bell,
   Users,
   UserPlus,
+  UserCheck,
   LayoutList,
   Target,
   Shield,
@@ -90,6 +91,15 @@ export default async function TedPage() {
       description:
         "Catálogo de eventos notify y configuración de destinatarios por app.",
       href: "/ted/notificaciones",
+      external: false,
+      disabled: false,
+    },
+    {
+      icon: UserCheck,
+      title: "Control de Asistencia",
+      description:
+        "Registro matutino de usuarios conectados por departamento y reporte diario 8:30 AM.",
+      href: "/ted/asistencia",
       external: false,
       disabled: false,
     },

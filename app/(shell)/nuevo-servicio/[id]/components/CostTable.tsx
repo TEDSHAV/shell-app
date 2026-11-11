@@ -8,11 +8,14 @@ import type { CostoItem } from "@/types/diseno-servicio";
 export default function CostTable({
   items,
   onChange,
+  readOnly = false,
 }: {
   items: CostoItem[];
   onChange: (items: CostoItem[]) => void;
+  readOnly?: boolean;
 }) {
   const addRow = () => {
+    if (readOnly) return;
     const newItem: CostoItem = {
       id: Math.random().toString(36).substr(2, 9),
       descripcion: "",
@@ -25,10 +28,12 @@ export default function CostTable({
   };
 
   const removeRow = (id: string) => {
+    if (readOnly) return;
     onChange(items.filter((item) => item.id !== id));
   };
 
   const updateRow = (id: string, updates: Partial<CostoItem>) => {
+    if (readOnly) return;
     onChange(
       items.map((item) => {
         if (item.id === id) {
@@ -54,14 +59,14 @@ export default function CostTable({
               <th className="px-3 py-2 text-center font-semibold text-gray-700 w-24">Unidad</th>
               <th className="px-3 py-2 text-center font-semibold text-gray-700 w-32">Precio Unit.</th>
               <th className="px-3 py-2 text-center font-semibold text-gray-700 w-32">Total</th>
-              <th className="px-3 py-2 w-10"></th>
+              {!readOnly && <th className="px-3 py-2 w-10"></th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {items.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-3 py-6 text-center text-gray-400">
-                  No hay items. Click &quot;Agregar&quot; para añadir uno.
+                <td colSpan={readOnly ? 5 : 6} className="px-3 py-6 text-center text-gray-400">
+                  {readOnly ? "No hay items registrados." : 'No hay items. Click "Agregar Item" para añadir uno.'}
                 </td>
               </tr>
             ) : (
@@ -73,6 +78,7 @@ export default function CostTable({
                       onChange={(e) => updateRow(item.id, { descripcion: e.target.value })}
                       className="h-8"
                       placeholder="Recurso / Material"
+                      disabled={readOnly}
                     />
                   </td>
                   <td className="px-3 py-2">
@@ -82,6 +88,7 @@ export default function CostTable({
                       onChange={(e) => updateRow(item.id, { cantidad: parseFloat(e.target.value) || 0 })}
                       className="h-8 text-center"
                       min={0}
+                      disabled={readOnly}
                     />
                   </td>
                   <td className="px-3 py-2">
@@ -90,6 +97,7 @@ export default function CostTable({
                       onChange={(e) => updateRow(item.id, { unidad: e.target.value })}
                       className="h-8 text-center"
                       placeholder="UND"
+                      disabled={readOnly}
                     />
                   </td>
                   <td className="px-3 py-2">
@@ -100,20 +108,24 @@ export default function CostTable({
                       className="h-8 text-center"
                       min={0}
                       step="0.01"
+                      disabled={readOnly}
                     />
                   </td>
                   <td className="px-3 py-2 text-center font-medium text-gray-900">
                     ${item.total.toFixed(2)}
                   </td>
-                  <td className="px-3 py-2 text-center">
-                    <button
-                      type="button"
-                      onClick={() => removeRow(item.id)}
-                      className="text-red-500 hover:text-red-700"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </td>
+                  {!readOnly && (
+                    <td className="px-3 py-2 text-center">
+                      <button
+                        type="button"
+                        onClick={() => removeRow(item.id)}
+                        className="text-red-500 hover:text-red-700"
+                        title="Eliminar fila"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))
             )}
@@ -127,17 +139,19 @@ export default function CostTable({
                 <td className="px-3 py-2 text-center font-bold text-gray-900">
                   ${grandTotal.toFixed(2)}
                 </td>
-                <td></td>
+                {!readOnly && <td></td>}
               </tr>
             </tfoot>
           )}
         </table>
       </div>
 
-      <Button type="button" onClick={addRow} variant="outline" size="sm" className="flex gap-2">
-        <Plus className="h-4 w-4" />
-        Agregar Item
-      </Button>
+      {!readOnly && (
+        <Button type="button" onClick={addRow} variant="outline" size="sm" className="flex gap-2">
+          <Plus className="h-4 w-4" />
+          Agregar Item
+        </Button>
+      )}
     </div>
   );
 }

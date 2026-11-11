@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
@@ -7,9 +7,9 @@ import {
   getCurrentUserForDiseno,
 } from "@/actions/diseno-servicio";
 import {
-  isCapacitacionDept,
-  isServiciosTecnicosDept,
-} from "@/lib/requisiciones-gerencia";
+  canUserEditDiseno,
+  canUserEditFinishedDiseno,
+} from "@/lib/diseno-servicio-auth";
 import DisenoServicioWizard from "./components/DisenoServicioWizard";
 
 export const dynamic = "force-dynamic";
@@ -43,27 +43,15 @@ export default async function DisenoServicioWizardPage({
     notFound();
   }
 
-  // Guard: only Capacitación and Servicios Técnicos users may manage these
-  // services, and only those matching the service's executing department.
-  // The service's executing department comes from
-  // catalogo_servicios.id_departamento_ejecutante (3 = Capacitación,
-  // 4 = Servicios Técnicos). Anyone else (or a direct URL to a service outside
-  // the user's scope) is blocked.
-  const userDeptName = (userData?.departamentos as any)?.nombre ?? null;
-  const isCapUser = isCapacitacionDept(userDeptName);
-  const isStUser = isServiciosTecnicosDept(userDeptName);
-
-  if (!userData || (!isCapUser && !isStUser)) {
-    notFound();
+  if (!userData) {
+    redirect("/auth/login");
   }
 
-  const ejecutanteId = solicitud.id_departamento_ejecutante;
-  const scopeMatches = isCapUser
-    ? ejecutanteId === 3
-    : ejecutanteId === 4;
-  if (!scopeMatches) {
-    notFound();
-  }
+  // canUserEditDiseno enforces:
+  // - If completed: strictly coordinator or leader of the executing department, or TED / Admin
+  // - If in progress: executing department staff, coordinator, leader, or TED / Admin
+  const canEdit = canUserEditDiseno(userData, solicitud);
+  const canEditFinished = canUserEditFinishedDiseno(userData, solicitud);
 
   return (
     <div className="p-4 sm:p-8">
@@ -78,12 +66,17 @@ export default async function DisenoServicioWizardPage({
             {solicitud.nombre_sugerido}
           </h1>
           <p className="text-sm text-gray-600">
-            Nuevos Servicios · {solicitud.estatus_nombre || "Pendiente"}
+            Nuevos Servicios · {solicitud.tipo_servicio} · {solicitud.estatus_nombre || "Pendiente"}
           </p>
         </div>
       </div>
 
-      <DisenoServicioWizard solicitud={solicitud} userData={userData} />
+      <DisenoServicioWizard
+        solicitud={solicitud}
+        userData={userData}
+        initialReadOnly={!canEdit}
+        canEditFinished={canEditFinished}
+      />
     </div>
   );
 }

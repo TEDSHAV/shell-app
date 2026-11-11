@@ -95,6 +95,17 @@ export function isAdministracionDept(deptName: string | null | undefined): boole
   return fold_requisicion_text(deptName).includes("admin");
 }
 
+// True when the department is Negocios / Comercial / Marketing / TED.
+export function isNegociosDept(deptName: string | null | undefined): boolean {
+  const d = (deptName || "").trim().toLowerCase();
+  return (
+    d.includes("negocio") ||
+    d.includes("comercial") ||
+    d.includes("marketing") ||
+    d === "ted"
+  );
+}
+
 export function normalizeDeptKey(deptName: string | null | undefined): string {
   return fold_requisicion_text(deptName)
     .replace(/[_-]+/g, " ")

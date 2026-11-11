@@ -138,6 +138,7 @@ interface SidebarNavClientProps {
   userPermsByApp: Record<string, string[]>;
   userRolesByApp: Record<string, string>;
   globalRole?: string;
+  userDept?: string | null;
   canAccessConsultaOSI?: boolean;
   canAccessRequisicionesGestion?: boolean;
 }
@@ -149,6 +150,7 @@ export function SidebarNavClient({
   userPermsByApp,
   userRolesByApp,
   globalRole,
+  userDept,
   canAccessConsultaOSI,
   canAccessRequisicionesGestion = false,
 }: SidebarNavClientProps) {
@@ -204,7 +206,7 @@ export function SidebarNavClient({
   );
 
   const canAccessApp = (app: AppConfig) =>
-    can_access_shell_app(app, userRolesByApp, globalRole);
+    can_access_shell_app(app, userRolesByApp, globalRole, userDept);
 
   const consultaOsiLink = (
     <Link
@@ -420,6 +422,14 @@ export function SidebarNavClient({
     const hasExplicitRules =
       (link.requiredRoles?.length ?? 0) > 0 || (link.requiredPermissions?.length ?? 0) > 0;
     if (isPrivileged && !hasExplicitRules) return true;
+
+    // Special clause: Negocios analistas and coordinadores can view Facilitadores Gestión in Capacitación
+    if (link.path === "/dashboard/capacitacion/gestion-de-facilitadores") {
+      const negRole = userRolesByApp["snegocios"]?.toLowerCase();
+      if (negRole === "analista" || negRole === "coordinador") {
+        return true;
+      }
+    }
 
     // Check roles first if defined
     if (link.requiredRoles && link.requiredRoles.length > 0) {

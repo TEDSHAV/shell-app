@@ -13,6 +13,11 @@ export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
   });
+
+  if (request.nextUrl.pathname.startsWith("/registro-visitante")) {
+    return supabaseResponse;
+  }
+
   const target = is_dev_db_switcher_enabled()
     ? parse_dev_db_target(request.cookies.get(DEV_DB_COOKIE)?.value)
     : parse_dev_db_target(undefined);
@@ -64,16 +69,21 @@ export async function updateSession(request: NextRequest) {
   // IMPORTANT: If you remove getClaims() and you use server-side rendering
   // with the Supabase client, your users may be randomly logged out.
   const { data } = await supabase.auth.getClaims();
-  const user = data?.claims;
+  let user = data?.claims;
 
-  if (
-    request.nextUrl.pathname !== "/" &&
-    !user &&
-    !request.nextUrl.pathname.startsWith("/login") &&
-    !request.nextUrl.pathname.startsWith("/auth") &&
-    !request.nextUrl.pathname.startsWith("/prisma-publico") &&
-    !request.nextUrl.pathname.startsWith("/informe-publico")
-  ) {
+  const isPublicOrApiRoute =
+    request.nextUrl.pathname === "/" ||
+    request.nextUrl.pathname.startsWith("/api/") ||
+    request.nextUrl.pathname.startsWith("/login") ||
+    request.nextUrl.pathname.startsWith("/auth") ||
+    request.nextUrl.pathname.startsWith("/prisma-publico") ||
+    request.nextUrl.pathname.startsWith("/informe-publico") ||
+    request.nextUrl.pathname.startsWith("/satisfaccion/") ||
+    request.nextUrl.pathname === "/satisfaccion" ||
+    request.nextUrl.pathname.startsWith("/registro-visitante");
+
+
+  if (!user && !isPublicOrApiRoute) {
     // no user, potentially respond by redirecting the user to the login page
     const url = request.nextUrl.clone();
     const next_path = `${request.nextUrl.pathname}${request.nextUrl.search}`;

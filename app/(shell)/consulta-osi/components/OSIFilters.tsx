@@ -196,13 +196,13 @@ export default function OSIFilters({
 
             <div>
               <label className="block text-[11px] font-medium text-gray-600 mb-0.5">
-                F. Inicio Desde
+                F. Emisión Desde
               </label>
               <input
                 type="date"
-                value={filters.dateFrom || ""}
+                value={filters.issueDateFrom || ""}
                 onChange={(e) =>
-                  handleFilterChange("dateFrom", e.target.value || undefined)
+                  handleFilterChange("issueDateFrom", e.target.value || undefined)
                 }
                 className="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 disabled={loading}
@@ -211,14 +211,54 @@ export default function OSIFilters({
 
             <div>
               <label className="block text-[11px] font-medium text-gray-600 mb-0.5">
-                F. Inicio Hasta
+                F. Emisión Hasta
               </label>
               <input
                 type="date"
-                value={filters.dateTo || ""}
+                value={filters.issueDateTo || ""}
                 onChange={(e) =>
-                  handleFilterChange("dateTo", e.target.value || undefined)
+                  handleFilterChange("issueDateTo", e.target.value || undefined)
                 }
+                className="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                disabled={loading}
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-medium text-gray-600 mb-0.5">
+                F. Ejecución Desde
+              </label>
+              <input
+                type="date"
+                value={filters.executionDateFrom || filters.dateFrom || ""}
+                onChange={(e) => {
+                  const updated = {
+                    ...filters,
+                    executionDateFrom: e.target.value || undefined,
+                  };
+                  delete updated.dateFrom;
+                  onFiltersChange(updated);
+                }}
+                className="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                disabled={loading}
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-medium text-gray-600 mb-0.5">
+                F. Ejecución Hasta
+              </label>
+              <input
+                type="date"
+                value={filters.executionDateTo || filters.dateTo || ""}
+                onChange={(e) => {
+                  const updated = {
+                    ...filters,
+                    executionDateTo: e.target.value || undefined,
+                  };
+                  delete updated.dateTo;
+                  onFiltersChange(updated);
+                }}
                 className="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 disabled={loading}
               />

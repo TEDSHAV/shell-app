@@ -43,7 +43,7 @@ export async function emit_plan_mes(
       emitido_por: user_id,
     } as never)
     .eq("mes", current.mes)
-    .select("mes, estado, version, emitido_at, emitido_por")
+    .select("mes, estado, version, emitido_at, emitido_por, analisis_texto")
     .single();
   if (error || !data) {
     console.error("[planificacion] emitir plan:", error);
@@ -56,6 +56,7 @@ export async function emit_plan_mes(
       version: number;
       emitido_at: string | null;
       emitido_por: number | null;
+      analisis_texto?: string | null;
     },
     current.mes,
   );
