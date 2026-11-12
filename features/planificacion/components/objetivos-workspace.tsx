@@ -13,7 +13,7 @@ import { EmitirPlanButton } from "./emitir-plan-button";
 import { PlanMesBadge } from "./plan-mes-badge";
 import { format_month_label } from "../lib/plan-month";
 import { is_plan_mes_emitido, type PlanMes } from "../lib/plan-mes";
-import { use_plan_editor } from "../hooks/use-plan-editor";
+import { usePlanEditor } from "../hooks/use-plan-editor";
 import { move_drafts, move_subset, user_orders_from_objetivos } from "../lib/objetivo-draft";
 import {
   objetivos_en_scope,
@@ -47,7 +47,7 @@ export function ObjetivosWorkspace({
 }) {
   const router = useRouter();
   const emitido = is_plan_mes_emitido(plan_mes);
-  const editor = use_plan_editor(objetivos, mes);
+  const editor = usePlanEditor(objetivos, mes);
   const [sorting, set_sorting] = useState(false);
   const [sort_list, set_sort_list] = useState<PlanObjetivo[]>([]);
   const [sort_user_orders, set_sort_user_orders] = useState<

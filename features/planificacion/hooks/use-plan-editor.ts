@@ -20,7 +20,7 @@ import {
   type UserOrderMap,
 } from "../lib/objetivo-draft";
 
-export function use_plan_editor(objetivos: PlanObjetivo[], mes: string) {
+export function usePlanEditor(objetivos: PlanObjetivo[], mes: string) {
   const router = useRouter();
   const [editing, set_editing] = useState(false);
   const [drafts, set_drafts] = useState<ObjetivoDraft[]>([]);

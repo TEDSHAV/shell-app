@@ -4,7 +4,7 @@ import { useEffect, useState, type MouseEvent } from "react";
 import { usePathname } from "next/navigation";
 
 /** Pathname that also follows `history.pushState` + `shell-url-change`. */
-export function use_shell_pathname(): string {
+export function useShellPathname(): string {
   const next_path = usePathname();
   const [path, set_path] = useState(next_path);
 

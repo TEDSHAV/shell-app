@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { getAppById } from "@/config/apps";
 import { buildFrameUrl } from "@/lib/frame-url";
-import { use_shell_pathname } from "@/lib/shell-iframe-nav";
+import { useShellPathname } from "@/lib/shell-iframe-nav";
 import { setActiveFrameWindow } from "@/lib/active-frame-window";
 import { getActiveFramePath, setActiveFramePath } from "@/lib/active-frame-path";
 
@@ -35,7 +35,7 @@ interface FrameEntry {
 let nextFrameId = 1;
 
 export function PersistentAppFrame({ appId }: PersistentAppFrameProps) {
-  const pathname = use_shell_pathname();
+  const pathname = useShellPathname();
   const app = getAppById(appId)!;
 
   const subPath = useMemo(

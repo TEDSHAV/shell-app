@@ -28,7 +28,7 @@ import { NavLink, NavGroup, AppConfig, AppGroupConfig } from "@/types";
 import {
   is_modified_click,
   navigate_shell_iframe_href,
-  use_shell_pathname,
+  useShellPathname,
 } from "@/lib/shell-iframe-nav";
 
 function isNavGroup(item: NavLink | NavGroup): item is NavGroup {
@@ -155,7 +155,7 @@ export function SidebarNavClient({
   canAccessConsultaOSI,
   canAccessRequisicionesGestion = false,
 }: SidebarNavClientProps) {
-  const pathname = use_shell_pathname();
+  const pathname = useShellPathname();
   const searchParams = useSearchParams();
   const currentApp = getAppByPath(pathname, searchParams.get("from"));
   const { onClose } = useMobileSidebar();
