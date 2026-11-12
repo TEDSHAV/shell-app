@@ -254,6 +254,23 @@ export function ManualHubClient({ apps }: Props) {
               por tema.
             </p>
           </Link>
+          {[
+            { href: "/negocios/pipeline/solpeds/manual", tag: "Negocios", title: "SOLPED", body: "Certificados, evaluaciones y dirección o modalidad por defecto del trato." },
+            { href: "/negocios/ingenieria/ecc/manual", tag: "Negocios", title: "ECC", body: "Estructura de costos, impresión por evaluaciones y gasto administrativo de servicios técnicos." },
+            { href: "/negocios/ingenieria/osi/manual", tag: "Negocios", title: "OSI", body: "Niveles de utilidad N3 a N0, salón de ejecución y certificado del formato." },
+            { href: "/negocios/ingenieria/catalogo-costos/manual", tag: "Negocios", title: "Catálogo de costos", body: "Versiones, niveles, márgenes y publicación." },
+            { href: "/negocios/ingenieria/catalogo-articulos/manual", tag: "Negocios", title: "Catálogo de artículos", body: "Artículos y precios que alimentan las requisiciones." },
+          ].map((m) => (
+            <Link
+              key={m.href}
+              href={m.href}
+              className="group rounded-xl border border-emerald-200 bg-white p-5 shadow-sm transition hover:border-emerald-400 hover:shadow-md"
+            >
+              <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">{m.tag}</p>
+              <h3 className="mt-1 text-xl font-bold text-slate-900">{m.title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-slate-600">{m.body}</p>
+            </Link>
+          ))}
           {["Servicios Técnicos", "Calidad", "Capacitación"].map(
             (name) => (
               <div

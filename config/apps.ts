@@ -96,7 +96,7 @@ function buildRequisicionesNavGroup(fromApp: string): NavGroup {
       icon: ListOrdered,
     },
     {
-      label: "Inventario",
+      label: "Inventario de insumos",
       path: "/depositos",
       href: inventarioHrefForApp(fromApp),
       icon: Package,
@@ -148,7 +148,7 @@ const administracionNavGroup: NavGroup = {
       requiresRequisicionesGestion: true,
     },
     {
-      label: "Inventario",
+      label: "Inventario de insumos",
       path: "/requisiciones/depositos",
       href: "/requisiciones/depositos",
       icon: Package,
@@ -821,10 +821,29 @@ export const apps: AppConfig[] = [
     headerLabel: "Presupuesto mensual",
     navLinks: [
       { label: "Inicio", path: "/", icon: LayoutDashboard },
-      { label: "Nómina", path: "/apu", icon: Receipt },
-      { label: "Consolidado APU", path: "/apu/consolidado", icon: Calculator },
-      { label: "Presupuesto", path: "/presupuesto", icon: Wallet },
-      { label: "Cierre del mes", path: "/cierre", icon: Calendar },
+      {
+        groupLabel: "Nómina",
+        icon: Receipt,
+        collapsible: "always",
+        links: [
+          { label: "Mes a mes (pagos)", path: "/apu", icon: Receipt, requiredPermissions: ["nomina:ver"] },
+          { label: "Empleados y sueldos", path: "/apu/empleados", icon: Users, requiredPermissions: ["nomina:ver"] },
+          { label: "Consolidado APU", path: "/apu/consolidado", icon: Calculator, requiredPermissions: ["apu:ver"] },
+          { label: "Configuración", path: "/apu/configuracion", icon: Settings, requiredPermissions: ["nomina:configurar"] },
+        ],
+      },
+      {
+        groupLabel: "Presupuesto",
+        icon: Wallet,
+        collapsible: "always",
+        links: [
+          { label: "Presupuesto del año", path: "/presupuesto", icon: Wallet, requiredPermissions: ["presupuesto:ver"] },
+          { label: "Mes a mes", path: "/presupuesto/mes", icon: Calendar, requiredPermissions: ["presupuesto:ver"] },
+          { label: "Importar desde Excel", path: "/presupuesto/importar", icon: FilePlus2, requiredPermissions: ["presupuesto:editar"] },
+          { label: "Cierre del mes", path: "/cierre", icon: Calendar, requiredPermissions: ["presupuesto:ver"] },
+          { label: "Configuración", path: "/presupuesto/configuracion", icon: Settings, requiredPermissions: ["presupuesto:editar"] },
+        ],
+      },
       { label: "Mis recibos", path: "/apu/mis-recibos", icon: FileText },
     ],
   }),
@@ -925,7 +944,7 @@ export const apps: AppConfig[] = [
             icon: FilePlus2,
           },
           {
-            label: "Inventario",
+            label: "Inventario de insumos",
             path: "/depositos",
             href: inventarioHrefForApp("capacitacion"),
             icon: Package,
@@ -1075,8 +1094,8 @@ export const apps: AppConfig[] = [
   build_app_config({
     id: "inventario",
     dbSlug: "sinventario",
-    name: "Inventario",
-    description: "Gestión de inventario y activos",
+    name: "Inventario de equipos",
+    description: "Equipos y activos de la empresa (los insumos y su stock están en Requisiciones → Inventario de insumos)",
     basePath: "/inventario",
     upstreamUrl:
       process.env.NEXT_PUBLIC_INVENTARIO_URL ||
