@@ -12,6 +12,7 @@ import type { AccionSesion, EventoCalendario, PermisosSesion, ReagendaHistorial 
 import AccionIcono from "./AccionIcono";
 import FormularioAccion from "./FormularioAccion";
 import OsiPreviewBox from "./OsiPreviewBox";
+import { BotonFactura, IndicadorCertificado } from "./IndicadoresOSI";
 
 type EventoDetalleProps = {
   evento: EventoCalendario | null;
@@ -175,6 +176,16 @@ export default function EventoDetalle({ evento, mes, hoy, permisos, pasoInicial 
                   {evento.ejecutivo_negocios}
                 </span>
               ) : null}
+              {evento.ordenes_compra.length ? (
+                <span className="flex items-center gap-2">
+                  <FileText className="h-4 w-4 shrink-0 text-slate-400" />
+                  OC {evento.ordenes_compra.join(", ")}
+                </span>
+              ) : null}
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5 empty:hidden">
+              <IndicadorCertificado evento={evento} variante="etiqueta" />
+              <BotonFactura evento={evento} variante="etiqueta" />
             </div>
 
             {evento.reagenda_count > 0 || evento.fecha_ejecutada || evento.estado === "cancelada" ? (

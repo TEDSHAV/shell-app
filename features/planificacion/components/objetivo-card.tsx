@@ -55,8 +55,11 @@ export function ObjetivoCard({
               {format_month_label(objetivo.fecha_inicio.slice(0, 7))}
             </span>
           </div>
-          <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-900">
-            {objetivo.titulo}
+          <h2 className="mt-2 flex items-start gap-2 text-lg font-semibold tracking-tight text-slate-900">
+            <span className="mt-0.5 inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-violet-100 px-1.5 text-xs font-bold tabular-nums text-violet-800">
+              {objetivo.orden}
+            </span>
+            <span>{objetivo.titulo}</span>
           </h2>
         </div>
         <div className="text-right">
@@ -105,6 +108,16 @@ export function ObjetivoCard({
         <div className="flex flex-wrap items-center gap-2 px-5 pt-2">
           <span className="text-[11px] text-slate-400">Lo cubre TED</span>
           <PlanAssigneeStack people={objetivo.responsables} max={4} />
+          {objetivo.responsables.map((person) =>
+            person.orden && person.orden > 0 ? (
+              <span
+                key={person.usuario_id}
+                className="rounded-full bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-500 ring-1 ring-slate-200"
+              >
+                {person.nombre.split(" ")[0]} #{person.orden}
+              </span>
+            ) : null,
+          )}
         </div>
       ) : null}
 

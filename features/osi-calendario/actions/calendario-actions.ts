@@ -4,9 +4,10 @@ import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { getUserOSIAccessFilter } from "@/actions/osi";
 import { getOSIComentariosResumen } from "@/actions/osi-comentarios";
+import { getOSIExtras } from "@/actions/osi-extras";
 import { getUserPermissionsByApp } from "@/actions/apps";
 import { has_permission_slug } from "@/lib/ted-slugs";
-import { OSI_SESION_CANCELAR, OSI_SESION_EJECUTAR, OSI_SESION_REAGENDAR } from "@/lib/osi-slugs";
+import { OSI_FACTURAR, OSI_SESION_CANCELAR, OSI_SESION_EJECUTAR, OSI_SESION_REAGENDAR } from "@/lib/osi-slugs";
 import { comparar_eventos, estado_sesion, ESTATUS_REAGENDADO } from "../lib/estado-sesion";
 import { es_en_sha } from "../lib/en-sha";
 import { hoy_caracas, normalizar_mes, rango_grilla } from "../lib/mes-grid";
@@ -31,15 +32,19 @@ export const getPermisosSesionOSI = cache(async (): Promise<PermisosSesion> => {
   };
 });
 
+/** Permiso osis:facturar (botón «Facturar» de las tarjetas). */
+export const getPuedeFacturarOSI = cache(async (): Promise<boolean> => has_permission_slug(await getUserPermissionsByApp(), OSI_FACTURAR));
+
 export async function getCalendarioMes(mes_param?: string | null): Promise<Result<CalendarioMesData>> {
   const hoy = hoy_caracas();
   const mes = normalizar_mes(mes_param, hoy);
   const { desde, hasta } = rango_grilla(mes);
 
   // Onda 1: acceso, permiso y cliente en paralelo.
-  const [access, permisos, supabase] = await Promise.all([
+  const [access, permisos, puede_facturar, supabase] = await Promise.all([
     getUserOSIAccessFilter(),
     getPermisosSesionOSI(),
+    getPuedeFacturarOSI(),
     createClient(),
   ]);
   if (access === "none") return { ok: false, error: "Sin acceso a OSIs" };
@@ -84,13 +89,15 @@ export async function getCalendarioMes(mes_param?: string | null): Promise<Resul
   const pendientes = (pendientes_res.data ?? []) as unknown as SesionCalendario[];
   const todas = [...filas, ...pendientes];
 
-  // Onda 2: ciudades y comentarios de las OSIs visibles.
+  // Onda 2: ciudades, comentarios, certificados, factura y OC de las OSIs visibles.
   const ciudad_ids = [...new Set(todas.map((s) => s.id_ciudad).filter((id): id is number => id != null))];
-  const [ciudades_res, comentarios] = await Promise.all([
+  const osis = [...new Map(todas.map((s) => [s.id_osi, { id_osi: s.id_osi, nro_osi: s.nro_osi }])).values()];
+  const [ciudades_res, comentarios, extras] = await Promise.all([
     ciudad_ids.length
       ? supabase.from("cat_ciudades").select("id, nombre_ciudad").in("id", ciudad_ids)
       : Promise.resolve({ data: [] as Array<{ id: number; nombre_ciudad: string }> }),
-    getOSIComentariosResumen(todas.map((s) => s.id_osi)),
+    getOSIComentariosResumen(osis.map((o) => o.id_osi)),
+    getOSIExtras(osis),
   ]);
   const ciudades = new Map((ciudades_res.data ?? []).map((c) => [c.id as number, c.nombre_ciudad as string]));
 
@@ -103,6 +110,10 @@ export async function getCalendarioMes(mes_param?: string | null): Promise<Resul
     ciudad: s.id_ciudad != null ? ciudades.get(s.id_ciudad) ?? null : null,
     comentarios_count: comentarios[s.id_osi]?.total ?? 0,
     en_sha: es_en_sha(s.direccion_ejecucion),
+    id_presupuesto: extras[s.id_osi]?.id_presupuesto ?? null,
+    certificados: extras[s.id_osi]?.certificados ?? 0,
+    factura: extras[s.id_osi]?.factura ?? null,
+    ordenes_compra: extras[s.id_osi]?.ordenes_compra ?? [],
   });
 
   const por_confirmar = pendientes.map(a_evento).sort(comparar_eventos);
@@ -112,7 +123,7 @@ export async function getCalendarioMes(mes_param?: string | null): Promise<Resul
     .map(a_evento)
     .sort((a, b) => a.fecha_efectiva.localeCompare(b.fecha_efectiva) || comparar_eventos(a, b));
 
-  return { ok: true, data: { mes, hoy, eventos, por_confirmar, permisos } };
+  return { ok: true, data: { mes, hoy, eventos, por_confirmar, permisos, puede_facturar } };
 }
 
 export async function getReagendasSesion(id_sesion: number): Promise<Result<ReagendaHistorial[]>> {

@@ -58,7 +58,13 @@ type ObjetivoRow = {
   estado: PlanObjetivoEstado;
   created_by: number | null;
   solicitado_por: number | null;
+  orden?: number | null;
 };
+
+const OBJETIVO_SELECT =
+  "id, titulo, descripcion, fecha_inicio, fecha_fin, app_id, estado, created_by, solicitado_por, orden";
+const OBJETIVO_SELECT_FALLBACK =
+  "id, titulo, descripcion, fecha_inicio, fecha_fin, app_id, estado, created_by, solicitado_por";
 
 function sorted_ids(ids: number[]): number[] {
   return [...ids].sort((a, b) => a - b);
@@ -160,9 +166,22 @@ export async function save_plan_objetivo(
     return { ok: true, id: input.id };
   }
 
+  let next_orden = 1;
+  const { data: last_orden } = await supabase
+    .from("ted_plan_objetivos" as never)
+    .select("orden")
+    .lte("fecha_inicio", bounds.end)
+    .gte("fecha_fin", bounds.start)
+    .order("orden", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (last_orden && typeof (last_orden as { orden?: number }).orden === "number") {
+    next_orden = (last_orden as { orden: number }).orden + 1;
+  }
+
   const { data, error } = await supabase
     .from("ted_plan_objetivos" as never)
-    .insert({ ...payload, created_by: user_id } as never)
+    .insert({ ...payload, created_by: user_id, orden: next_orden } as never)
     .select("id")
     .single();
   if (error || !data) {
@@ -272,6 +291,7 @@ export async function load_objetivos_month(
       objetivos: PlanObjetivo[];
       apps: Array<{ id: number; nombre: string; slug: string }>;
       usuarios: PlanUsuarioOption[];
+      equipo: PlanUsuarioOption[];
     }
   | { ok: false; error: string }
 > {
@@ -292,6 +312,7 @@ export async function load_objetivos_month(
       slug: app.slug,
     })),
     usuarios,
+    equipo: cover.data.usuarios,
   };
 }
 
@@ -310,15 +331,24 @@ export async function load_cubrir_workspace(
   const { start, end } = month_bounds(mes);
   const { supabase, user_id } = gate.ctx;
 
-  const [obj_res, apps_res, responsables_res] =
-    await Promise.all([
-    supabase
+  let obj_res = await supabase
+    .from("ted_plan_objetivos" as never)
+    .select(OBJETIVO_SELECT)
+    .lte("fecha_inicio", end)
+    .gte("fecha_fin", start)
+    .order("orden")
+    .order("id");
+  if (obj_res.error) {
+    obj_res = await supabase
       .from("ted_plan_objetivos" as never)
-      .select("id, titulo, descripcion, fecha_inicio, fecha_fin, app_id, estado, created_by, solicitado_por")
+      .select(OBJETIVO_SELECT_FALLBACK)
       .lte("fecha_inicio", end)
       .gte("fecha_fin", start)
       .order("fecha_inicio")
-      .order("id"),
+      .order("id");
+  }
+  const [apps_res, responsables_first] =
+    await Promise.all([
     supabase
       .from("ted_plan_apps" as never)
       .select("id, nombre")
@@ -326,8 +356,13 @@ export async function load_cubrir_workspace(
       .order("nombre"),
     supabase
       .from("ted_plan_objetivo_responsables" as never)
-      .select("objetivo_id, usuario_id"),
+      .select("objetivo_id, usuario_id, orden"),
   ]);
+  const responsables_res = responsables_first.error
+    ? await supabase
+        .from("ted_plan_objetivo_responsables" as never)
+        .select("objetivo_id, usuario_id")
+    : responsables_first;
 
   if (obj_res.error) {
     console.error("[planificacion] list objetivos:", obj_res.error);
@@ -351,7 +386,12 @@ export async function load_cubrir_workspace(
     return { usuario_id, nombre, initials: user_initials(nombre) };
   }
 
-  const obj_rows = (obj_res.data ?? []) as ObjetivoRow[];
+  const obj_rows = ((obj_res.data ?? []) as ObjetivoRow[]).slice().sort((a, b) => {
+    const ao = a.orden ?? Number.MAX_SAFE_INTEGER;
+    const bo = b.orden ?? Number.MAX_SAFE_INTEGER;
+    if (ao !== bo) return ao - bo;
+    return a.id - b.id;
+  });
   const creator_ids = [
     ...new Set(
       [
@@ -379,10 +419,20 @@ export async function load_cubrir_workspace(
   for (const row of (responsables_res.data ?? []) as Array<{
     objetivo_id: number;
     usuario_id: number;
+    orden?: number | null;
   }>) {
     const list = responsables_by_obj.get(row.objetivo_id) ?? [];
-    list.push(person_of(row.usuario_id));
+    list.push({
+      ...person_of(row.usuario_id),
+      orden: row.orden && row.orden > 0 ? row.orden : list.length + 1,
+    });
     responsables_by_obj.set(row.objetivo_id, list);
+  }
+  for (const [objetivo_id, list] of responsables_by_obj) {
+    list.sort(
+      (a, b) => (a.orden ?? 0) - (b.orden ?? 0) || a.usuario_id - b.usuario_id,
+    );
+    responsables_by_obj.set(objetivo_id, list);
   }
   const obj_by_id = new Map(obj_rows.map((row) => [row.id, row]));
   const apps_by_obj = new Map<number, number[]>();
@@ -445,7 +495,7 @@ export async function load_cubrir_workspace(
     supabase,
     obj_rows.map((row) => row.id),
   );
-  const objetivos: PlanObjetivoCover[] = obj_rows.map((row) => {
+  const objetivos: PlanObjetivoCover[] = obj_rows.map((row, index) => {
     const tareas = tareas_by_obj.get(row.id) ?? [];
     const app_ids =
       apps_by_obj.get(row.id) ?? (row.app_id ? [row.app_id] : []);
@@ -467,6 +517,7 @@ export async function load_cubrir_workspace(
       solicitado_por: solicitado_id ? person_of(solicitado_id) : null,
       responsables,
       para_mi: user_id != null && responsables.some((p) => p.usuario_id === user_id),
+      orden: row.orden && row.orden > 0 ? row.orden : index + 1,
       estado: row.estado,
       tarea_count: tareas.length,
       avance: average_avance(tareas),

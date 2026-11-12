@@ -121,6 +121,8 @@ export const objetivo_schema = z.object({
   app_ids: z.array(z.number().int().positive()).default([]),
   estado: z.enum(PLAN_OBJETIVO_ESTADOS).default("abierto"),
   solicitado_por: z.number().int().positive().nullable().optional(),
+  responsable_ids: z.array(z.number().int().positive()).optional(),
+  client_key: z.string().trim().min(1).max(80).optional(),
 });
 
 export const plan_commit_item_schema = objetivo_schema.extend({
@@ -131,6 +133,20 @@ export const plan_commit_schema = z.object({
   mes: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Mes inválido"),
   items: z.array(plan_commit_item_schema).max(80),
   deleted_ids: z.array(z.number().int().positive()).default([]),
+  user_orders: z
+    .array(
+      z.object({
+        usuario_id: z.number().int().positive(),
+        keys: z.array(z.string().trim().min(1).max(80)).max(80),
+      }),
+    )
+    .default([]),
+});
+
+export const plan_reorder_schema = z.object({
+  mes: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Mes inválido"),
+  ids: z.array(z.number().int().positive()).min(1).max(80),
+  usuario_id: z.number().int().positive().optional(),
 });
 
 export const hito_schema = z.object({

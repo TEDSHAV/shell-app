@@ -14,7 +14,7 @@ import OSICommentsBadge from "./OSICommentsBadge";
 import { CasillaOSI, CasillaTodasOSI, type SeleccionOSI } from "./OSICasillaSeleccion";
 import OSINotasModal from "./OSINotasModal";
 import OSIGuiaModal from "./OSIGuiaModal";
-import { Eye, FileText, Loader2, ChevronDown, ChevronRight, MessageSquare, CheckCircle2, EyeOff, Eye as EyeShow, Paperclip, Pencil, StickyNote, Star, Truck } from "lucide-react";
+import { Eye, FileText, Loader2, ChevronDown, ChevronRight, MessageSquare, CheckCircle2, EyeOff, Eye as EyeShow, Paperclip, Pencil, StickyNote, Star, Truck, Award } from "lucide-react";
 import { GenerateSurveyModal } from "@/features/satisfaccion-clientes/components/GenerateSurveyModal";
 
 interface OSITableProps {
@@ -503,6 +503,15 @@ export default function OSITable({
                     >
                       <Paperclip className="h-2 w-2 shrink-0" />
                       Recibida
+                    </span>
+                  )}
+                  {(osi.certificados_count ?? 0) > 0 && (
+                    <span
+                      title={osi.certificados_count === 1 ? "1 certificado listo" : `${osi.certificados_count} certificados listos`}
+                      className="inline-flex items-center gap-0.5 px-1 py-px rounded text-[8px] font-bold uppercase tracking-wide bg-amber-100 text-amber-800 whitespace-nowrap leading-none"
+                    >
+                      <Award className="h-2 w-2 shrink-0" />
+                      Certificado
                     </span>
                   )}
                   {osi.nro_guia_zoom && (

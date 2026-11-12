@@ -347,6 +347,9 @@ export function InformeWorkspace({
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <h3 className="flex flex-wrap items-center gap-2 font-semibold text-slate-900">
+                    <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-violet-100 px-1.5 text-xs font-bold tabular-nums text-violet-800">
+                      {objetivo.orden}
+                    </span>
                     {objetivo.titulo}
                     <ObjetivoVersionBadge objetivo={objetivo} />
                   </h3>

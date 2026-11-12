@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { require_objetivos_write_context, require_objetivos_read_context } from "./assert-ted";
 import { as_plan_mes, ensure_plan_mes, fetch_plan_mes } from "../lib/plan-mes-db";
 import { notify_plan_mes_emitido } from "../lib/plan-mes-notify";
+import { month_bounds, parse_plan_month } from "../lib/plan-month";
 import type { PlanMes } from "../lib/plan-mes";
 
 function revalidate_plan() {
@@ -32,6 +33,22 @@ export async function emit_plan_mes(
   const current = await ensure_plan_mes(supabase, mes_raw);
   if (current.estado === "emitido") {
     return { ok: false, error: "Este plan ya está emitido." };
+  }
+  const mes = parse_plan_month(mes_raw);
+  const bounds = month_bounds(mes);
+  const { count, error: count_error } = await supabase
+    .from("ted_plan_objetivos" as never)
+    .select("id", { count: "exact", head: true })
+    .lte("fecha_inicio", bounds.end)
+    .gte("fecha_fin", bounds.start);
+  if (count_error) {
+    console.error("[planificacion] emitir count:", count_error);
+  }
+  if (!count || count < 1) {
+    return {
+      ok: false,
+      error: "Guarda al menos un objetivo en el borrador antes de emitir.",
+    };
   }
   const now = new Date().toISOString();
   const { data, error } = await supabase

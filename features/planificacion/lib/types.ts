@@ -40,6 +40,7 @@ export type PlanParticipante = {
   usuario_id: number;
   nombre: string;
   initials: string;
+  orden?: number;
 };
 
 export type PlanObjetivoEstado = "abierto" | "cumplido" | "cancelado";
@@ -57,6 +58,7 @@ export type PlanObjetivo = {
   solicitado_por: PlanParticipante | null;
   responsables: PlanParticipante[];
   para_mi: boolean;
+  orden: number;
   estado: PlanObjetivoEstado;
   tarea_count: number;
   avance: number;

@@ -1,11 +1,14 @@
 "use client";
 
+import { useState } from "react";
+import { GripVertical } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { PlanAppPicker, type PlanAppPickerItem } from "./plan-app-picker";
 import { PlanField, PLAN_INPUT_CLASS } from "./plan-form-ui";
 import { SearchSelect } from "./search-select";
-import type { ObjetivoDraft } from "../lib/objetivo-draft";
+import { TedPersonPicker } from "./ted-person-picker";
+import type { ObjetivoDraft, UserOrderMap } from "../lib/objetivo-draft";
 import type { PlanObjetivoEstado, PlanUsuarioOption } from "../lib/types";
 import { cn } from "@/lib/utils";
 
@@ -19,17 +22,84 @@ export function ObjetivoEditCard({
   draft,
   apps,
   usuarios,
+  equipo,
+  user_orders,
+  numero,
+  index,
+  drag_enabled = true,
   onChange,
   onRemove,
+  onMove,
 }: {
   draft: ObjetivoDraft;
   apps: PlanAppPickerItem[];
   usuarios: PlanUsuarioOption[];
+  equipo: PlanUsuarioOption[];
+  user_orders: UserOrderMap;
+  numero: number;
+  index: number;
+  drag_enabled?: boolean;
   onChange: (patch: Partial<ObjetivoDraft>) => void;
   onRemove: () => void;
+  onMove: (from: number, to: number) => void;
 }) {
+  const [over, set_over] = useState(false);
   return (
-    <article className="space-y-4 rounded-2xl border border-violet-200 bg-white p-5 shadow-sm ring-1 ring-violet-50">
+    <article
+      onDragOver={(event) => {
+        if (!drag_enabled) return;
+        event.preventDefault();
+        set_over(true);
+      }}
+      onDragLeave={() => set_over(false)}
+      onDrop={(event) => {
+        if (!drag_enabled) return;
+        event.preventDefault();
+        set_over(false);
+        const from = Number(event.dataTransfer.getData("text/plain"));
+        if (Number.isInteger(from)) onMove(from, index);
+      }}
+      className={cn(
+        "space-y-4 rounded-2xl border border-violet-200 bg-white p-5 shadow-sm ring-1 ring-violet-50",
+        over ? "ring-2 ring-violet-400" : "",
+      )}
+    >
+      <div className="flex items-center gap-2">
+        {drag_enabled ? (
+          <button
+            type="button"
+            draggable
+            aria-label={`Arrastrar objetivo ${numero}`}
+            onDragStart={(event) => {
+              event.dataTransfer.setData("text/plain", String(index));
+              event.dataTransfer.effectAllowed = "move";
+            }}
+            className="inline-flex h-9 w-8 cursor-grab items-center justify-center rounded-lg text-slate-400 hover:bg-violet-50 active:cursor-grabbing"
+          >
+            <GripVertical className="h-4 w-4" />
+          </button>
+        ) : null}
+        <span className="inline-flex h-8 min-w-8 items-center justify-center rounded-full bg-violet-700 px-2 text-sm font-bold tabular-nums text-white">
+          {numero}
+        </span>
+        <p className="text-xs font-medium text-slate-400">
+          Objetivo {numero} · lista general
+        </p>
+        {draft.responsable_ids.map((usuario_id) => {
+          const label =
+            equipo.find((user) => user.id === usuario_id)?.label ?? "TED";
+          const n = (user_orders[usuario_id] ?? []).indexOf(draft.key) + 1;
+          if (n < 1) return null;
+          return (
+            <span
+              key={usuario_id}
+              className="rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-semibold text-violet-800"
+            >
+              {label} {n}
+            </span>
+          );
+        })}
+      </div>
       <PlanField label="Título" htmlFor={`obj-t-${draft.key}`}>
         <Input
           id={`obj-t-${draft.key}`}
@@ -78,6 +148,19 @@ export function ObjetivoEditCard({
           />
         </PlanField>
       </div>
+      <PlanField
+        label="Asignado a"
+        hint="Equipo TED. Cada persona tendrá su propio orden en la mini lista."
+      >
+        <TedPersonPicker
+          usuarios={equipo}
+          multiple
+          allow_none
+          none_label="Sin asignar"
+          values={draft.responsable_ids}
+          on_change_many={(responsable_ids) => onChange({ responsable_ids })}
+        />
+      </PlanField>
       <PlanField label="Estado">
         <div className="grid grid-cols-3 gap-2">
           {ESTADOS.map((item) => (

@@ -160,3 +160,90 @@ describe("impacto en la OSI y avisos de fecha", () => {
     assert.match(avisos_fecha({ id_sesion: 2, nro_sesion: 2 }, "2026-11-09", hermanas, hoy)[0], /después de la sesión 3/);
   });
 });
+
+describe("filtros y facturar", async () => {
+  const { FILTROS_VACIOS, contar_filtros_panel, opciones_filtros, pasa_filtros } = await import("../features/osi-calendario/lib/filtros");
+  const { etiqueta_factura, se_puede_facturar } = await import("../features/osi-calendario/lib/factura");
+  type Ev = import("../features/osi-calendario/lib/types").EventoCalendario;
+  const ev = (o: Partial<Ev>) =>
+    ({
+      nro_osi: "3701",
+      nombre_empresa: "PDVSA  Sede Anaco",
+      servicio: "Primeros auxilios",
+      tipo_servicio: "Capacitacion",
+      ejecutivo_negocios: "Ana",
+      en_sha: false,
+      ciudad: "Anaco",
+      ordenes_compra: ["OC-1"],
+      factura: null,
+      id_presupuesto: 10,
+      estado: "programada",
+      id_estatus_osi: 11,
+      ...o,
+    }) as Ev;
+
+  it("empresa, sede, ciudad y orden de compra", () => {
+    const e = ev({});
+    assert.equal(pasa_filtros(e, { ...FILTROS_VACIOS, empresa: "PDVSA", sede: "Sede Anaco" }), true);
+    assert.equal(pasa_filtros(e, { ...FILTROS_VACIOS, empresa: "Otra" }), false);
+    assert.equal(pasa_filtros(e, { ...FILTROS_VACIOS, ciudad: "Barcelona" }), false);
+    assert.equal(pasa_filtros(e, { ...FILTROS_VACIOS, oc: "OC-1" }), true);
+    assert.equal(pasa_filtros(e, { ...FILTROS_VACIOS, oc: "OC-2" }), false);
+    assert.equal(contar_filtros_panel({ ...FILTROS_VACIOS, empresa: "PDVSA", oc: "OC-1", en_sha: true }), 2);
+  });
+
+  it("cada empresa trae sus sedes; sin sede, la lista va vacía", () => {
+    const op = opciones_filtros([ev({}), ev({ nombre_empresa: "PDVSA  Sede Maturín" }), ev({ nombre_empresa: "Cantv", ciudad: "Caracas" })]);
+    assert.deepEqual(op.empresas, [
+      { empresa: "Cantv", sedes: [] },
+      { empresa: "PDVSA", sedes: ["Sede Anaco", "Sede Maturín"] },
+    ]);
+    assert.deepEqual(op.ciudades, ["Anaco", "Caracas"]);
+  });
+
+  it("facturar solo con permiso, sin factura, con presupuesto y sin cancelar", () => {
+    assert.equal(se_puede_facturar(ev({}), true), true);
+    assert.equal(se_puede_facturar(ev({}), false), false);
+    assert.equal(se_puede_facturar(ev({ factura: { id_solicitud: 1, nro_factura: null, id_estatus: 502 } }), true), false);
+    assert.equal(se_puede_facturar(ev({ id_presupuesto: null }), true), false);
+    assert.equal(se_puede_facturar(ev({ estado: "cancelada" }), true), false);
+    assert.equal(se_puede_facturar(ev({ id_estatus_osi: 39 }), true), false);
+    assert.equal(etiqueta_factura({ id_solicitud: 1, nro_factura: " 00123 ", id_estatus: 504 }), "Factura 00123");
+    assert.equal(etiqueta_factura({ id_solicitud: 1, nro_factura: null, id_estatus: 502 }), "En facturación");
+  });
+});
+
+describe("exportar", async () => {
+  const { armar_datos, filas_export, nombre_archivo } = await import("../features/osi-calendario/lib/exportar");
+  const { FILTROS_VACIOS } = await import("../features/osi-calendario/lib/filtros");
+  type Ev = import("../features/osi-calendario/lib/types").EventoCalendario;
+  const ev = (o: Partial<Ev>) =>
+    ({
+      id_sesion: 1, id_osi: 1, nro_osi: "3701", nro_sesion: 1, total_sesiones: 2, nombre_empresa: "PDVSA  Sede Anaco",
+      servicio: "Primeros auxilios", estado: "ejecutada", fecha_efectiva: "2026-08-03", fecha_ejecutada: "2026-08-03",
+      hora_ejecutada: "08:00", hora_inicio: "08:00", hora_reagendada: null, fecha_reagendada: null, en_sha: false, ciudad: "Anaco",
+      certificados: 3, factura: { id_solicitud: 9, nro_factura: "00123", id_estatus: 504 }, ordenes_compra: ["OC-1"], ejecutivo_negocios: "Ana",
+      ...o,
+    }) as Ev;
+
+  it("solo exporta las sesiones del periodo visible", () => {
+    const d = armar_datos({
+      vista: "semana", titulo: "3 – 9 ago 2026", mes: "2026-08", lunes: "2026-08-03", dia: "2026-08-03",
+      eventos: [ev({}), ev({ id_sesion: 2, fecha_efectiva: "2026-08-12" })], sin_fecha: [],
+      filtros: { ...FILTROS_VACIOS, ciudad: "Anaco" }, ahora: new Date("2026-11-05T15:00:00Z"),
+    });
+    assert.equal(d.semanas.length, 1);
+    assert.deepEqual(d.eventos.map((e) => e.id_sesion), [1]);
+    assert.deepEqual(d.filtros, ["Ciudad: Anaco"]);
+    assert.equal(nombre_archivo("semana", "2026-08", "2026-08-03", "2026-08-03"), "calendario-servicios-semana-2026-08-03");
+  });
+
+  it("la fila de la tabla trae certificado, factura y OC", () => {
+    const [f] = filas_export([ev({})]);
+    assert.equal(f.sede, "Sede Anaco");
+    assert.equal(f.sesion, "1/2");
+    assert.equal(f.certificado, "3 listos");
+    assert.equal(f.factura, "Factura 00123 (Emitida)");
+    assert.equal(f.oc, "OC-1");
+  });
+});

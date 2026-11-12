@@ -7,6 +7,8 @@
  */
 export type EstadoSesion = "programada" | "por_registrar" | "no_se_dio" | "reagendada" | "sin_fecha" | "ejecutada" | "cancelada";
 
+import type { FacturaOSI } from "@/actions/osi-extras";
+
 /** `no_ejecutar` es cancelar (nombre que usa la RPC). */
 export type AccionSesion = "ejecutar" | "no_se_dio" | "reagendar" | "no_ejecutar";
 
@@ -54,6 +56,13 @@ export interface EventoCalendario extends SesionCalendario {
   comentarios_count: number;
   /** Se dicta en las instalaciones de SHA (ver lib/en-sha.ts). */
   en_sha: boolean;
+  id_presupuesto: number | null;
+  /** Certificados listos (activos, sin anular) con el N° de la OSI. */
+  certificados: number;
+  /** Solicitud de factura vigente de la OSI; null si no está facturada. */
+  factura: FacturaOSI | null;
+  /** N° de orden de compra (normalizados) del presupuesto de la OSI. */
+  ordenes_compra: string[];
 }
 
 export interface ReagendaHistorial {
@@ -73,4 +82,6 @@ export interface CalendarioMesData {
   /** Sesiones reagendadas sin fecha nueva (no tienen día en la grilla). */
   por_confirmar: EventoCalendario[];
   permisos: PermisosSesion;
+  /** Permiso osis:facturar: muestra el botón «Facturar» en las tarjetas. */
+  puede_facturar: boolean;
 }
