@@ -8,6 +8,8 @@ export type ReqOsiCostGateResult = {
   needs_justification: boolean;
   level: 0 | 1 | 2 | 3;
   estatus: "no_aplica" | "pendiente" | "justifica";
+  /** «salud»: level es N3 sana … N0 sin utilidad (análisis guardados antes no lo traen). */
+  escala: "salud";
 };
 
 export type OsiReqSlice = {
@@ -175,8 +177,9 @@ export function analyze_req_osi_cost_gate(params: {
       remaining_after_req: remaining_pool,
       needs_approval: false,
       needs_justification: false,
-      level: 0,
+      level: 3,
       estatus: "no_aplica",
+      escala: "salud",
     };
   }
   const needs_approval = extra > money(remaining_pool + colchon);
@@ -184,22 +187,26 @@ export function analyze_req_osi_cost_gate(params: {
   const n2 = params.percents?.n2 ?? 20;
   const n3 = params.percents?.n3 ?? 30;
   const denom = n3 > 0 ? n3 : 100;
-  let level: 0 | 1 | 2 | 3 = 3;
+  // Nivel de salud (2026-11-12): N3 sana … N0 sin utilidad; bajar = ganar menos. El tramo de consumo se
+  // mide sobre el remanente del pote; si la REQ se lo come entero, N0. Misma regla que SGestion.
+  let tramo: 1 | 2 | 3 = 3;
   if (remaining_pool > 0) {
     const cap1 = money(remaining_pool * (n1 / denom));
     const cap2 = money(remaining_pool * (n2 / denom));
-    if (extra <= cap1) level = 1;
-    else if (extra <= cap2) level = 2;
-    else level = 3;
+    if (extra <= cap1) tramo = 1;
+    else if (extra <= cap2) tramo = 2;
+    else tramo = 3;
   }
+  const level: 0 | 1 | 2 | 3 = extra > remaining_pool ? 0 : tramo === 1 ? 3 : tramo === 2 ? 2 : 1;
   const just_n = Math.min(
     3,
-    Math.max(1, Math.floor(Number(params.nivel_justificacion_req ?? 2))),
+    Math.max(0, Math.floor(Number(params.nivel_justificacion_req ?? 2))),
   );
-  const osi_level = Math.min(3, Math.max(0, Math.floor(Number(params.osi_level ?? 0))));
-  const climbed = level > osi_level;
+  // OSI sin nivel guardado = N3 (no consumió el pote).
+  const osi_level = Math.min(3, Math.max(0, Math.floor(Number(params.osi_level ?? 3))));
+  const bajo_de_nivel = level < osi_level;
   const needs_justification =
-    extra > 0 && !needs_approval && climbed && level >= just_n;
+    extra > 0 && !needs_approval && bajo_de_nivel && level <= just_n;
   let estatus: ReqOsiCostGateResult["estatus"] = "no_aplica";
   if (needs_approval) estatus = "pendiente";
   else if (needs_justification) estatus = "justifica";
@@ -213,5 +220,6 @@ export function analyze_req_osi_cost_gate(params: {
     needs_justification,
     level,
     estatus,
+    escala: "salud",
   };
 }

@@ -82,8 +82,9 @@ export function operator_analisis_costos_subsections(): CostManualSubsection[] {
           <p>
             Ejemplo: el traslado de ese día estaba en {usd(20)} y lo subís a{" "}
             {usd(60)}. El recuadro marca un extra de {usd(40)} de esa jornada.
-            Según cuán grande sea ese extra, el recuadro pasa a Base, Moderado,
-            Riesgoso o pedirá aprobación.
+            Según cuán grande sea ese extra, el nivel de la utilidad baja de
+            N3 · Utilidad sana hacia N0 · Sin utilidad, y puede pedir
+            justificación o aprobación.
           </p>
           <Figure
             title="Así se ve al armar el pedido"
@@ -118,26 +119,26 @@ export function operator_analisis_costos_subsections(): CostManualSubsection[] {
             <EstadoDemo
               estado="base"
               tone="border-emerald-200 bg-emerald-50 text-emerald-950"
-              headline="Base"
+              headline="N3 · Utilidad sana"
               detail="No hay extra. Podés emitir sin explicar."
             />
             <EstadoDemo
               estado="moderado"
               tone="border-sky-200 bg-sky-50 text-sky-950"
-              headline="Moderado"
-              detail="Hay un ajuste chico; todavía sin justificación ni sello extra."
+              headline="Con extra · sin bajar de nivel"
+              detail="Hay un ajuste chico; la utilidad no baja de nivel, sin justificación ni sello."
             />
             <EstadoDemo
               estado="riesgoso"
               tone="border-amber-200 bg-amber-50 text-amber-950"
-              headline="Riesgoso"
-              detail="Hay que explicar el ajuste para poder emitir."
+              headline="N2 · En alerta · con justificación"
+              detail="El extra baja el nivel de la utilidad: hay que explicar el ajuste para poder emitir."
             />
             <EstadoDemo
               estado="aprobacion"
               tone="border-rose-200 bg-rose-50 text-rose-950"
-              headline="Riesgoso · sujeta a aprobación"
-              detail="Además de explicar, un aprobador debe sellar el extra."
+              headline="N0 · Sin utilidad · sujeta a aprobación"
+              detail="Se pasó del pote que queda: además de explicar, un aprobador debe sellar el extra."
             />
           </div>
         </>
@@ -149,13 +150,13 @@ export function operator_analisis_costos_subsections(): CostManualSubsection[] {
       body: (
         <>
           <p>
-            Si el extra se queda en el <strong>mismo estado</strong> que ya
-            tenía la OSI, no se vuelve a pedir la misma explicación.
+            Si el extra deja la utilidad en el <strong>mismo nivel</strong> que
+            ya tenía la OSI, no se vuelve a pedir la misma explicación.
           </p>
           <p>
-            Hay que escribir la justificación cuando el recuadro pasa a{" "}
-            <strong>Riesgoso</strong> o a{" "}
-            <strong>Riesgoso · sujeta a aprobación</strong>.
+            Hay que escribir la justificación cuando el extra{" "}
+            <strong>baja el nivel</strong> de la utilidad hasta el umbral del
+            catálogo, o cuando queda <strong>sujeta a aprobación</strong>.
           </p>
           <p>
             En el segundo caso, además de explicar, la solicitud queda
@@ -171,21 +172,23 @@ export function sensitive_analisis_costos_subsection(
   model: ReqCostManualModel,
 ): CostManualSubsection {
   const just =
-    model.justificacion_req <= 1
-      ? "Moderado"
+    model.justificacion_req >= 3
+      ? "N3 · Utilidad sana"
       : model.justificacion_req === 2
-        ? "Riesgoso"
-        : "Máximo";
+        ? "N2 · En alerta"
+        : model.justificacion_req === 1
+          ? "N1 · En riesgo"
+          : "N0 · Sin utilidad";
   return {
     id: "manual-costo-finanzas",
     title: "Análisis de costos OSI + ECC",
     body: (
       <>
         <p>
-          OSI y requisición comparten el mismo pool. En la OSI las gradas se
-          ven N0 · Base, N1 · Moderado, N2 · Riesgoso, N3 · Máximo. En la
-          requisición, la última se lee como Riesgoso · sujeta a aprobación
-          cuando el extra se pasa del tope que queda.
+          OSI y requisición comparten el mismo pool y los mismos niveles: N3 ·
+          Utilidad sana, N2 · En alerta, N1 · En riesgo y N0 · Sin utilidad.
+          En la requisición, N0 queda sujeta a aprobación cuando el extra se
+          pasa del pote que queda.
         </p>
         <Figure
           title="Mismas gradas, con los techos vigentes"
@@ -193,20 +196,24 @@ export function sensitive_analisis_costos_subsection(
         >
           <div className="grid gap-2 sm:grid-cols-4">
             {[
-              { name: "Base", hasta: usd(0), tone: "border-emerald-200 bg-emerald-50" },
               {
-                name: "Moderado",
-                hasta: `Hasta ${usd(model.cap_n1)}`,
-                tone: "border-sky-200 bg-sky-50",
+                name: "N3 · Utilidad sana",
+                hasta: `Consumo hasta ${usd(model.cap_n1)}`,
+                tone: "border-emerald-200 bg-emerald-50",
               },
               {
-                name: "Riesgoso",
+                name: "N2 · En alerta",
                 hasta: `Hasta ${usd(model.cap_n2)}`,
                 tone: "border-amber-200 bg-amber-50",
               },
               {
-                name: "Máximo",
+                name: "N1 · En riesgo",
                 hasta: `Hasta ${usd(model.cap_n3)}`,
+                tone: "border-orange-200 bg-orange-50",
+              },
+              {
+                name: "N0 · Sin utilidad",
+                hasta: `Más de ${usd(model.cap_n3)}`,
                 tone: "border-rose-200 bg-rose-50",
               },
             ].map((card) => (
@@ -225,10 +232,11 @@ export function sensitive_analisis_costos_subsection(
           {usd(60)} = extra {usd(40)}, aunque el resto de la OSI sume más.
         </p>
         <p>
-          Hoy Moderado llega al {model.n1}% ({usd(model.cap_n1)}), Riesgoso al{" "}
-          {model.n2}% ({usd(model.cap_n2)}) y el tope al {model.n3}% (
-          {usd(model.cap_n3)}). La justificación de requisición se pide al
-          subir de grada, a partir de <strong>{just}</strong>. Si el extra se
+          Hoy N3 llega al {model.n1}% ({usd(model.cap_n1)}), N2 al{" "}
+          {model.n2}% ({usd(model.cap_n2)}) y N1 al {model.n3}% (
+          {usd(model.cap_n3)}); más allá es N0. La justificación de
+          requisición se pide al bajar de nivel, desde <strong>{just}</strong>
+          hacia abajo. Si el extra se
           pasa de lo que queda del tope, queda sujeta a aprobación.
         </p>
       </>

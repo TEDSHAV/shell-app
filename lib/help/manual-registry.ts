@@ -155,7 +155,7 @@ export const HELP_REGISTRY: {
         {
           id: "costo-niveles",
           title: "Los cuatro estados",
-          summary: "Base, Moderado, Riesgoso y sujeta a aprobación.",
+          summary: "Niveles N3 sana … N0 sin utilidad, justificación y aprobación.",
           href: `${MANUAL_REQUISICIONES}#manual-costo-niveles`,
           icon: ListChecks,
           accent: "sky",

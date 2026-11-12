@@ -7,8 +7,8 @@ import {
   sum_req_direct_cost,
 } from "../lib/osi-req-cost-gate";
 
-// Caracterización de la lógica actual (antes de invertir los niveles, E1, y de sumar el gasto
-// administrativo a la aprobación, E2). Cuando cambie la regla, estos casos se actualizan a propósito.
+// Niveles de salud (E1, 2026-11-12): N3 sana … N0 sin utilidad; bajar = ganar menos. Cuando cambie la
+// regla (p. ej. E2, gasto administrativo), estos casos se actualizan a propósito.
 
 const base = { consumed_osi: 0, utilidad_ecc: 1000 };
 
@@ -23,12 +23,13 @@ describe("analyze_req_osi_cost_gate", () => {
     });
     assert.equal(r.extra, 0);
     assert.equal(r.estatus, "no_aplica");
-    assert.equal(r.level, 0);
+    assert.equal(r.level, 3);
+    assert.equal(r.escala, "salud");
     assert.equal(r.remaining_after_req, 300);
     assert.equal(r.needs_approval, false);
   });
 
-  it("un extra chico sale del pote de utilidad y no pide nada", () => {
+  it("un extra chico sale del pote y la utilidad sigue sana (N3)", () => {
     const r = analyze_req_osi_cost_gate({
       ...base,
       cost_osi: 100,
@@ -40,13 +41,13 @@ describe("analyze_req_osi_cost_gate", () => {
     assert.equal(r.from_pool, 30);
     assert.equal(r.from_colchon, 0);
     assert.equal(r.remaining_after_req, 270);
-    assert.equal(r.level, 1);
+    assert.equal(r.level, 3);
     assert.equal(r.needs_approval, false);
     assert.equal(r.needs_justification, false);
     assert.equal(r.estatus, "no_aplica");
   });
 
-  it("si el pote no alcanza, el resto sale del colchón ECC-OSI y pide justificación", () => {
+  it("si el pote no alcanza, el resto sale del colchón ECC-OSI: N0 y pide justificación", () => {
     const r = analyze_req_osi_cost_gate({
       ...base,
       cost_osi: 100,
@@ -58,7 +59,7 @@ describe("analyze_req_osi_cost_gate", () => {
     assert.equal(r.from_pool, 20);
     assert.equal(r.from_colchon, 40);
     assert.equal(r.remaining_after_req, 0);
-    assert.equal(r.level, 3);
+    assert.equal(r.level, 0);
     assert.equal(r.needs_approval, false);
     assert.equal(r.needs_justification, true);
     assert.equal(r.estatus, "justifica");
@@ -77,10 +78,11 @@ describe("analyze_req_osi_cost_gate", () => {
     assert.equal(r.from_colchon, 10);
     assert.equal(r.needs_approval, true);
     assert.equal(r.needs_justification, false);
+    assert.equal(r.level, 0);
     assert.equal(r.estatus, "pendiente");
   });
 
-  it("los niveles se cortan por proporción de n1/n2 sobre n3 del pote restante", () => {
+  it("los niveles bajan por proporción de n1/n2 sobre n3 del pote restante", () => {
     const gate = (cost_req: number) =>
       analyze_req_osi_cost_gate({
         ...base,
@@ -89,22 +91,23 @@ describe("analyze_req_osi_cost_gate", () => {
         remaining_for_req: 300,
         colchon_ecc_osi: 1000,
       }).level;
-    assert.equal(gate(100), 1); // ≤ 300 × 10/30
-    assert.equal(gate(101), 2);
+    assert.equal(gate(100), 3); // ≤ 300 × 10/30: sana
+    assert.equal(gate(101), 2); // en alerta
     assert.equal(gate(200), 2); // ≤ 300 × 20/30
-    assert.equal(gate(201), 3);
+    assert.equal(gate(201), 1); // en riesgo (todavía cabe en el pote)
+    assert.equal(gate(301), 0); // se comió el pote: sin utilidad
   });
 
-  it("no pide justificación si la OSI ya estaba en ese nivel", () => {
+  it("no pide justificación si la OSI ya estaba en ese nivel (no baja)", () => {
     const r = analyze_req_osi_cost_gate({
       ...base,
       cost_osi: 100,
       cost_req: 160,
       remaining_for_req: 20,
       colchon_ecc_osi: 50,
-      osi_level: 3,
+      osi_level: 0,
     });
-    assert.equal(r.level, 3);
+    assert.equal(r.level, 0);
     assert.equal(r.needs_justification, false);
     assert.equal(r.estatus, "no_aplica");
   });
@@ -143,5 +146,17 @@ describe("resolve_osi_cost_for_req", () => {
 
   it("sin desglose usa los totales de la vista", () => {
     assert.equal(resolve_osi_cost_for_req({ view_totals: { costo_traslado: 12, honorarios_total: 8 } }), 20);
+  });
+});
+
+describe("etiquetas del estado del costo", () => {
+  it("análisis nuevos usan el nivel tal cual; los viejos se traducen (0 → N3, si no 4 − nivel)", async () => {
+    const { etiqueta_estado_costo, nivel_salud_de_analisis } = await import("../lib/osi-nivel-salud");
+    assert.equal(nivel_salud_de_analisis({ extra: 10, level: 2, escala: "salud" }), 2);
+    assert.equal(nivel_salud_de_analisis({ extra: 10, level: 1 }), 3);
+    assert.equal(nivel_salud_de_analisis({ extra: 10, level: 3 }), 1);
+    assert.equal(nivel_salud_de_analisis({ extra: 0, level: 3 }), 3);
+    assert.equal(etiqueta_estado_costo({ extra: 50, level: 0, escala: "salud", needs_approval: true }), "N0 · Sin utilidad · sujeta a aprobación");
+    assert.equal(etiqueta_estado_costo({ extra: 0 }), "N3 · Utilidad sana");
   });
 });

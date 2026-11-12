@@ -12,6 +12,7 @@ import {
 } from "@/actions/requisiciones-aumento-costos";
 import { Textarea } from "@/components/ui/textarea";
 import type { RequisicionFormData } from "@/types/requisiciones";
+import { etiqueta_estado_costo } from "@/lib/osi-nivel-salud";
 
 type Props = {
   isInterna: boolean;
@@ -99,8 +100,8 @@ export function RequisicionAumentoCostosPanel({
       <div className="border-b border-gray-300 bg-slate-50 p-3">
         <p className="text-sm font-semibold text-slate-800">Estado del costo</p>
         <p className="mt-1 text-sm text-slate-600">
-          Elige una OSI para ver si el ajuste es moderado, riesgoso o si queda
-          sujeto a aprobación.
+          Elige una OSI para ver en qué nivel deja la utilidad (N3 sana … N0 sin
+          utilidad) y si pide justificación o aprobación.
         </p>
       </div>
     );
@@ -123,13 +124,7 @@ export function RequisicionAumentoCostosPanel({
       ? loading
         ? "Revisando el ajuste…"
         : "Aún no hay estado."
-      : estado === "aprobacion"
-        ? "Riesgoso · sujeta a aprobación"
-        : estado === "riesgoso"
-          ? "Riesgoso"
-          : estado === "moderado"
-            ? "Moderado"
-            : "Base";
+      : etiqueta_estado_costo(analysis);
 
   const detail =
     !analysis
@@ -137,9 +132,9 @@ export function RequisicionAumentoCostosPanel({
       : estado === "aprobacion"
         ? `La requisición (${usd(analysis.cost_req)}) supera a la OSI (${usd(analysis.cost_osi)}) en ${usd(analysis.extra)}. Completa la justificación: esta solicitud queda sujeta a aprobación.`
         : estado === "riesgoso"
-          ? `El ajuste es riesgoso. Completa la justificación para poder emitir.`
+          ? `El ajuste baja el nivel de la utilidad. Completa la justificación para poder emitir.`
           : estado === "moderado"
-            ? "El ajuste es moderado. No hace falta justificación ni aprobación."
+            ? "Hay extra, pero la utilidad no baja de nivel. No hace falta justificación ni aprobación."
             : "Sin extra respecto a la OSI. No hace falta justificación ni aprobación.";
 
   return (
@@ -149,8 +144,8 @@ export function RequisicionAumentoCostosPanel({
           Estado del costo
         </p>
         <p className="mt-0.5 text-sm text-slate-600">
-          Moderado, riesgoso o sujeto a aprobación, según lo que pides frente a
-          la OSI.
+          Nivel de la utilidad (N3 sana … N0 sin utilidad) según lo que pides
+          frente a la OSI.
         </p>
       </div>
       <div className={`rounded-xl border p-3 text-sm ${tone}`}>

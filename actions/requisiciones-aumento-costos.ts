@@ -106,8 +106,9 @@ async function compute_aumento_costos_analisis(params: {
         remaining_after_req: 0,
         needs_approval: false,
         needs_justification: false,
-        level: 0,
+        level: 3,
         estatus: "no_aplica",
+        escala: "salud",
         cost_req: 0,
         cost_osi: 0,
         colchon_ecc_osi: 0,
@@ -141,7 +142,7 @@ async function compute_aumento_costos_analisis(params: {
   const colchon = Number((osi as { colchon_ecc_osi?: number } | null)?.colchon_ecc_osi ?? 0);
   const osi_level = Number(
     (osi as { nivel_descuento_utilidad?: number | null } | null)
-      ?.nivel_descuento_utilidad ?? 0,
+      ?.nivel_descuento_utilidad ?? 3,
   );
   const req_item = params.form.osi_fixed_items?.[0] ?? null;
   const view_totals = {

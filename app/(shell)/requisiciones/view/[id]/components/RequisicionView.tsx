@@ -47,6 +47,7 @@ import {
   texto_aviso_ventana,
 } from "@/features/requisiciones/lib/req-ventana-mensual";
 import { es_req_interna } from "@/features/requisiciones/lib/req-destino";
+import { etiqueta_estado_costo } from "@/lib/osi-nivel-salud";
 
 export default function RequisicionView({
   record,
@@ -158,6 +159,7 @@ export default function RequisicionView({
     needs_approval?: boolean;
     needs_justification?: boolean;
     level?: number;
+    escala?: string;
   };
   const [entregaItem, setEntregaItem] = useState<RequisicionItem | null>(null);
   const [cierreOpen, setCierreOpen] = useState(false);
@@ -1179,16 +1181,12 @@ export default function RequisicionView({
               <p className="font-semibold">Estado del costo</p>
               <p className="font-medium">
                 {aumentoPendiente
-                  ? "Riesgoso · sujeta a aprobación"
+                  ? etiqueta_estado_costo({ ...aumentoAnalisis, needs_approval: true })
                   : record.aumento_costos_estatus === "aprobada"
                     ? "Aumento aprobado."
                     : record.aumento_costos_estatus === "rechazada"
                       ? "Aumento rechazado."
-                      : aumentoAnalisis.needs_justification
-                        ? "Riesgoso · con justificación"
-                        : Number(aumentoAnalisis.extra ?? 0) > 0
-                          ? "Moderado"
-                          : "Base"}
+                      : etiqueta_estado_costo(aumentoAnalisis)}
               </p>
               {record.aumento_costos_justificacion ? (
                 <p>Justificación: {record.aumento_costos_justificacion}</p>
@@ -2249,16 +2247,12 @@ export default function RequisicionView({
               <p className="font-semibold">Estado del costo</p>
               <p className="font-medium">
                 {aumentoPendiente
-                  ? "Riesgoso · sujeta a aprobación"
+                  ? etiqueta_estado_costo({ ...aumentoAnalisis, needs_approval: true })
                   : record.aumento_costos_estatus === "aprobada"
                     ? "Aumento aprobado."
                     : record.aumento_costos_estatus === "rechazada"
                       ? "Aumento rechazado."
-                      : aumentoAnalisis.needs_justification
-                        ? "Riesgoso · con justificación"
-                        : Number(aumentoAnalisis.extra ?? 0) > 0
-                          ? "Moderado"
-                          : "Base"}
+                      : etiqueta_estado_costo(aumentoAnalisis)}
               </p>
               {record.aumento_costos_justificacion ? (
                 <p>Justificación: {record.aumento_costos_justificacion}</p>
