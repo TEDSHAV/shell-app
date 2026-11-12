@@ -63,6 +63,8 @@ export interface EventoCalendario extends SesionCalendario {
   factura: FacturaOSI | null;
   /** N° de orden de compra (normalizados) del presupuesto de la OSI. */
   ordenes_compra: string[];
+  /** Salón donde se dicta la sesión (Capacitación); null si no se registró. */
+  salon: string | null;
 }
 
 export interface ReagendaHistorial {

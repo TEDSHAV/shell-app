@@ -67,7 +67,7 @@ function TarjetaHover({ evento, rect, arrastrable }: { evento: EventoCalendario;
       <p className="mt-1.5 text-xs text-slate-500">
         {hora ?? "Sin hora"}
         {evento.total_sesiones > 1 ? ` · Sesión ${evento.nro_sesion} de ${evento.total_sesiones}` : ""}
-        {evento.en_sha ? " · En SHA" : evento.ciudad ? ` · ${evento.ciudad}` : ""}
+        {evento.en_sha ? ` · En SHA${evento.salon ? ` · ${evento.salon}` : ""}` : evento.ciudad ? ` · ${evento.ciudad}` : ""}
       </p>
       {evento.certificados > 0 || evento.factura || evento.ordenes_compra.length ? (
         <ul className="mt-2 space-y-0.5 border-t border-slate-100 pt-2 text-xs text-slate-600">

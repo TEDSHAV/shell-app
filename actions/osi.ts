@@ -1315,6 +1315,12 @@ export async function getOSISessions(osiId: number): Promise<OSISession[]> {
       }
     }
 
+    const { data: salonRows } = await supabase.rpc("fn_osi_salones", { p_osi_ids: [osiId] });
+    const salonBySesion = new Map<number, string>();
+    for (const r of (salonRows ?? []) as Array<{ nro_sesion: number; salon: string | null }>) {
+      if (r.salon) salonBySesion.set(Number(r.nro_sesion), r.salon);
+    }
+
     return sessions.map((s) => {
       const statusId = latestStatusBySession.get(s.id as number) ?? null;
       const exec = hasExecCols ? (s as Record<string, unknown>) : null;
@@ -1335,6 +1341,7 @@ export async function getOSISessions(osiId: number): Promise<OSISession[]> {
           ? ((exec.ejecutada_en_fecha_planificada as boolean | null) ?? null)
           : null,
         id_estatus: statusId,
+        salon: salonBySesion.get(s.nro_sesion as number) ?? null,
       } as OSISession;
     });
   } catch (err) {

@@ -96,6 +96,8 @@ export interface OSISession {
   hora_ejecutada: string | null;
   ejecutada_en_fecha_planificada: boolean | null;
   id_estatus: number | null;
+  /** Salón de ejecución (Capacitación, estandarizado con cat_salones). */
+  salon?: string | null;
   status_name?: string;
   status_color?: string;
 }

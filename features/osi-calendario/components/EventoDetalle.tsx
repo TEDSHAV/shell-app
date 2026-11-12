@@ -143,7 +143,7 @@ export default function EventoDetalle({ evento, mes, hoy, permisos, pasoInicial 
                   <span className={`h-1.5 w-1.5 rounded-full ${ui.punto}`} />
                   {ui.etiqueta}
                 </span>
-                {evento.en_sha ? <span className="rounded-full bg-sky-100 px-2.5 py-0.5 text-xs font-medium text-sky-800">En SHA</span> : null}
+                {evento.en_sha ? <span className="rounded-full bg-sky-100 px-2.5 py-0.5 text-xs font-medium text-sky-800">{evento.salon ? `En SHA · ${evento.salon}` : "En SHA"}</span> : null}
               </div>
               <DialogTitle className="text-lg leading-snug sm:text-xl">{evento.servicio ?? "Servicio"}</DialogTitle>
               <DialogDescription asChild>

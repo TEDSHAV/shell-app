@@ -25,7 +25,7 @@ export function UbicacionSesion({ evento, className = "" }: { evento: EventoCale
     return (
       <span className={`inline-flex min-w-0 items-center gap-1 text-sky-800 ${className}`} title="Se dicta en las instalaciones de SHA">
         <Building2 className="h-3 w-3 shrink-0" />
-        <span className="truncate font-medium">En SHA</span>
+        <span className="truncate font-medium">{evento.salon ? `En SHA · ${evento.salon}` : "En SHA"}</span>
       </span>
     );
   }

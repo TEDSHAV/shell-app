@@ -816,7 +816,7 @@ export default function OSITable({
                     return (
                     <tr key={session.id} className="bg-gray-50/50 border-b border-gray-100">
                       <td className="px-2 py-1.5 w-8"></td>
-                      <td className="px-2 py-1.5 text-xs font-medium text-gray-700">#{session.nro_sesion}</td>
+                      <td className="px-2 py-1.5 text-xs font-medium text-gray-700 whitespace-nowrap" title={session.salon ?? undefined}>#{session.nro_sesion}{session.salon ? <span className="ml-1 font-normal text-gray-500">· {session.salon}</span> : null}</td>
                       <td className="px-2 py-1.5"></td>
                       <td className="px-2 py-1.5"></td>
                       <td className="px-2 py-1.5"></td>

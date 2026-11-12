@@ -92,13 +92,23 @@ export async function getCalendarioMes(mes_param?: string | null): Promise<Resul
   // Onda 2: ciudades, comentarios, certificados, factura y OC de las OSIs visibles.
   const ciudad_ids = [...new Set(todas.map((s) => s.id_ciudad).filter((id): id is number => id != null))];
   const osis = [...new Map(todas.map((s) => [s.id_osi, { id_osi: s.id_osi, nro_osi: s.nro_osi }])).values()];
-  const [ciudades_res, comentarios, extras] = await Promise.all([
+  const [ciudades_res, comentarios, extras, salones_res] = await Promise.all([
     ciudad_ids.length
       ? supabase.from("cat_ciudades").select("id, nombre_ciudad").in("id", ciudad_ids)
       : Promise.resolve({ data: [] as Array<{ id: number; nombre_ciudad: string }> }),
     getOSIComentariosResumen(osis.map((o) => o.id_osi)),
     getOSIExtras(osis),
+    // Salón de cada sesión (lo elige Capacitación; estandarizado contra cat_salones).
+    osis.length
+      ? supabase.rpc("fn_osi_salones", { p_osi_ids: osis.map((o) => o.id_osi) })
+      : Promise.resolve({ data: [] as Array<{ id_osi: number; nro_sesion: number; salon: string | null }> }),
   ]);
+  const salones = new Map(
+    ((salones_res.data ?? []) as Array<{ id_osi: number; nro_sesion: number; salon: string | null }>).map((r) => [
+      `${r.id_osi}:${r.nro_sesion}`,
+      r.salon,
+    ]),
+  );
   const ciudades = new Map((ciudades_res.data ?? []).map((c) => [c.id as number, c.nombre_ciudad as string]));
 
   const a_evento = (s: SesionCalendario): EventoCalendario => ({
@@ -114,6 +124,7 @@ export async function getCalendarioMes(mes_param?: string | null): Promise<Resul
     certificados: extras[s.id_osi]?.certificados ?? 0,
     factura: extras[s.id_osi]?.factura ?? null,
     ordenes_compra: extras[s.id_osi]?.ordenes_compra ?? [],
+    salon: salones.get(`${s.id_osi}:${s.nro_sesion}`) ?? null,
   });
 
   const por_confirmar = pendientes.map(a_evento).sort(comparar_eventos);
