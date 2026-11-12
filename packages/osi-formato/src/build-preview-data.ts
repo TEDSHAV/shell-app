@@ -541,6 +541,8 @@ export function build_osi_preview_data(input: BuildOsiPreviewInput): OsiPreviewD
     carnetImpreso: carnet_impreso,
     incluyeRefrigerio: Boolean(view_row.incluye_refrigerio),
     entregaCertificado: entrega_certificado,
+    evalPrePost: Boolean(view_row.eval_pre_post),
+    evalTeoricaPractica: Boolean(view_row.eval_teorica_practica),
     audiovisuales: Boolean(view_row.requiere_audiovisuales),
     isCapacitacion: is_capacitacion,
     stServicios: st_servicios_preview,

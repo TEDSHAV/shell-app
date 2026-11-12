@@ -90,6 +90,8 @@ export type OsiPreviewData = {
   carnetImpreso: boolean;
   incluyeRefrigerio?: boolean;
   entregaCertificado?: "retira_cliente" | "se_envia" | null;
+  evalPrePost?: boolean;
+  evalTeoricaPractica?: boolean;
   audiovisuales: boolean;
   isCapacitacion: boolean;
   stServicios?: Array<{

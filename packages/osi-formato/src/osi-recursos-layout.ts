@@ -54,6 +54,8 @@ export type OsiRecursosCostSlice = {
   carnetImpreso: boolean;
   incluyeRefrigerio: boolean;
   entregaCertificado: "retira_cliente" | "se_envia" | null;
+  evalPrePost: boolean;
+  evalTeoricaPractica: boolean;
 };
 
 export type OsiBadgeTone = "base" | "up" | "down";
@@ -187,6 +189,8 @@ function session_to_cost_slice(
     carnetImpreso: data.carnetImpreso,
     incluyeRefrigerio: Boolean(data.incluyeRefrigerio),
     entregaCertificado: data.entregaCertificado ?? null,
+    evalPrePost: Boolean(data.evalPrePost),
+    evalTeoricaPractica: Boolean(data.evalTeoricaPractica),
   };
 }
 
@@ -226,6 +230,8 @@ function global_to_cost_slice(data: OsiPreviewData): OsiRecursosCostSlice {
     carnetImpreso: data.carnetImpreso,
     incluyeRefrigerio: Boolean(data.incluyeRefrigerio),
     entregaCertificado: data.entregaCertificado ?? null,
+    evalPrePost: Boolean(data.evalPrePost),
+    evalTeoricaPractica: Boolean(data.evalTeoricaPractica),
   };
 }
 
@@ -374,6 +380,8 @@ function sum_slices(
     carnetImpreso: data.carnetImpreso,
     incluyeRefrigerio: Boolean(data.incluyeRefrigerio),
     entregaCertificado: data.entregaCertificado ?? null,
+    evalPrePost: Boolean(data.evalPrePost),
+    evalTeoricaPractica: Boolean(data.evalTeoricaPractica),
   };
 
   return consolidado;

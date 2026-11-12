@@ -17,6 +17,7 @@ import {
 import { OsiRecursosVariacionesTable } from "./osi-recursos-variaciones-table";
 import { OsiResumenRecursosConsolidado } from "./osi-resumen-recursos";
 import {
+  format_certificado_celdas,
   format_certificado_entrega_display,
   format_osi_si_no,
   OSI_BOOLEAN_VALUE_CLASS,
@@ -501,13 +502,25 @@ export function OsiCapacitacionRecursosBlocks({
         </th>
       </tr>
       <tr>
-        <td className={cn(OSI_BOOLEAN_VALUE_CLASS, "h-9 px-1 leading-tight")} colSpan={2}>
-          {format_certificado_entrega_display(
-            slice.certificadoImpreso,
-            slice.entregaCertificado,
-            slice.horasCertificado,
-          )}
-        </td>
+        {(() => {
+          const cert = format_certificado_celdas({
+            certificado: slice.certificadoImpreso,
+            entrega: slice.entregaCertificado,
+            horas: slice.horasCertificado,
+            eval_pre_post: slice.evalPrePost,
+            eval_teorica_practica: slice.evalTeoricaPractica,
+          });
+          return cert.celda_2 == null ? (
+            <td className={cn(OSI_BOOLEAN_VALUE_CLASS, "h-9 px-1 leading-tight")} colSpan={2}>
+              {cert.celda_1}
+            </td>
+          ) : (
+            <>
+              <td className={cn(OSI_BOOLEAN_VALUE_CLASS, "h-9 px-1 leading-tight")}>{cert.celda_1}</td>
+              <td className={cn(OSI_BOOLEAN_VALUE_CLASS, "h-9 px-1 leading-tight")}>{cert.celda_2}</td>
+            </>
+          );
+        })()}
         <td className={cn(OSI_BOOLEAN_VALUE_CLASS, "h-9")} colSpan={2}>
           {format_osi_si_no(slice.carnetImpreso)}
         </td>
