@@ -23,6 +23,8 @@ type AnalisisGuardado = {
  */
 export function nivel_salud_de_analisis(a: AnalisisGuardado | null | undefined): 0 | 1 | 2 | 3 {
   if (!a || !(Number(a.extra ?? 0) > 0)) return 3;
+  // Pedir aprobación = el extra se pasó del pote y del diferencial: sin utilidad, sea cual sea el número guardado.
+  if (a.needs_approval) return 0;
   const raw = Math.min(3, Math.max(0, Math.floor(Number(a.level ?? 0))));
   if (a.escala === "salud") return raw as 0 | 1 | 2 | 3;
   return (raw === 0 ? 3 : 4 - raw) as 0 | 1 | 2 | 3;

@@ -157,6 +157,8 @@ describe("etiquetas del estado del costo", () => {
     assert.equal(nivel_salud_de_analisis({ extra: 10, level: 1 }), 3);
     assert.equal(nivel_salud_de_analisis({ extra: 10, level: 3 }), 1);
     assert.equal(nivel_salud_de_analisis({ extra: 0, level: 3 }), 3);
+    // Análisis muy viejo: level 0 con aprobación pendiente → N0.
+    assert.equal(nivel_salud_de_analisis({ extra: 290, level: 0, needs_approval: true }), 0);
     assert.equal(etiqueta_estado_costo({ extra: 50, level: 0, escala: "salud", needs_approval: true }), "N0 · Sin utilidad · sujeta a aprobación");
     assert.equal(etiqueta_estado_costo({ extra: 0 }), "N3 · Utilidad sana");
   });
