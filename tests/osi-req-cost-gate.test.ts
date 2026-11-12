@@ -118,6 +118,7 @@ describe("consume_shared_air", () => {
     assert.deepEqual(consume_shared_air({ remaining: 50, colchon: 20, extras: [30, 30] }), {
       remaining: 0,
       colchon: 10,
+      gadmin: 0,
     });
   });
 });
@@ -158,5 +159,38 @@ describe("etiquetas del estado del costo", () => {
     assert.equal(nivel_salud_de_analisis({ extra: 0, level: 3 }), 3);
     assert.equal(etiqueta_estado_costo({ extra: 50, level: 0, escala: "salud", needs_approval: true }), "N0 · Sin utilidad · sujeta a aprobación");
     assert.equal(etiqueta_estado_costo({ extra: 0 }), "N3 · Utilidad sana");
+  });
+});
+
+describe("gasto administrativo y pérdida (E2)", () => {
+  it("el extra consume utilidad → diferencial → gasto administrativo → pérdida", () => {
+    const r = analyze_req_osi_cost_gate({
+      ...base,
+      cost_osi: 100,
+      cost_req: 200,
+      remaining_for_req: 20,
+      colchon_ecc_osi: 10,
+      gadmin_ecc: 50,
+    });
+    assert.equal(r.extra, 100);
+    assert.equal(r.from_pool, 20);
+    assert.equal(r.from_colchon, 10);
+    assert.equal(r.from_gadmin, 50);
+    assert.equal(r.perdida, 20);
+    assert.equal(r.needs_approval, true);
+  });
+
+  it("si cabe en utilidad y diferencial no toca el gasto administrativo", () => {
+    const r = analyze_req_osi_cost_gate({ ...base, cost_osi: 100, cost_req: 120, remaining_for_req: 15, colchon_ecc_osi: 10, gadmin_ecc: 50 });
+    assert.equal(r.from_gadmin, 0);
+    assert.equal(r.perdida, 0);
+  });
+
+  it("otras requisiciones también consumen el gasto administrativo compartido", () => {
+    assert.deepEqual(consume_shared_air({ remaining: 10, colchon: 5, gadmin: 30, extras: [25] }), {
+      remaining: 0,
+      colchon: 0,
+      gadmin: 20,
+    });
   });
 });

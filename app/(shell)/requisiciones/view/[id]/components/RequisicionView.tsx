@@ -48,6 +48,7 @@ import {
 } from "@/features/requisiciones/lib/req-ventana-mensual";
 import { es_req_interna } from "@/features/requisiciones/lib/req-destino";
 import { etiqueta_estado_costo } from "@/lib/osi-nivel-salud";
+import { AumentoCostosDesglose } from "@/features/requisiciones/components/aumento-costos-desglose";
 
 export default function RequisicionView({
   record,
@@ -160,6 +161,11 @@ export default function RequisicionView({
     needs_justification?: boolean;
     level?: number;
     escala?: string;
+    from_pool?: number;
+    from_colchon?: number;
+    from_gadmin?: number;
+    perdida?: number;
+    gadmin_ecc?: number;
   };
   const [entregaItem, setEntregaItem] = useState<RequisicionItem | null>(null);
   const [cierreOpen, setCierreOpen] = useState(false);
@@ -1188,6 +1194,7 @@ export default function RequisicionView({
                       ? "Aumento rechazado."
                       : etiqueta_estado_costo(aumentoAnalisis)}
               </p>
+              <AumentoCostosDesglose analisis={aumentoAnalisis} />
               {record.aumento_costos_justificacion ? (
                 <p>Justificación: {record.aumento_costos_justificacion}</p>
               ) : null}
@@ -2254,6 +2261,7 @@ export default function RequisicionView({
                       ? "Aumento rechazado."
                       : etiqueta_estado_costo(aumentoAnalisis)}
               </p>
+              <AumentoCostosDesglose analisis={aumentoAnalisis} />
               {record.aumento_costos_justificacion ? (
                 <p>Justificación: {record.aumento_costos_justificacion}</p>
               ) : null}

@@ -6,6 +6,10 @@ export type ReqOsiCostGateResult = {
   remaining_after_req: number;
   needs_approval: boolean;
   needs_justification: boolean;
+  /** Parte del extra que consume el gasto administrativo de la ECC (tras utilidad y diferencial). */
+  from_gadmin: number;
+  /** Lo que el extra pasa más allá del gasto administrativo: se trabaja por debajo del costo. */
+  perdida: number;
   level: 0 | 1 | 2 | 3;
   estatus: "no_aplica" | "pendiente" | "justifica";
   /** «salud»: level es N3 sana … N0 sin utilidad (análisis guardados antes no lo traen). */
@@ -132,10 +136,13 @@ export function sum_req_direct_cost(params: {
 export function consume_shared_air(params: {
   remaining: number;
   colchon: number;
+  /** Gasto administrativo de la ECC: lo último que se consume antes de la pérdida. */
+  gadmin?: number;
   extras: number[];
-}): { remaining: number; colchon: number } {
+}): { remaining: number; colchon: number; gadmin: number } {
   let remaining = money(Math.max(0, params.remaining));
   let colchon = money(Math.max(0, params.colchon));
+  let gadmin = money(Math.max(0, params.gadmin ?? 0));
   for (const raw of params.extras) {
     const extra = money(Math.max(0, raw));
     if (extra <= 0) continue;
@@ -144,8 +151,9 @@ export function consume_shared_air(params: {
     const rest = money(extra - from_pool);
     const from_colchon = money(Math.min(rest, colchon));
     colchon = money(colchon - from_colchon);
+    gadmin = money(gadmin - Math.min(money(rest - from_colchon), gadmin));
   }
-  return { remaining, colchon };
+  return { remaining, colchon, gadmin };
 }
 
 export function analyze_req_osi_cost_gate(params: {
@@ -158,6 +166,8 @@ export function analyze_req_osi_cost_gate(params: {
   percents?: { n1?: number; n2?: number; n3?: number };
   nivel_justificacion_req?: number;
   osi_level?: number;
+  /** Gasto administrativo de la ECC disponible para esta REQ. */
+  gadmin_ecc?: number;
 }): ReqOsiCostGateResult {
   const extra = money(Math.max(0, params.cost_req - params.cost_osi));
   const remaining_pool = money(Math.max(0, params.remaining_for_req));
@@ -168,6 +178,11 @@ export function analyze_req_osi_cost_gate(params: {
     Math.min(Math.max(0, extra - remaining_pool), colchon),
   );
   const remaining_after_req = money(Math.max(0, remaining_pool - extra));
+  // Orden de consumo: utilidad (pote) → diferencial ECC-OSI (colchón) → gasto administrativo → pérdida.
+  const rest_tras_colchon = money(Math.max(0, extra - from_pool - from_colchon));
+  const gadmin_disponible = money(Math.max(0, params.gadmin_ecc ?? 0));
+  const from_gadmin = money(Math.min(rest_tras_colchon, gadmin_disponible));
+  const perdida = money(rest_tras_colchon - from_gadmin);
   if (extra <= 0) {
     return {
       extra: 0,
@@ -177,6 +192,8 @@ export function analyze_req_osi_cost_gate(params: {
       remaining_after_req: remaining_pool,
       needs_approval: false,
       needs_justification: false,
+      from_gadmin: 0,
+      perdida: 0,
       level: 3,
       estatus: "no_aplica",
       escala: "salud",
@@ -218,6 +235,8 @@ export function analyze_req_osi_cost_gate(params: {
     remaining_after_req,
     needs_approval,
     needs_justification,
+    from_gadmin,
+    perdida,
     level,
     estatus,
     escala: "salud",

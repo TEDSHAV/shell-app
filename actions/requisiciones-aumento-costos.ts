@@ -33,6 +33,8 @@ export type AumentoCostosPatch = {
     cost_req: number;
     cost_osi: number;
     colchon_ecc_osi: number;
+    /** Gasto administrativo de la ECC que quedaba disponible para esta REQ. */
+    gadmin_ecc?: number;
     remaining_for_req: number;
     sessions_total: number;
     sessions_open: number;
@@ -106,6 +108,8 @@ async function compute_aumento_costos_analisis(params: {
         remaining_after_req: 0,
         needs_approval: false,
         needs_justification: false,
+        from_gadmin: 0,
+        perdida: 0,
         level: 3,
         estatus: "no_aplica",
         escala: "salud",
@@ -176,6 +180,7 @@ async function compute_aumento_costos_analisis(params: {
     additional_items: params.form.additional_items,
   });
   let utilidad = 0;
+  let gadmin_ecc = 0;
   let just_n = 2;
   let percents = { n1: 10, n2: 20, n3: 30 };
   const version_id = Number(
@@ -185,10 +190,11 @@ async function compute_aumento_costos_analisis(params: {
   if (ecc_id > 0) {
     const { data: tot } = await admin
       .from("ecc_totales")
-      .select("monto_utilidad")
+      .select("monto_utilidad,monto_gastos_admin")
       .eq("id_ecc", ecc_id)
       .maybeSingle();
     utilidad = Number((tot as { monto_utilidad?: number } | null)?.monto_utilidad ?? 0);
+    gadmin_ecc = Number((tot as { monto_gastos_admin?: number } | null)?.monto_gastos_admin ?? 0);
   }
   if (version_id > 0) {
     const { data: ver } = await admin
@@ -240,10 +246,12 @@ async function compute_aumento_costos_analisis(params: {
   const air = consume_shared_air({
     remaining,
     colchon: colchon_live,
+    gadmin: gadmin_ecc,
     extras: sibling_extras,
   });
   remaining = air.remaining;
   colchon_live = air.colchon;
+  const gadmin_live = air.gadmin;
   const session_ids = session_ids_from_desglose(desglose);
   const covered = new Set<number>();
   const current_sesion = Number(params.form.id_sesion ?? 0);
@@ -264,6 +272,7 @@ async function compute_aumento_costos_analisis(params: {
     percents,
     nivel_justificacion_req: just_n,
     osi_level,
+    gadmin_ecc: gadmin_live,
   });
   return {
     aumento_costos_estatus: gate.needs_approval ? "pendiente" : "no_aplica",
@@ -273,6 +282,7 @@ async function compute_aumento_costos_analisis(params: {
       cost_req,
       cost_osi,
       colchon_ecc_osi: colchon_live,
+      gadmin_ecc: gadmin_live,
       remaining_for_req: remaining,
       sessions_total,
       sessions_open,

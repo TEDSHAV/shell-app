@@ -13,6 +13,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import type { RequisicionFormData } from "@/types/requisiciones";
 import { etiqueta_estado_costo } from "@/lib/osi-nivel-salud";
+import { AumentoCostosDesglose } from "@/features/requisiciones/components/aumento-costos-desglose";
 
 type Props = {
   isInterna: boolean;
@@ -193,6 +194,7 @@ export function RequisicionAumentoCostosPanel({
           </div>
         ) : null}
         <p className="mt-2 leading-relaxed">{detail}</p>
+        <AumentoCostosDesglose analisis={analysis} className="mt-2" />
         {analysis &&
         analysis.extra > 0 &&
         analysis.sessions_total > 1 ? (
