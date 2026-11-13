@@ -14,7 +14,7 @@ export function texto_efecto(i: ImpactoOSI): { tono: "alerta" | "info"; texto: s
     case "cierra_ejecutada":
       return { tono: "alerta", texto: `Es la última sesión abierta: la ${osi} pasará a Ejecutada y se pedirá la factura.${factura}` };
     case "cierra_no_ejecutada":
-      return { tono: "alerta", texto: `Ninguna sesión quedará ejecutada: la ${osi} pasará a OSI NO EJECUTADA.` };
+      return { tono: "alerta", texto: `Ninguna sesión quedará ejecutada: la ${osi} quedará suspendida, y con ella sus requisiciones abiertas.` };
     case "pendiente_pen":
       return { tono: "info", texto: `La ${osi} no se cerrará: su correlativo sigue pendiente (PEN-). Se cerrará cuando se emita.` };
     case "reabre":

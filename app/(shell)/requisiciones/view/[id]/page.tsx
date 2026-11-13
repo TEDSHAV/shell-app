@@ -12,6 +12,8 @@ import {
   list_catalog_departments_for_admin_edit,
 } from "@/actions/requisiciones-access-context";
 import RequisicionView from "./components/RequisicionView";
+import { SuspendidaBanner } from "./components/SuspendidaBanner";
+import { getSuspensionRequisicion } from "@/actions/requisiciones-suspension";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -30,7 +32,7 @@ export default async function ViewRequisicionPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params;
-  const [record, isAdminView, banks, coordinadorDepts, liderDepts, access, deptCatalog] = await Promise.all([
+  const [record, isAdminView, banks, coordinadorDepts, liderDepts, access, deptCatalog, suspension] = await Promise.all([
     getRequisicionRecord(parseInt(id)),
     isRequisicionesAdmin(),
     getBanksForDropdown(),
@@ -38,6 +40,7 @@ export default async function ViewRequisicionPage({
     getDepartmentsInLedGerencias(),
     getRequisicionAccess(),
     list_catalog_departments_for_admin_edit(),
+    getSuspensionRequisicion(parseInt(id)),
   ]);
 
   if (!record) {
@@ -141,6 +144,8 @@ export default async function ViewRequisicionPage({
           </Link>
         ) : null}
       </div>
+
+      {suspension?.suspendida_at ? <SuspendidaBanner id={Number(id)} info={suspension} /> : null}
 
       <RequisicionView
         record={record}

@@ -13,7 +13,7 @@ export const ACCION_UI: Record<AccionSesion, { titulo: string; descripcion: stri
   },
   no_se_dio: {
     titulo: "No ejecutada",
-    descripcion: "No se dictó en su fecha. Quien corresponda decidirá si se reagenda o se cancela.",
+    descripcion: "No se dictó en su fecha. Quien corresponda decidirá si se reagenda o se suspende.",
     boton: "Marcar como no ejecutada",
     color: "border-amber-200 text-amber-900 hover:bg-amber-50",
     activo: "border-amber-500 bg-amber-50 ring-1 ring-amber-500",
@@ -30,15 +30,20 @@ export const ACCION_UI: Record<AccionSesion, { titulo: string; descripcion: stri
     texto: "text-violet-700",
   },
   no_ejecutar: {
-    titulo: "Cancelar",
-    descripcion: "No se dio y no se va a dar más.",
-    boton: "Cancelar sesión",
+    titulo: "Suspender",
+    descripcion: "No se da por ahora. Cuenta como no ejecutada y se puede reactivar reagendándola.",
+    boton: "Suspender sesión",
     color: "border-rose-200 text-rose-800 hover:bg-rose-50",
     activo: "border-rose-500 bg-rose-50 ring-1 ring-rose-500",
     icono_activo: "bg-rose-600 text-white",
     texto: "text-rose-700",
   },
 };
+
+/** Título de la acción según la sesión: reagendar una suspendida es «Reactivar». */
+export function titulo_accion(accion: AccionSesion, estado: EstadoSesion): string {
+  return accion === "reagendar" && estado === "cancelada" ? "Reactivar" : ACCION_UI[accion].titulo;
+}
 
 export const ACCION_BOTON_PRIMARIO: Record<AccionSesion, string> = {
   ejecutar: "bg-emerald-600 hover:bg-emerald-700",
@@ -83,15 +88,16 @@ export function motivo_no_aplica(accion: AccionSesion, estado: EstadoSesion, fec
       if (fecha_efectiva > hoy) return "Su fecha todavía no llega";
       return null;
     case "no_se_dio":
-      if (cerrada) return estado === "ejecutada" ? "Ya está ejecutada" : "Ya está cancelada";
+      if (cerrada) return estado === "ejecutada" ? "Ya está ejecutada" : "Ya está suspendida";
       if (estado === "no_se_dio") return "Ya está como no ejecutada";
       if (estado === "sin_fecha") return "No tiene fecha";
       if (fecha_efectiva > hoy) return "Su fecha todavía no llega";
       return null;
     case "reagendar":
-      return cerrada ? (estado === "ejecutada" ? "Ya está ejecutada" : "Ya está cancelada") : null;
+      // Reagendar una suspendida es reactivarla.
+      return estado === "ejecutada" ? "Ya está ejecutada" : null;
     case "no_ejecutar":
-      if (estado === "cancelada") return "Ya está cancelada";
+      if (estado === "cancelada") return "Ya está suspendida";
       if (estado === "ejecutada") return "Ya está ejecutada";
       return null;
   }

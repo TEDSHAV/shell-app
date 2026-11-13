@@ -149,6 +149,8 @@ export type ApproverRecordFlags = {
   coordinador_estatus?: string | null;
   aumento_costos_estatus?: string | null;
   costos_confirmados_at?: string | null;
+  /** Suspendida porque una OSI ligada está suspendida (39). */
+  suspendida_at?: string | null;
   _isApprovalHistory?: boolean;
   _isOwn?: boolean;
   _creatorIsDeptCoordinador?: boolean;
@@ -172,6 +174,9 @@ export function isLiderGatePending(record: ApproverRecordFlags): boolean {
 export function admin_tramite_blocked_reason(
   record: ApproverRecordFlags,
 ): string | null {
+  if (record.suspendida_at) {
+    return "Suspendida: su OSI está suspendida. Se reactiva reactivando la OSI.";
+  }
   if (record.aumento_costos_estatus === "pendiente") {
     return "Espere el sello de aumento de costos.";
   }

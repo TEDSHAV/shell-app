@@ -125,7 +125,9 @@ describe("lote", () => {
     assert.equal(motivo_no_aplica("ejecutar", "ejecutada", "2026-11-03", hoy), "Ya está ejecutada");
     assert.equal(motivo_no_aplica("no_se_dio", "no_se_dio", "2026-11-03", hoy), "Ya está como no ejecutada");
     assert.equal(motivo_no_aplica("reagendar", "no_se_dio", "2026-11-03", hoy), null);
-    assert.equal(motivo_no_aplica("reagendar", "cancelada", "2026-11-03", hoy), "Ya está cancelada");
+    // Una suspendida se reactiva reagendándola.
+    assert.equal(motivo_no_aplica("reagendar", "cancelada", "2026-11-03", hoy), null);
+    assert.equal(motivo_no_aplica("reagendar", "ejecutada", "2026-11-03", hoy), "Ya está ejecutada");
     assert.equal(motivo_no_aplica("no_ejecutar", "ejecutada", "2026-11-03", hoy), "Ya está ejecutada");
   });
 });

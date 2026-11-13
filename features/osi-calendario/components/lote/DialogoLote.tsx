@@ -80,7 +80,7 @@ export default function DialogoLote({ accion, objetivo, hoy, onClose, onDone }: 
       ? [
           ...(cierran.length ? [{ tono: "alerta" as const, texto: `${cierran.length} OSIs pasarán a Ejecutada y se pedirá su factura${con_factura ? ` (${con_factura} ya tienen solicitud)` : ""}.` }] : []),
           ...(impacto.some((i) => i.efecto === "pendiente_pen") ? [{ tono: "info" as const, texto: `${impacto.filter((i) => i.efecto === "pendiente_pen").length} OSIs no se cerrarán por correlativo PEN-.` }] : []),
-          ...(impacto.some((i) => i.efecto === "cierra_no_ejecutada") ? [{ tono: "alerta" as const, texto: `${impacto.filter((i) => i.efecto === "cierra_no_ejecutada").length} OSIs pasarán a OSI NO EJECUTADA.` }] : []),
+          ...(impacto.some((i) => i.efecto === "cierra_no_ejecutada") ? [{ tono: "alerta" as const, texto: `${impacto.filter((i) => i.efecto === "cierra_no_ejecutada").length} OSIs quedarán suspendidas (y sus requisiciones abiertas).` }] : []),
         ]
       : efectos;
   // Reagendar «todas a esta fecha»: cuántas sesiones quedan en fecha pasada o fuera de orden.
@@ -181,7 +181,7 @@ export default function DialogoLote({ accion, objetivo, hoy, onClose, onDone }: 
             ) : (
               <>
                 <span className="text-sm font-medium text-slate-800">
-                  {accion === "reagendar" ? "¿Por qué no se dieron?" : "¿Por qué se cancelan?"} <span className="text-rose-600">*</span>
+                  {accion === "reagendar" ? "¿Por qué no se dieron?" : "¿Por qué se suspenden?"} <span className="text-rose-600">*</span>
                 </span>
                 <div className="flex flex-wrap gap-1.5">
                   {motivos.map((m) => (

@@ -129,7 +129,7 @@ export default function RequisicionView({
   // gerencias they lead (legacy records without departamento allow any lider; the
   // server action re-checks either way).
   const liderDeptMatches = isLider && deptInList(record.departamento, liderDepts);
-  const canLiderAct = isLiderPendiente && liderDeptMatches;
+  const canLiderAct = isLiderPendiente && liderDeptMatches && !record.suspendida_at;
   const adminTramiteBlockedReason = admin_tramite_blocked_reason(record);
   const showInternaMontos = false;
 
@@ -144,7 +144,8 @@ export default function RequisicionView({
     isCoordinadorPendiente &&
     coordinadorDeptMatches &&
     !record._isOwn &&
-    !skipsCoordinadorGate(record);
+    !skipsCoordinadorGate(record) &&
+    !record.suspendida_at;
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [coordinadorRejectOpen, setCoordinadorRejectOpen] = useState(false);
   const [liderRejectOpen, setLiderRejectOpen] = useState(false);
@@ -1114,12 +1115,13 @@ export default function RequisicionView({
           <div className="flex items-center gap-3 flex-wrap">
           <span className="text-sm font-medium text-gray-600">Estatus:</span>
           <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
-            isProcesada ? 'bg-emerald-100 text-emerald-800'
+            record.suspendida_at ? 'bg-rose-100 text-rose-800'
+              : isProcesada ? 'bg-emerald-100 text-emerald-800'
               : isRechazada ? 'bg-red-100 text-red-800'
               : estatus === "parcial" ? 'bg-sky-100 text-sky-800'
               : 'bg-amber-100 text-amber-800'
           }`}>
-            {isProcesada ? "Procesada" : isRechazada ? "Rechazada" : estatus === "parcial" ? "Parcial" : "Pendiente"}
+            {record.suspendida_at ? "Suspendida" : isProcesada ? "Procesada" : isRechazada ? "Rechazada" : estatus === "parcial" ? "Parcial" : "Pendiente"}
           </span>
           {isResolved && record.procesada_por_nombre && (
             <span className="text-xs text-gray-500">

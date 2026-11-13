@@ -6,7 +6,7 @@ export type SesionImpacto = { id_sesion: number; nro_sesion: number; estado: Est
 export type EfectoOSI =
   /** Era la última sesión abierta y hay alguna ejecutada: la OSI pasa a Ejecutada (dispara la solicitud de factura). */
   | "cierra_ejecutada"
-  /** Todas quedan cerradas sin ninguna ejecutada: la OSI pasa a OSI NO EJECUTADA. */
+  /** Todas quedan cerradas sin ninguna ejecutada: la OSI queda suspendida (39). */
   | "cierra_no_ejecutada"
   /** Todas quedarían cerradas, pero la OSI sigue con correlativo PEN-: no se cierra. */
   | "pendiente_pen"

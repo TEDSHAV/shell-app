@@ -4,7 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import { ArrowLeft, Loader2 } from "lucide-react";
 
 import { registrarAccionSesion } from "../actions/sesion-accion-actions";
-import { ACCION_BOTON_PRIMARIO, ACCION_UI, acciones_disponibles } from "../lib/acciones";
+import { ACCION_BOTON_PRIMARIO, ACCION_UI, acciones_disponibles, titulo_accion } from "../lib/acciones";
 import { fecha_larga, hora_corta, sumar_dias } from "../lib/mes-grid";
 import type { AccionSesion, EventoCalendario, PermisosSesion } from "../lib/types";
 import { MOTIVOS_CANCELACION, MOTIVOS_REAGENDA } from "../schemas";
@@ -110,7 +110,7 @@ export default function FormularioAccion({ evento, accionInicial, fechaInicial =
       const quien = `${sesion} · OSI ${evento.nro_osi ?? evento.id_osi}`;
       const estatus_osi = res.data.id_estatus_osi;
       const cambio_osi = estatus_osi !== evento.id_estatus_osi
-        ? estatus_osi === 12 ? " · La OSI pasó a Ejecutada" : estatus_osi === 39 ? " · La OSI pasó a OSI NO EJECUTADA" : estatus_osi === 11 && (evento.id_estatus_osi === 12 || evento.id_estatus_osi === 39) ? " · La OSI se reabrió" : ""
+        ? estatus_osi === 12 ? " · La OSI pasó a Ejecutada" : estatus_osi === 39 ? " · La OSI quedó suspendida (y sus requisiciones abiertas)" : estatus_osi === 11 && (evento.id_estatus_osi === 12 || evento.id_estatus_osi === 39) ? " · La OSI se reactivó" : ""
         : "";
       onDone(
         (accion === "ejecutar"
@@ -119,7 +119,7 @@ export default function FormularioAccion({ evento, accionInicial, fechaInicial =
             ? `${quien}: no ejecutada`
             : accion === "reagendar"
               ? `${quien}: reagendada ${fecha ? `para el ${fecha_larga(fecha)}` : "sin fecha todavía"}`
-              : `${quien}: cancelada`) + cambio_osi,
+              : `${quien}: suspendida`) + cambio_osi,
       );
     });
   };
@@ -127,6 +127,7 @@ export default function FormularioAccion({ evento, accionInicial, fechaInicial =
   const chip_sel = accion === "reagendar" ? "border-violet-600 bg-violet-600 text-white" : "border-rose-600 bg-rose-600 text-white";
   const chip = accion === "reagendar" ? "border-violet-200 text-violet-800 hover:bg-violet-50" : "border-rose-200 text-rose-800 hover:bg-rose-50";
   const info = ACCION_UI[accion];
+  const reactiva = accion === "reagendar" && evento.estado === "cancelada";
 
   return (
     <div className="flex flex-1 flex-col gap-4">
@@ -155,13 +156,13 @@ export default function FormularioAccion({ evento, accionInicial, fechaInicial =
               }`}
             >
               <AccionIcono accion={a} className="h-3.5 w-3.5" />
-              {ACCION_UI[a].titulo}
+              {titulo_accion(a, evento.estado)}
             </button>
           ))}
         </div>
       ) : null}
 
-      <p className="text-xs leading-snug text-slate-500">{info.descripcion}</p>
+      <p className="text-xs leading-snug text-slate-500">{reactiva ? "Vuelve a la agenda con fecha nueva (o sin fecha). La OSI se reactiva y, con ella, sus requisiciones." : info.descripcion}</p>
 
       {fechaInicial && accion === "reagendar" && fecha === fechaInicial ? (
         <p className="rounded-lg bg-violet-50 px-3 py-2 text-sm text-violet-900">
@@ -189,12 +190,12 @@ export default function FormularioAccion({ evento, accionInicial, fechaInicial =
           </>
         ) : accion === "no_se_dio" ? (
           <p className="rounded-lg bg-amber-50 px-3 py-2.5 text-sm text-amber-900">
-            La sesión queda como «No ejecutada» y no cambia de fecha. Quien tenga permiso de reagendar o cancelar decidirá qué hacer.
+            La sesión queda como «No ejecutada» y no cambia de fecha. Quien tenga permiso de reagendar o suspender decidirá qué hacer.
           </p>
         ) : (
           <>
             <span className="text-sm font-medium text-slate-800">
-              {accion === "reagendar" ? "¿Por qué no se dio?" : "¿Por qué se cancela?"} <span className="text-rose-600">*</span>
+              {accion === "reagendar" ? (evento.estado === "cancelada" ? "¿Por qué se reactiva?" : "¿Por qué no se dio?") : "¿Por qué se suspende?"} <span className="text-rose-600">*</span>
             </span>
             <div className="flex flex-wrap gap-1.5">
               {motivos.map((m) => (
@@ -245,7 +246,7 @@ export default function FormularioAccion({ evento, accionInicial, fechaInicial =
           className={`inline-flex h-11 items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold text-white disabled:opacity-60 ${ACCION_BOTON_PRIMARIO[accion]}`}
         >
           {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <AccionIcono accion={accion} className="h-4 w-4" />}
-          {info.boton}
+          {reactiva ? "Reactivar sesión" : info.boton}
         </button>
       </div>
     </div>

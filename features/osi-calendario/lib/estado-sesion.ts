@@ -61,7 +61,7 @@ export const ESTADO_UI: Record<EstadoSesion, EstadoUi> = {
   },
   no_se_dio: {
     etiqueta: "No ejecutada",
-    descripcion: "No se dictó en su fecha. Falta decidir si se reagenda o se cancela.",
+    descripcion: "No se dictó en su fecha. Falta decidir si se reagenda o se suspende.",
     suave: "bg-amber-50 hover:bg-amber-100/70",
     barra: "border-amber-500",
     punto: "bg-amber-500",
@@ -96,8 +96,8 @@ export const ESTADO_UI: Record<EstadoSesion, EstadoUi> = {
     pill: "bg-emerald-100 text-emerald-800",
   },
   cancelada: {
-    etiqueta: "Cancelada",
-    descripcion: "No se dio y no se va a dar.",
+    etiqueta: "Suspendida",
+    descripcion: "No se dio y queda detenida: cuenta como no ejecutada. Se puede reactivar reagendándola.",
     suave: "bg-rose-50 hover:bg-rose-100/70",
     barra: "border-rose-500",
     punto: "bg-rose-500",
@@ -106,9 +106,9 @@ export const ESTADO_UI: Record<EstadoSesion, EstadoUi> = {
   },
 };
 
-/** Estados en los que la sesión todavía se puede mover de fecha (arrastrar o reagendar). */
+/** Estados en los que la sesión todavía se puede mover de fecha (arrastrar o reagendar). Una suspendida se reactiva así. */
 export function se_puede_reagendar(estado: EstadoSesion): boolean {
-  return estado === "programada" || estado === "por_registrar" || estado === "no_se_dio" || estado === "reagendada" || estado === "sin_fecha";
+  return estado === "programada" || estado === "por_registrar" || estado === "no_se_dio" || estado === "reagendada" || estado === "sin_fecha" || estado === "cancelada";
 }
 
 /** El filtro de "reagendada" incluye las que no tienen fecha. */

@@ -60,7 +60,7 @@ export default function RequisicionRow({
   const coordinadorEstatus = record.coordinador_estatus as string | null | undefined;
   const isLiderPendiente = isInterna && isLiderGatePending(record);
   const liderDeptMatches = isLider && deptInList(record.departamento, liderDepts);
-  const canLiderAct = isLiderPendiente && liderDeptMatches && !isAdminView;
+  const canLiderAct = isLiderPendiente && liderDeptMatches && !isAdminView && !record.suspendida_at;
 
   const handleLiderApprove = async () => {
     setIsUpdating(true);
@@ -93,7 +93,8 @@ export default function RequisicionRow({
     isCoordinadorPendiente &&
     coordinadorDeptMatches &&
     !record._isOwn &&
-    !skipsCoordinadorGate(record);
+    !skipsCoordinadorGate(record) &&
+    !record.suspendida_at;
 
   const handleCoordinadorApprove = async () => {
     setIsUpdating(true);
@@ -288,13 +289,14 @@ export default function RequisicionRow({
         </div>
       </td>
       <td className="px-4 py-4 whitespace-nowrap text-sm">
-        <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
-          isProcesada ? 'bg-emerald-100 text-emerald-800'
+        <span title={record.suspendida_at ? "Su OSI está suspendida: se reactiva reactivando la OSI" : undefined} className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
+          record.suspendida_at ? 'bg-rose-100 text-rose-800'
+            : isProcesada ? 'bg-emerald-100 text-emerald-800'
             : isRechazada ? 'bg-red-100 text-red-800'
             : estatus === "parcial" ? 'bg-sky-100 text-sky-800'
             : 'bg-amber-100 text-amber-800'
         }`}>
-          {isProcesada ? "Procesada" : isRechazada ? "Rechazada" : estatus === "parcial" ? "Parcial" : "Pendiente"}
+          {record.suspendida_at ? "Suspendida" : isProcesada ? "Procesada" : isRechazada ? "Rechazada" : estatus === "parcial" ? "Parcial" : "Pendiente"}
         </span>
         {isInterna ? (
           (() => {

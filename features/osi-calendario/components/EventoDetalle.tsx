@@ -5,7 +5,7 @@ import { ChevronDown, Clock, FileText, MapPin, MessageSquare, User } from "lucid
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { getAuditoriaSesion, getReagendasSesion, type CambioEjecucion } from "../actions/calendario-actions";
-import { ACCION_UI, acciones_disponibles, HOJA_MOVIL } from "../lib/acciones";
+import { ACCION_UI, acciones_disponibles, HOJA_MOVIL, titulo_accion } from "../lib/acciones";
 import { empresa_y_sede, ESTADO_UI, hora_efectiva } from "../lib/estado-sesion";
 import { fecha_larga, hora_corta } from "../lib/mes-grid";
 import type { AccionSesion, EventoCalendario, PermisosSesion, ReagendaHistorial } from "../lib/types";
@@ -209,7 +209,7 @@ export default function EventoDetalle({ evento, mes, hoy, permisos, pasoInicial 
                   <li className="flex items-start gap-3">
                     <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-rose-500" />
                     <div>
-                      <p className="text-xs text-slate-500">Cancelada{evento.motivo_no_ejecucion_tipo ? ` · ${evento.motivo_no_ejecucion_tipo}` : ""}</p>
+                      <p className="text-xs text-slate-500">Suspendida{evento.motivo_no_ejecucion_tipo ? ` · ${evento.motivo_no_ejecucion_tipo}` : ""}</p>
                       <p className="text-sm text-slate-800">{evento.motivo_no_ejecucion ?? "Sin motivo"}</p>
                     </div>
                   </li>
@@ -239,7 +239,7 @@ export default function EventoDetalle({ evento, mes, hoy, permisos, pasoInicial 
                 {evento.no_se_dio_at ? ` el ${new Date(evento.no_se_dio_at).toLocaleDateString("es-VE", { timeZone: "America/Caracas" })}` : ""}.
                 {evento.no_se_dio_nota ? <span className="block text-amber-800/80">{evento.no_se_dio_nota}</span> : null}
                 <span className="block text-xs text-amber-800/80">
-                  {permisos.reagendar || permisos.cancelar ? "Falta decidir si se reagenda o se cancela." : "Quien tenga permiso de reagendar o cancelar decidirá qué hacer."}
+                  {permisos.reagendar || permisos.cancelar ? "Falta decidir si se reagenda o se suspende." : "Quien tenga permiso de reagendar o suspender decidirá qué hacer."}
                 </span>
               </p>
             ) : null}
@@ -260,8 +260,10 @@ export default function EventoDetalle({ evento, mes, hoy, permisos, pasoInicial 
                     >
                       <AccionIcono accion={a} />
                       <span className="min-w-0">
-                        <span className="block text-sm font-semibold">{a === "ejecutar" && evento.estado === "ejecutada" ? "Corregir fecha de ejecución" : info.titulo}</span>
-                        <span className="block text-xs text-slate-500">{info.descripcion}</span>
+                        <span className="block text-sm font-semibold">{a === "ejecutar" && evento.estado === "ejecutada" ? "Corregir fecha de ejecución" : titulo_accion(a, evento.estado)}</span>
+                        <span className="block text-xs text-slate-500">
+                          {a === "reagendar" && evento.estado === "cancelada" ? "Vuelve a la agenda con fecha nueva (o sin fecha). La OSI se reactiva y, con ella, sus requisiciones." : info.descripcion}
+                        </span>
                       </span>
                     </button>
                   );
