@@ -22,6 +22,7 @@ import {
   type BancoOpcion,
   type FacilitadorOpcion,
 } from "./req-alta-facilitador";
+import { ReqAltaObservaciones } from "./req-alta-observaciones";
 import { isCapacitacionDept } from "@/lib/requisiciones-gerencia";
 
 export function ReqAltaPasoCreacion({
@@ -117,6 +118,11 @@ export function ReqAltaPasoCreacion({
           ambito={ambito}
           id_departamento={id_departamento}
           departamento_nombre={form.departamento}
+        />
+        <ReqAltaObservaciones
+          modo="editar"
+          value={form.observaciones || ""}
+          on_change={(value) => on_form({ ...form, observaciones: value })}
         />
         {clase === "servicio_directo" && isCapacitacionDept(form.departamento) ? (
           <ReqAltaFacilitador
