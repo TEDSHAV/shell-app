@@ -1196,7 +1196,7 @@ export default function RequisicionView({
                       ? "Aumento rechazado."
                       : etiqueta_estado_costo(aumentoAnalisis)}
               </p>
-              <AumentoCostosDesglose analisis={aumentoAnalisis} />
+              {isAdminView || canApproveAumento ? <AumentoCostosDesglose analisis={aumentoAnalisis} /> : null}
               {record.aumento_costos_justificacion ? (
                 <p>Justificación: {record.aumento_costos_justificacion}</p>
               ) : null}
@@ -2263,7 +2263,7 @@ export default function RequisicionView({
                       ? "Aumento rechazado."
                       : etiqueta_estado_costo(aumentoAnalisis)}
               </p>
-              <AumentoCostosDesglose analisis={aumentoAnalisis} />
+              {isAdminView || canApproveAumento ? <AumentoCostosDesglose analisis={aumentoAnalisis} /> : null}
               {record.aumento_costos_justificacion ? (
                 <p>Justificación: {record.aumento_costos_justificacion}</p>
               ) : null}

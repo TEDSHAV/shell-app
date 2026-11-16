@@ -52,6 +52,7 @@ import {
   osi_fixed_clone_differs,
   osi_fixed_line_total,
 } from "@/lib/requisicion-osi-clone";
+import { preview_aumento_costos } from "@/actions/requisiciones-aumento-costos";
 import { RequisicionAumentoCostosPanel } from "./RequisicionAumentoCostosPanel";
 import { OsiVsPedidoAmount } from "./OsiVsPedidoAmount";
 import { RequisicionTotalPriceInput, RequisicionUnitPriceInput } from "./RequisicionItemMoneyInputs";
@@ -715,6 +716,24 @@ function RequisicionFormContent({
 
     setIsLoading(true);
     try {
+      // En producción Next oculta el mensaje de los throw del servidor: se valida antes.
+      const idOsiGate = formData.selectedOSIs[0]?.id_osi ?? null;
+      if (!formData.is_general && idOsiGate && !(formData.aumento_costos_justificacion || "").trim()) {
+        const { aumento_costos_analisis: gate } = await preview_aumento_costos({
+          is_interna: false,
+          id_osi: idOsiGate,
+          form: formData,
+          exclude_req_id: editId ? parseInt(editId) : null,
+        });
+        if (gate.needs_justification || gate.needs_approval) {
+          alert(
+            gate.needs_approval
+              ? "El ajuste es riesgoso y queda sujeto a aprobación: escribe la justificación."
+              : "El ajuste es riesgoso: escribe la justificación.",
+          );
+          return;
+        }
+      }
       if (clasePedido && useCatalogLineas) {
         const hermanaForm: RequisicionFormData = {
           ...formData,
