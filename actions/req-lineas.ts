@@ -6,6 +6,7 @@ import {
   updateRequisicionRecord,
 } from "@/actions/requisiciones";
 import type { RequisicionFormData, RequisicionItem } from "@/types/requisiciones";
+import { form_de_hermana } from "@/features/requisiciones/lib/req-alta-form";
 import {
   ambitos_para_catalogo,
   type CajonPedido,
@@ -230,15 +231,7 @@ export async function attach_req_hermana_action(params: {
       .eq("id", params.id_requisicion);
   }
   return save_req_with_lineas_action({
-    form: {
-      ...params.form,
-      id_lote_pedido: lote,
-      clase_pedido: "servicio_inventario",
-      is_general: false,
-      tipo_solicitud: "Externo",
-      osi_fixed_items: [],
-      selectedOSIs: [],
-    },
+    form: { ...form_de_hermana(params.form), id_lote_pedido: lote },
     lineas: params.lineas,
     cajon: "inventario",
   }).then(async (created) => {

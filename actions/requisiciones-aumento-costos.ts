@@ -52,10 +52,13 @@ type SiblingReqRow = {
   aumento_costos_estatus: string | null;
   osi_fixed_items: unknown;
   additional_items: unknown;
+  clase_pedido: string | null;
 };
 
 function is_live_externa(row: SiblingReqRow): boolean {
   if (String(row.tipo_solicitud ?? "") === "Interno") return false;
+  // La reposición de depósito lleva la OSI solo para justificar el gasto: no consume el margen del curso.
+  if (row.clase_pedido === "servicio_inventario") return false;
   const rejected = new Set(["rechazada"]);
   if (rejected.has(String(row.estatus_admin ?? ""))) return false;
   if (rejected.has(String(row.coordinador_estatus ?? ""))) return false;
@@ -95,8 +98,9 @@ async function compute_aumento_costos_analisis(params: {
   >;
   justificacion: string;
   exclude_req_id?: number | null;
+  clase_pedido?: string | null;
 }): Promise<AumentoCostosPatch> {
-  if (params.is_interna || !params.id_osi) {
+  if (params.is_interna || !params.id_osi || params.clase_pedido === "servicio_inventario") {
     return {
       aumento_costos_estatus: "no_aplica",
       aumento_costos_justificacion: null,
@@ -221,7 +225,7 @@ async function compute_aumento_costos_analisis(params: {
   const { data: sibling_rows } = await admin
     .from("requisiciones")
     .select(
-      "id,id_sesion,tipo_solicitud,estatus_admin,coordinador_estatus,lider_estatus,aumento_costos_estatus,osi_fixed_items,additional_items",
+      "id,id_sesion,tipo_solicitud,estatus_admin,coordinador_estatus,lider_estatus,aumento_costos_estatus,osi_fixed_items,additional_items,clase_pedido",
     )
     .eq("id_osi", params.id_osi);
   const siblings = ((sibling_rows ?? []) as SiblingReqRow[]).filter((row) => {
@@ -315,6 +319,7 @@ export async function build_aumento_costos_patch(params: {
   >;
   justificacion: string;
   exclude_req_id?: number | null;
+  clase_pedido?: string | null;
 }): Promise<AumentoCostosPatch> {
   const patch = await compute_aumento_costos_analisis(params);
   const gate = patch.aumento_costos_analisis;

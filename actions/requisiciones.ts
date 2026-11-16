@@ -483,7 +483,12 @@ export async function createRequisicionRecord(
     throw new Error("No puede crear requisiciones para ese departamento.");
   }
 
-  const isCapacitacion = !formData.is_general && isCapacitacionDept(formData.departamento);
+  // La reposición de depósito (servicio_inventario) no lleva jornada OSI, honorarios ni facilitador: aunque
+  // salga de un departamento de Capacitación, esas columnas van en cero para no duplicar lo del curso.
+  const isCapacitacion =
+    !formData.is_general &&
+    formData.clase_pedido !== "servicio_inventario" &&
+    isCapacitacionDept(formData.departamento);
   const primaryOSI = formData.selectedOSIs[0] || null;
   const isInterna = es_clase_pedido_externa(formData.clase_pedido)
     ? false
@@ -593,6 +598,7 @@ export async function createRequisicionRecord(
       id_osi: primaryOSI?.id_osi || null,
       form: formData,
       justificacion: formData.aumento_costos_justificacion || "",
+      clase_pedido: formData.clase_pedido ?? null,
     })),
     clase_pedido: formData.clase_pedido || null,
     id_lote_pedido: formData.id_lote_pedido || null,
@@ -866,7 +872,12 @@ export async function updateRequisicionRecord(
     throw new Error("El aprobador ya modificó esta requisición. No puede editarla.");
   }
 
-  const isCapacitacion = !formData.is_general && isCapacitacionDept(formData.departamento);
+  // La reposición de depósito (servicio_inventario) no lleva jornada OSI, honorarios ni facilitador: aunque
+  // salga de un departamento de Capacitación, esas columnas van en cero para no duplicar lo del curso.
+  const isCapacitacion =
+    !formData.is_general &&
+    formData.clase_pedido !== "servicio_inventario" &&
+    isCapacitacionDept(formData.departamento);
   const primaryOSI = formData.selectedOSIs[0] || null;
   const isInterna = es_clase_pedido_externa(formData.clase_pedido)
     ? false
@@ -933,6 +944,7 @@ export async function updateRequisicionRecord(
       id_osi: primaryOSI?.id_osi || null,
       form: formData,
       justificacion: formData.aumento_costos_justificacion || "",
+      clase_pedido: formData.clase_pedido ?? null,
       exclude_req_id: id,
     })),
     clase_pedido: formData.clase_pedido || null,

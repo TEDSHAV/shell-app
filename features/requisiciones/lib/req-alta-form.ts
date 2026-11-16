@@ -69,3 +69,36 @@ export function apply_fixed_to_form(
     informe_final_total: first.informe_final_total || 0,
   };
 }
+
+/**
+ * Formulario de la reposición de depósito («hermana») que sale junto a un curso. Conserva la OSI y la sesión
+ * (así se puede justificar después en qué OSI se gastó el inventario) y lo común (departamento, solicitante,
+ * observaciones). No hereda lo que es del curso: ni la jornada de la OSI ni los montos de las columnas
+ * heredadas (traslado, impresión, honorarios, informe), ni el facilitador y su cuenta de pago, ni la
+ * justificación del extra. Si no, los montos del curso se contarían dos veces y la reposición quedaría con
+ * un pagador. Que lleve la OSI no la hace cargar costo a esa OSI: el control de costos la ignora.
+ */
+export function form_de_hermana(form: RequisicionFormData): RequisicionFormData {
+  return {
+    ...form,
+    is_general: false,
+    tipo_solicitud: "Externo",
+    clase_pedido: "servicio_inventario",
+    osi_fixed_items: [],
+    dias_traslado: 0,
+    costo_traslado: 0,
+    impresion_total: 0,
+    honorarios_horas: 0,
+    honorarios_costo_hora: 0,
+    honorarios_total: 0,
+    informe_final_total: 0,
+    cod_facilitador: "",
+    facilitador: "",
+    cedula_facilitador: "",
+    rif_facilitador: "",
+    telefono_facilitador: "",
+    banco: "",
+    nro_cuenta: "",
+    aumento_costos_justificacion: "",
+  };
+}
