@@ -33,11 +33,14 @@ export type {
   OsiSessionSlotRow,
 } from "./osi-session-slots";
 export {
-  OSI_FORM_META_ST,
-  osi_form_meta_cap,
+  OSI_FORM_CODIGO,
+  osi_form_meta,
   resolve_osi_document_format_version,
 } from "./osi-formato-version";
-export type { OsiDocumentFormatVersion } from "./osi-formato-version";
+export type {
+  OsiDocumentFormatVersion,
+  OsiFormMeta,
+} from "./osi-formato-version";
 export {
   count_sesiones_programadas,
   osi_recursos_were_persisted,

@@ -477,6 +477,8 @@ export function build_osi_preview_data(input: BuildOsiPreviewInput): OsiPreviewD
     sesionesFechaEjecutada: sesiones_fecha_ejecutada,
     revisionDocumento: String(format_version),
     documentFormatVersion: format_version,
+    formatoSello: resolve_osi_document_format_version(view_row.formato_version),
+    fechaEmisionIso: to_str(view_row.fecha_emision),
     distribuirParticipantes: distribuir_participantes,
     detalleServicio: detalle_servicio,
     servicio: to_str(view_row.servicio),

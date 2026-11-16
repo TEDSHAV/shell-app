@@ -41,6 +41,10 @@ export type OsiPreviewData = {
   }>;
   revisionDocumento?: string | null;
   documentFormatVersion?: 1 | 2;
+  /** Sello `formato_version` de la OSI (todas las líneas); define código/revisión del encabezado. */
+  formatoSello?: 1 | 2;
+  /** `fecha_emision` cruda (ISO) de la OSI; define la revisión de las de sello 1. */
+  fechaEmisionIso?: string | null;
   distribuirParticipantes?: boolean;
   detalleServicio: string | null;
   servicio: string | null;

@@ -31,8 +31,7 @@ import {
   distribute_osi_page1_fill,
 } from "./osi-print-layout";
 import {
-  OSI_FORM_META_ST,
-  osi_form_meta_cap,
+  osi_form_meta,
   resolve_osi_document_format_version,
 } from "./osi-formato-version";
 import {
@@ -813,9 +812,12 @@ export function OsiDocumentView({ data, assets }: { data: OsiPreviewData; assets
         data.documentFormatVersion ?? data.revisionDocumento,
       )
     : 1;
-  const form_meta = data.isCapacitacion
-    ? osi_form_meta_cap(format_version)
-    : OSI_FORM_META_ST;
+  const form_meta = osi_form_meta({
+    sello: resolve_osi_document_format_version(
+      data.formatoSello ?? data.documentFormatVersion ?? data.revisionDocumento,
+    ),
+    fecha_emision: data.fechaEmisionIso,
+  });
   const cellHl = (on: boolean | undefined) =>
     on ? "bg-amber-50 ring-2 ring-amber-300 ring-inset" : "";
   const pretensiones_por_servicio = st_lines_with_field(
