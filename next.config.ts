@@ -35,6 +35,20 @@ const nextConfig: NextConfig = {
   output: "standalone",
   transpilePackages: ["@sha/osi-formato"],
   serverExternalPackages: ["nodemailer", "pngjs"],
+  async redirects() {
+    return [
+      {
+        source: "/dashboard/capacitacion/:path*",
+        destination: "/capacitacion/dashboard/capacitacion/:path*",
+        permanent: false,
+      },
+      {
+        source: "/evaluacion/:path*",
+        destination: `${CAPACITACION_URL}/evaluacion/:path*`,
+        permanent: false,
+      },
+    ];
+  },
   async rewrites() {
     return [
       {
