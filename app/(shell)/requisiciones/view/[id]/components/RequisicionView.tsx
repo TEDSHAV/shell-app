@@ -131,7 +131,6 @@ export default function RequisicionView({
   const liderDeptMatches = isLider && deptInList(record.departamento, liderDepts);
   const canLiderAct = isLiderPendiente && liderDeptMatches && !record.suspendida_at;
   const adminTramiteBlockedReason = admin_tramite_blocked_reason(record);
-  const showInternaMontos = false;
 
   // --- Coordinador approval state (internas only) ---
   const isCoordinadorPendiente = isInterna && coordinadorEstatus === "pendiente";
@@ -1443,9 +1442,9 @@ export default function RequisicionView({
                   <th className="p-2 border-r border-gray-300 w-24">ENTREGADO</th>
                 ) : null}
                 <th className="p-2 border-r border-gray-300">DESCRIPCIÓN</th>
-                {showInternaMontos ? (
+                {isGeneralMode ? (
                   <RequisicionPriceHeaders />
-                ) : !isGeneralMode ? (
+                ) : (
                   <>
                     <th className="p-2 border-r border-gray-300 w-32">PRECIO U.</th>
                     {((isCapacitacion && osiFixedItems.length > 1) || linkedOSIs.length > 1) && (
@@ -1453,7 +1452,7 @@ export default function RequisicionView({
                     )}
                     <th className="p-2 w-32">TOTAL</th>
                   </>
-                ) : null}
+                )}
                 {isGeneralMode && isAdminView && linkedOSIs.length > 1 && (
                   <th className="p-2 border-r border-gray-300 w-28">OSI</th>
                 )}
@@ -1798,7 +1797,7 @@ export default function RequisicionView({
                       <span className="uppercase">{item.descripcion || "-"}</span>
                     </div>
                   </td>
-                  {(!isGeneralMode || showInternaMontos) && (
+                  {(
                     <>
                       <td className="p-2 text-center font-bold border-r border-gray-300">
                         ${item.costo_unitario?.toFixed(2) || "0.00"}
@@ -1877,13 +1876,11 @@ export default function RequisicionView({
                       placeholder="Descripción..."
                     />
                   </td>
-                  {!isGeneralMode ? (
-                    <RequisicionItemMoneyInputs
-                      costo_unitario={item.costo_unitario || 0}
-                      total={item.total || 0}
-                      onChange={(field, n) => handleApproverItemChange(item.id, field, n)}
-                    />
-                  ) : null}
+                  <RequisicionItemMoneyInputs
+                    costo_unitario={item.costo_unitario || 0}
+                    total={item.total || 0}
+                    onChange={(field, n) => handleApproverItemChange(item.id, field, n)}
+                  />
                   {isGeneralMode ? (
                     <td className="p-2 text-center">
                       <button
@@ -1930,7 +1927,7 @@ export default function RequisicionView({
               {/* Add item button */}
               {!isCapacitacion && canEditItems && (
                 <tr className="border-b border-gray-300 bg-blue-50/20">
-                  <td colSpan={isGeneralMode ? (isAdminView && needsItemSelection ? 8 : 7) + (showEntregaCol ? 1 : 0) : 7} className="p-2">
+                  <td colSpan={isGeneralMode ? (isAdminView && needsItemSelection ? 8 : 7) + (showEntregaCol ? 1 : 0) + 2 : 7} className="p-2">
                     <button
                       type="button"
                       onClick={handleAddApproverItem}
@@ -1943,9 +1940,9 @@ export default function RequisicionView({
                 </tr>
               )}
 
-              {(!isGeneralMode || showInternaMontos) && (
+              {(
               <tr className="bg-gray-100 border-b border-gray-300">
-                <td colSpan={(isCapacitacion && osiFixedItems.length > 1) || (!isCapacitacion && linkedOSIs.length > 1) ? 6 : 5} className="p-2 text-right font-bold uppercase text-sm">Total General:</td>
+                <td colSpan={((isCapacitacion && osiFixedItems.length > 1) || (!isCapacitacion && linkedOSIs.length > 1) ? 6 : 5) + (isGeneralMode && showEntregaCol ? 1 : 0)} className="p-2 text-right font-bold uppercase text-sm">Total General:</td>
                 <td className="p-2 text-center font-bold text-sm bg-yellow-50">
                   ${totalGeneral.toFixed(2)}
                 </td>

@@ -185,7 +185,8 @@ export function ReqAltaTablaDetalles({
                       min={0}
                       className="h-6 w-full border-gray-300 p-1 text-center font-bold"
                       onValueChange={(v) =>
-                        patch_linea(row.local_id, { costo_catalogo: v })
+                        // El precio que pone quien pide manda: si había un «pagado» de antes, no debe taparlo.
+                        patch_linea(row.local_id, { costo_catalogo: v, costo_pagado: null })
                       }
                     />
                   ) : (
