@@ -1,6 +1,7 @@
 "use client";
 
 import { AlertTriangle, Package, ShieldCheck } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import type { RequisicionFormData } from "@/types/requisiciones";
 import type { ReqGatePreview } from "@/actions/req-alta-gate";
 import { osi_fixed_line_total } from "@/lib/requisicion-osi-clone";
@@ -104,6 +105,7 @@ export function ReqAltaEstatusFinal({
   on_hermana,
   ambito_hermana,
   on_justificacion,
+  on_observaciones,
 }: {
   clase: ClasePedido;
   form: RequisicionFormData;
@@ -118,6 +120,7 @@ export function ReqAltaEstatusFinal({
   on_hermana: (next: ReqLineaDraft[]) => void;
   ambito_hermana: CatalogAmbitoPedido;
   on_justificacion: (value: string) => void;
+  on_observaciones: (value: string) => void;
 }) {
   const ventana =
     clase === "departamento" && req_interna_fuera_ventana(form.fecha_solicitud);
@@ -168,6 +171,17 @@ export function ReqAltaEstatusFinal({
             onJustificationChange={on_justificacion}
           />
         ) : null}
+      </div>
+      <div>
+        <label className="mb-1 block text-sm font-semibold text-gray-900">
+          Observaciones <span className="font-normal text-gray-500">(opcional)</span>
+        </label>
+        <Textarea
+          value={form.observaciones}
+          onChange={(event) => on_observaciones(event.target.value)}
+          className="min-h-[72px] text-sm border-gray-300"
+          placeholder="Cualquier nota para quien revisa o procesa esta requisición."
+        />
       </div>
       {clase !== "servicio_directo" ? (
         <ReqAltaRevision clase={clase} form={form} lineas={lineas} gate={gate} />

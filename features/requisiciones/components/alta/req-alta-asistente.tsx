@@ -351,6 +351,9 @@ export function ReqAltaAsistente({
                 aumento_costos_justificacion: value,
               }))
             }
+            on_observaciones={(value) =>
+              setForm((prev) => ({ ...prev, observaciones: value }))
+            }
           />
           <div className="flex gap-2">
             <Button type="button" variant="outline" onClick={() => setPaso("creacion")}>
