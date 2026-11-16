@@ -213,11 +213,9 @@ const administracionPresupuestoNavGroup: NavGroup = {
   ],
 };
 
-/** Mismo sidebar de Administración dentro de las apps de presupuesto mensual y nómina. */
-const administracionSidebarNavLinks: (NavLink | NavGroup)[] = [
-  { label: "Dashboard", path: "/", href: "/administracion", icon: LayoutDashboard },
-  administracionNavGroup,
-  administracionFacturacionNavGroup,
+/** Sidebar propio de Presupuesto mensual y Nómina (Utilidades): sin Compras ni Facturación. */
+const presupuestoMensualSidebarNavLinks: (NavLink | NavGroup)[] = [
+  { label: "Inicio", path: "/", icon: LayoutDashboard },
   administracionNominaNavGroup,
   administracionPresupuestoNavGroup,
 ];
@@ -274,6 +272,7 @@ export const UTILIDADES_HEADER_APP_IDS = [
   "satisfaccion-clientes",
   "administracion",
   "presupuesto-mensual",
+  "nomina",
 ] as const;
 
 export function get_header_group_id(app: AppConfig): string | undefined {
@@ -866,11 +865,11 @@ export const apps: AppConfig[] = [
     icon: Wallet,
     brandColor: "#047857",
     embedMode: "shell",
-    // Sin tarjeta en el inicio: opción de Utilidades (incluye Nómina) y también dentro de Administración.
+    // Sin tarjeta en el inicio: opción de Utilidades (incluye Nómina), con su propio inicio; también enlazada desde Administración.
     hiddenFromDashboard: true,
     groupId: "utilidades",
     headerLabel: "Presupuesto mensual",
-    navLinks: administracionSidebarNavLinks,
+    navLinks: presupuestoMensualSidebarNavLinks,
   }),
   // Cualquier trabajador: sus recibos de pago (la misma app, abierta en Mis recibos).
   build_app_config({
@@ -885,9 +884,9 @@ export const apps: AppConfig[] = [
     brandColor: "#D97706",
     embedMode: "shell",
     hiddenFromDashboard: true,
-    groupId: "procesos-de-apoyo",
+    groupId: "utilidades",
     headerLabel: "Nómina",
-    navLinks: administracionSidebarNavLinks,
+    navLinks: presupuestoMensualSidebarNavLinks,
   }),
   build_app_config({
     id: "capacitacion",

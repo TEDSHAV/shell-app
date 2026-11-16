@@ -20,11 +20,12 @@ export async function AppSidebar() {
     if (dbPerms[dbSlug]) {
       userPermsByApp[app.id] = dbPerms[dbSlug];
     }
-    // Administración: Requisiciones (sgestion) + emisión fiscal (sadministracion).
+    // Administración: Requisiciones (sgestion) + emisión fiscal (sadministracion) + presupuesto y nómina (spresupuesto).
     if (app.id === "administracion") {
       const merged = new Set<string>([
         ...(dbPerms.sgestion ?? []),
         ...(dbPerms.sadministracion ?? []),
+        ...(dbPerms.spresupuesto ?? []),
         ...(userPermsByApp[app.id] ?? []),
       ]);
       userPermsByApp[app.id] = [...merged];

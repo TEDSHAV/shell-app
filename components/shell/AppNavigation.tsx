@@ -13,6 +13,7 @@ import {
   sort_header_group_apps,
 } from "@/config/apps";
 import { canAccessConsultaOSI } from "@/actions/osi";
+import { contar_recibos_por_ver } from "@/actions/nomina-recibos";
 import { AppConfig, AppGroupConfig } from "@/types";
 import {
   get_app_icon_style,
@@ -48,6 +49,19 @@ export const AppNavigation = ({ userRolesByApp = {}, globalRole, userDept }: App
       cancelled = true;
     };
   }, []);
+
+  // Aviso de Nómina: recibos de este mes sin ver. Se pide una vez al cargar, sin sondeo.
+  const [recibosPorVer, setRecibosPorVer] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    void contar_recibos_por_ver().then((n) => {
+      if (!cancelled) setRecibosPorVer(n);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const badges: Record<string, number> = { nomina: recibosPorVer };
 
   const canAccessApp = (app: AppConfig) =>
     can_access_shell_app(app, userRolesByApp, globalRole, userDept);
@@ -125,6 +139,7 @@ export const AppNavigation = ({ userRolesByApp = {}, globalRole, userDept }: App
             apps={groupApps}
             pathname={pathname}
             from_app_id={from_app_id}
+            badges={badges}
           />
         );
       })}
@@ -137,12 +152,16 @@ function GroupedNavDropdown({
   apps: groupApps,
   pathname,
   from_app_id,
+  badges,
 }: {
   group: AppGroupConfig;
   apps: AppConfig[];
   pathname: string;
   from_app_id: string | null;
+  /** Avisos por app (id de app → cantidad); 0 no muestra nada. */
+  badges: Record<string, number>;
 }) {
+  const avisos_total = groupApps.reduce((n, app) => n + (badges[app.id] ?? 0), 0);
   const [isOpen, setIsOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const icon_style = get_app_icon_style(group.brandColor);
@@ -200,6 +219,12 @@ function GroupedNavDropdown({
       >
         <group.icon className="h-3.5 w-3.5" style={icon_style} />
         {group.label}
+        {avisos_total > 0 ? (
+          <span
+            className="h-2 w-2 rounded-full bg-rose-500"
+            aria-label={`${avisos_total} aviso${avisos_total === 1 ? "" : "s"}`}
+          />
+        ) : null}
         <ChevronDown
           className={cn(
             "h-3 w-3 text-slate-400 transition-transform",
@@ -242,6 +267,11 @@ function GroupedNavDropdown({
               >
                 <app.icon className="h-3.5 w-3.5" style={appIconStyle} />
                 {app.headerLabel ?? app.name}
+                {(badges[app.id] ?? 0) > 0 ? (
+                  <span className="ml-auto inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold leading-none text-white">
+                    {badges[app.id]}
+                  </span>
+                ) : null}
               </Link>
             );
           })}
