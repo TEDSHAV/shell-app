@@ -1,5 +1,7 @@
 import {
   getAllOSIsForRequisiciones,
+  getBanksForDropdown,
+  getFacilitatorsForDropdown,
   getCurrentUser,
   getAllOsiSessions,
 } from "@/actions/requisiciones";
@@ -34,12 +36,14 @@ export default async function CreateRequisicionPage({
     deposito === "tecnico"
       ? deposito
       : null;
-  const [osis, userData, osiSessions, allowedDepts, catalog_item] = await Promise.all([
+  const [osis, userData, osiSessions, allowedDepts, catalog_item, facilitators, banks] = await Promise.all([
     getAllOSIsForRequisiciones(),
     getCurrentUser(),
     getAllOsiSessions(),
     list_request_departments(),
     item_id > 0 ? get_catalogo_pedido_item_action(item_id) : Promise.resolve(null),
+    getFacilitatorsForDropdown(),
+    getBanksForDropdown(),
   ]);
 
   const fromKey = dept_key_for_app(from || "");
@@ -65,6 +69,8 @@ export default async function CreateRequisicionPage({
         userDept={userDept}
         userGerencia={userGerencia}
         osiSessions={osiSessions || []}
+        facilitators={facilitators || []}
+        banks={banks || []}
         restock={
           catalog_item && deposito_ok
             ? { deposito: deposito_ok, item: catalog_item }

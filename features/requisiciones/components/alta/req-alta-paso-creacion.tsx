@@ -17,6 +17,12 @@ import { ReqAltaCabecera } from "./req-alta-cabecera";
 import { ReqAltaOsiPicker } from "./req-alta-osi";
 import { ReqAltaTablaDetalles } from "./req-alta-tabla-detalles";
 import { ReqAltaStockAnalisis } from "./req-alta-stock-analisis";
+import {
+  ReqAltaFacilitador,
+  type BancoOpcion,
+  type FacilitadorOpcion,
+} from "./req-alta-facilitador";
+import { isCapacitacionDept } from "@/lib/requisiciones-gerencia";
 
 export function ReqAltaPasoCreacion({
   clase,
@@ -34,6 +40,8 @@ export function ReqAltaPasoCreacion({
   lineas,
   on_lineas,
   deposito_stock = "departamento",
+  facilitators = [],
+  banks = [],
 }: {
   clase: ClasePedido;
   ambito: CatalogAmbitoPedido;
@@ -57,6 +65,8 @@ export function ReqAltaPasoCreacion({
   lineas: ReqLineaDraft[];
   on_lineas: (next: ReqLineaDraft[]) => void;
   deposito_stock?: ReqDeposito;
+  facilitators?: FacilitadorOpcion[];
+  banks?: BancoOpcion[];
 }) {
   // Depto → solo almacén departamental. Reponer servicio → solo ejecución Cap/ST.
   const show_stock =
@@ -108,6 +118,15 @@ export function ReqAltaPasoCreacion({
           id_departamento={id_departamento}
           departamento_nombre={form.departamento}
         />
+        {clase === "servicio_directo" && isCapacitacionDept(form.departamento) ? (
+          <ReqAltaFacilitador
+            modo="editar"
+            form={form}
+            on_form={on_form}
+            facilitadores={facilitators}
+            bancos={banks}
+          />
+        ) : null}
       </div>
       {show_stock ? (
         <ReqAltaStockAnalisis

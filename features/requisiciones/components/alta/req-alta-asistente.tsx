@@ -21,7 +21,11 @@ import {
   type DestinoPedido,
   type ServicioKind,
 } from "../../lib/req-destino";
-import { apply_fixed_to_form, empty_alta_form } from "../../lib/req-alta-form";
+import {
+  apply_fixed_to_form,
+  empty_alta_form,
+  form_de_hermana,
+} from "../../lib/req-alta-form";
 import { build_osi_fixed_item } from "../../lib/req-osi-precarga";
 import {
   empty_linea_draft,
@@ -42,6 +46,7 @@ import { ReqAltaPasoComoSeUsa, ReqAltaPasoParaQuien } from "./req-alta-paso-dest
 import { ReqAltaEstatusFinal } from "./req-alta-revision";
 import { ReqAltaStepper } from "./req-alta-stepper";
 import { ReqAltaPasoCreacion } from "./req-alta-paso-creacion";
+import type { BancoOpcion, FacilitadorOpcion } from "./req-alta-facilitador";
 
 type ReqAltaAsistenteProps = {
   osis: OSIFullData[];
@@ -56,6 +61,9 @@ type ReqAltaAsistenteProps = {
     hora_inicio: string | null;
     hora_fin: string | null;
   }>;
+  /** Facilitadores y bancos para las externas de Capacitación. */
+  facilitators?: FacilitadorOpcion[];
+  banks?: BancoOpcion[];
   restock?: ReqAltaRestock | null;
   /** Deep-link desde inventario: abrir análisis de stock. */
   abastecer?: boolean;
@@ -67,6 +75,8 @@ export function ReqAltaAsistente({
   userDept,
   userGerencia,
   osiSessions,
+  facilitators = [],
+  banks = [],
   restock = null,
   abastecer = false,
 }: ReqAltaAsistenteProps) {
@@ -231,14 +241,7 @@ export function ReqAltaAsistente({
         hermana:
           clase === "servicio_directo" && emitHermana
             ? {
-                form: {
-                  ...form,
-                  is_general: false,
-                  tipo_solicitud: "Externo",
-                  clase_pedido: "servicio_inventario",
-                  osi_fixed_items: [],
-                  selectedOSIs: [],
-                },
+                form: form_de_hermana(form),
                 lineas: hermana,
               }
             : null,
@@ -292,6 +295,8 @@ export function ReqAltaAsistente({
       {paso === "creacion" && clase ? (
         <div className="space-y-5">
           <ReqAltaPasoCreacion
+            facilitators={facilitators}
+            banks={banks}
             clase={clase}
             ambito={ambito}
             cajon={cajon}

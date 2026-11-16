@@ -25,6 +25,8 @@ import { RequisicionAumentoCostosPanel } from "@/app/(shell)/requisiciones/compo
 import { ReqAltaCabecera } from "./req-alta-cabecera";
 import { ReqAltaTablaDetalles } from "./req-alta-tabla-detalles";
 import { ReqAltaStockAnalisis } from "./req-alta-stock-analisis";
+import { ReqAltaFacilitador } from "./req-alta-facilitador";
+import { isCapacitacionDept } from "@/lib/requisiciones-gerencia";
 
 export function ReqAltaRevision({
   clase,
@@ -160,6 +162,14 @@ export function ReqAltaEstatusFinal({
           id_departamento={id_departamento}
           departamento_nombre={form.departamento}
         />
+        {clase === "servicio_directo" && isCapacitacionDept(form.departamento) ? (
+          <ReqAltaFacilitador
+            modo="ver"
+            form={form}
+            facilitadores={[]}
+            bancos={[]}
+          />
+        ) : null}
         {clase === "servicio_directo" ? (
           <RequisicionAumentoCostosPanel
             isInterna={false}
@@ -213,8 +223,10 @@ export function ReqAltaEstatusFinal({
                 También reponer depósito
               </span>
               <span className="mt-0.5 block text-xs text-gray-600">
-                Se crea un segundo documento de inventario (hermana), no
-                cargado a la OSI. Si no lo marca, solo sale el gasto del curso.
+                Se crea un segundo documento de inventario (hermana). Queda
+                ligado a la OSI y a la sesión para justificar en qué curso se
+                gastó, pero no lleva montos del facilitador ni suma al costo de
+                la OSI. Si no lo marca, solo sale el gasto del curso.
               </span>
             </span>
           </label>
