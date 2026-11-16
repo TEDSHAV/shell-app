@@ -1,261 +1,149 @@
-import React from "react";
 import Link from "next/link";
+import { FilePlus2 } from "lucide-react";
+import { createClient } from "@/lib/supabase/server";
+import { getUserPermissionsByApp } from "@/actions/apps";
+import { getRequisicionAccess } from "@/actions/requisiciones-access-context";
 import {
-  Landmark,
-  ClipboardList,
-  FilePlus2,
-  ArrowRight,
-  ChevronRight,
-} from "lucide-react";
-import { createClient, createAdminClient } from "@/lib/supabase/server";
+  cargar_facturacion,
+  cargar_requisiciones,
+} from "@/features/administracion/lib/dashboard-data";
+import {
+  modulo_facturacion,
+  modulo_presupuesto_mensual,
+  modulo_requisiciones,
+  permisos_facturacion,
+  permisos_presupuesto,
+  type ModuloDashboard,
+} from "@/features/administracion/lib/dashboard-modulos";
+import { PresupuestoWidgetsFrame } from "@/features/administracion/components/presupuesto-widgets-frame";
+import {
+  AccesosPanel,
+  BandejaCard,
+  DashboardHero,
+  TodoAlDia,
+} from "@/features/administracion/components/dashboard-ui";
 
 export const metadata = {
   title: "Administración | PRISMA",
-  description: "Panel de control y gestión administrativa de SHA de Venezuela",
+  description: "Inicio de Administración: qué toca hacer y accesos a cada módulo",
 };
+
+const VACIO_REQ = {
+  por_procesar: null,
+  por_sellar_lider: null,
+  por_sellar_coordinador: null,
+  aumento_por_aprobar: null,
+  mias_en_tramite: null,
+};
+
+function fecha_larga(): string {
+  return new Intl.DateTimeFormat("es-VE", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    timeZone: "America/Caracas",
+  }).format(new Date());
+}
 
 export default async function AdministracionDashboardPage() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const [{ data: auth }, access, perms_by_app] = await Promise.all([
+    supabase.auth.getUser(),
+    getRequisicionAccess(),
+    getUserPermissionsByApp(),
+  ]);
+  const user = auth.user;
 
-  let displayName = user?.email?.split("@")[0] || "Colaborador";
-  if (user) {
-    const { data: usuario } = await supabase
-      .from("usuarios")
-      .select("nombre_apellido")
-      .eq("id_auth", user.id)
-      .single();
-    if (usuario?.nombre_apellido) {
-      displayName = usuario.nombre_apellido;
-    }
-  }
-
-  let totalRequisiciones = 0;
-  let requisicionesPendientes = 0;
-
-  try {
-    const admin = await createAdminClient();
-    const { data: reqRes } = await admin
-      .from("requisiciones")
-      .select("id, estatus_admin, estatus_coordinador, estatus_lider")
-      .is("deleted_at", null);
-
-    if (reqRes) {
-      totalRequisiciones = reqRes.length;
-      requisicionesPendientes = reqRes.filter(
-        (r) =>
-          r.estatus_admin === "pendiente" ||
-          r.estatus_coordinador === "pendiente" ||
-          r.estatus_lider === "pendiente"
-      ).length;
-    }
-  } catch (err) {
-    console.error("[AdministracionDashboardPage] Error fetching counts:", err);
-  }
-
-  const modules = [
-    {
-      id: "requisiciones",
-      title: "Requisiciones",
-      subtitle: "Compras y Solicitudes Operativas",
-      description:
-        "Emisión, aprobación y seguimiento operativo de solicitudes de compra interna, materiales y contratación de servicios.",
-      badge: "Operaciones",
-      badgeColor: "bg-indigo-50 text-indigo-700 border-indigo-200",
-      accentColor: "#4F46E5",
-      icon: ClipboardList,
-      primaryHref: "/requisiciones",
-      primaryLabel: "Mis Requisiciones",
-      actions: [
-        { label: "Gestión de Requisiciones", href: "/requisiciones/gestion" },
-        { label: "Nueva Requisición", href: "/requisiciones/create" },
-      ],
-      stats: [
-        { label: "En seguimiento", value: requisicionesPendientes },
-        { label: "Total histórico", value: totalRequisiciones },
-      ],
-    },
-    {
-      id: "facturacion",
-      title: "Facturación",
-      subtitle: "Emisión Fiscal y Comprobantes",
-      description:
-        "Módulo integrado de facturación fiscal, control de retenciones y comprobantes, coordinado con las áreas comercial y contable.",
-      badge: "Finanzas",
-      badgeColor: "bg-emerald-50 text-emerald-700 border-emerald-200",
-      accentColor: "#059669",
-      icon: Landmark,
-      primaryHref: "/requisiciones/facturacion",
-      primaryLabel: "Acceder a Facturación",
-      actions: [
-        { label: "Emisión Fiscal", href: "/requisiciones/facturacion" },
-        { label: "Seguimiento", href: "/requisiciones/facturacion" },
-      ],
-      stats: [
-        { label: "Emisión fiscal", value: "Activo" },
-        { label: "Integración", value: "Negocios" },
-      ],
-    },
+  // Mismos permisos que filtran el sidebar de Administración.
+  const slugs_negocio = [
+    ...new Set([
+      ...(perms_by_app.sgestion ?? []),
+      ...(perms_by_app.sadministracion ?? []),
+    ]),
   ];
+  const facturacion = permisos_facturacion(slugs_negocio);
+  const presupuesto = permisos_presupuesto(perms_by_app.spresupuesto ?? []);
+  const puede_catalogo = slugs_negocio.some(
+    (s) => s === "administracion:catalogo:base" || s === "finance:catalogo:access",
+  );
+
+  const [nombre, datos_req, datos_fac] = await Promise.all([
+    user
+      ? supabase
+          .from("usuarios")
+          .select("nombre_apellido")
+          .eq("id_auth", user.id)
+          .maybeSingle()
+          .then(({ data }) => data?.nombre_apellido ?? null)
+      : Promise.resolve(null),
+    user ? cargar_requisiciones(access, user.id) : Promise.resolve(VACIO_REQ),
+    facturacion.admin ? cargar_facturacion() : Promise.resolve({ por_emitir: null }),
+  ]);
+
+  const modulos: ModuloDashboard[] = [
+    modulo_requisiciones(access, datos_req, puede_catalogo),
+    modulo_facturacion(facturacion, datos_fac),
+    modulo_presupuesto_mensual(presupuesto),
+  ].filter((m): m is ModuloDashboard => m !== null);
+
+  const bandejas = modulos.flatMap((modulo) =>
+    modulo.bandejas.map((bandeja) => ({ bandeja, modulo })),
+  );
+  const primer_nombre = (nombre || user?.email?.split("@")[0] || "").split(" ")[0];
 
   return (
-    <div className="p-4 sm:p-8 space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            Administración
-          </h1>
-          <p className="mt-1 text-sm text-gray-600">
-            Panel de control administrativo, compras y facturación
-          </p>
-        </div>
+    <div className="mx-auto w-full max-w-7xl space-y-5 p-4 sm:p-6">
+      <DashboardHero
+        saludo={primer_nombre ? `Hola, ${primer_nombre}` : "Hola"}
+        fecha={fecha_larga()}
+        resumen={bandejas.map(({ bandeja, modulo }) => ({
+          id: bandeja.id,
+          modulo: modulo.titulo,
+          total: bandeja.contenido.total,
+          frase:
+            bandeja.contenido.total === 1
+              ? bandeja.frase.uno
+              : bandeja.frase.otros,
+          hacer: bandeja.hacer,
+          tipo: bandeja.tipo,
+        }))}
+        acciones={
+          <>
+            {access.can_create ? (
+              <Link
+                href="/requisiciones/create?from=administracion"
+                className="inline-flex h-10 items-center gap-2 rounded-xl bg-gradient-to-br from-[#1B6FB0] to-[#0C3F69] px-4 text-sm font-semibold text-white shadow-md shadow-[#0C3F69]/25 transition hover:brightness-110"
+              >
+                <FilePlus2 className="h-4 w-4" />
+                Nueva requisición
+              </Link>
+            ) : null}
+          </>
+        }
+      />
 
-        <div className="flex items-center gap-2">
-          <Link
-            href="/requisiciones/create"
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors shadow-xs"
-          >
-            <FilePlus2 className="w-4 h-4" />
-            <span>Nueva Requisición</span>
-          </Link>
+      {modulos.length === 0 ? (
+        <div className="rounded-3xl bg-white p-6 text-sm text-slate-600 ring-1 ring-slate-200/70">
+          Todavía no tienes acceso a ningún módulo de Administración. Si lo
+          necesitas, pídelo en Accesos.
         </div>
-      </div>
-
-      <div className="space-y-6">
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 md:p-6 shadow-xs">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-            <div>
-              <h2 className="text-lg font-bold text-slate-900">
-                Bienvenido al Panel de Administración, {displayName.split(" ")[0]}
-              </h2>
-              <p className="text-xs sm:text-sm text-slate-600 mt-1 max-w-2xl leading-relaxed">
-                Supervisa los procesos de compras internas de los distintos departamentos y accede al sistema de facturación.
-              </p>
+      ) : (
+        <>
+          {bandejas.length === 0 ? (
+            <TodoAlDia />
+          ) : (
+            <div className="grid items-start gap-5 xl:grid-cols-2">
+              {bandejas.map(({ bandeja, modulo }) => (
+                <BandejaCard key={bandeja.id} bandeja={bandeja} modulo={modulo} />
+              ))}
             </div>
-
-            <div className="grid grid-cols-2 gap-3 shrink-0">
-              <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3 text-center min-w-[110px]">
-                <span className="block text-xl font-bold text-indigo-600">
-                  {requisicionesPendientes}
-                </span>
-                <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">
-                  Req. Activas
-                </span>
-              </div>
-              <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3 text-center min-w-[110px]">
-                <span className="block text-xl font-bold text-emerald-600">
-                  {totalRequisiciones}
-                </span>
-                <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">
-                  Total Req.
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500">
-              Módulos Principales
-            </h3>
-            <span className="text-xs text-slate-400">
-              SHA de Venezuela
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            {modules.map((mod) => {
-              const Icon = mod.icon;
-              return (
-                <div
-                  key={mod.id}
-                  className="group relative bg-white rounded-2xl border border-slate-200 shadow-xs hover:shadow-md hover:border-slate-300 transition-all overflow-hidden flex flex-col"
-                >
-                  <div
-                    className="absolute top-0 left-0 right-0 h-1"
-                    style={{ backgroundColor: mod.accentColor }}
-                  />
-
-                  <div className="p-5 md:p-6 flex-1 flex flex-col">
-                    <div className="flex items-start justify-between gap-3 mb-4">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
-                          style={{ backgroundColor: `${mod.accentColor}15` }}
-                        >
-                          <Icon
-                            className="w-5 h-5"
-                            style={{ color: mod.accentColor }}
-                          />
-                        </div>
-                        <div>
-                          <h4 className="text-base font-bold text-slate-900 leading-tight">
-                            {mod.title}
-                          </h4>
-                          <p className="text-xs text-slate-500 mt-0.5">
-                            {mod.subtitle}
-                          </p>
-                        </div>
-                      </div>
-                      <span
-                        className={`text-[10px] font-semibold uppercase tracking-wide px-2 py-1 rounded-full border ${mod.badgeColor}`}
-                      >
-                        {mod.badge}
-                      </span>
-                    </div>
-
-                    <p className="text-sm text-slate-600 leading-relaxed mb-5 flex-1">
-                      {mod.description}
-                    </p>
-
-                    <div className="grid grid-cols-2 gap-2 mb-5">
-                      {mod.stats.map((stat) => (
-                        <div
-                          key={stat.label}
-                          className="bg-slate-50 rounded-lg px-3 py-2 border border-slate-100"
-                        >
-                          <span className="block text-lg font-bold text-slate-900">
-                            {stat.value}
-                          </span>
-                          <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wider">
-                            {stat.label}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 pt-4 border-t border-slate-100">
-                      <Link
-                        href={mod.primaryHref}
-                        className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-lg text-white transition-colors"
-                        style={{ backgroundColor: mod.accentColor }}
-                      >
-                        {mod.primaryLabel}
-                        <ArrowRight className="w-4 h-4" />
-                      </Link>
-                      <div className="flex flex-wrap gap-1 sm:ml-auto">
-                        {mod.actions.map((action) => (
-                          <Link
-                            key={action.label}
-                            href={action.href}
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-md transition-colors"
-                          >
-                            {action.label}
-                            <ChevronRight className="w-3 h-3" />
-                          </Link>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
+          )}
+          {presupuesto.nomina_ver || presupuesto.apu_ver || presupuesto.presupuesto_ver ? (
+            <PresupuestoWidgetsFrame />
+          ) : null}
+          <AccesosPanel modulos={modulos} />
+        </>
+      )}
     </div>
   );
 }
