@@ -6,11 +6,27 @@ import {
   getOsiNumbersForLookup,
 } from "@/actions/requisiciones";
 import { getRequisicionAccess } from "@/actions/requisiciones-access-context";
+import { createAdminClient } from "@/lib/supabase/server";
 import RequisicionesTable from "../components/RequisicionesTable";
 
 export const metadata = {
   title: "Gestión de Requisiciones | PRISMA",
 };
+
+/** Las que esperan sello de líder o coordinador: la lista de Gestión no las incluye hasta que lo reciban. */
+async function contar_en_sellos(): Promise<number> {
+  try {
+    const admin = await createAdminClient();
+    const { count } = await admin
+      .from("requisiciones")
+      .select("id", { count: "exact", head: true })
+      .is("deleted_at", null)
+      .or("lider_estatus.eq.pendiente,coordinador_estatus.eq.pendiente");
+    return count ?? 0;
+  } catch {
+    return 0;
+  }
+}
 
 export default async function GestionRequisicionesPage() {
   const isAdminView = await isRequisicionesAdmin();
@@ -18,10 +34,11 @@ export default async function GestionRequisicionesPage() {
     redirect("/requisiciones");
   }
 
-  const [records, osiPairs, access] = await Promise.all([
+  const [records, osiPairs, access, enSellos] = await Promise.all([
     getGestionRequisiciones(),
     getOsiNumbersForLookup(),
     getRequisicionAccess(),
+    contar_en_sellos(),
   ]);
 
   const osiLookup = new Map<number, string>();
@@ -63,6 +80,7 @@ export default async function GestionRequisicionesPage() {
         listMode="gestion"
         osiLookup={osiLookup}
         canApproveAumento={access.can_approve_aumento}
+        enSellos={enSellos}
       />
     </div>
   );

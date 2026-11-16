@@ -51,6 +51,7 @@ export default function RequisicionesTable({
   isLider = false,
   liderDepts = [],
   canApproveAumento = false,
+  enSellos = 0,
 }: {
   records: any[];
   isAdminView: boolean;
@@ -61,6 +62,8 @@ export default function RequisicionesTable({
   isLider?: boolean;
   liderDepts?: string[];
   canApproveAumento?: boolean;
+  /** Gestión: cuántas esperan aún el sello de líder o coordinador y por eso todavía no llegan aquí. */
+  enSellos?: number;
 }) {
   const showApproverTabs = listMode !== "gestion" && (isLider || isCoordinador);
   const [filters, setFilters] = useState<RequisicionFilters>(() => ({
@@ -426,31 +429,57 @@ export default function RequisicionesTable({
         )}
       </div>
 
-      {/* Results counter — sits next to the admin summary badges so the total
-          (with or without filters) is visible at a glance. */}
-      <div className="flex gap-3 text-xs">
-        <span
-          className={`px-2 py-1 rounded-full border font-medium ${
-            hasActiveFilters
-              ? "bg-blue-50 text-blue-700 border-blue-200"
-              : "bg-gray-100 text-gray-700 border-gray-200"
-          }`}
-        >
-          {hasActiveFilters
-            ? `${filtered.length} de ${records.length} filtrado${filtered.length !== 1 ? "s" : ""}`
-            : `${records.length} requisicion${records.length !== 1 ? "es" : ""}`}
-        </span>
-        {isAdminView && (
-          <>
-            <span className="px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium">
-              Aprobadas: {records.filter((r) => r.estatus_admin === "procesada").length}
-            </span>
-            <span className="px-2 py-1 rounded-full bg-red-50 text-red-700 border border-red-200 font-medium">
-              Rechazadas: {records.filter((r) => r.estatus_admin === "rechazada").length}
-            </span>
-          </>
-        )}
-      </div>
+      {/* Contador: siempre habla de lo que se está viendo (la pestaña y los filtros), y dice de dónde sale. */}
+      {(() => {
+        const tabLabel = tabs.find((t) => t.key === filters.tab)?.label ?? "Todas";
+        const enPestana = counts[filters.tab as keyof typeof counts] ?? records.length;
+        const plural = (n: number, uno: string, otros: string) => `${n} ${n === 1 ? uno : otros}`;
+        const estatusDe = (r: { estatus_admin?: string | null }) => r.estatus_admin || "pendiente";
+        const pendientes = filtered.filter((r) => estatusDe(r) === "pendiente").length;
+        const procesadas = filtered.filter((r) => estatusDe(r) === "procesada").length;
+        const rechazadas = filtered.filter((r) => estatusDe(r) === "rechazada").length;
+        const nota =
+          listMode === "gestion"
+            ? "Aquí llegan las requisiciones que ya tienen todos los sellos y esperan a Administración."
+            : showApproverTabs
+              ? "Las que creaste, las que esperan tu sello y las que ya sellaste (en Historial)."
+              : null;
+        return (
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap gap-2 text-xs">
+              <span
+                className={`px-2 py-1 rounded-full border font-medium ${
+                  hasActiveFilters
+                    ? "bg-blue-50 text-blue-700 border-blue-200"
+                    : "bg-gray-100 text-gray-700 border-gray-200"
+                }`}
+                title={`Pestaña «${tabLabel}»: ${enPestana} de ${records.length} en esta lista`}
+              >
+                {hasActiveFilters
+                  ? `${filtered.length} de ${enPestana} con los filtros`
+                  : plural(enPestana, "requisición", "requisiciones") +
+                    (filters.tab === "todas" ? "" : ` en «${tabLabel}»`)}
+              </span>
+              <span className="px-2 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200 font-medium">
+                Pendientes: {pendientes}
+              </span>
+              <span className="px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium">
+                Procesadas: {procesadas}
+              </span>
+              <span className="px-2 py-1 rounded-full bg-red-50 text-red-700 border border-red-200 font-medium">
+                Rechazadas: {rechazadas}
+              </span>
+            </div>
+            {nota ? <p className="m-0 text-xs text-gray-500">{nota}</p> : null}
+            {listMode === "gestion" && enSellos > 0 ? (
+              <p className="m-0 text-xs text-gray-500">
+                {plural(enSellos, "requisición espera", "requisiciones esperan")} el sello de un líder o coordinador y
+                todavía no {enSellos === 1 ? "aparece" : "aparecen"} aquí.
+              </p>
+            ) : null}
+          </div>
+        );
+      })()}
 
       <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
         <div className="overflow-x-auto">

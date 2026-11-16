@@ -120,7 +120,7 @@ export async function cargar_requisiciones(
           leer(
             (admin) =>
               base(admin)
-                .eq("estatus_admin", "pendiente")
+                .or("estatus_admin.is.null,estatus_admin.eq.pendiente")
                 .or("lider_estatus.is.null,lider_estatus.eq.aprobada")
                 .or("coordinador_estatus.is.null,coordinador_estatus.eq.aprobada"),
             item_requisicion,
