@@ -186,15 +186,10 @@ function GroupedNavDropdown({
   }, [isOpen]);
 
   return (
-    <div
-      ref={ref}
-      className="relative"
-      onMouseLeave={() => setIsOpen(false)}
-    >
+    <div ref={ref} className="relative">
       <button
         type="button"
         onClick={() => setIsOpen((v) => !v)}
-        onMouseEnter={() => setIsOpen(true)}
         className={cn(
           "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors border",
           anyChildActive

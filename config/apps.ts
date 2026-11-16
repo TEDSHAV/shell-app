@@ -185,6 +185,42 @@ const administracionFacturacionNavGroup: NavGroup = {
   ],
 };
 
+const administracionNominaNavGroup: NavGroup = {
+  groupLabel: "Nómina",
+  icon: Receipt,
+  collapsible: "always",
+  links: [
+    { label: "Mes a mes (pagos)", path: "/apu", href: "/presupuesto-mensual/apu", icon: Receipt, requiredPermissions: ["nomina:ver"] },
+    { label: "Empleados y sueldos", path: "/apu/empleados", href: "/presupuesto-mensual/apu/empleados", icon: Users, requiredPermissions: ["nomina:ver"] },
+    { label: "Consolidado APU", path: "/apu/consolidado", href: "/presupuesto-mensual/apu/consolidado", icon: Calculator, requiredPermissions: ["apu:ver"] },
+    { label: "Configuración", path: "/apu/configuracion", href: "/presupuesto-mensual/apu/configuracion", icon: Settings, requiredPermissions: ["nomina:configurar"] },
+    // Cualquier trabajador: sus recibos (app «nomina»).
+    { label: "Mis recibos", path: "/apu/mis-recibos", href: "/nomina", icon: FileText },
+  ],
+};
+
+const administracionPresupuestoNavGroup: NavGroup = {
+  groupLabel: "Presupuesto",
+  icon: Wallet,
+  collapsible: "always",
+  links: [
+    { label: "Presupuesto del año", path: "/presupuesto", href: "/presupuesto-mensual/presupuesto", icon: Wallet, requiredPermissions: ["presupuesto:ver"] },
+    { label: "Mes a mes", path: "/presupuesto/mes", href: "/presupuesto-mensual/presupuesto/mes", icon: Calendar, requiredPermissions: ["presupuesto:ver"] },
+    { label: "Importar desde Excel", path: "/presupuesto/importar", href: "/presupuesto-mensual/presupuesto/importar", icon: FilePlus2, requiredPermissions: ["presupuesto:editar"] },
+    { label: "Cierre del mes", path: "/cierre", href: "/presupuesto-mensual/cierre", icon: Calendar, requiredPermissions: ["presupuesto:ver"] },
+    { label: "Configuración", path: "/presupuesto/configuracion", href: "/presupuesto-mensual/presupuesto/configuracion", icon: Settings, requiredPermissions: ["presupuesto:editar"] },
+  ],
+};
+
+/** Mismo sidebar de Administración dentro de las apps de presupuesto mensual y nómina. */
+const administracionSidebarNavLinks: (NavLink | NavGroup)[] = [
+  { label: "Dashboard", path: "/", href: "/administracion", icon: LayoutDashboard },
+  administracionNavGroup,
+  administracionFacturacionNavGroup,
+  administracionNominaNavGroup,
+  administracionPresupuestoNavGroup,
+];
+
 export const appGroups: AppGroupConfig[] = [
   {
     id: "procesos-estrategicos",
@@ -237,7 +273,6 @@ export const UTILIDADES_HEADER_APP_IDS = [
   "satisfaccion-clientes",
   "administracion",
   "presupuesto-mensual",
-  "nomina",
 ] as const;
 
 export function get_header_group_id(app: AppConfig): string | undefined {
@@ -781,6 +816,19 @@ export const apps: AppConfig[] = [
           },
         ],
       },
+      {
+        groupLabel: "Actividad",
+        icon: SquareCheckBig,
+        collapsible: "always",
+        links: [
+          {
+            label: "Tareas",
+            path: "/tareas",
+            href: "/tareas",
+            icon: SquareCheckBig,
+          },
+        ],
+      },
       buildRequisicionesNavGroup("marketing"),
     ],
   }),
@@ -795,13 +843,15 @@ export const apps: AppConfig[] = [
     embedMode: "native",
     groupId: "procesos-de-apoyo",
     headerGroupId: "utilidades",
-    headerLabel: "Requisiciones",
+    headerLabel: "Administración",
     headerHref: "/requisiciones",
     dashboardOrder: 1,
     navLinks: [
       administracionDashboardLink,
       administracionNavGroup,
       administracionFacturacionNavGroup,
+      administracionNominaNavGroup,
+      administracionPresupuestoNavGroup,
     ],
   }),
   // App de Administración (apps/administracion): presupuesto mensual, nómina y APU.
@@ -815,37 +865,11 @@ export const apps: AppConfig[] = [
     icon: Wallet,
     brandColor: "#047857",
     embedMode: "shell",
-    // Sin tarjeta en el inicio: solo en el desplegable Utilidades del header.
+    // Sin tarjeta en el inicio: opción de Utilidades (incluye Nómina) y también dentro de Administración.
     hiddenFromDashboard: true,
     groupId: "utilidades",
     headerLabel: "Presupuesto mensual",
-    navLinks: [
-      { label: "Inicio", path: "/", icon: LayoutDashboard },
-      {
-        groupLabel: "Nómina",
-        icon: Receipt,
-        collapsible: "always",
-        links: [
-          { label: "Mes a mes (pagos)", path: "/apu", icon: Receipt, requiredPermissions: ["nomina:ver"] },
-          { label: "Empleados y sueldos", path: "/apu/empleados", icon: Users, requiredPermissions: ["nomina:ver"] },
-          { label: "Consolidado APU", path: "/apu/consolidado", icon: Calculator, requiredPermissions: ["apu:ver"] },
-          { label: "Configuración", path: "/apu/configuracion", icon: Settings, requiredPermissions: ["nomina:configurar"] },
-        ],
-      },
-      {
-        groupLabel: "Presupuesto",
-        icon: Wallet,
-        collapsible: "always",
-        links: [
-          { label: "Presupuesto del año", path: "/presupuesto", icon: Wallet, requiredPermissions: ["presupuesto:ver"] },
-          { label: "Mes a mes", path: "/presupuesto/mes", icon: Calendar, requiredPermissions: ["presupuesto:ver"] },
-          { label: "Importar desde Excel", path: "/presupuesto/importar", icon: FilePlus2, requiredPermissions: ["presupuesto:editar"] },
-          { label: "Cierre del mes", path: "/cierre", icon: Calendar, requiredPermissions: ["presupuesto:ver"] },
-          { label: "Configuración", path: "/presupuesto/configuracion", icon: Settings, requiredPermissions: ["presupuesto:editar"] },
-        ],
-      },
-      { label: "Mis recibos", path: "/apu/mis-recibos", icon: FileText },
-    ],
+    navLinks: administracionSidebarNavLinks,
   }),
   // Cualquier trabajador: sus recibos de pago (la misma app, abierta en Mis recibos).
   build_app_config({
@@ -860,9 +884,9 @@ export const apps: AppConfig[] = [
     brandColor: "#D97706",
     embedMode: "shell",
     hiddenFromDashboard: true,
-    groupId: "utilidades",
+    groupId: "procesos-de-apoyo",
     headerLabel: "Nómina",
-    navLinks: [{ label: "Mis recibos", path: "/apu/mis-recibos", icon: FileText }],
+    navLinks: administracionSidebarNavLinks,
   }),
   build_app_config({
     id: "capacitacion",
