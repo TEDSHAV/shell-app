@@ -1,4 +1,4 @@
--- 20261113160000_tareas_ver_todo.sql
+-- 20261113160100_tareas_ver_todo.sql
 -- Tareas (Negocios /tareas): quién ve las tareas de todos los departamentos.
 -- Cada persona ve lo de su departamento más lo suyo; quien tenga `tareas:ver-todo` ve y filtra todo.
 -- Va en una app propia («tareas», como spresupuesto o ted) para no cambiar el rol que cada quien tiene en su app:
