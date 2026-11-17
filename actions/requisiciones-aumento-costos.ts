@@ -173,14 +173,20 @@ async function compute_aumento_costos_analisis(params: {
     (osi_view as { desglose_recursos_sesiones?: unknown } | null)
       ?.desglose_recursos_sesiones,
   );
-  const cost_osi = resolve_osi_cost_for_req({
-    view_totals,
-    desglose,
-    id_sesion: params.form.id_sesion ?? null,
-    req_item,
-  });
+  // Un pedido extra no trae nada de la OSI: todo lo que pide es gasto adicional, así que no se le descuenta lo
+  // previsto de la OSI (eso lo cubre el pedido normal). Sin esto el extra quedaría "dentro" del costo de la OSI y
+  // saltaría el control.
+  const es_extra = params.clase_pedido === "servicio_extra";
+  const cost_osi = es_extra
+    ? 0
+    : resolve_osi_cost_for_req({
+        view_totals,
+        desglose,
+        id_sesion: params.form.id_sesion ?? null,
+        req_item,
+      });
   const cost_req = sum_req_direct_cost({
-    osi_fixed_items: params.form.osi_fixed_items,
+    osi_fixed_items: es_extra ? [] : params.form.osi_fixed_items,
     additional_items: params.form.additional_items,
   });
   let utilidad = 0;
@@ -239,12 +245,15 @@ async function compute_aumento_costos_analisis(params: {
       osi_fixed_items: items,
       additional_items: extra_items,
     });
-    const sibling_osi = resolve_osi_cost_for_req({
-      view_totals,
-      desglose,
-      id_sesion: row.id_sesion,
-      req_item: items[0] ?? null,
-    });
+    const sibling_osi =
+      row.clase_pedido === "servicio_extra"
+        ? 0
+        : resolve_osi_cost_for_req({
+            view_totals,
+            desglose,
+            id_sesion: row.id_sesion,
+            req_item: items[0] ?? null,
+          });
     return Math.max(0, sibling_req - sibling_osi);
   });
   const air = consume_shared_air({
@@ -259,8 +268,10 @@ async function compute_aumento_costos_analisis(params: {
   const session_ids = session_ids_from_desglose(desglose);
   const covered = new Set<number>();
   const current_sesion = Number(params.form.id_sesion ?? 0);
-  if (current_sesion > 0) covered.add(current_sesion);
+  // Un pedido extra no cubre la sesión: la jornada de la OSI la sigue cubriendo el pedido normal.
+  if (current_sesion > 0 && !es_extra) covered.add(current_sesion);
   for (const row of siblings) {
+    if (row.clase_pedido === "servicio_extra") continue;
     const sid = Number(row.id_sesion ?? 0);
     if (sid > 0) covered.add(sid);
   }
@@ -303,6 +314,7 @@ export async function preview_aumento_costos(params: {
     "osi_fixed_items" | "additional_items" | "id_sesion"
   >;
   exclude_req_id?: number | null;
+  clase_pedido?: string | null;
 }): Promise<AumentoCostosPatch> {
   return compute_aumento_costos_analisis({
     ...params,

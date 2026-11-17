@@ -17,6 +17,8 @@ import {
   deposito_stock_from_clase,
   cajon_from_clase,
   clase_from_destino,
+  es_clase_con_osi,
+  trae_recursos_osi,
   type ClasePedido,
   type DestinoPedido,
   type ServicioKind,
@@ -131,7 +133,7 @@ export function ReqAltaAsistente({
   );
 
   useEffect(() => {
-    if (clase !== "servicio_directo" || !osi) {
+    if (!es_clase_con_osi(clase) || !osi) {
       setGate(null);
       return;
     }
@@ -142,12 +144,32 @@ export function ReqAltaAsistente({
     const extras = lineas
       .filter((row) => row.origen !== "osi_recurso")
       .reduce((sum, row) => sum + linea_total(row), 0);
-    void preview_req_osi_gate_action(osi.id_osi, extras + fixed).then(setGate);
+    void preview_req_osi_gate_action(
+      osi.id_osi,
+      extras + fixed,
+      clase === "servicio_extra",
+    ).then(setGate);
   }, [clase, osi, form.osi_fixed_items, lineas]);
 
   const pick_osi = (next: OSIFullData) => {
     const sesiones = sesiones_de_osi(next, osiSessions);
     const sesion = sesiones.length === 1 ? sesiones[0] : null;
+    const tipo_servicio =
+      ambito_from_tipo_servicio(next.tipo_servicio, next.servicio) === "tecnico"
+        ? "Servicio Técnico"
+        : "Capacitación";
+    if (!trae_recursos_osi(clase)) {
+      // Extra: la OSI solo se liga. Nada de jornada, honorarios ni recursos precargados.
+      setForm((prev) => ({
+        ...prev,
+        selectedOSIs: [next],
+        osi_fixed_items: [],
+        id_sesion: sesion?.id_sesion ?? null,
+        selectedSesion: sesion,
+        tipo_servicio,
+      }));
+      return;
+    }
     const fixed = build_osi_fixed_item(next, sesion);
     setForm((prev) =>
       apply_fixed_to_form(
@@ -175,6 +197,10 @@ export function ReqAltaAsistente({
       (row) => row.id_sesion === id,
     );
     if (!sesion) return;
+    if (!trae_recursos_osi(clase)) {
+      setForm((prev) => ({ ...prev, id_sesion: id, selectedSesion: sesion }));
+      return;
+    }
     const fixed = build_osi_fixed_item(host, sesion);
     setForm((prev) =>
       apply_fixed_to_form(
@@ -213,8 +239,15 @@ export function ReqAltaAsistente({
 
   const crear = async () => {
     if (!clase) return;
-    if (clase === "servicio_directo" && form.selectedOSIs.length === 0) {
+    if (es_clase_con_osi(clase) && form.selectedOSIs.length === 0) {
       alert("Seleccione una OSI.");
+      return;
+    }
+    if (
+      clase === "servicio_extra" &&
+      lineas.filter((row) => row.nombre_item.trim()).length === 0
+    ) {
+      alert("Añada al menos un ítem extra a solicitar.");
       return;
     }
     if (

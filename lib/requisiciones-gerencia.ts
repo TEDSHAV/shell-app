@@ -130,7 +130,8 @@ function isInternaRecord(record: {
 }): boolean {
   if (
     record.clase_pedido === "servicio_inventario" ||
-    record.clase_pedido === "servicio_directo"
+    record.clase_pedido === "servicio_directo" ||
+    record.clase_pedido === "servicio_extra"
   ) {
     return false;
   }

@@ -50,9 +50,13 @@ export function ReqDestinoQuestions({
               <RadioGroupItem value="inventario" disabled={disabled} />
               <span>Reposición del depósito (sin OSI, otro documento)</span>
             </label>
+            <label className="flex items-center gap-2 text-sm">
+              <RadioGroupItem value="extra" disabled={disabled} />
+              <span>Extra a una OSI (con OSI, sin lo de la jornada: se pide desde cero)</span>
+            </label>
           </RadioGroup>
           <p className="text-[11px] text-gray-500">
-            Directo e inventario no se mezclan en el mismo número. Si pide
+            Directo, inventario y extra no se mezclan en el mismo número. Si pide
             directo, al guardar puede emitir también la hermana de reposición.
           </p>
         </div>

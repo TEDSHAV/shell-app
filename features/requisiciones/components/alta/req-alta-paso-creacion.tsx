@@ -5,10 +5,12 @@ import type {
   OSIFullData,
   RequisicionFormData,
 } from "@/types/requisiciones";
-import type {
-  CajonPedido,
-  CatalogAmbitoPedido,
-  ClasePedido,
+import {
+  es_clase_con_osi,
+  trae_recursos_osi,
+  type CajonPedido,
+  type CatalogAmbitoPedido,
+  type ClasePedido,
 } from "../../lib/req-destino";
 import type { ReqLineaDraft } from "../../lib/req-lineas-types";
 import type { ReqDeposito } from "../../lib/req-stock-types";
@@ -82,13 +84,16 @@ export function ReqAltaPasoCreacion({
         <p className="mt-1 text-sm text-gray-600">
           {clase === "servicio_directo"
             ? "Misma hoja de siempre: recursos de la OSI (horas × tarifa) y, si hace falta, ítems extra. Lo de depósito se activa en Revisar."
+            : clase === "servicio_extra"
+              ? "Pedido extra a la OSI: no trae nada de la OSI. Añada desde cero cada ítem que necesite (catálogo o suelto); todo cuenta como extra."
             : clase === "servicio_inventario"
               ? "Reposición de inventario. Escriba la descripción y elija del catálogo, o déjela suelta."
               : "Pedido interno. Escriba la descripción: si está en catálogo se enlaza; si no, sale suelta."}
         </p>
       </div>
-      {clase === "servicio_directo" ? (
+      {es_clase_con_osi(clase) ? (
         <ReqAltaOsiPicker
+          solo_extra={clase === "servicio_extra"}
           osis={osis}
           osi_sessions={osi_sessions}
           departamento={form.departamento}
@@ -109,7 +114,7 @@ export function ReqAltaPasoCreacion({
         />
         <ReqAltaTablaDetalles
           modo="editar"
-          mostrar_osi={clase === "servicio_directo"}
+          mostrar_osi={trae_recursos_osi(clase)}
           osi_fixed={form.osi_fixed_items}
           on_fixed={set_fixed}
           lineas={lineas}

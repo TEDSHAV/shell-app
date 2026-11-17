@@ -1,6 +1,6 @@
 "use client";
 
-import { Building2, GraduationCap, Package, Receipt } from "lucide-react";
+import { Building2, GraduationCap, Package, PlusCircle, Receipt } from "lucide-react";
 import type { DestinoPedido, ServicioKind } from "../../lib/req-destino";
 
 function ChoiceCard({
@@ -94,11 +94,11 @@ export function ReqAltaPasoComoSeUsa({
           ¿Cómo se usa el gasto?
         </h2>
         <p className="mt-1 text-sm text-gray-600">
-          Directo e inventario no comparten el mismo número. Un honorario no
+          Directo, inventario y extra no comparten el mismo número. Un honorario no
           es una caja de agua.
         </p>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-3">
         <ChoiceCard
           selected={servicio === "directo"}
           icon={Receipt}
@@ -112,6 +112,13 @@ export function ReqAltaPasoComoSeUsa({
           title="Solo reponer depósito"
           body="Compra para el almacén de capacitación o ST. Sin OSI. Entra al depósito y el reparto a cursos se confirma después."
           on_click={() => on_servicio("inventario")}
+        />
+        <ChoiceCard
+          selected={servicio === "extra"}
+          icon={PlusCircle}
+          title="Extra a una OSI"
+          body="Cosas adicionales a lo que trae la OSI (refrigerio, material, etc.). Se elige la OSI, no se carga nada por defecto y se pide desde cero. Todo cuenta como extra en el control de costos."
+          on_click={() => on_servicio("extra")}
         />
       </div>
     </div>

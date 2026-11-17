@@ -1,11 +1,13 @@
 export type DestinoPedido = "departamento" | "servicio";
 
-export type ServicioKind = "directo" | "inventario";
+export type ServicioKind = "directo" | "inventario" | "extra";
 
 export type ClasePedido =
   | "departamento"
   | "servicio_directo"
-  | "servicio_inventario";
+  | "servicio_inventario"
+  /** Pedido extra a una OSI: no trae nada de la OSI, todo se pide desde cero y se imputa como extra. */
+  | "servicio_extra";
 
 export type CajonPedido = "interno" | "directo" | "inventario";
 
@@ -26,6 +28,9 @@ export function clase_from_destino(
   if (destino === "servicio" && servicio === "inventario") {
     return "servicio_inventario";
   }
+  if (destino === "servicio" && servicio === "extra") {
+    return "servicio_extra";
+  }
   return null;
 }
 
@@ -38,7 +43,25 @@ export function cajon_from_clase(clase: ClasePedido): CajonPedido {
 export function es_clase_pedido_externa(
   clase: ClasePedido | string | null | undefined,
 ): boolean {
-  return clase === "servicio_directo" || clase === "servicio_inventario";
+  return (
+    clase === "servicio_directo" ||
+    clase === "servicio_inventario" ||
+    clase === "servicio_extra"
+  );
+}
+
+/** Pedidos que se imputan a una OSI (llevan OSI obligatoria y pasan por el gate de costos). */
+export function es_clase_con_osi(
+  clase: ClasePedido | string | null | undefined,
+): boolean {
+  return clase === "servicio_directo" || clase === "servicio_extra";
+}
+
+/** Solo el directo precarga lo de la OSI (traslado, impresión, honorarios, informe y recursos). */
+export function trae_recursos_osi(
+  clase: ClasePedido | string | null | undefined,
+): boolean {
+  return clase === "servicio_directo";
 }
 
 export function tipo_solicitud_from_clase(
@@ -67,12 +90,12 @@ export function usa_flujo_entrega_deposito(record: {
   clase_pedido?: string | null;
 }): boolean {
   if (record.clase_pedido === "servicio_inventario") return true;
-  if (record.clase_pedido === "servicio_directo") return false;
+  if (es_clase_con_osi(record.clase_pedido)) return false;
   return es_req_interna(record);
 }
 
 export function osi_obligatoria(clase: ClasePedido | null): boolean {
-  return clase === "servicio_directo";
+  return es_clase_con_osi(clase);
 }
 
 export function honorarios_permitidos(clase: ClasePedido | null): boolean {

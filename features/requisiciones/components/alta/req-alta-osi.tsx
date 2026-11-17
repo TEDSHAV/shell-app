@@ -16,7 +16,10 @@ export function ReqAltaOsiPicker({
   id_sesion,
   on_pick,
   on_sesion,
+  solo_extra = false,
 }: {
+  /** Pedido extra: la OSI solo se liga, no se carga nada de ella. */
+  solo_extra?: boolean;
   osis: OSIFullData[];
   osi_sessions: Array<{
     id: number;
@@ -73,8 +76,9 @@ export function ReqAltaOsiPicker({
       <div>
         <p className="text-sm font-semibold text-gray-900">Elija la OSI</p>
         <p className="mb-2 text-xs text-gray-600">
-          Al seleccionarla se cargan honorarios, traslado, impresión e
-          informe de esa ejecución. Luego puede añadir más ítems.
+          {solo_extra
+            ? "Solo se liga a esa OSI: no se carga nada de ella. Todo lo que pida abajo cuenta como extra."
+            : "Al seleccionarla se cargan honorarios, traslado, impresión e informe de esa ejecución. Luego puede añadir más ítems."}
         </p>
       </div>
       <Input
@@ -103,7 +107,7 @@ export function ReqAltaOsiPicker({
           value={id_sesion || ""}
           onChange={(e) => on_sesion(Number(e.target.value))}
         >
-          <option value="">Elija sesión</option>
+          <option value="">{solo_extra ? "Sesión (opcional)" : "Elija sesión"}</option>
           {sesiones.map((s) => (
             <option key={s.id_sesion} value={s.id_sesion}>
               Sesión #{s.nro_sesion ?? s.id_sesion}

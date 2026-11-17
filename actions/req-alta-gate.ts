@@ -15,6 +15,12 @@ export type ReqGatePreview = {
 export async function preview_req_osi_gate_action(
   id_osi: number,
   cost_req: number,
+  /**
+   * Pedido extra: no trae nada de la OSI, así que todo lo que pide es extra y no se le descuenta el costo
+   * previsto de la OSI ni lo ya repartido desde depósito (eso lo cubre el pedido normal). Igual que el gate
+   * que se aplica al guardar (`compute_aumento_costos_analisis`).
+   */
+  solo_extra = false,
 ): Promise<ReqGatePreview | null> {
   const supabase = await createClient();
   const { data: osi } = await supabase
@@ -35,7 +41,7 @@ export async function preview_req_osi_gate_action(
     id_item_costo: number;
   }>;
   let consumo = 0;
-  if (items.length > 0) {
+  if (!solo_extra && items.length > 0) {
     const ids = [...new Set(items.map((row) => row.id_item_costo))];
     const { data: cats } = await supabase
       .from("ecc_catalogo_costos")
@@ -58,8 +64,9 @@ export async function preview_req_osi_gate_action(
     pool_remaining_req?: number | null;
     colchon_ecc_osi?: number | null;
   };
-  const cost_osi =
-    Number(row.osi_costo_base_catalogo || 0) + Number(row.pool_consumed || 0);
+  const cost_osi = solo_extra
+    ? 0
+    : Number(row.osi_costo_base_catalogo || 0) + Number(row.pool_consumed || 0);
   const remaining = Number(row.pool_remaining_req || 0);
   const colchon = Math.max(0, Number(row.colchon_ecc_osi || 0));
   const total_req = Number(cost_req || 0) + consumo;

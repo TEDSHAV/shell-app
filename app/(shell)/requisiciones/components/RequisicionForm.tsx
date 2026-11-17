@@ -24,6 +24,7 @@ import {
   ambito_pedido_req,
   cajon_from_clase,
   clase_from_destino,
+  es_clase_con_osi,
   osi_obligatoria,
   tipo_solicitud_from_clase,
   type ClasePedido,
@@ -36,6 +37,7 @@ import {
   texto_aviso_ventana,
 } from "@/features/requisiciones/lib/req-ventana-mensual";
 import {
+  lineas_as_additional_items,
   new_linea_id,
   type ReqLineaDraft,
 } from "@/features/requisiciones/lib/req-lineas-types";
@@ -287,7 +289,9 @@ function RequisicionFormContent({
       ? "directo"
       : editClase === "servicio_inventario"
         ? "inventario"
-        : null,
+        : editClase === "servicio_extra"
+          ? "extra"
+          : null,
   );
   const [reqLineas, setReqLineas] = useState<ReqLineaDraft[]>([]);
   const [hermanaLineas, setHermanaLineas] = useState<ReqLineaDraft[]>([]);
@@ -319,7 +323,9 @@ function RequisicionFormContent({
   const isServiciosDept = isServiciosTecnicosDept(requestDept);
   // Capacitación behavior follows the department of THIS requisition, not the
   // home department of the logged-in user (TED/admin can pedir por Capacitación).
-  const isCapacitacion = !isGeneralMode && isCapacitacionDept;
+  // El pedido extra a una OSI no lleva jornada, honorarios ni facilitador aunque sea de Capacitación.
+  const isExtraOsi = formData.clase_pedido === "servicio_extra";
+  const isCapacitacion = !isGeneralMode && isCapacitacionDept && !isExtraOsi;
   const isSingleOSIMode = !isGeneralMode && !isServiciosDept;
   const showOSISelector = !isGeneralMode;
   const osiTipoFilter = osi_tipo_filter_for_departamento(requestDept);
@@ -394,14 +400,27 @@ function RequisicionFormContent({
     setMode(
       isInterno ? "general" : externa_mode_for_departamento(requestDept),
     );
-    setFormData((prev) => ({
-      ...prev,
-      clase_pedido: clase,
-      is_general: isInterno,
-      tipo_solicitud: tipo,
-      selectedOSIs: isInterno && clase !== "servicio_inventario" ? [] : prev.selectedOSIs,
-      osi_fixed_items: isInterno ? [] : prev.osi_fixed_items,
-    }));
+    setFormData((prev) => {
+      // Directo y extra comparten OSI pero no contenido: al cambiar entre ellos se vuelve a elegir la OSI para
+      // que no arrastre (ni falte) lo precargado de la jornada.
+      const cambia_con_osi =
+        es_clase_con_osi(prev.clase_pedido) &&
+        es_clase_con_osi(clase) &&
+        prev.clase_pedido !== clase;
+      return {
+        ...prev,
+        clase_pedido: clase,
+        is_general: isInterno,
+        tipo_solicitud: tipo,
+        selectedOSIs:
+          cambia_con_osi || (isInterno && clase !== "servicio_inventario")
+            ? []
+            : prev.selectedOSIs,
+        osi_fixed_items: isInterno || cambia_con_osi ? [] : prev.osi_fixed_items,
+        id_sesion: cambia_con_osi ? null : prev.id_sesion,
+        selectedSesion: cambia_con_osi ? null : prev.selectedSesion,
+      };
+    });
     setReqLineas([]);
     setHermanaConfirm(false);
     setHermanaLineas([]);
@@ -519,7 +538,8 @@ function RequisicionFormContent({
         : (isSingleOSIMode ? [osi] : [...prev.selectedOSIs, osi]);
 
       // Auto-populate cost fields ONLY for Capacitación department, and only in Externa mode.
-      if (!isCapacitacionDept || isGeneralMode) {
+      // El pedido extra no trae nada de la OSI: solo la liga.
+      if (!isCapacitacionDept || isGeneralMode || prev.clase_pedido === "servicio_extra") {
         return {
           ...prev,
           selectedOSIs: newSelection,
@@ -585,6 +605,9 @@ function RequisicionFormContent({
       const sesiones = getSessionsForOsi(osi);
       const sesion = sesiones.find((s) => s.id_sesion === idSesion) || null;
       if (!sesion) return prev;
+      if (prev.clase_pedido === "servicio_extra") {
+        return { ...prev, id_sesion: idSesion, selectedSesion: sesion };
+      }
       const newFixedItems = isSingleOSIMode
         ? [buildFixedItem(osi, sesion)]
         : prev.osi_fixed_items.map((fi) => (fi.id_osi === osi.id_osi ? buildFixedItem(osi, sesion) : fi));
@@ -722,8 +745,11 @@ function RequisicionFormContent({
         const { aumento_costos_analisis: gate } = await preview_aumento_costos({
           is_interna: false,
           id_osi: idOsiGate,
-          form: formData,
+          form: useCatalogLineas
+            ? { ...formData, additional_items: lineas_as_additional_items(reqLineas) }
+            : formData,
           exclude_req_id: editId ? parseInt(editId) : null,
+          clase_pedido: clasePedido,
         });
         if (gate.needs_justification || gate.needs_approval) {
           alert(
@@ -1635,7 +1661,12 @@ function RequisicionFormContent({
               isInterna={formData.is_general}
               idOsi={formData.selectedOSIs[0]?.id_osi ?? null}
               osiFixedItems={formData.osi_fixed_items}
-              additionalItems={formData.additional_items}
+              additionalItems={
+                useCatalogLineas
+                  ? lineas_as_additional_items(reqLineas)
+                  : formData.additional_items
+              }
+              clasePedido={clasePedido}
               idSesion={formData.id_sesion}
               excludeReqId={editRecord?.id ? Number(editRecord.id) : null}
               justification={formData.aumento_costos_justificacion || ""}

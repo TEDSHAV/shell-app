@@ -483,11 +483,13 @@ export async function createRequisicionRecord(
     throw new Error("No puede crear requisiciones para ese departamento.");
   }
 
-  // La reposición de depósito (servicio_inventario) no lleva jornada OSI, honorarios ni facilitador: aunque
-  // salga de un departamento de Capacitación, esas columnas van en cero para no duplicar lo del curso.
+  // La reposición de depósito (servicio_inventario) y el pedido extra a una OSI (servicio_extra) no llevan jornada
+  // OSI, honorarios ni facilitador: aunque salgan de un departamento de Capacitación, esas columnas van en cero
+  // para no duplicar lo del curso.
   const isCapacitacion =
     !formData.is_general &&
     formData.clase_pedido !== "servicio_inventario" &&
+    formData.clase_pedido !== "servicio_extra" &&
     isCapacitacionDept(formData.departamento);
   const primaryOSI = formData.selectedOSIs[0] || null;
   const isInterna = es_clase_pedido_externa(formData.clase_pedido)
@@ -872,11 +874,13 @@ export async function updateRequisicionRecord(
     throw new Error("El aprobador ya modificó esta requisición. No puede editarla.");
   }
 
-  // La reposición de depósito (servicio_inventario) no lleva jornada OSI, honorarios ni facilitador: aunque
-  // salga de un departamento de Capacitación, esas columnas van en cero para no duplicar lo del curso.
+  // La reposición de depósito (servicio_inventario) y el pedido extra a una OSI (servicio_extra) no llevan jornada
+  // OSI, honorarios ni facilitador: aunque salgan de un departamento de Capacitación, esas columnas van en cero
+  // para no duplicar lo del curso.
   const isCapacitacion =
     !formData.is_general &&
     formData.clase_pedido !== "servicio_inventario" &&
+    formData.clase_pedido !== "servicio_extra" &&
     isCapacitacionDept(formData.departamento);
   const primaryOSI = formData.selectedOSIs[0] || null;
   const isInterna = es_clase_pedido_externa(formData.clase_pedido)

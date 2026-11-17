@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { formatDate } from "@/lib/utils";
 import type { RequisicionFormData } from "@/types/requisiciones";
-import type { ClasePedido } from "../../lib/req-destino";
+import { es_clase_con_osi, type ClasePedido } from "../../lib/req-destino";
 
 function prioridad_pill(value: string) {
   const color =
@@ -39,7 +39,7 @@ export function ReqAltaCabecera({
   on_solicitante?: (value: string) => void;
 }) {
   const edit = modo === "editar";
-  const show_osi = clase === "servicio_directo";
+  const show_osi = es_clase_con_osi(clase);
   const osi = form.selectedOSIs[0];
   const fecha_ver = form.fecha_solicitud
     ? formatDate(new Date(`${form.fecha_solicitud}T00:00:00`))

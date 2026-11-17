@@ -10,6 +10,8 @@ import {
 } from "../../lib/req-ventana-mensual";
 import {
   deposito_stock_from_clase,
+  es_clase_con_osi,
+  trae_recursos_osi,
   type CajonPedido,
   type CatalogAmbitoPedido,
   type ClasePedido,
@@ -48,7 +50,7 @@ export function ReqAltaRevision({
   const ventana =
     clase === "departamento" && req_interna_fuera_ventana(form.fecha_solicitud);
   const sellos =
-    clase === "servicio_directo"
+    es_clase_con_osi(clase)
       ? "Al crear, va a la bandeja de Administración (requisición externa)."
       : "Al crear, primero sella coordinador o líder, y después Administración.";
 
@@ -65,7 +67,7 @@ export function ReqAltaRevision({
           {texto_aviso_ventana()}
         </p>
       ) : null}
-      {clase === "servicio_directo" && gate ? (
+      {es_clase_con_osi(clase) && gate ? (
         <div className="space-y-1 text-xs text-gray-700">
           <p>Pedido + consumo ya confirmado: {gate.cost_req.toFixed(2)}</p>
           <p>Costo previsto de la OSI: {gate.cost_osi.toFixed(2)}</p>
@@ -125,7 +127,7 @@ export function ReqAltaEstatusFinal({
   const ventana =
     clase === "departamento" && req_interna_fuera_ventana(form.fecha_solicitud);
   const sellos =
-    clase === "servicio_directo"
+    es_clase_con_osi(clase)
       ? "Bandeja de Administración (externa)."
       : "Primero sello de área, luego Administración.";
   const extras = lineas.filter((row) => row.origen !== "osi_recurso");
@@ -152,7 +154,7 @@ export function ReqAltaEstatusFinal({
         <ReqAltaCabecera form={form} clase={clase} modo="ver" />
         <ReqAltaTablaDetalles
           modo="ver"
-          mostrar_osi={clase === "servicio_directo"}
+          mostrar_osi={trae_recursos_osi(clase)}
           osi_fixed={form.osi_fixed_items}
           lineas={lineas}
           cajon={cajon}
@@ -169,8 +171,9 @@ export function ReqAltaEstatusFinal({
             bancos={[]}
           />
         ) : null}
-        {clase === "servicio_directo" ? (
+        {es_clase_con_osi(clase) ? (
           <RequisicionAumentoCostosPanel
+            clasePedido={clase}
             isInterna={false}
             idOsi={form.selectedOSIs[0]?.id_osi ?? null}
             osiFixedItems={form.osi_fixed_items}
@@ -181,7 +184,7 @@ export function ReqAltaEstatusFinal({
           />
         ) : null}
       </div>
-      {clase !== "servicio_directo" ? (
+      {!es_clase_con_osi(clase) ? (
         <ReqAltaRevision clase={clase} form={form} lineas={lineas} gate={gate} />
       ) : null}
       {ventana ? (
@@ -247,7 +250,7 @@ export function ReqAltaEstatusFinal({
         </div>
       ) : null}
       <p className="text-sm font-semibold text-gray-900">
-        Se emitirá: req de {clase === "servicio_directo" ? "curso" : "pedido"} $
+        Se emitirá: req {clase === "servicio_directo" ? "de curso" : clase === "servicio_extra" ? "extra a la OSI" : "de pedido"} $
         {total_req.toFixed(2)}
         {emit_hermana && puede_hermana
           ? ` + reposición $${total_h.toFixed(2)}`

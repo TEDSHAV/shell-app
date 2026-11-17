@@ -129,6 +129,7 @@ export interface RequisicionFormData {
     | "departamento"
     | "servicio_directo"
     | "servicio_inventario"
+    | "servicio_extra"
     | null;
   id_lote_pedido?: string | null;
   id_requisicion_hermana?: number | null;

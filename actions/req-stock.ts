@@ -706,7 +706,7 @@ export async function sync_req_entregada_and_stock(params: {
     .maybeSingle();
   if (!req) return;
   const clase = String(req.clase_pedido || "");
-  if (clase === "servicio_directo") return;
+  if (clase === "servicio_directo" || clase === "servicio_extra") return;
   const moves_stock =
     clase === "departamento" ||
     clase === "servicio_inventario" ||

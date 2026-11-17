@@ -21,6 +21,8 @@ type Props = {
   additionalItems: RequisicionFormData["additional_items"];
   idSesion?: number | null;
   excludeReqId?: number | null;
+  /** servicio_extra: todo lo que pide cuenta como extra sobre la OSI. */
+  clasePedido?: string | null;
   justification: string;
   onJustificationChange: (value: string) => void;
   canRestoreJornada?: boolean;
@@ -54,6 +56,7 @@ export function RequisicionAumentoCostosPanel({
   additionalItems,
   idSesion = null,
   excludeReqId = null,
+  clasePedido = null,
   justification,
   onJustificationChange,
   canRestoreJornada = false,
@@ -79,6 +82,7 @@ export function RequisicionAumentoCostosPanel({
           id_sesion: idSesion,
         },
         exclude_req_id: excludeReqId,
+        clase_pedido: clasePedido,
       })
         .then((next) => {
           if (!cancelled) setPatch(next);
@@ -91,7 +95,7 @@ export function RequisicionAumentoCostosPanel({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [additionalItems, excludeReqId, idOsi, idSesion, isInterna, osiFixedItems]);
+  }, [additionalItems, clasePedido, excludeReqId, idOsi, idSesion, isInterna, osiFixedItems]);
 
   if (isInterna) return null;
 
