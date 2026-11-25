@@ -272,9 +272,14 @@ export const UTILIDADES_HEADER_APP_IDS = [
   "visitantes",
   "satisfaccion-clientes",
   "administracion",
-  "presupuesto-mensual",
   "nomina",
 ] as const;
+
+/**
+ * Apps del grupo Utilidades que no salen en su desplegable. «Presupuesto mensual» es la misma app que se abre desde
+ * Administración (sus grupos Nómina y Presupuesto): una sola entrada. Sus rutas siguen funcionando.
+ */
+export const UTILIDADES_OCULTAS_APP_IDS = ["presupuesto-mensual"] as const;
 
 export function get_header_group_id(app: AppConfig): string | undefined {
   return app.headerGroupId ?? app.groupId;
@@ -286,7 +291,8 @@ export function sort_header_group_apps(
 ): AppConfig[] {
   if (groupId !== "utilidades") return groupApps;
   const order = UTILIDADES_HEADER_APP_IDS as readonly string[];
-  return [...groupApps].sort((a, b) => {
+  const ocultas = UTILIDADES_OCULTAS_APP_IDS as readonly string[];
+  return groupApps.filter((app) => !ocultas.includes(app.id)).sort((a, b) => {
     const ia = order.indexOf(a.id);
     const ib = order.indexOf(b.id);
     return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
