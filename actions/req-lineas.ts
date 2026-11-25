@@ -207,6 +207,31 @@ export async function save_req_with_lineas_action(params: {
   return { id, hermana_id };
 }
 
+/**
+ * Igual que `save_req_with_lineas_action`, pero devuelve `{ ok, error }` en vez de lanzar. En producción Next
+ * oculta el mensaje de cualquier error lanzado desde una acción de servidor (solo deja un digest genérico), así
+ * que el usuario nunca vería el motivo real (justificación, permiso, restricción de BD…).
+ */
+export async function save_req_with_lineas_safe_action(
+  params: Parameters<typeof save_req_with_lineas_action>[0],
+): Promise<
+  | { ok: true; data: { id: number; hermana_id: number | null } }
+  | { ok: false; error: string }
+> {
+  try {
+    return { ok: true, data: await save_req_with_lineas_action(params) };
+  } catch (error) {
+    console.error("[save_req_with_lineas_safe_action]", error);
+    const message =
+      error instanceof Error
+        ? error.message
+        : typeof error === "object" && error && "message" in error
+          ? String((error as { message: unknown }).message)
+          : "";
+    return { ok: false, error: message || "No se pudo crear la requisición." };
+  }
+}
+
 export async function attach_req_hermana_action(params: {
   id_requisicion: number;
   form: RequisicionFormData;

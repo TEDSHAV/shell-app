@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { OSIFullData, RequisicionFormData } from "@/types/requisiciones";
-import { save_req_with_lineas_action } from "@/actions/req-lineas";
+import { save_req_with_lineas_safe_action } from "@/actions/req-lineas";
 import {
   preview_req_osi_gate_action,
   type ReqGatePreview,
@@ -263,7 +263,7 @@ export function ReqAltaAsistente({
       const cap =
         clase === "servicio_directo" &&
         isCapacitacionDept(form.departamento);
-      const saved = await save_req_with_lineas_action({
+      const result = await save_req_with_lineas_safe_action({
         form: {
           ...form,
           clase_pedido: clase,
@@ -279,6 +279,11 @@ export function ReqAltaAsistente({
               }
             : null,
       });
+      if (!result.ok) {
+        alert(result.error);
+        return;
+      }
+      const saved = result.data;
       setCreatedId(saved.id);
       setCreatedHermanaId(saved.hermana_id);
       setPaso("listo");
