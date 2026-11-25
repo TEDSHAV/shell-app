@@ -340,10 +340,8 @@ const getAllOSIsForRequisicionesCached = unstable_cache(
       .select("*")
       .order("id_osi", { ascending: false });
 
-    if (error) {
-      console.error("Error fetching OSIs:", error);
-      return [];
-    }
+    // Se lanza (no se devuelve []) para que unstable_cache NO guarde el fallo durante 5 minutos.
+    if (error) throw new Error(`OSIs para requisiciones: ${error.message}`);
     return data as OSIFullData[];
   },
   ["osis-for-requisiciones"],
@@ -351,7 +349,12 @@ const getAllOSIsForRequisicionesCached = unstable_cache(
 );
 
 export async function getAllOSIsForRequisiciones() {
-  return getAllOSIsForRequisicionesCached(await peek_dev_db_target());
+  try {
+    return await getAllOSIsForRequisicionesCached(await peek_dev_db_target());
+  } catch (error) {
+    console.error("Error fetching OSIs:", error);
+    return [];
+  }
 }
 
 const getOsiNumbersForLookupCached = unstable_cache(

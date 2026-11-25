@@ -88,6 +88,13 @@ export function ReqAltaOsiPicker({
         className="h-8 text-xs"
       />
       <div className="max-h-40 overflow-y-auto rounded border">
+        {filtered.length === 0 ? (
+          <p className="px-2 py-2 text-xs text-gray-500">
+            {osis.length === 0
+              ? "No se pudieron cargar las OSI. Recargue la página; si sigue igual, avise a TED."
+              : "Ninguna OSI coincide con la búsqueda."}
+          </p>
+        ) : null}
         {filtered.map((osi) => (
           <button
             key={osi.id_osi}
