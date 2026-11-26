@@ -196,6 +196,7 @@ const administracionNominaNavGroup: NavGroup = {
     { label: "Empleados y sueldos", path: "/apu/empleados", href: "/presupuesto-mensual/apu/empleados", icon: Users, requiredPermissions: ["nomina:ver"] },
     { label: "Consolidado APU", path: "/apu/consolidado", href: "/presupuesto-mensual/apu/consolidado", icon: Calculator, requiredPermissions: ["apu:ver"] },
     { label: "Configuración", path: "/apu/configuracion", href: "/presupuesto-mensual/apu/configuracion", icon: Settings, requiredPermissions: ["nomina:configurar"] },
+    { label: "Recibos", path: "/apu/recibos", href: "/presupuesto-mensual/apu/recibos", icon: FileText, requiredPermissions: ["nomina:ver"] },
     // Cualquier trabajador: sus recibos (app «nomina»).
     { label: "Mis recibos", path: "/apu/mis-recibos", href: "/nomina", icon: FileText },
   ],
