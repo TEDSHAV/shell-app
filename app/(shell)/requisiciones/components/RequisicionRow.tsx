@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/utils";
 import { mapGerenciaSolicitante, getRequisicionDisplayDate, deptInList, isLiderGatePending, skipsCoordinadorGate, admin_tramite_blocked_reason } from "@/lib/requisiciones-gerencia";
 import { es_req_interna } from "@/features/requisiciones/lib/req-destino";
+import { SaltarCoordinadorButton } from "@/features/requisiciones/components/req-saltar-coordinador-button";
 import MotivoModal from "./MotivoModal";
 import type { RequisicionItem } from "@/types/requisiciones";
 import { format_entregado_ratio } from "@/lib/requisiciones-entrega";
@@ -22,6 +23,7 @@ export default function RequisicionRow({
   coordinadorDepts = [],
   isLider = false,
   liderDepts = [],
+  canSaltarCoordinador = false,
 }: {
   record: any;
   isAdminView?: boolean;
@@ -32,6 +34,7 @@ export default function RequisicionRow({
   isLider?: boolean;
   /** All departments inside the gerencia(s) the current user leads. */
   liderDepts?: string[];
+  canSaltarCoordinador?: boolean;
 }) {
   const router = useRouter();
   const [isUpdating, setIsUpdating] = useState(false);
@@ -426,6 +429,13 @@ export default function RequisicionRow({
                 <XCircle className="h-4 w-4" />
               </Button>
             </>
+          )}
+          {(isAdminView || canSaltarCoordinador) && isInterna && coordinadorEstatus === "pendiente" && !record.suspendida_at && (
+            <SaltarCoordinadorButton
+              requisicionId={record.id}
+              disabled={isUpdating}
+              compact
+            />
           )}
           {/* Coordinador approve/reject for pending internas */}
           {canCoordinadorAct && (

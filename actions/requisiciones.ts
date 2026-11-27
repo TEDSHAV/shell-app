@@ -28,6 +28,7 @@ import {
 } from "@/actions/requisicion-notifications";
 import { getUsdToVesRate } from "@/lib/exchange-rate";
 import { assert_admin_tramite_allowed, deptNameInList, isCapacitacionDept } from "@/lib/requisiciones-gerencia";
+import { is_requisicion_manual_tester } from "@/lib/requisiciones-dept-context";
 import {
   es_clase_pedido_externa,
   usa_flujo_entrega_deposito,
@@ -1097,6 +1098,22 @@ async function fetchRequisicionesList(scope: "own" | "gestion" | "inbox") {
   const userId = userResponse.data.user?.id;
 
   if (!userId) return [];
+
+  const accessForScope = await getRequisicionAccess();
+  if (is_requisicion_manual_tester(accessForScope.roles_by_app)) {
+    const { data, error } = await supabase
+      .from("requisiciones")
+      .select(REQUISICION_LIST_SELECT)
+      .order("id", { ascending: false })
+      .is("deleted_at", null);
+    if (error) {
+      console.error("Error fetching requisiciones:", error);
+      return [];
+    }
+    const allRows = data || [];
+    await annotateRequisicionApproverFlags(allRows, userId);
+    return allRows;
+  }
 
   const isAdmin = await isRequisicionesAdmin();
 

@@ -6,6 +6,7 @@ import {
   getOsiNumbersForLookup,
 } from "@/actions/requisiciones";
 import { getRequisicionAccess } from "@/actions/requisiciones-access-context";
+import { is_requisicion_manual_tester } from "@/lib/requisiciones-dept-context";
 import { createAdminClient } from "@/lib/supabase/server";
 import RequisicionesTable from "../components/RequisicionesTable";
 
@@ -80,7 +81,9 @@ export default async function GestionRequisicionesPage() {
         listMode="gestion"
         osiLookup={osiLookup}
         canApproveAumento={access.can_approve_aumento}
-        enSellos={enSellos}
+        enSellos={
+          is_requisicion_manual_tester(access.roles_by_app) ? 0 : enSellos
+        }
       />
     </div>
   );

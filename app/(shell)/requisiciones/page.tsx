@@ -111,6 +111,7 @@ export default async function RequisicionesPage() {
         isLider={isLider}
         liderDepts={liderDepts}
         canApproveAumento={access.can_approve_aumento}
+        canSaltarCoordinador={isAdminView}
       />
     </div>
   );

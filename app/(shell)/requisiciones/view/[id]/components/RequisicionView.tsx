@@ -36,6 +36,7 @@ import {
   show_columna_entregado,
 } from "@/lib/requisiciones-entrega";
 import { RequisicionEntregaModal } from "@/features/requisiciones/components/requisicion-entrega-modal";
+import { SaltarCoordinadorButton } from "@/features/requisiciones/components/req-saltar-coordinador-button";
 import { RequisicionCierreModal } from "@/features/requisiciones/components/requisicion-cierre-modal";
 import {
   ReqGestionLineas,
@@ -1010,6 +1011,12 @@ export default function RequisicionView({
         </div>
       )}
 
+      {isInterna && !coordinadorEstatus && record.coordinador_at && liderEstatus && (
+        <p className="mb-4 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2">
+          Administración omitió el sello del coordinador. Queda en la aprobación del líder.
+        </p>
+      )}
+
       {/* Lider status bar (internas only) */}
       {isInterna && liderEstatus && (
         <div className="mb-4 flex flex-wrap items-center gap-3 px-4 py-3 bg-white border border-gray-200 rounded-lg shadow-sm">
@@ -1071,30 +1078,40 @@ export default function RequisicionView({
               Motivo: {record.motivo_rechazo_coordinador}
             </span>
           )}
-          {canCoordinadorAct && (
+          {(canCoordinadorAct || (isAdminView && coordinadorEstatus === "pendiente")) && (
             <div className="ml-auto flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={isUpdating}
-                onClick={handleCoordinadorApprove}
-                className="h-8 px-3 text-xs flex gap-1 border-blue-300 text-blue-700 hover:bg-blue-50"
-              >
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                Aprobar (Coordinador)
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={isUpdating}
-                onClick={() => setCoordinadorRejectOpen(true)}
-                className="h-8 px-3 text-xs flex gap-1 border-red-300 text-red-700 hover:bg-red-50"
-              >
-                <XCircle className="h-3.5 w-3.5" />
-                Rechazar (Coordinador)
-              </Button>
+              {isAdminView && coordinadorEstatus === "pendiente" && (
+                <SaltarCoordinadorButton
+                  requisicionId={record.id}
+                  disabled={isUpdating}
+                />
+              )}
+              {canCoordinadorAct && (
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={isUpdating}
+                    onClick={handleCoordinadorApprove}
+                    className="h-8 px-3 text-xs flex gap-1 border-blue-300 text-blue-700 hover:bg-blue-50"
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    Aprobar (Coordinador)
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={isUpdating}
+                    onClick={() => setCoordinadorRejectOpen(true)}
+                    className="h-8 px-3 text-xs flex gap-1 border-red-300 text-red-700 hover:bg-red-50"
+                  >
+                    <XCircle className="h-3.5 w-3.5" />
+                    Rechazar (Coordinador)
+                  </Button>
+                </>
+              )}
             </div>
           )}
         </div>

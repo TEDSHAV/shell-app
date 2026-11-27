@@ -52,6 +52,7 @@ export default function RequisicionesTable({
   liderDepts = [],
   canApproveAumento = false,
   enSellos = 0,
+  canSaltarCoordinador = false,
 }: {
   records: any[];
   isAdminView: boolean;
@@ -64,6 +65,7 @@ export default function RequisicionesTable({
   canApproveAumento?: boolean;
   /** Gestión: cuántas esperan aún el sello de líder o coordinador y por eso todavía no llegan aquí. */
   enSellos?: number;
+  canSaltarCoordinador?: boolean;
 }) {
   const showApproverTabs = listMode !== "gestion" && (isLider || isCoordinador);
   const [filters, setFilters] = useState<RequisicionFilters>(() => ({
@@ -200,6 +202,8 @@ export default function RequisicionesTable({
           .map((ro: any) => osiLookup?.get(ro.id_osi))
           .filter(Boolean);
         const haystack = [
+          r.id,
+          r.nro_correlativo,
           r.solicitante,
           mapGerenciaSolicitante(r.gerencia_solicitante),
           r.v_osi_lista?.nro_osi,
@@ -527,6 +531,7 @@ export default function RequisicionesTable({
                     coordinadorDepts={coordinadorDepts}
                     isLider={isLider}
                     liderDepts={liderDepts}
+                    canSaltarCoordinador={canSaltarCoordinador || isAdminView}
                   />
                 ))
               ) : (
